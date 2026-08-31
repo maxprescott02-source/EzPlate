@@ -1478,6 +1478,19 @@ function money(x){return '$'+x.toFixed(2);}
    isFinite guard. A numeric string still costs, because '100' > 0 and '100' * c is 100c. */
 function lineCost(p,qty){if(!p)return null;const c=cpbu(p);if(c==null)return null;return (qty>0)?qty*c:null;}
 function esc(s){return (s==null?'':String(s)).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
+/* The spoken name of a column, for a figure cell that shows only the number. Every converted list
+   row is ONE button, so its accessible name is its cells concatenated in DOM order — which made
+   "Roast $3.00 $10.00 $7.00 food cost 42.9%" out of a row whose figures mean four different things.
+   The column band above the rows cannot supply it and is `aria-hidden` for a real reason: an
+   announced floating row of five words before every row labels nothing.
+   ⚠ It is a LABEL, never a second copy of the figure — the number stays the cell's own text, so
+   there is no second string to drift out of step with the one on screen (CLAUDE.md's stub rule).
+   The trailing space separates the label from the figure; `.sr-only` clips both out of sight.
+   ⚠ Where the PHONE already PRINTS the column's name (the meta line's own grammar — "$2.31 cost,
+   suggested $5.78" on Menu, ", in 9 plates" on Ingredients), css/style.css stands this copy down
+   below 768 so nothing is announced twice. A new cell the phone labels visibly must be added there
+   too, and a cell whose own text already names its subject ("no cost", "not costed") takes none. */
+function srLabel(t){ return '<span class="sr-only">'+t+' </span>'; }
 
 /* ============================================================
    Phase 2 — "kitchen words": a kitchen ingredient is a name that
@@ -4445,7 +4458,10 @@ function renderIngredients(){
      COLUMN goes — see §27's `.ing-tag.sup{display:none}` at ≥768, which is where it is actually
      hidden, so the cell keeps existing for the phone.
      The earlier report that this column "duplicates" the name's secondary text was wrong and is not
-     the reason: that text is the BRAND (Priestleys, Heinz Watties), a different field. */
+     the reason: that text is the BRAND (Priestleys, Heinz Watties), a different field.
+     ⚠ `aria-hidden` is now CORRECT rather than a gap: each figure cell carries its column's name
+     as an `srLabel` span, so the row says which number is which without a floating header row being
+     announced before every one of them. Add a cell, add its label. */
   var band='<div class="ing-band" aria-hidden="true"><span>Product</span><span>Category</span>'
     +'<span class="ib-num">Unit cost</span><span class="ib-num">Last change</span></div>';
   wrap.innerHTML=band+items.map(function(p){
@@ -4478,7 +4494,7 @@ function renderIngredients(){
       +'<span class="ing-main"><span class="ing-name">'+esc(p.description)+'</span>'
       +(p.brand?'<span class="ing-brand">'+esc(p.brand)+'</span>':'')+'</span>'
       +'<span class="ing-meta">'+catCell+supCell+'</span>'
-      +'<span class="ing-price"><b>'+ingPriceHtml(p)+'</b>'+(basisKnown?'':('<span class="ing-per">'+ingUnitLabel(p)+'</span>'))+'</span>'
+      +'<span class="ing-price">'+srLabel('unit cost')+'<b>'+ingPriceHtml(p)+'</b>'+(basisKnown?'':('<span class="ing-per">'+ingUnitLabel(p)+'</span>'))+'</span>'
       +drift
       +'</button>';
   }).join('');
@@ -4688,7 +4704,10 @@ function renderKitchenPanel(){
      LAST MOVE, not a 30-day window. A true 30-day rule would also break the invariant that this
      row and the dashboard's What-moved panel can never disagree, because they share this function.
      So the column ships with the mock's position and an honest heading; Products already words it
-     the same way in its aria ("at the last logged move"). */
+     the same way in its aria ("at the last logged move").
+     ⚠ `aria-hidden` is now CORRECT rather than a gap: each figure cell carries its column's name
+     as an `srLabel` span, so the row says which number is which without a floating header row being
+     announced before every one of them. Add a cell, add its label. */
   var band='<div class="king-band" aria-hidden="true"><span>Ingredient</span><span>Category</span>'
     +'<span class="kb-num">Unit cost</span><span class="kb-num">Last change</span><span class="kb-num">Used in</span></div>';
   // v44 item 6b: the whole row opens the Edit modal (Products pattern) — no visible Edit/Remove links.
@@ -4709,7 +4728,7 @@ function renderKitchenPanel(){
        ONE number on screen: the row, the relink promise and the modal's #king_used already share
        this computation, and productRefs here would put "9 plates" on a row whose own modal says 7.
        (Trap 4 of the contract already counts three meanings for this phrase; this adds none.) */
-    var usedCell='<span class="king-used-n'+(used?'':' is-nil')+'">'+(used?(used+' plate'+(used===1?'':'s')):'—')+'</span>';
+    var usedCell='<span class="king-used-n'+(used?'':' is-nil')+'">'+srLabel('used in')+(used?(used+' plate'+(used===1?'':'s')):'—')+'</span>';
     var link, price, drift, cat;
     if(kp){
       var pct=ingLastMovePct(k.pid);
@@ -4729,20 +4748,34 @@ function renderKitchenPanel(){
          supplier-supplied string the Products column renders and must not be cased two ways. */
       cat='<span class="king-cat'+(kc?'':' is-nil')+'">'+esc(kc?catLabel(kc):'—')+'</span>';
       link='<span class="king-link">'+esc(kingProductLabel(k))+'</span>';
-      price='<span class="king-price">'+esc(unitCostStr(kp))+'</span>';
+      price='<span class="king-price">'+srLabel('unit cost')+esc(unitCostStr(kp))+'</span>';
     } else {
       link='<span class="king-link king-missing">⚠ product missing — '
         +(used?('relink to keep '+used+' plate'+(used===1?'':'s')+' costed'):'relink to give it a cost')+'</span>';
+      /* no srLabel: "no cost" already names its own subject, and "unit cost no cost" is worse
+         than the bare phrase. Same call as `.plib-cost`'s "not costed" on Plates. */
       price='<span class="king-price notcosted">no cost</span>';
       drift='<span class="king-drift none" aria-label="no price to track">—</span>';
       cat='<span class="king-cat is-nil">—</span>';
     }
-    /* The aria-label OVERRIDES the row's content, so the four figures are never announced. That is
-       a KNOWN, QUEUED defect (the screen-wide announcement rule), deliberately not fixed inside a
-       restyle - the contract says so at trap 5. The label gains nothing here and loses nothing. */
+    /* ⚠ THE `aria-label` IS GONE, AND ITS REMOVAL IS THE POINT rather than a tidy-up. It read
+       "Edit <name>", and an aria-label REPLACES the element's contents in the accessible name — so
+       this row announced its name and NOTHING ELSE: not the category, not the unit cost, not the
+       change, not the plate count. The defect the note here recorded ("the four figures are never
+       announced") is fixed by deleting the label, not by growing it.
+       ⚠ Growing it was the tempting fix and is the wrong one: a label built from the same figures
+       the cells show is a SECOND copy of every number on the row, and CLAUDE.md's oldest rule is
+       that a copy written from the same belief as the code drifts silently. `srLabel` puts the
+       column's NAME beside the cell's own figure instead, so there is one number and one string.
+       So this row now names itself from its contents, like the buttons on Menu, Products and
+       Plates — ONE idiom across all four converted screens, which is what the queue item required.
+       Nothing is lost: "product missing" is `.king-link.king-missing`'s own visible text and is
+       shown at BOTH breakpoints (§27 hides `.king-link` on the phone and exempts `.king-missing`),
+       and the word "Edit" was an affordance the other three rows never announced either.
+       `role="button"` is a name-from-content role, so the contents are a legal name here. */
     /* `no-cat` lets the phone's meta line choose its separator in CSS without a sibling chain -
        the chain this replaces out-ranked a desktop column rule and moved a cell (see §27). */
-    return '<div class="king-row'+(kingCategory(k)?'':' no-cat')+(kp?'':' is-broken')+'" data-kid="'+esc(k.id)+'" role="button" tabindex="0" aria-label="Edit '+esc(k.name||'ingredient')+(kp?'':' — product missing')+'">'
+    return '<div class="king-row'+(kingCategory(k)?'':' no-cat')+(kp?'':' is-broken')+'" data-kid="'+esc(k.id)+'" role="button" tabindex="0">'
       +'<span class="king-id"><span class="king-name">'+esc(k.name||'Ingredient')+'</span>'+link+'</span>'
       +cat+price+drift+usedCell
       +'</div>';
@@ -7373,7 +7406,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v184';
+var APP_VERSION='v185';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -9184,10 +9217,13 @@ function renderPlatesTab(){
   showNote(true);
   /* The column band labels the desktop table (mock §3.3) and is emitted on the rows-present branch
      only — a band over an empty state labels nothing. aria-hidden because each row announces its
-     own name, state and cost; the band is visual wayfinding, not the accessible structure. */
+     own name, state and cost; the band is visual wayfinding, not the accessible structure.
+     ⚠ `aria-hidden` is now CORRECT rather than a gap: each figure cell carries its column's name
+     as an `srLabel` span, so the row says which number is which without a floating header row being
+     announced before every one of them. Add a cell, add its label. */
   var band='<div class="plib-band" aria-hidden="true"><span>Plate</span><span>Published</span><span class="plib-bnum">Plate cost</span></div>';
   wrap.innerHTML=band+items.map(function(sp){
-    var pub=platePubText(sp), on=(pub!=='Unpublished');
+    var pub=platePubText(sp), on=(pub!=='Unpublished'), costed=plateFullyCosted(sp);
     /* ONE set of four facts, reflowed by CSS: desktop reads them across three columns
        (name·category / published / cost), mobile stacks category+published as the meta line
        under the name (§6.1 - the reading direction never changes, only the wrapping).
@@ -9196,7 +9232,9 @@ function renderPlatesTab(){
       +'<span class="plib-id"><span class="plib-name">'+esc(sp.name||'Unnamed plate')+'</span>'
       +(sp.category?'<span class="plib-cat">'+esc(sp.category)+'</span>':'')+'</span>'
       +'<span class="plib-pub'+(on?' is-on':'')+'">'+esc(pub)+'</span>'
-      +'<span class="plib-cost'+(plateFullyCosted(sp)?'':' is-nil')+'">'+esc(plateCostText(sp))+'</span>'
+      /* no srLabel on the uncosted branch: plateCostText renders "not costed", which already names
+         its own subject. Same call as `.king-price.notcosted`'s "no cost" on Ingredients. */
+      +'<span class="plib-cost'+(costed?'':' is-nil')+'">'+(costed?srLabel('plate cost'):'')+esc(plateCostText(sp))+'</span>'
       +'</button>';
   }).join('');
   /* R2, and F7 changes this consciously: the row opens the ACTION CHOOSER, not the builder. The
@@ -11788,9 +11826,9 @@ function aRow(name,a,m){
        all gone) is "costed" by this screen's test, so it takes the costed branch and renders the same
        em-dash the uncosted row does. Without this it rendered that dash a shade darker than the
        identical dash one row above it \u2014 two colours for one meaning. Review finding, v142. */
-    '<span class="mnu-cost'+(a.cost>0?'':' is-nil')+'">'+(a.cost>0?fmt2(a.cost):'\u2014')+costRangeCell(m,a.cost)+'</span>'+
-    '<span class="mnu-sug'+(a.suggested>0?'':' is-nil')+'">'+(a.suggested>0?fmt2(a.suggested):'\u2014')+'</span>'+
-    '<span class="mnu-price">'+(a.menuPrice!=null?fmt2(a.menuPrice):'\u2014')+'</span>'+
+    '<span class="mnu-cost'+(a.cost>0?'':' is-nil')+'">'+srLabel('cost')+(a.cost>0?fmt2(a.cost):'\u2014')+costRangeCell(m,a.cost)+'</span>'+
+    '<span class="mnu-sug'+(a.suggested>0?'':' is-nil')+'">'+srLabel('suggested')+(a.suggested>0?fmt2(a.suggested):'\u2014')+'</span>'+
+    '<span class="mnu-price">'+srLabel('price')+(a.menuPrice!=null?fmt2(a.menuPrice):'\u2014')+'</span>'+
     '<span class="mnu-verdict">'+vbadge(a)+'</span></button>';
 }
 function renderAnalysis(){
@@ -11865,8 +11903,8 @@ function renderAnalysis(){
         html+='<button type="button" class="mnu-row mi-row muted lt-none" data-mid="'+esc(it.m.id)+'">'
           +'<span class="mnu-id"><span class="mnu-nm"><span class="mi-name">'+esc(it.m.name)+'</span>'+note+'</span>'
           +'<span class="mi-uncosted">not costed yet</span></span>'
-          +'<span class="mnu-cost is-nil">—</span><span class="mnu-sug is-nil">—</span>'
-          +'<span class="mnu-price">'+fmt2(it.m.price)+'</span>'
+          +'<span class="mnu-cost is-nil">'+srLabel('cost')+'—</span><span class="mnu-sug is-nil">'+srLabel('suggested')+'—</span>'
+          +'<span class="mnu-price">'+srLabel('price')+fmt2(it.m.price)+'</span>'
           +'<span class="mnu-verdict"><span class="muted-dash">—</span></span></button>'; }
     });
   });

@@ -500,11 +500,24 @@ ok('the saved plate appears as a row', !!libCard && /Smoke Plate/.test(libCard.t
 ok('the row shows its category (§J)', /Breakfast/.test(libCard.textContent), libCard && libCard.textContent);
 ok('the category filter is populated (§J)', /Breakfast/.test(($('plateCatFilter') || {}).textContent || ''));
 ok('a freshly-saved plate is Unpublished', !!libCard && /Unpublished/.test(libCard.textContent));
-// v138: the cost is the bare figure the mock draws — the "plate cost" caption is the BAND's job now,
-// so the pin is the mono cell carrying a real amount, not a caption repeated on every row
-ok('the row shows the plate cost as a mono figure',
-   !!libCard && /^\$\d/.test((libCard.querySelector('.plib-cost') || {}).textContent || ''),
-   libCard && (libCard.querySelector('.plib-cost') || {}).textContent);
+// v138: the cost is the bare figure the mock draws — the "plate cost" caption is the BAND's job ON
+// SCREEN, so the pin is the mono cell carrying a real amount, not a caption printed on every row.
+// 225 puts the caption back for a SCREEN READER only, in an `.sr-only` span, because the band is
+// aria-hidden and the row is one button whose name is its cells concatenated — so a bare "$1.25"
+// never said which column it was. Both halves are pinned, and that is STRONGER than the plain
+// textContent match it replaces: that one would have gone green just as happily if the caption had
+// started printing on screen, which is the regression v138's comment exists to forbid.
+const costCell = libCard && libCard.querySelector('.plib-cost');
+const costSpoken = costCell && costCell.querySelector('.sr-only');
+const costSeen = costCell
+  ? [...costCell.childNodes]
+      .filter((n) => !(n.nodeType === 1 && n.classList.contains('sr-only')))
+      .map((n) => n.textContent).join('')
+  : '';
+ok('the row shows the plate cost as a mono figure', !!costCell && /^\$\d/.test(costSeen), costSeen);
+ok('…and only the screen reader gets the caption, from a cell that still shows the bare figure',
+   !!costSpoken && costSpoken.textContent === 'plate cost ' && !/plate cost/i.test(costSeen),
+   costSpoken && costSpoken.textContent);
 ok('the column band labels it once, above the rows',
    /Plate cost/.test((window.document.querySelector('#plateList .plib-band') || {}).textContent || ''));
 ok('the footnote is revealed with the rows', $('plateListNote') && !$('plateListNote').hidden);

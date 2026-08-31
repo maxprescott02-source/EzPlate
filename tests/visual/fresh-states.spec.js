@@ -520,7 +520,13 @@ for (const size of SIZES) {
     // every state, asserted on the RENDERED rows rather than on a source grep
     const states = await page.evaluate(() => {
       const row = (kid) => document.querySelector(`.king-row[data-kid="${kid}"]`);
-      const txt = (kid, sel) => (row(kid).querySelector(sel) || {}).textContent || null;
+      /* 225: figure cells now carry a spoken column name in an `.sr-only` span, so `textContent`
+         is no longer the visible text. Strip it — every assertion below is about what a sighted
+         user reads, and the spoken half is measured separately at the end of this test. */
+      const seen = (el) => (el ? [...el.childNodes]
+        .filter((n) => !(n.nodeType === 1 && n.classList.contains('sr-only')))
+        .map((n) => n.textContent).join('') : null);
+      const txt = (kid, sel) => seen(row(kid).querySelector(sel));
       const badge = row('K2').querySelector('.king-drift');
       const steady = row('K1').querySelector('.king-drift');
       return {
@@ -572,6 +578,43 @@ for (const size of SIZES) {
     }
     expect(states.mono, '§4: Geist Mono on every figure').toMatch(/Geist Mono/);
     expect(states.numeric).toBe('tabular-nums');
+
+    /* 225: the column band is aria-hidden, so each figure carries its column's name for a screen
+       reader — and the phone already PRINTS ", in " on this cell, so the spoken copy has to stand
+       down below 768 or it is announced twice. That is a two-file coupling (js/app.js emits the
+       label, css/style.css suppresses it) whose failure is INAUDIBLE and invisible: nothing on any
+       screen changes and no unit test can compute `display`. Measure it in the browser, at both
+       widths, which is the only place the answer exists. */
+    const spoken = await page.evaluate(() => {
+      const cell = (sel) => document.querySelector(`.king-row[data-kid="K1"] ${sel}`);
+      const lbl = (sel) => cell(sel).querySelector('.sr-only');
+      return {
+        priceText: lbl('.king-price').textContent,
+        priceShown: getComputedStyle(lbl('.king-price')).display,
+        usedText: lbl('.king-used-n').textContent,
+        usedShown: getComputedStyle(lbl('.king-used-n')).display,
+        usedPrinted: getComputedStyle(cell('.king-used-n'), '::before').content,
+      };
+    });
+    /* ⚠ AND THE MEASUREMENT THIS SCREEN NEEDED MORE THAN THE OTHER THREE. Until 225 the row carried
+       `aria-label="Edit <name>"`, and an aria-label REPLACES the contents in the accessible name —
+       so this row was not announcing unlabelled figures, it was announcing NONE of them. Chromium
+       computes the name for real here, which is the only way to tell the two states apart: the DOM
+       is identical either way, and every unit assertion about the cells passed throughout. */
+    await expect(page.locator('.king-row[data-kid="K1"]'),
+      'the row names itself from its cells — the ingredient, then each figure behind its column name')
+      .toHaveAccessibleName(/unit cost\s+\$/);
+
+    expect(spoken.priceText, 'the unit cost says which column it is').toBe('unit cost ');
+    expect(spoken.priceShown, 'and at BOTH widths — nothing else ever labels this cell').not.toBe('none');
+    expect(spoken.usedText).toBe('used in ');
+    if (wide) {
+      expect(spoken.usedPrinted, 'the desktop column prints nothing').toMatch(/^(none|"")$/);
+      expect(spoken.usedShown, 'so the spoken label is the only one, and it speaks').not.toBe('none');
+    } else {
+      expect(spoken.usedPrinted, 'the phone prints ", in "').toMatch(/in/);
+      expect(spoken.usedShown, 'so the spoken copy stands down — or the row says "in" twice').toBe('none');
+    }
 
     /* The two defects the F3 browser pass found, both invisible to a textContent assertion:
        a placeholder that is present in the DOM but display:none reads identically to one that
