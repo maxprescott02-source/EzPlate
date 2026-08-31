@@ -768,6 +768,11 @@ GitHub `main` → Vercel auto-deploys → installed PWAs pick it up via the netw
 The per-deployment URLs from `gh api …/deployments` are auth-protected and 302 to Vercel SSO, so a `curl` against one proves nothing.
 Fetch the alias, and check WHICH build answered before concluding anything from a device - **a branch push deploys a PREVIEW.**
 
+⚠️ **AND THE ALIAS ITSELF SERVES STALE FOR A WHILE AFTER A MERGE, so "check which build answered" is not enough on its own** (31 Aug 2026, batch 225, measured rather than reasoned). Minutes after #245 merged and Vercel reported the deployment complete, a plain `curl https://scoopyscosting.vercel.app/sw.js` returned the PREVIOUS version's `CACHE` line, repeatedly and consistently - and a cache-busted request to the same path, in the same minute, returned the new one six times out of six.
+**So a bare fetch of a stable path can be answered from a CDN edge cache rather than from the deployment**, and the failure looks exactly like a deploy that did not happen. The wrong conclusion is the dangerous one: it invites a batch to re-push, re-bump or start hunting a build failure that does not exist.
+**Append a throwaway query string** - `?cb=$RANDOM` - **and send `Cache-Control: no-cache`, or you are testing the CDN rather than the deploy.** The same caution applies to `index.html`, `js/app.js` and `css/style.css`; `sw.js` is simply the one with a version number printed in it.
+This is the same shape as this file's oldest rule one level up: **a check that finds nothing has only proved something about WHAT IT LOOKED FOR**, and an unparameterised GET looked at a cache.
+
 ## Independent review before merge
 
 Max has no human reviewer, so this is the only second reader the code gets.
