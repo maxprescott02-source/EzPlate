@@ -879,3 +879,18 @@ Then background the app, leave it long enough for iOS to discard the tab, and re
 **Only a device settles it.** The failure mode is iOS discarding the tab and `bootstrapSync` replacing `savedPlates` from the server, which no harness in this repo reproduces - the unit tests prove the draft is retained in storage, not that it survives the operating system.
 
 **Then do the same with the network ON**, where the correct result is the OPPOSITE: no offer at all, because the plate really did save. Getting a "resume or discard?" prompt about a plate that saved cleanly is the other half of what 221 changed, and two of its four defects were exactly that.
+
+## The list rows now say which figure is which — VoiceOver is the only judge (batch 225, `ezplate-v185`)
+
+**Do this, on the phone, with VoiceOver on** (Settings → Accessibility → VoiceOver, or triple-click the side button if it is on the Accessibility Shortcut). Swipe through one row on each of the four list screens — **Menu, Products, Ingredients and Plates** — and listen to what each row announces.
+
+**Pass, on the phone (below 768px):**
+- **Menu** — the name, then *"$2.31 cost, suggested $5.78"*, then *"price $10.00"*, then the verdict. The words "cost" and "suggested" must be said **once each**, not twice.
+- **Ingredients** — the ingredient, then *"unit cost $…"*, then the change, then *", in 9 plates"* — again **"in" once**, not "used in, in".
+- **Products** and **Plates** — *"unit cost $…"* and *"plate cost $…"*.
+
+**A failure looks like** a row saying a word twice — *"$2.31 cost, cost"* or *"used in, in 9 plates"*. That is the one thing no check in this repo can see: the phone prints those words through CSS generated content and the spoken copy is meant to stand down below 768, so a mistake there is **inaudible to every automated test and invisible on screen**. Chromium computes the same names in the Playwright specs and agrees — but Chromium is not VoiceOver, and generated content is the exact thing the two have historically disagreed about.
+
+**Also worth one listen: the Ingredients row used to announce only its name.** It carried `aria-label="Edit <name>"`, which replaces the contents, so none of its figures were spoken at all. That attribute is gone. If an Ingredients row still says nothing but the ingredient's name, the removal did not reach the phone — check the version in Settings → About reads `v185` before concluding anything, since a stale service worker is the likelier cause.
+
+**Only a device settles it** because VoiceOver, not Chromium, is what a person would actually be using, and the whole change is a thing you can only hear.
