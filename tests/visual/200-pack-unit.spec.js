@@ -91,6 +91,20 @@ for (const theme of ['light', 'dark']) {
        red test that says nothing new every run; asserting 4.17 would pin the shortfall as intended.
        3.0 is the AA floor for large text and UI components, so this still catches a real regression
        (someone painting it at 2:1) without either lying. */
+    /* ⚠️ 229 — THE SURFACE IS THE ELEMENT'S OWN BACKGROUND, NOT THE ROW'S TINT, and the walk below
+       is what makes that true rather than an accident. A pre-push review traced this element to its
+       row (`st-review`, `background:var(--warn-bg)`) and recomputed every figure against that,
+       concluding the numbers here were measured against a surface the text never paints on. It is
+       the reverse: `.flag-review` sets `background:var(--bad-bg)` and `.pt-explain` overrides only
+       colour, weight and margin — so the element paints `--danger-bg` ON TOP of the row's
+       `--warn-bg`, and the row's tint is behind it, not under the text.
+       Measured 2 Sep 2026 in a real table: the first opaque background walking up from the explain
+       line is the element itself (`rgb(251,235,234)` light, `rgb(51,40,38)` dark), giving 4.17 and
+       4.32. Against the ROW it would be 4.38 and 4.19 — different numbers, and in dark the row is
+       the WORSE of the two, which is why guessing between them is not safe.
+       **This is why the ratio is measured rather than computed from the palette.** Two nested
+       backgrounds is exactly the case a token-level calculation gets wrong, and it got one careful
+       reader wrong already. Do not replace this walk with a named token. */
     const cr = await explain.evaluate((el) => {
       const rgb = s => s.match(/\d+(\.\d+)?/g).slice(0, 3).map(Number);
       const lum = c => { const [r, g, b] = c.map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };

@@ -3328,7 +3328,7 @@ function builderCategoryValue(){ var el=document.getElementById('plateCat'); ret
    comes from analyze() \u2014 the one place the green/amber/red rule lives \u2014 so the publish-dialog
    preview, the filter chips and this cell can never disagree ON COLOUR.
 
-   F8 (v147) \u2014 THE THREE VOCABULARIES, DECIDED. The queue asked whether "Slightly under" (the
+   F8 (v147) \u2014 THE THREE VOCABULARIES, DECIDED. The queue asked whether "Slightly underpriced" (the
    publish preview), "Watch" (the filter chips) and "over" (this cell) naming one amber is drift.
    IT IS DELIBERATE, and the reason is that they have three different SUBJECTS:
      \u00b7 THIS CELL judges the COST against the target        -> "over" / "well over" is correct.
@@ -3338,9 +3338,10 @@ function builderCategoryValue(){ var el=document.getElementById('plateCat'); ret
    Unifying them would force one subject onto three questions and make two of the three wrong. The
    COLOUR is shared because the LIGHT is shared \u2014 all three read analyze(), which is the one place
    the green/amber/red rule lives \u2014 and that is the invariant that actually matters.
-   The residual, stated rather than hidden: of the nine phrases, "Slightly under" is the only one
-   that does not carry its own subject, so it alone can be misread as being about cost. Recorded in
-   docs/MAINTENANCE.md as a copy question; it is not a colour bug and not this screen's to fix.
+   \u2705 The residual F8 recorded here \u2014 "Slightly under" was the only one of the nine phrases that
+   did not carry its own subject, so it alone could be misread as being about cost \u2014 is CLOSED by
+   batch 229, which made it "Slightly underpriced". See marginLightWord for why that does not reopen
+   the split above.
    (The dialog rounds its % to a whole
    number; this cell shows one decimal. Same ratio, different display precision \u2014 a display choice,
    not a second computation.) Colour stays anchored to the TARGET, never to direction.
@@ -7485,7 +7486,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v187';
+var APP_VERSION='v188';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -9776,7 +9777,19 @@ function menuMarginPreview(cost, price){
    wording and from the filter chips' action wording, which is why all three say different things
    about the same amber. Decided deliberate in F8 (v147); the reasoning is written out once, at
    vbadge. Do not "unify" these three without reading it. */
-function marginLightWord(light){ return light==='green'?'Healthy margin':light==='amber'?'Slightly under':light==='red'?'Underpriced':''; }
+/* 229 — "Slightly under" became "Slightly underpriced", and it is the only one of the nine verdict
+   phrases that ever needed changing. The other eight name their own subject: "Healthy margin" names
+   the margin, "Underpriced" the price, "over"/"well over" the cost against target, "Watch"/"Rework"
+   what you would do. This one named nothing, and it renders immediately after "…→ 30.0% food cost",
+   so the nearest number a reader has just been handed is a COST while the phrase is about PRICE.
+   ⚠️ IT DOES NOT TOUCH THE THREE-VOCABULARY SPLIT, which F8 decided and this must not reopen: the
+   phrase still judges PRICE against suggested, which is why "under" is the right direction here and
+   "over" is right at the Menu cell. Naming the subject is what makes the split legible rather than
+   what erases it — the two were only ever confusable because one of them was silent.
+   The amber/red pair now discriminates by DEGREE, "Slightly underpriced" against "Underpriced",
+   which is the same shape `vbadge` already uses for "over" against "well over" — and that idiom
+   exists because hue was otherwise the only difference between the two. */
+function marginLightWord(light){ return light==='green'?'Healthy margin':light==='amber'?'Slightly underpriced':light==='red'?'Underpriced':''; }
 function renderMenuMarginPreview(){
   var box=document.getElementById('mi_preview'); if(!box) return;
   var sp=savedPlates.find(function(s){return s.id===pubPlateId;});

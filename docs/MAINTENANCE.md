@@ -556,7 +556,8 @@ A manifest cannot be theme-aware, so this is a decision: pick the LIGHT palette 
 ### ~~Three vocabularies name the same three lights~~ — ANSWERED, F8 (v147)
 Raised by the v131 pre-push review and carried since. **The split is deliberate: three subjects, one shared light.** The reasoning is written out once at `vbadge` in `js/app.js`, with pointers at `marginLightWord` and at the chips in `index.html`.
 Struck rather than deleted so the decision is visible where the question was asked.
-The only residual is **"Slightly under" is the one verdict phrase that does not carry its own subject**, above in this file — a smaller question than this one was, and named rather than pointed at, because a pointer to a position rots the moment anything is inserted.
+✅ **The only residual was "Slightly under" — the one verdict phrase that did not carry its own subject — and it is CLOSED by batch 229**, which made it "Slightly underpriced". Named rather than pointed at, because a pointer to a position rots the moment anything is inserted; struck here rather than deleted so the record shows the residual was tracked and answered rather than forgotten.
+(Found still open by 229's pre-push review, which read this line against the change that closed it. The batch had updated `docs/QUEUE.md` and `js/app.js` and not this file — a stale fact is worse than no fact, and this one survived the batch that falsified it.)
 
 ### The publish dialog and the Menu row print the same ratio at different precision
 Whole-number % vs one decimal (HANDOVER-125). Same `cost/price` ratio, two displays — align them or record the split as deliberate at both sites.
