@@ -84,16 +84,6 @@ Requirements: a fresh export taken minutes before, and **Max's explicit go on th
 When Max gives the go: take a fresh export minutes before, write the one-statement rollback into the item, run `02` then the real backup against staging first as a dress rehearsal, then production. `docs/STAGING.md` has the procedure.
 *(`Blocked on: Max's go on the day` was DELETED here on 12 Aug 2026 with the words "nothing about this item is now waiting on a person". **That line is REINSTATED at the top of this item and this note is kept as the record of the mistake**, not struck: the go was given, and the same item goes on to say the window is a condition of the day and to ask again on the day. Both readings were in this file at once and the header is what `/batch` acts on. **A go that must be re-asked is a block.**)*
 
-## next  7 · `ensurePlateForDish` starts a second empty recipe instead of relinking the real one  **[B]**
-
-Promoted 31 Aug 2026, same reason. **Max already answered the design question on 9 Aug 2026**, so nothing here is open — the requirements below are settled, not candidates.
-
-Correct for a genuinely uncosted row; for one whose real recipe exists in the library it leaves that recipe unreferenced and silently starts a second, empty one. Flagged in v113, unchanged.
-Requirements (Max's answer, 9 Aug 2026): the heal looks for an existing library plate by the dish's name BEFORE creating an empty one; exactly one match → relink automatically; several → ask; none → today's behaviour.
-Note **no path creates an unlinked row**: the class arrives only from history or a restore, and production has **0** of them (verified 7 Aug 2026).
-Build it with the both-sides lesson in mind: **a relink heals `{kid, qty}` lines only, so check the OTHER side too** — legacy `{pid, qty}` and `{misc, …}` lines are live data and a heal that walks one shape reports a plate as recovered when it is not.
-⚠️ **This cited `kingMissingImpact`'s v124 history until 2 Sep 2026, and that function was deleted in `ezplate-v139`** (batch F3, the Ingredients rebuild) — one hit repo-wide, and it was this line. The lesson is real, so it is written out here rather than pointed at; a pointer at a deleted function costs a batch a hunt, which is `CLAUDE.md`'s "a queued item's approval does not expire and its FACTS do" landing on the next item due. Found by AUDIT-v186 C3.
-
 ## next  8 · Contrast: body text and control boundaries, decided ONCE in the tokens  **[B]**
 
 Promoted 31 Aug 2026, and **the two maintenance entries below are merged into ONE item on their own advice** — each says the pair is plausibly the same question about the same palette, and that answering them together beats nudging one hex. Keeping them apart is what produced two entries measuring one palette.
