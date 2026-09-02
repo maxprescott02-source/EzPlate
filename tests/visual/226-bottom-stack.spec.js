@@ -173,10 +173,17 @@ test('dismissing the banner releases the reserve and the lift together', async (
       bodyPad: getComputedStyle(document.body).paddingBottom,
       toastBottom: getComputedStyle(el).bottom,
       barBottom: getComputedStyle(document.getElementById('bFootSum')).bottom,
+      navH: document.querySelector('.bottomnav').getBoundingClientRect().height,
     };
   });
   expect(g.classed).toBe(false);
   expect(g.toastBottom).toBe('92px');
-  expect(g.barBottom).toBe('64px');        // --bottomnav-h's fallback; the bar's own dock at <640
+  /* ⚠️ THIS ASSERTED THE LITERAL '64px' AND BATCH 230 TURNED IT RED — correctly, and the test was
+     the thing that was wrong. 64 was `--bottomnav-h`'s CSS fallback, which was the live value only
+     because nothing published the variable; 230 publishes it and the real bar is 65px at 380. The
+     assertion is now the PROPERTY it always meant — the summary bar docks on top of the tab bar —
+     measured rather than quoted, so it survives the bar being restyled and would still catch the
+     dock being dropped. */
+  expect(g.barBottom).toBe(Math.ceil(g.navH) + 'px');
   expect(g.bodyPad).toBe('84px');          // body's own base padding-bottom, banner gone
 });

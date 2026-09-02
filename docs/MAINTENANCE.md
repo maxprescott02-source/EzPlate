@@ -446,7 +446,10 @@ Also: `cache.addAll`'s `.catch(function(){})` swallows a partial install silentl
 
 ## C — copy, comments and records
 
-### Six shipped comments that the code disagrees with — one job, one batch, one cache bump
+### ~~Six shipped comments that the code disagrees with — one job, one batch, one cache bump~~ — **DONE, batch 230 (`ezplate-v189`)**
+✅ All six taken in one pass, as the entry asked. X1 was fixed by PUBLISHING `--bottomnav-h` rather than by making the comment honest, because the fallback turned out to be WRONG as well as unpublished — the bar is 65px at 380 and 67px at 600, so the builder's summary bar had been docking 1-3px into the tab bar. X4's dead wrapper `dbPushIngPrice` is deleted rather than documented: three separate audits had found it, and nothing outside comments referenced it. X5 was three comments quoting the Menu tab's pre-217 copy; they no longer quote any copy at all, which is the only version that cannot rot. The two live uses of "No menus yet." in `renderManageMenusZero` are CORRECT and were left — the audit's X5 read them as stale and they are not.
+
+### The original entry, kept as the record
 (AUDIT-v186 S6, 2 Sep 2026. Filed rather than fixed because they live in `js/app.js` and `css/style.css`: changing a comment ships a client asset, which pulls a prose-only batch into a six-spot cache bump AND the mandatory pre-push review. **They ride the next batch that opens those files** — this file's own rule — and they are grouped so that batch takes all six in one pass rather than the one it happens to be standing next to.)
 
 Each was independently re-checked by batch 227 before filing; every one holds.
@@ -459,7 +462,10 @@ Each was independently re-checked by batch 227 before filing; every one holds.
 - **X5 `js/app.js:9506` and `:12095`** — both quote the Menu tab as showing *"No menus yet."* Batch 217 changed that title to **"Create your first menu"** (`:11949`). The mechanisms both comments describe are still correct; only the quoted copy is stale, and 217 did not grep for its own old string.
 - **X6 `css/style.css:2129` and `:3105`** — cite `tests/builder-modal.test.js` (existed, deleted when the builder became a page) and `tests/inv-tint.test.js` (**never existed in the history**). ⚠️ **The guard `:3105` promises is REAL** — `tests/inv-upload.test.js:215`, *'DECIDED: invoice review rows carry no hover wash'* — so this is pointer rot, not an absent guard. But a reader who checks the citation concludes F8's tint-vs-hover decision is unenforced, which is the `buildBackup`/`backupToPayload` failure in a different file. `:2129`'s guard has no obvious replacement; find it or say it is gone.
 
-### Two live files cite an incident count `CLAUDE.md` disowns — a STANDING exception, not a new finding
+### ~~Two live files cite an incident count `CLAUDE.md` disowns~~ — **DONE, batch 230**
+✅ Taken by the maintenance sweep, which was already opening files that change what runs, so the review the 216 entry was avoiding was being paid anyway. `.githooks/pre-push` says FIVE checks and quotes no incident count; `tests/semantic-keys.test.js` cites the roster rather than a number. Neither repeats a figure, per the roster's own header that it is not a census.
+
+### The original entry, kept as the record
 (Re-found by AUDIT-v176 C6/C7 and again by AUDIT-v186 C6. Recorded as settled so a third audit does not spend time rediscovering it.)
 
 `.githooks/pre-push:23` says *"ten instances across batches 165-176"* and `tests/semantic-keys.test.js:21` says *"CLAUDE.md's fourteen-incident rule"*, against a roster that is at 22 and whose header explicitly says the number is not a census. `.githooks/pre-push:3` says *"Four checks"* above five numbered steps.

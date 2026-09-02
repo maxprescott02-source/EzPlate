@@ -245,7 +245,7 @@ function errText(err){ return (err && (err.message||err.error_description||err.e
      food-cost history              -> dbPushHistory           [price_history]
      per-menu history               -> dbPushMenuHistory       [menu_price_history, menu_id set]
      per-dish sell price            -> dbPushMenuPrice         [menu_price_history]
-     per-product cost               -> dbPushIngPrice via saveIngLog         [ing_price_history]
+     per-product cost               -> dbPushIngPrices via saveIngLog        [ing_price_history]
      supplier memory                -> dbPushSupplierPhrase / dbDeleteSupplierPhrase [supplier_phrases]
    `saveIngLog` and `saveKitchenIngredients` survive because they are NOT no-ops — they flush and
    push. Do not assume a `save`-prefixed name here is decoration. */
@@ -3880,7 +3880,6 @@ function dbPushIngPrices(points){
     });
   }, Promise.resolve({data:[], error:null}));
 }
-function dbPushIngPrice(pid, t, v){ return dbPushIngPrices([{pid:pid, t:t, v:v}]); }
 /* "the same price", one definition — asked twice: by setProduct against the product's PREVIOUS STORED
    value, and by logIngPrice below against the LAST LOGGED point. The exact-equality arm carries $0.00:
    the relative tolerance is scaled BY the value, so at zero it collapses to `0 < 0` and every repeat
@@ -7486,7 +7485,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v188';
+var APP_VERSION='v189';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -8300,7 +8299,8 @@ function buildBackup(){
       /* v114: 2 -> 3. Hard rule 9's general law is that a change to what bootstrapSync puts in memory
          IS a change to the backup format and must bump the stamp — and this adds a whole group.
          Nothing about the seven existing groups changed, which is why BOTH formats stay restorable:
-         parseBackupFile accepts 2 and 3, and a format-2 file simply carries no change log, because
+         parseBackupFile accepts every format this build writes, and an OLDER file simply carries fewer
+         groups than a newer one — a format-2 file has no change log, because
          none existed when it was written. That is a true statement about the file, not a guess about
          it — the distinction rule 9 exists to protect. */
       /* 184 CONSIDERED BUMPING THIS AND DELIBERATELY DID NOT. Say so here, because rule 9 reads as
@@ -8316,7 +8316,7 @@ function buildBackup(){
            - the precedent is `format:chg.length?3:2` in `backupToPayload` — this project already
              treats the number as WHAT THE PAYLOAD CONTAINS, not which build wrote it.
              ⚠️ THAT CITATION SAID "the precedent below" UNTIL 0e AND IT POINTED AT NOTHING. The
-             line below is a flat `format:3`; the conditional is ~190 lines away in ANOTHER
+             line below is a FLAT number while the conditional is ~190 lines away in ANOTHER
              function, and `backupToPayload` is the WIRE format while this is the FILE format —
              deliberately two different things. A reader who checked the citation found the flat 3
              and concluded the RULE was wrong, when only the pointer was. The error propagated into
@@ -8876,6 +8876,43 @@ if ('serviceWorker' in navigator) {
     });
   }
 }
+
+/* ===== 230: `--bottomnav-h`, published by the element that has it =====
+   `css/style.css` reads `var(--bottomnav-h, 64px)` to dock the builder's summary bar above the tab
+   bar, and its own comment two rules below says the offset "is measured against .bottomnav rather
+   than assumed". NOTHING DEFINED IT — the 64px fallback had been the live value since the rule was
+   written, so the comment described a measurement that never happened. Found by AUDIT-v186 (X1) and
+   filed twice before that.
+   ⚠️ AND THE FALLBACK IS WRONG, WHICH IS WHY THIS PUBLISHES RATHER THAN HARD-CODING THE NUMBER WITH
+   AN HONEST COMMENT — the other remedy the entry offered. Measured 2 Sep 2026: the bar is 65px at
+   380 and 67px at 600, so the summary bar has been docking 1-3px INTO the tab bar at every phone
+   width. Small, and not nothing: `.bld-bar` holds SAVE since 177.
+   Only read below 640 — from there up `.bld-bar` sits on the viewport floor and `.bottomnav` is a
+   left RAIL whose height is the whole screen, which is why this publishes the measured height and
+   lets the stylesheet decide where it applies rather than trying to be clever here. */
+(function(){
+  var nav=document.querySelector('.bottomnav'); if(!nav) return;
+  function publishNavH(){
+    var r=nav.getBoundingClientRect();
+    /* A rail is taller than it is wide — the same discriminator tests/visual/v141-sync-corner.spec.js
+       uses, and for the same reason: `.bottomnav` IS the rail at >=640, re-laid-out, not a second
+       element. Publishing 800px as a "bar height" would push the summary bar off the screen. */
+    if(!r.height || r.height>r.width) return;
+    document.documentElement.style.setProperty('--bottomnav-h', Math.ceil(r.height)+'px');
+  }
+  /* ⚠️ THE BARE CALL IS NOT ENOUGH ON ITS OWN, and a test written for the no-ResizeObserver path is
+     what proved it. This IIFE runs while the document is still parsing, so `.bottomnav` measures 0
+     high and `publishNavH` correctly declines to publish a zero — leaving the stylesheet's wrong
+     64px fallback live for the whole session in any browser without ResizeObserver. With RO the
+     observer fires again after layout and hides the hole completely, which is exactly why it needed
+     a test that removes the constructor rather than reasoning about it.
+     `load` is the honest second chance: it fires after CSS and fonts, which is when a bar sized by
+     its own padding and label text is finally the height it will be. */
+  if(window.ResizeObserver){ try{ new ResizeObserver(publishNavH).observe(nav); }catch(e){} }
+  else { window.addEventListener('resize', publishNavH); }
+  publishNavH();
+  window.addEventListener('load', publishNavH);
+})();
 
 /* ===== Install banner ===== */
 (function(){
@@ -9594,7 +9631,7 @@ var manageMenusPid=null;
      looking. It also must not open the publish dialog onto a menu that was never created — a null
      from ensurePublishMenu means DO NOT PROCEED, exactly as withPublishMenu reads it.
    - THE MENU TAB IS REPAINTED on success. ensurePublishMenu calls buildMenuSelector but not
-     renderAnalysis, so without this the Menu tab would still be showing "No menus yet." over a menu
+     renderAnalysis, so without this the Menu tab would still be showing its zero state over a menu
      that exists — submitNewMenu calls both, and this is the same obligation.
    - THE BUTTON IS DISABLED WHILE IN FLIGHT, AND THE HANDLER CHECKS THAT ITSELF. ensurePublishMenu is
      memoised so a double-tap cannot create two menus, but a button that does nothing visible for a
@@ -9623,7 +9660,7 @@ function renderManageMenusZero(box){
         return;
       }
       /* The menu EXISTS now whatever the user has since done, so the Menu tab is repainted
-         unconditionally — skipping it is what would leave "No menus yet." over a real row. */
+         unconditionally — skipping it is what would leave the tab's zero state over a real row. */
       renderAnalysis();
       /* ⚠️ BUT THE DIALOG ONLY OPENS IF THIS FLOW IS STILL THE ONE ON SCREEN, and the pre-push
          review of this batch is why. Capturing `pid` before the await protects the VALUE and says
@@ -12220,7 +12257,7 @@ function eligibleDishes(){                                         // costed pla
    and would agree with it right up until the day it did not — the shape CLAUDE.md records twenty-two
    times. The button's visibility and the modal's emptiness now cannot disagree, because they are the
    same answer read twice.
-   Zero MENUS hides it too: the screen is showing "No menus yet." with its own New-menu action, and
+   Zero MENUS hides it too: the screen is showing its own zero state and New-menu action, and
    an add-to-menu control beside it names a menu that does not exist. */
 /* ⚠️ `menusList.length` is a PROXY for what `submitAddDish` actually gates on, which is
    `currentMenuId`, and the two agree only because `buildMenuSelector` corrects a stale

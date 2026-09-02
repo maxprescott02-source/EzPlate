@@ -18,7 +18,8 @@
  *      That is invisible at the call site; "specifying it for clarity" would restore the defect.
  *
  * ⚠️ EVERY ASSERTION BELOW WAS CHECKED BY BREAKING THE THING IT NAMES AND WATCHING IT GO RED, per
- * CLAUDE.md's fourteen-incident rule. The one that mattered: the FIRST version of the conflict-target
+ * CLAUDE.md's stub roster. (This said "fourteen-incident rule"; the roster's own header says the
+ * number is not a census, so it is not quoted here — a count in a second file cannot track it.) The one that mattered: the FIRST version of the conflict-target
  * assertion searched the raw SQL, which contains both spellings in PROSE — so it passed on a comment
  * and would have passed whatever the statement said. The same mistake fired for real inside the
  * migration's own SQL assertion on the first staging run. Hence `code()` everywhere.
