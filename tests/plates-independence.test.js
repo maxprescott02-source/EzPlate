@@ -256,6 +256,21 @@ function makeEnsureHarness() {
     ${extractFn(SRC, 'dishOnMenu')}
     ${extractFn(SRC, 'plateIdOf')}
     ${extractFn(SRC, 'plateForMenuItem')}
+    ${extractFn(SRC, 'dishesOfPlate')}
+    /* 228: the heal consults plateHealPlan before it mints, so the decision comes in with it. The
+       linker is stubbed to the one thing the heal depends on — it links the dish and reports that it
+       happened. That is a stub of a DEPENDENCY; tests/publish-guard.test.js and
+       tests/change-log.test.js own linkDishToPlate's real contract, and tests/plate-heal.test.js
+       owns plateHealPlan's. */
+    ${extractFn(SRC, 'normPlateName')}
+    ${extractFn(SRC, 'plateHealPlan')}
+    function linkDishToPlate(dish, sp){
+      if(!dish||!sp) return null;
+      dish.plateId=sp.id;
+      var i=customMenu.findIndex(function(c){return c.id===dish.id;}); if(i>=0) customMenu[i]=dish; else customMenu.push(dish);
+      S.calls.push('link:'+sp.id);
+      return dish;
+    }
     ${extractFn(SRC, 'ensurePlateForDish')}
     return function(dishId){ var m=customMenu.find(function(c){return c.id===dishId;}); var sp=ensurePlateForDish(m); return { sp: sp, plateId: m.plateId, savedPlates: savedPlates, calls: S.calls }; };
   `);
@@ -335,6 +350,21 @@ test('v112: costing a reloaded, properly-linked dish does NOT mint a second plat
     ${extractFn(SRC, 'dishOnMenu')}
     ${extractFn(SRC, 'plateIdOf')}
     ${extractFn(SRC, 'plateForMenuItem')}
+    ${extractFn(SRC, 'dishesOfPlate')}
+    /* 228: the heal consults plateHealPlan before it mints, so the decision comes in with it. The
+       linker is stubbed to the one thing the heal depends on — it links the dish and reports that it
+       happened. That is a stub of a DEPENDENCY; tests/publish-guard.test.js and
+       tests/change-log.test.js own linkDishToPlate's real contract, and tests/plate-heal.test.js
+       owns plateHealPlan's. */
+    ${extractFn(SRC, 'normPlateName')}
+    ${extractFn(SRC, 'plateHealPlan')}
+    function linkDishToPlate(dish, sp){
+      if(!dish||!sp) return null;
+      dish.plateId=sp.id;
+      var i=customMenu.findIndex(function(c){return c.id===dish.id;}); if(i>=0) customMenu[i]=dish; else customMenu.push(dish);
+      S.calls.push('link:'+sp.id);
+      return dish;
+    }
     ${extractFn(SRC, 'ensurePlateForDish')}
     var sp=ensurePlateForDish(customMenu[0]);
     return { sp:sp, savedPlates:savedPlates, calls:S.calls };
@@ -366,14 +396,83 @@ test('v112: the deleted editor\'s shape WOULD have compounded — costing it min
     ${extractFn(SRC, 'dishOnMenu')}
     ${extractFn(SRC, 'plateIdOf')}
     ${extractFn(SRC, 'plateForMenuItem')}
+    ${extractFn(SRC, 'dishesOfPlate')}
+    /* 228: the heal consults plateHealPlan before it mints, so the decision comes in with it. The
+       linker is stubbed to the one thing the heal depends on — it links the dish and reports that it
+       happened. That is a stub of a DEPENDENCY; tests/publish-guard.test.js and
+       tests/change-log.test.js own linkDishToPlate's real contract, and tests/plate-heal.test.js
+       owns plateHealPlan's. */
+    ${extractFn(SRC, 'normPlateName')}
+    ${extractFn(SRC, 'plateHealPlan')}
+    function linkDishToPlate(dish, sp){
+      if(!dish||!sp) return null;
+      dish.plateId=sp.id;
+      var i=customMenu.findIndex(function(c){return c.id===dish.id;}); if(i>=0) customMenu[i]=dish; else customMenu.push(dish);
+      S.calls.push('link:'+sp.id);
+      return dish;
+    }
+    ${extractFn(SRC, 'ensurePlateForDish')}
+    var sp=ensurePlateForDish(customMenu[0]);
+    return { sp:sp, savedPlates:savedPlates, calls:S.calls };
+  `);
+  const out = factory(S);
+  /* ⚠️ 228 REVERSED THE SECOND HALF OF THIS TEST, AND THAT IS THE WHOLE POINT OF QUEUE ITEM 7.
+     It used to assert `savedPlates.length === 2` and `sp.lines === []` — "a SECOND plate now exists,
+     and it is empty; the real recipe is orphaned". That was an accurate pin of a real defect, and it
+     is the defect Max decided to fix on 9 Aug 2026: costing this dish now looks for a plate of the
+     same name FIRST, finds "Toastie", and relinks to it.
+     THE FIRST HALF IS UNCHANGED and is what this file is for: the v110/v112 shape still does not
+     survive a reload — `plateIdOf` resolves to nothing, which the test above pins directly. What 228
+     changes is only the CONSEQUENCE of arriving here unlinked. Rewritten rather than deleted, per the
+     protocol's rule about specs that pin an old behaviour. */
+  assert.strictEqual(out.sp.id, 'SP1', 'the heal finds the real plate by name instead of minting');
+  assert.strictEqual(out.savedPlates.length, 1, 'no second plate — the recipe is no longer orphaned');
+  assert.deepStrictEqual(out.sp.lines, [{ kid: 'K1', qty: 100 }], 'and it carries the real recipe');
+  assert.deepStrictEqual(out.calls, ['link:SP1'], 'through the shipped linker, so the change log sees it');
+});
+
+/* THE HONEST LIMIT OF A NAME-BASED HEAL, pinned so nobody reads the test above as "orphaning is
+   impossible now". The heal matches on NAME. Rename the dish, or the plate, and there is nothing to
+   match on — so the old behaviour is exactly what happens, and it is still the right one: minting an
+   empty plate is what "I cannot tell which recipe this is" looks like. */
+test('228: with no same-named plate the orphaning behaviour is unchanged — a name is all the heal has', () => {
+  const S = { savedPlates: [{ id: 'SP1', name: 'Toastie', lines: [{ kid: 'K1', qty: 100 }], menuId: 'um1' }], calls: [] };
+  S.customMenu = [roundTrip({ id: 'um1', name: 'Toasted Sandwich', price: 9, menuId: 'MENU_ORIGINAL', custom: true })];
+  // eslint-disable-next-line no-new-func
+  const factory = new Function('S', `
+    ${extractVar(SRC, '_uidSeq')}
+    ${extractFn(SRC, 'uidRandom')}
+    ${extractFn(SRC, 'uid')}
+    "use strict";
+    var savedPlates=S.savedPlates, customMenu=S.customMenu, MENU=customMenu;
+    function dbPushMenuAfterPlate(item, sp){ S.calls.push('push:'+(sp&&sp.id)); return Promise.resolve(null); }
+    ${extractFn(SRC, 'menuIdOf')}
+    ${extractFn(SRC, 'dishOnMenu')}
+    ${extractFn(SRC, 'plateIdOf')}
+    ${extractFn(SRC, 'plateForMenuItem')}
+    ${extractFn(SRC, 'dishesOfPlate')}
+    /* 228: the heal consults plateHealPlan before it mints, so the decision comes in with it. The
+       linker is stubbed to the one thing the heal depends on — it links the dish and reports that it
+       happened. That is a stub of a DEPENDENCY; tests/publish-guard.test.js and
+       tests/change-log.test.js own linkDishToPlate's real contract, and tests/plate-heal.test.js
+       owns plateHealPlan's. */
+    ${extractFn(SRC, 'normPlateName')}
+    ${extractFn(SRC, 'plateHealPlan')}
+    function linkDishToPlate(dish, sp){
+      if(!dish||!sp) return null;
+      dish.plateId=sp.id;
+      var i=customMenu.findIndex(function(c){return c.id===dish.id;}); if(i>=0) customMenu[i]=dish; else customMenu.push(dish);
+      S.calls.push('link:'+sp.id);
+      return dish;
+    }
     ${extractFn(SRC, 'ensurePlateForDish')}
     var sp=ensurePlateForDish(customMenu[0]);
     return { sp:sp, savedPlates:savedPlates };
   `);
   const out = factory(S);
-  assert.notStrictEqual(out.sp.id, 'SP1', 'it does NOT find the real plate');
-  assert.strictEqual(out.savedPlates.length, 2, 'a SECOND plate now exists');
-  assert.deepStrictEqual(out.sp.lines, [], 'and it is empty — the real recipe is orphaned');
+  assert.notStrictEqual(out.sp.id, 'SP1', 'a different name is not a match, and the app does not guess');
+  assert.strictEqual(out.savedPlates.length, 2);
+  assert.deepStrictEqual(out.sp.lines, []);
 });
 
 test('v55: deleting the last menu is allowed; plates survive with no dishes', () => {

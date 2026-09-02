@@ -102,7 +102,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=186">
+<link rel="stylesheet" href="css/style.css?v=187">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -1474,6 +1474,23 @@
   </div>
 </div>
 
+<!-- 228: several saved plates share this item's name — Max's answer was "ask me if there are
+     several", so the app never guesses between them. R4: this is not a dead control; it is reached
+     from loadMenuItemBlank whenever plateHealPlan returns `ask`. -->
+<div class="modal-overlay" id="plateHealModal" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="plateHealTitle">
+    <div class="mhead"><h3 id="plateHealTitle">Which plate is this?</h3><button class="x" id="plateHealClose" type="button" aria-label="Close">&times;</button></div>
+    <div class="mbody">
+      <p id="plateHealMsg" class="confirm-msg"></p>
+      <div id="plateHealList" class="ad-list" role="group" aria-labelledby="plateHealTitle"></div>
+    </div>
+    <div class="mfoot">
+      <button class="btn ghost" id="plateHealCancel" type="button">Cancel</button>
+      <button class="btn" id="plateHealNew" type="button">Start a new plate</button>
+    </div>
+  </div>
+</div>
+
 <!-- Edit ingredient modal -->
 <div class="modal-overlay" id="ingModal" aria-hidden="true">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ingModalTitle">
@@ -1738,7 +1755,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=186"></script>
+<script src="js/app.js?v=187"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —

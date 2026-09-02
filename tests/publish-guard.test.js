@@ -103,6 +103,7 @@ function makeHarness(opts) {
     customMenu: JSON.parse(JSON.stringify(opts.customMenu || [])),
     savedPlates: opts.savedPlates || [{ id: 'SP_NEW', name: 'Toastie', category: 'Sandwiches', lines: [] }],
     writes: [], toasts: [], errs: [], closed: 0, boxes: {},
+    byId: opts.byId || {},
   };
   // eslint-disable-next-line no-new-func
   const factory = new Function('S', 'opts', `
@@ -116,6 +117,17 @@ function makeHarness(opts) {
        behaviour, and tests/change-log.test.js owns the log's own contract. */
     function computeAvgFoodCost(){ return 30; }
     function costFromLines(){ return 0; }
+    /* 228: the link toast is a DECISION now, so it is extracted rather than stubbed — a test that
+       asserts what the user is told must run the code that decides it. It brings the real costing
+       chain with it, which is the point: the message's whole claim is about whether this plate can
+       be costed, and a stubbed plateFullyCosted would agree with whatever the code believed. */
+    var kById={}, byId=S.byId||{};
+    ${extractFn(SRC, 'cpbu')}
+    ${extractFn(SRC, 'lineProduct')}
+    ${extractFn(SRC, 'lineCost')}
+    ${extractFn(SRC, 'costDetail')}
+    ${extractFn(SRC, 'plateFullyCosted')}
+    ${extractFn(SRC, 'dishLinkedToast')}
     function logChange(){ return null; }
     function logChangeIfSaved(){ return Promise.resolve(null); }
     function buildMenuSelector(){} function renderManageMenus(){ S.manageRerendered=true; }
@@ -208,7 +220,31 @@ test('linking keeps the row\'s own name, price and section — the app does not 
   assert.equal(d.name, 'Cheese & Ham Toastie GF');
   assert.equal(d.price, 8, 'it is already priced on this menu; silently repricing it would be the app deciding');
   assert.equal(d.section, 'Sandwiches');
-  assert.match(S.toasts[0], /price is unchanged/);
+  /* 228 — THIS ASSERTED "price is unchanged" AGAINST A PLATE WITH NO LINES, and the message was
+     wrong rather than the test. The default fixture's SP_NEW is `lines: []`, so the app was telling
+     the user an empty plate had costed their dish. dishLinkedToast is three-valued now, and this
+     row's honest branch is the empty one; the costed branch is pinned by the test below, against a
+     plate that really can be costed. */
+  assert.match(S.toasts[0], /add ingredients to cost it/);
+});
+
+test('228: the link toast tells the truth about what the plate can actually cost', () => {
+  const costable = [{ id: 'SP_NEW', name: 'Toastie', category: 'Sandwiches', lines: [{ pid: 'P1', qty: 2 }] }];
+  const broken = [{ id: 'SP_NEW', name: 'Toastie', category: 'Sandwiches', lines: [{ pid: 'P1', qty: 2 }, { pid: 'GONE', qty: 1 }] }];
+  const byId = { P1: { id: 'P1', cost_per_base_unit: 1.5 } };
+
+  const ok = makeHarness({ customMenu: [ORPHAN], savedPlates: costable, byId });
+  ok.h.link('ummrq8xbur');
+  assert.match(ok.S.toasts[0], /is now costed from this plate — its menu price is unchanged\./);
+
+  /* THE ONE THAT MATTERS: a line whose product is gone makes costDetail's total an UNDERSTATEMENT,
+     and announcing it as a cost is the single thing a costing app must never do. The other line
+     still costs, so the plate has a plausible number behind it — which is why this is invisible
+     without the check rather than obviously wrong. */
+  const part = makeHarness({ customMenu: [ORPHAN], savedPlates: broken, byId });
+  part.h.link('ummrq8xbur');
+  assert.match(part.S.toasts[0], /some of its lines still need costing\./);
+  assert.doesNotMatch(part.S.toasts[0], /is now costed/);
 });
 
 test('pressing the rendered Link button actually links, and adds no row', () => {

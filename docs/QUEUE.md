@@ -31,7 +31,8 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 **§4 acceptance criteria = the definition of done for every F-item** (check them off in the PR): structure matches the mock side-by-side at 1360×900 (same regions in order; row grammar identity-left, mono-figures-right, status-pill-rightmost) · every colour/border/shadow from a token, ZERO hard-coded hex in screen code · Geist for UI, Geist Mono `tabular-nums` for every number · all five states (loading skeleton, empty, error, first-run, permission denied) exist and are v3-styled · mobile counterpart converted in the SAME item per the §6.1 parity map · old component + CSS deleted in the same change · focus ring on every interactive; modals trap focus and close on Esc · no behaviour regression without a logged reason.
 
-**Two CSS families are still shared and must not be deleted by an F-item on the strength of a grep:** `.menu-search` and `.ms-clear` are worn by MODAL search boxes (add-dish, product-link, tidy), and `.atable-wrap` is the DIV the invoice review renders inside — it is not `.atable`, which is gone. `.scr-head` is the shared §2 header bar: reuse it, do not rebuild it. **`.invz` (the dashed dropzone) is worn by TWO elements** — the Invoices screen and the upload modal's step 1 — and `.inv-bar` by two more (step 2 and the AI-referee wait).
+**Two CSS families are still shared and must not be deleted by an F-item on the strength of a grep:** `.menu-search` and `.ms-clear` are worn by MODAL search boxes (add-dish, product-link, tidy), and `.atable-wrap` is the DIV the invoice review renders inside — it is not `.atable`, which is gone.
+**`.ad-list` / `.ad-item` / `.ad-nm` / `.ad-meta` are worn by TWO pickers since batch 228** — the Add-dish modal and the recipe-heal modal (`#plateHealModal`). The heal picker reuses them deliberately: same job, same row shape, no second family to keep in step. Deleting them with the Add-dish screen would leave the heal picker unstyled, and nothing but this line says so. `.scr-head` is the shared §2 header bar: reuse it, do not rebuild it. **`.invz` (the dashed dropzone) is worn by TWO elements** — the Invoices screen and the upload modal's step 1 — and `.inv-bar` by two more (step 2 and the AI-referee wait).
 
 ---
 
@@ -82,16 +83,6 @@ Requirements: a fresh export taken minutes before, and **Max's explicit go on th
 **This does NOT discharge the item and must not be read as doing so.** It was synthetic data in a different project, and what is still untested is the half that only production has: a real 412-product export, the real file size through the RPC's 30s `statement_timeout`, and how the boot gate reads mid-restore. What it does mean is that the step is no longer being attempted for the first time on real data.
 When Max gives the go: take a fresh export minutes before, write the one-statement rollback into the item, run `02` then the real backup against staging first as a dress rehearsal, then production. `docs/STAGING.md` has the procedure.
 *(`Blocked on: Max's go on the day` was DELETED here on 12 Aug 2026 with the words "nothing about this item is now waiting on a person". **That line is REINSTATED at the top of this item and this note is kept as the record of the mistake**, not struck: the go was given, and the same item goes on to say the window is a condition of the day and to ask again on the day. Both readings were in this file at once and the header is what `/batch` acts on. **A go that must be re-asked is a block.**)*
-
-## next  7 · `ensurePlateForDish` starts a second empty recipe instead of relinking the real one  **[B]**
-
-Promoted 31 Aug 2026, same reason. **Max already answered the design question on 9 Aug 2026**, so nothing here is open — the requirements below are settled, not candidates.
-
-Correct for a genuinely uncosted row; for one whose real recipe exists in the library it leaves that recipe unreferenced and silently starts a second, empty one. Flagged in v113, unchanged.
-Requirements (Max's answer, 9 Aug 2026): the heal looks for an existing library plate by the dish's name BEFORE creating an empty one; exactly one match → relink automatically; several → ask; none → today's behaviour.
-Note **no path creates an unlinked row**: the class arrives only from history or a restore, and production has **0** of them (verified 7 Aug 2026).
-Build it with the both-sides lesson in mind: **a relink heals `{kid, qty}` lines only, so check the OTHER side too** — legacy `{pid, qty}` and `{misc, …}` lines are live data and a heal that walks one shape reports a plate as recovered when it is not.
-⚠️ **This cited `kingMissingImpact`'s v124 history until 2 Sep 2026, and that function was deleted in `ezplate-v139`** (batch F3, the Ingredients rebuild) — one hit repo-wide, and it was this line. The lesson is real, so it is written out here rather than pointed at; a pointer at a deleted function costs a batch a hunt, which is `CLAUDE.md`'s "a queued item's approval does not expire and its FACTS do" landing on the next item due. Found by AUDIT-v186 C3.
 
 ## next  8 · Contrast: body text and control boundaries, decided ONCE in the tokens  **[B]**
 

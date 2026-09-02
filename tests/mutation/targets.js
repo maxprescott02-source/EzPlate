@@ -141,6 +141,13 @@ const targets = [
   // 185: the tenant gate. It fails OPEN on purpose — only an unambiguous null gates the app — so
   // both halves of that condition are exactly the kind a mutant flips into a false alarm that locks
   // a legitimate user out of a working café.
+  /* 228: the recipe heal. Max's answer has FOUR outcomes and the two dangerous mutants both collapse
+     them — a relink that fires on several candidates hands a dish somebody else's recipe and costs it
+     automatically, and a `create` that fires on one leaves the real recipe stranded, which is the
+     defect this item exists to fix. The same-menu exclusion is here too: without it a relink puts two
+     dishes of one plate on one menu, which v113's guard forbids and no screen would show. */
+  { fn: 'plateHealPlan', tests: ['plate-heal.test.js'] },
+  { fn: 'normPlateName', tests: ['plate-heal.test.js'] },
   { fn: 'tenantGateState', tests: ['tenant-gate.test.js'] },
   // 186: which SCREEN a null tenant gets. Once the anon fallback is gone, a signed-out visitor and
   // a signed-in non-member answer identically and only this tells them apart — so a mutant that
@@ -391,6 +398,18 @@ const allowedSurvivors = [
      rather than a pack size of zero), so invoice-gst.test.js kills it with exactly that line.
      ⚠️ Read 193's note below before adding to this list. Both of these were reasoned to a specific
      reachable input and found unreachable; neither is "unlikely", which is not the bar. */
+  /* 228 — plateHealPlan's `ask` guard. UNREACHABLE rather than equivalent-by-arithmetic, which is
+     the stronger of the two reasons and is checkable by reading three consecutive lines. */
+  {
+    key: "plateHealPlan :: if(cands.length>1)   return {action:'ask',    plate:null,     candidates:cands}; :: relational >>>= #0",
+    reason: 'cands.length>1 -> >=1 differs ONLY at length===1, and the line immediately above is '
+      + '`if(cands.length===1) return {action:\'relink\'…}`, which has already returned for that value. '
+      + 'Length cannot be negative and is an integer, so >=1 and >1 agree on every value that can reach '
+      + 'this line. No assertion can kill it, because no input reaches the difference: a test written to '
+      + 'try would have to construct a state the function returns from one line earlier. The ordering is '
+      + 'load-bearing and is what makes this safe — if the two branches were ever swapped, this allowance '
+      + 'stops being true and the gate would report it again.',
+  },
   /* 0c (batch 202) — analyze. TWO allowed out of five survivors; the other three are killed in
      menu-margin.test.js. Both of these were checked by ENUMERATION rather than by argument: the real
      function was compared against each mutant across every pairing of
