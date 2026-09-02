@@ -58,6 +58,14 @@ The tally lives here so it survives a context clear:
 
 These passed the launch test and lost on priority against the 20-item cap. They are not C.
 
+⚠️ **THIS SECTION HOLDS TWO DIFFERENT KINDS OF THING AND THE PROMOTION RULE ONLY EVER APPLIED TO ONE OF THEM.** (2 Sep 2026, batch 227, resolving AUDIT-v186's S5 finding that seven approved-B entries were still invisible to `/batch` with fourteen free slots.)
+
+- **DEFECTS that lost on priority** — something in shipped behaviour is wrong, and the only reason it is here is the cap. **These promote on a free slot, automatically, and `/batch` step 1 now checks for them every batch** so it stops being a thing someone has to remember. Batch 225's five were all of this kind: an overlap, a heal that starts a second recipe, a contrast shortfall, a phrase with no subject.
+- **FEATURES that were specced and DECLINED** — every `behaviour spec, §11.5` entry, and the three mock rows that did not ship. **These do NOT promote on a free slot, and that is the correction.** A slot is not an approval. `/batch`'s whole authority rests on *"Max said yes when he queued it"*, and he never queued these: a batch classified them while declining to build them, correctly, under the protocol's own *"build what exists, spec the rest, never a dead control"*.
+
+**Why the distinction is load-bearing rather than pedantic:** all **seven** entries left below are the second kind, and bulk-promoting them would have had `/batch` silently start building a command palette, a CSV exporter, a write queue and **invoice photography — which needs OCR or a vision model, and therefore reopens `CLAUDE.md`'s privacy gate**, a standing precondition that is explicitly Max's. That is the "unwanted scope" failure with a rule cited in its favour.
+**What they need is his priority call, not a free slot.** They are a feature backlog and should be put to him as one. Recorded here rather than acted on, because deciding what EzPlate does next is his and reversing that is not a documentation question.
+
 ### ~~The converted screens' column bands are `aria-hidden`, so their figures are announced unlabelled~~ — **DONE, batch 225 (`ezplate-v185`)**
 ✅ `srLabel` puts each column's name in an `.sr-only` span inside its figure cell, on all four screens at once, so a row announces "cost $3.00, suggested $10.00, price $7.00" instead of three bare numbers. The bands stay `aria-hidden` and are now correct rather than a gap.
 **Of the two candidates this entry named, the per-row `aria-label` LOST and the reason is recorded because it is the more tempting one:** a label built from the row's own figures is a second copy of every number on screen, which is the drift class `CLAUDE.md`'s roster is entirely about. Per-cell labels keep one number and add one static word.
@@ -108,7 +116,8 @@ Requirements, if this is ever wanted: Trigger: a camera button on the upload she
 Trigger: the Data-section button. Data: which objects and columns, to decide. State: a download; nothing else changes.
 **CSV is an export for humans and NEVER an import path** — the JSON backup stays the restore format and the backup-format law is untouched.
 
-**Five items were PROMOTED to `docs/QUEUE.md` on 31 Aug 2026 (batch 225)** — the toast/install-banner overlap, `ensurePlateForDish`, the two contrast entries merged into one, and the "Slightly under" subject. The cap that displaced them had freed up and nothing re-checks it, so they had been invisible to `/batch` for weeks. **This section's trigger is a free slot; check it when the queue shrinks, because nothing else will.**
+**Five items were PROMOTED to `docs/QUEUE.md` on 31 Aug 2026 (batch 225)** — the toast/install-banner overlap, `ensurePlateForDish`, the two contrast entries merged into one, and the "Slightly under" subject. The cap that displaced them had freed up and nothing re-checks it, so they had been invisible to `/batch` for weeks. All five were DEFECTS, which is the kind that promotes.
+⚠️ **That entry ended *"check it when the queue shrinks, because nothing else will"*, and nothing did — AUDIT-v186 found the section unchecked again five batches later.** *"Remember to check"* is not a mechanism, and writing it down a second time would not have made it one. **`/batch` step 1 now checks this section as part of the sweep it already does every batch**, which is the only place the check can live and be free. Corrected 2 Sep 2026, batch 227.
 
 ## C — tests and CI
 
@@ -437,6 +446,28 @@ Also: `cache.addAll`'s `.catch(function(){})` swallows a partial install silentl
 
 ## C — copy, comments and records
 
+### Six shipped comments that the code disagrees with — one job, one batch, one cache bump
+(AUDIT-v186 S6, 2 Sep 2026. Filed rather than fixed because they live in `js/app.js` and `css/style.css`: changing a comment ships a client asset, which pulls a prose-only batch into a six-spot cache bump AND the mandatory pre-push review. **They ride the next batch that opens those files** — this file's own rule — and they are grouped so that batch takes all six in one pass rather than the one it happens to be standing next to.)
+
+Each was independently re-checked by batch 227 before filing; every one holds.
+
+- **X1 `css/style.css:970`** — *"the offset is measured against `.bottomnav` rather than assumed — `--bottomnav-h` is not a token this sheet defines."* **Nothing defines it anywhere**, so the `64px` fallback at `:873` is and always has been the live value. This is the same entry as the `--bottomnav-h` one under code hygiene; both ends are one fix.
+- **X2 `js/app.js:8227`** — says `parseBackupFile` accepts *"2 and 3"*. It accepts 2, 3 and 4 since batch 219.
+- **X3 `js/app.js:8243`** — *"the line below is a flat `format:3`"*. The line below is `format:4,`. **This is the citation-correction comment itself going stale**, which is the failure it was written to prevent, one format number later. `CLAUDE.md` now states no format number at all for exactly this reason; do the same here.
+- **X4 `js/app.js:248`** — the module's own write-map says *"per-product cost → `dbPushIngPrice` via `saveIngLog`"*. `saveIngLog` calls `dbPush**IngPrices**` (`:3790`); `dbPushIngPrice` (`:3807`) has **zero callers anywhere, including tests**, since 193. The map names the dead wrapper as the live path.
+  ⚠️ **The wrapper itself is undocumented dead code and the two decisions are separate.** `addProduct` is also dead and is DELIBERATELY kept, with the reason written at its site; this one has no such note, so either delete it or write why it stays. Do not delete it on sight — check `tests/` first, which is how `addProduct` nearly went.
+- **X5 `js/app.js:9506` and `:12095`** — both quote the Menu tab as showing *"No menus yet."* Batch 217 changed that title to **"Create your first menu"** (`:11949`). The mechanisms both comments describe are still correct; only the quoted copy is stale, and 217 did not grep for its own old string.
+- **X6 `css/style.css:2129` and `:3105`** — cite `tests/builder-modal.test.js` (existed, deleted when the builder became a page) and `tests/inv-tint.test.js` (**never existed in the history**). ⚠️ **The guard `:3105` promises is REAL** — `tests/inv-upload.test.js:215`, *'DECIDED: invoice review rows carry no hover wash'* — so this is pointer rot, not an absent guard. But a reader who checks the citation concludes F8's tint-vs-hover decision is unenforced, which is the `buildBackup`/`backupToPayload` failure in a different file. `:2129`'s guard has no obvious replacement; find it or say it is gone.
+
+### Two live files cite an incident count `CLAUDE.md` disowns — a STANDING exception, not a new finding
+(Re-found by AUDIT-v176 C6/C7 and again by AUDIT-v186 C6. Recorded as settled so a third audit does not spend time rediscovering it.)
+
+`.githooks/pre-push:23` says *"ten instances across batches 165-176"* and `tests/semantic-keys.test.js:21` says *"CLAUDE.md's fourteen-incident rule"*, against a roster that is at 22 and whose header explicitly says the number is not a census. `.githooks/pre-push:3` says *"Four checks"* above five numbered steps.
+
+**Batch 216 declined to fix them and the reasoning is sound and unchanged:** both files' diffs change what runs, so three comment corrections would pull a docs-only PR into the mandatory-review path. **Eleven batches have since opened neither file**, which is the honest cost of "rides the next batch that touches it" and is accepted.
+**What is NOT accepted is re-finding it every audit.** It is filed here, deliberately, as a known and priced exception. The next batch that opens either file for any other reason takes all three.
+
+
 ### `ingredients_pkey` is `(id)`, not `(business_id, id)`, and only a migration header says why that is safe
 Routed by AUDIT-v166 (check 3 of the three batch 193 asked for). **The recommendation is explicitly NOT to widen the key** — that is a migration on a critical table, it drags `restore_backup` in with it under 183's law, and `ingredients.id` is referenced by `plate.lines[].pid`, `kitchenIngredients[].pid` and `ing_price_history.product_id`, none of which carry a tenant. It defends against a design nobody has proposed.
 **The real gap is that the protection is entirely narrative.** 193 designed around the narrow key — product ids stay random, never content-derived — and wrote the reasoning into `supabase/migrations/20260815_supplier_code.sql`. Nothing makes a future batch read that file before making an id meaningful, and a content-derived product id would collide across tenants on a key this narrow.
@@ -662,7 +693,9 @@ Filed here rather than in `docs/QUEUE.md` per the tier test: none of the three w
 Batch 210 closed the **anonymous** half of this: `api/_auth.js` requires a live, confirmed session on `api/parse-invoice` and `api/insight`, which before it were POSTable by anyone on the internet spending Max's Gemini key.
 **A signed-in caller is still unbounded.** Requiring an account raises the cost of abuse from nothing to "confirm an email address"; it caps nobody.
 ⚠️ **This is C only while the tier is free, and it becomes a launch blocker the day the paid tier lands** — that is the day abuse stops costing quota and starts costing money, and `docs/QUEUE.md`'s paid-tier item says so at its own site. **The cheap half needs no code at all: set the Google Cloud SPEND CAP in the same sitting as enabling billing.**
-The reason it was not built in 210: a per-account counter must survive between serverless invocations, so it needs a table, so it needs a migration, so it needs staging — **and staging is paused**. Half-building it against production was the wrong trade.
+The reason it was not built in 210: a per-account counter must survive between serverless invocations, so it needs a table, so it needs a migration, so it needs staging — **and staging was paused at the time**. Half-building it against production was the wrong trade.
+✅ **THAT OBSTACLE IS GONE. Staging came back on 29 Aug 2026** (`docs/STAGING.md`, measured — 14 tables, 9 functions, 4 accounts), and batches 218 and 219 have both rehearsed full migrations against it since. **So this item is no longer blocked on anything; it is merely undone**, and the distinction matters because a reader of the old sentence concluded the work was impossible.
+Corrected 2 Sep 2026 by AUDIT-v186 C1, which called it the single most important thing in the report: this is the one C entry that **becomes a launch blocker the day item 2b ships**, since abuse costs quota on the free tier and money on the paid one.
 
 ### ~~Prove on staging that `restore_backup` is inert for `anon`~~ — **DONE, batch 219 (29 Aug 2026)**
 ✅ Rode the batch that replaced `restore_backup` anyway, which is exactly what this file's header asks a C item to do. Called as `anon` over PostgREST on staging with every table populated; **every row count was identical before and after.** The full record is in `supabase/migrations/20260829_restore_backup_v5.sql`'s header. The grants are unchanged — 219 proved inertness and deliberately did not re-grant or revoke anything, because a migration should not quietly change privileges its item does not own.
@@ -674,7 +707,8 @@ The reason it was not built in 210: a per-account counter must survive between s
 **The original entry, kept for the reasoning it records:**
 `anon` retains `EXECUTE` on `restore_backup`, `claim_business_invite` and `business_team`. The gate review argues all three are inert from the schema — for `anon`, `current_business_id()` is NULL, `business_id = NULL` is NULL so the `delete … where true` matches nothing, and `ingredients.business_id` is `NOT NULL` defaulting to `current_business_id()` so an insert fails before RLS is consulted.
 ⚠️ **That is REASONED, not run, and the reasoning is exactly the kind this repo keeps finding wrong.** It was not tested because the only place to call it is production and being wrong costs Scoopy's real data — a stop condition, not a shortcut.
-So: **call it as `anon` over PostgREST on staging, with rows present, and assert the counts are unchanged.** Then either record the proof or revoke the grants. Blocked on staging being resumed, like everything else that needs a rehearsal.
+So: **call it as `anon` over PostgREST on staging, with rows present, and assert the counts are unchanged.** Then either record the proof or revoke the grants.
+✅ **NO LONGER BLOCKED — staging came back 29 Aug 2026** and two batches have rehearsed against it. This said "blocked on staging being resumed, like everything else that needs a rehearsal"; corrected 2 Sep 2026 by AUDIT-v186 C1. The work is undone, not impossible.
 ⚠️ **`claim_business_invite` and `business_team` are NOT covered by 219** — it proved the one function it was already replacing. They remain reasoned-not-run, and are filed under the `revoke … from public` entry that names them.
 
 ### Drop `invite_pending` once no cached client calls it
