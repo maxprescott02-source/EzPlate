@@ -968,7 +968,10 @@ input.bld-nameinput:focus{background:var(--surface);border-color:var(--accent);b
 }
 /* Below 640 the tab bar is a real bottom bar and the summary sits above it; from 640 up it is a
    left rail, so the bar sits on the viewport floor. The offset is measured against .bottomnav
-   rather than assumed - `--bottomnav-h` is not a token this sheet defines. */
+   rather than assumed - `--bottomnav-h` is not a token this sheet defines; js/app.js publishes it,
+   and 230 is when that became true. It had said "measured" since the rule was written while NOTHING
+   defined the variable, so the 64px fallback was the live value - and it is 1-3px short of the real
+   bar (65 at 380, 67 at 600), which is how far into the tab bar the summary bar was docking. */
 @media (min-width:640px){
   .bld-bar{bottom:env(safe-area-inset-bottom)}
 }
@@ -2126,9 +2129,14 @@ html.has-install-banner .toast{bottom:calc(var(--install-banner-clear) + var(--s
 /* F4 (v140): this @media block is GONE, not left empty. Its last rule was `.ing-list`'s 3-up card
    grid, deleted with the card language (§30); v137 had already removed the width ladder, since v3
    §2 gives the content one width and the wider screen becomes margin. An empty block is not
-   harmless here — tests/builder-modal.test.js resolves the cascade by walking braces, and a block
+   harmless here — the spec that caught it resolved the cascade by walking braces, and a block
    holding nothing but comments made it lose track of which @media it was inside for the REST of
-   the file. It failed loudly this time; the same slip could as easily hide a rule. */
+   the file. It failed loudly this time; the same slip could as easily hide a rule.
+   ⚠️ That spec was `tests/builder-modal.test.js`, DELETED when F7 turned the builder into a page, so
+   the citation named a file that no longer exists (AUDIT-v186 X6). The hazard is real and unguarded:
+   `tests/css-syntax.test.js` checks that comments and braces BALANCE, which is a different property
+   from a block's contents being reachable. Named as gone rather than repointed, because inventing a
+   replacement citation is how this rotted in the first place. */
 
 /* The sidebar brand block and the bottom group are hidden on mobile/tablet; the More tab is hidden
    on desktop. 171: THESE TWO LINES ARE A PAIR AND ARE WRITTEN ADJACENT ON PURPOSE — `.nav-bottom`
@@ -3102,7 +3110,11 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    select, a price field, a pack control and a checkbox, and pressing the row itself does nothing.
    The affordance is carried by those controls, which each hover and focus on their own.
    The mock agrees: its §4 review rows carry no `style-hover` while every table row in the package
-   does. `tests/inv-tint.test.js` fails if a hover background is ever added here. */
+   does. `tests/inv-upload.test.js` fails if a hover background is ever added here — the test is
+   'DECIDED: invoice review rows carry no hover wash'.
+   ⚠️ This cited `tests/inv-tint.test.js`, which has NEVER existed in this repo's history (AUDIT-v186
+   X6). The guard it promised is real and was simply in another file, so a reader who checked the
+   citation would have concluded F8's tint-vs-hover decision was unenforced when it is enforced. */
 .invtable tbody tr.inv-data.st-review:not(.sec):not(.ni-row){
   background:var(--warn-bg);border-color:var(--warn);box-shadow:inset 3px 0 0 var(--warn)}
 .invtable tbody tr.inv-data.st-new:not(.sec):not(.ni-row){

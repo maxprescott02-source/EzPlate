@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# EzPlate pre-push gate. Four checks, all deterministic, all a few seconds.
+# EzPlate pre-push gate. FIVE checks, all deterministic, all a few seconds.
 #
 #   1. npm test          — the suite must be green.
 #   2. npm run smoke     — the jsdom walkthrough, which is NOT part of `npm test`.
@@ -20,8 +20,11 @@
 # the file they are about to break.
 # The gate is the mechanism and the comment was not. Eight seconds is worth it.
 #
-# WHY (3) EXISTS. A test that cannot fail is this project's most common defect class: ten instances
-# across batches 165-176, several written INSIDE the file that warns about the pattern. A rule in a
+# WHY (3) EXISTS. A test that cannot fail is this project's most common defect class, and several
+# instances were written INSIDE the file that warns about the pattern.
+# (This said "ten instances across batches 165-176". CLAUDE.md's roster has since disowned that
+# figure as a census - it records new SHAPES, not every instance - so no number is repeated here.
+# Two audits re-found this line; correcting it needed a batch that was opening this file anyway.) A rule in a
 # context file is advice a model can reason past; this is not. `tests/mutation/targets.js` says which
 # functions are covered and which test files claim them.
 #

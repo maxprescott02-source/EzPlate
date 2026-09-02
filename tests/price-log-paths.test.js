@@ -37,7 +37,7 @@ const SRC = loadApp();
 
 /* A sandbox holding the real price-log chain. Everything the chain touches that is NOT under test is
    stubbed at its own boundary: saveProductCache/rebuild are no-ops (v108 left the first one empty
-   anyway), dbPushIngredient records the product push, dbPushIngPrice records the history push. The
+   anyway), dbPushIngredient records the product push, dbPushIngPrices records the history push. The
    pushes matter as much as the array: a point that lands in memory and never flushes is precisely the
    v91 failure, and only the push list shows it. */
 /* 224: the flush is GATED on the product write, so it lands one microtask later than the memory
