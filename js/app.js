@@ -8840,7 +8840,13 @@ if ('serviceWorker' in navigator) {
   function show(){
     if(dismissed()||standalone()) return;
     banner.style.display='flex';
-    publishClear();                                      // BEFORE the class, so no frame reads the fallback
+    /* BEFORE the class, so no frame is painted against the stylesheet's fallback — and guarded,
+       because this is the one line in show() that can throw. Raised by 226's pre-push review: an
+       unguarded publish that threw would leave the banner VISIBLE with no `has-install-banner`
+       class, which is the pre-177 failure the class exists to prevent (a fixed panel over the last
+       rows of a 393-row table, and over the builder's Save). Swallowing it falls back to the CSS
+       114px instead, i.e. exactly main's behaviour, which is wrong on a phone and not broken. */
+    try{ publishClear(); }catch(e){}
     document.documentElement.classList.add('has-install-banner');
   }
   function hide(){

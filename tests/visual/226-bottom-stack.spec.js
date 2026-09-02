@@ -104,12 +104,25 @@ for (const width of WIDTHS) {
       expect(g.bodyPad, raw).toBe(g.clear);
       expect(g.barBottom, raw).toBe(g.clear);
 
-      /* THE GEOMETRY, bounded on both sides. Below: the toast's bottom edge is above the banner's
-         top edge. Above: by no more than a hair over --sp-3 (12) — the toast must be STACKED on
-         the banner, not merely moved somewhere else. Math.ceil in the publish can add one pixel. */
+      /* THE GEOMETRY, bounded on both sides — the toast must be STACKED on the banner, not merely
+         moved somewhere else. A one-sided "the rects do not intersect" is satisfied by putting the
+         toast at the top of the screen.
+         THE BOUND IS DERIVED, NOT GENEROUS, and the derivation is why it can be this tight:
+           toast.bottom(viewport) = H - (clear + 12)        `--sp-3` is 12
+           banner.top(viewport)   = H - (dock + h)
+           clear                  = ceil(dock + h)
+           gap = banner.top - toast.bottom = ceil(x) - x + 12,  x = dock + h
+         and `ceil(x) - x` is in [0, 1), so the gap is in [12, 13) at every width and in every
+         state. H cancels, and so does the banner's height — which matters because the height is
+         TEXT, and the Linux CI runner has no Geist installed, so its metrics differ from macOS.
+         An earlier assertion in this directory went red on CI for exactly that reason. Here the
+         font affects both sides of the subtraction equally and drops out.
+         Measured on this machine: 12.5 everywhere except 768/no-hint, which is 12. A first draft
+         bounded this at 8..20, which the pre-push review correctly called generous — it would have
+         passed a lift that was 8px short of clearing a taller banner. */
       const gap = g.inst.t - g.toast.b;
-      expect(gap, `gap ${gap} :: ${raw}`).toBeGreaterThanOrEqual(8);
-      expect(gap, `gap ${gap} :: ${raw}`).toBeLessThanOrEqual(20);
+      expect(gap, `gap ${gap} :: ${raw}`).toBeGreaterThanOrEqual(12);
+      expect(gap, `gap ${gap} :: ${raw}`).toBeLessThan(13);
     });
   }
 }
