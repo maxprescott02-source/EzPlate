@@ -3265,7 +3265,12 @@ function plateHealPlan(m){
   var cands = nm ? (savedPlates||[]).filter(function(s){
     if(!s || normPlateName(s.name)!==nm) return false;
     /* dishOnMenu, never a bare `===` (184): a dish on NO menu has a null menu id, and null===null
-       would read two unmenued dishes as sharing a menu and rule out a perfectly good plate. */
+       would read two unmenued dishes as sharing a menu and rule out a perfectly good plate.
+       ⚠️ The consequence, spelled out because it looks like a hole and is the correct behaviour:
+       for a dish on no menu this exclusion never fires, so two menu-less orphans of the same name
+       can both relink to one plate. That breaks nothing — the invariant is one dish per (plate,
+       MENU), and `menusOfPlate` skips a dish with no menu id outright (184) — so there is no screen
+       on which the pair can be ambiguous. Do not "fix" it by comparing raw ids. */
     return !dishesOfPlate(s).some(function(d){ return d && d.id!==m.id && dishOnMenu(d, mine); });
   }) : [];
   if(cands.length===1) return {action:'relink', plate:cands[0], candidates:cands};
@@ -3296,10 +3301,15 @@ function ensurePlateForDish(m, plan){
   plan = plan || plateHealPlan(m);
   if(plan.action==='linked') return plan.plate;
   if(plan.action==='relink') return linkDishToPlate(m, plan.plate) ? plan.plate : null;
-  /* `create` is the only path that mints, and it stays SILENT in the change log on purpose: an empty
-     plate is "not costed yet", so there is no cost movement to explain and `dish_linked` would claim
-     one. The dish write is sequenced after the plate — menu_items.plate_id -> plates.id is this app's
-     only FK that can error. */
+  /* `create` is the only path that mints, and it stays SILENT in the change log — but the reason is
+     narrower than "an empty plate has no cost movement", which is what this comment said until the
+     pre-push review read it against the branch above.
+     ⚠️ THE RELINK BRANCH LOGS `dish_linked` EVEN WHEN THE PLATE IT FOUND IS EMPTY OR PARTLY COSTED,
+     because it delegates to the shipped `linkDishToPlate`, which has always logged unconditionally.
+     So the two branches do NOT share the principle the old wording implied. That is not a defect:
+     `avgFoodCostForScope` drops any plate with `miss!==0` or `cost<=0` from the average, so an empty
+     or broken plate moves nothing and the entry records a link that really happened. The honest
+     statement is the plain one — a mint creates NOTHING to link to, so there is no link to log. */
   var id=uid('SP'), sp={id:id, name:m.name||'Plate', lines:[]};
   savedPlates.push(sp);
   m.plateId=id; var i=customMenu.findIndex(function(c){return c.id===m.id;}); if(i>=0) customMenu[i]=m; else customMenu.push(m);
