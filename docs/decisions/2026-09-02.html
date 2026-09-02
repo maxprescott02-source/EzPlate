@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EzPlate decisions — 2 Sep 2026</title>
+<style>
+:root{
+  --surface:#FFFFFF;--surface-2:#FAF7F1;--border:#EAE3D8;--border-2:#E3DCCF;
+  --text:#2A211B;--text-2:#6B5D50;--text-3:#7D7060;
+  --danger:#C0392F;--danger-bg:#FBEBEA;--danger-br:#F0D4D1;
+  --warn:#B54708;--warn-bg:#FDF3E0;--knob:#FFFFFF;--accent:#C05621;
+  --page:#1a1b1e;--panel:#232528;--panel-br:#34363B;--panel-tx:#E4E3E1;--panel-tx2:#ABA9A5;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--panel-tx);
+  font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:20px 16px 60px}
+h1{font-size:20px;margin:0 0 4px}
+.sub{color:var(--panel-tx2);font-size:13px;margin:0 0 28px}
+.q{border:1px solid var(--panel-br);border-radius:14px;padding:16px;margin:0 0 26px;background:var(--panel)}
+.qh{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--panel-tx2);margin:0 0 6px}
+h2{font-size:17px;margin:0 0 8px;line-height:1.35}
+.why{color:var(--panel-tx2);font-size:13.5px;margin:0 0 16px}
+.why b{color:var(--panel-tx)}
+.opts{display:flex;flex-direction:column;gap:14px}
+.opt{border:1px solid var(--panel-br);border-radius:11px;overflow:hidden;background:#1E1F22}
+.opt>.lbl{display:flex;gap:8px;align-items:baseline;padding:10px 12px;border-bottom:1px solid var(--panel-br)}
+.opt>.lbl b{font-size:15px}
+.opt>.lbl .rec{font-size:11px;font-weight:700;color:#0B0B0B;background:#D9A441;border-radius:20px;padding:2px 8px}
+.cost{padding:9px 12px;font-size:12.5px;color:var(--panel-tx2);border-top:1px solid var(--panel-br)}
+.cost b{color:var(--panel-tx)}
+/* the rendered specimens — the app's own light palette, on the app's own surfaces */
+.phone{background:var(--surface);color:var(--text);padding:14px 12px}
+.phone.dk{--surface:#232528;--surface-2:#1E1F22;--border:#34363B;--border-2:#3F4247;
+  --text:#E4E3E1;--text-2:#ABA9A5;--text-3:#908D89;
+  --danger:#E5877D;--danger-bg:#332826;--danger-br:#4A3733;--warn:#DDB27C;--warn-bg:#312C24;--knob:#E4E3E1;
+  background:var(--surface);color:var(--text)}
+.thm{font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--text-3);margin:0 0 8px}
+.row{border:1px solid var(--danger-br);background:var(--danger-bg);border-radius:9px;padding:9px 11px}
+.row .nm{font-weight:700;font-size:14px}
+.row .ex{color:var(--text-3);font-size:12.5px;margin-top:5px}
+.ratio{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:var(--text-3);margin-top:7px}
+.ratio .bad{color:var(--danger);font-weight:700}
+.ratio .ok{color:#2F7D32;font-weight:700}
+.phone.dk .ratio .ok{color:#7FBF83}
+/* toggle specimen */
+.sw{display:inline-flex;align-items:center;gap:10px;font-size:13.5px}
+.trk{position:relative;display:block;width:38px;height:22px;border-radius:99px;background:var(--border-2);flex:0 0 auto}
+.trk::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;
+  background:var(--knob);box-shadow:0 1px 2px rgba(0,0,0,.25)}
+.swrow{display:flex;flex-direction:column;gap:12px}
+/* danger button specimen */
+.dbtn{display:inline-block;border:1px solid var(--danger-br);background:transparent;color:var(--danger);
+  border-radius:10px;padding:10px 16px;font-size:14px;font-weight:500}
+.note{border-left:3px solid var(--accent);padding:2px 0 2px 12px;margin:14px 0 0;font-size:12.5px;color:var(--panel-tx2)}
+.foot{color:var(--panel-tx2);font-size:13px;border-top:1px solid var(--panel-br);padding-top:16px}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;background:#2A2C30;border-radius:4px;padding:1px 5px}
+</style></head><body>
+
+<h1>Three contrast questions</h1>
+<p class="sub">2 September 2026 · queue item 8 · every number below was measured in a real browser against the surface it is actually painted on, not calculated from the palette.</p>
+
+<!-- ─────────────── 1 ─────────────── -->
+<div class="q">
+  <p class="qh">Question 1 — grey text</p>
+  <h2>Your grey explanatory text is slightly too faint on tinted rows.</h2>
+  <p class="why">One grey (<code>--text-3</code>) writes every quiet line in the app. On plain white it measures <b>4.82</b>, comfortably over the <b>4.5</b> readability floor. On a <b>tinted</b> row — a flagged invoice line — the same grey drops to <b>4.17</b>, because the tint is darker than white. Same text, same token, worse background.</p>
+
+  <div class="opts">
+    <div class="opt">
+      <div class="lbl"><b>A</b> Nudge the grey a shade, everywhere <span class="rec">Recommended</span></div>
+      <div class="phone dk">
+        <p class="thm">Dark · after</p>
+        <div class="row"><div class="nm">Chicken Breast Skin On</div>
+          <div class="ex" style="color:#96938F">Stored per gram. Set the pack, or type the price per gram.</div>
+          <div class="ratio">on tint <span class="ok">4.66</span> · on white <span class="ok">5.02</span></div></div>
+      </div>
+      <div class="phone">
+        <p class="thm">Light · after</p>
+        <div class="row"><div class="nm">Chicken Breast Skin On</div>
+          <div class="ex" style="color:#776B5C">Stored per gram. Set the pack, or type the price per gram.</div>
+          <div class="ratio">on tint <span class="ok">4.50</span> · on white <span class="ok">5.20</span></div></div>
+      </div>
+      <div class="cost">Light <code>#7D7060</code>→<code>#776B5C</code>, dark <code>#908D89</code>→<code>#96938F</code>. A <b>4–5% shift</b> — about as small as a colour change can be and still count. Clears the floor on every surface in the app, including the two tints. Every quiet line gets it, so nothing can be missed later.</div>
+    </div>
+
+    <div class="opt">
+      <div class="lbl"><b>B</b> Leave it exactly as it is</div>
+      <div class="phone dk">
+        <p class="thm">Dark · today</p>
+        <div class="row"><div class="nm">Chicken Breast Skin On</div>
+          <div class="ex">Stored per gram. Set the pack, or type the price per gram.</div>
+          <div class="ratio">on tint <span class="bad">4.32</span> · on white <span class="ok">4.65</span></div></div>
+      </div>
+      <div class="phone">
+        <p class="thm">Light · today</p>
+        <div class="row"><div class="nm">Chicken Breast Skin On</div>
+          <div class="ex">Stored per gram. Set the pack, or type the price per gram.</div>
+          <div class="ratio">on tint <span class="bad">4.17</span> · on white <span class="ok">4.82</span></div></div>
+      </div>
+      <div class="cost">Free. The shortfall is small and stays recorded in the test that measures it. The lines that miss are the ones explaining <b>why an invoice row needs your attention</b> — the copy a person reads when something is already wrong.</div>
+    </div>
+  </div>
+  <p class="note">If A, the test that measures this every run moves its floor from 3.0 to 4.5 in the same change, so it can never quietly slip back.</p>
+</div>
+
+<!-- ─────────────── 2 ─────────────── -->
+<div class="q">
+  <p class="qh">Question 2 — the off switch</p>
+  <h2>A switch that is OFF is nearly invisible in light mode.</h2>
+  <p class="why">The track is a cream pill on a white card: <b>1.36</b> against the card, where a control's outline is meant to reach <b>3.0</b>. The white knob on the cream track is <b>also 1.36</b> — the only thing separating them is a faint drop shadow. Dark mode was fixed in v136 and reads fine at <b>7.87</b>; this is the light case only.</p>
+
+  <div class="opts">
+    <div class="opt">
+      <div class="lbl"><b>A</b> Outline the track and the knob <span class="rec">Recommended</span></div>
+      <div class="phone">
+        <p class="thm">Light · after</p>
+        <div class="swrow">
+          <span class="sw"><span class="trk" style="border:1px solid #98938B"><span style="position:absolute;top:1px;left:1px;width:18px;height:18px;border-radius:50%;background:#fff;border:1px solid #98938B"></span></span> AI suggestions</span>
+        </div>
+        <div class="ratio">outline on card <span class="ok">3.05</span> · the pill stays pale</div>
+      </div>
+      <div class="cost">A hairline at <code>#98938B</code> round the track and the knob. The switch keeps its soft cream fill — <b>only the edges gain definition</b>. Applies to every switch in the app at once.</div>
+    </div>
+
+    <div class="opt">
+      <div class="lbl"><b>B</b> Darken the whole track</div>
+      <div class="phone">
+        <p class="thm">Light · after</p>
+        <div class="swrow">
+          <span class="sw"><span class="trk" style="background:#98938B"></span> AI suggestions</span>
+        </div>
+        <div class="ratio">track on card <span class="ok">3.05</span></div>
+      </div>
+      <div class="cost">The off state becomes a solid grey pill. Unmistakable, and a <b>noticeably heavier</b> look — this is a mid-grey, not a tint. It also reads a little like the switch is doing something when it is off.</div>
+    </div>
+
+    <div class="opt">
+      <div class="lbl"><b>C</b> Leave it</div>
+      <div class="phone">
+        <p class="thm">Light · today</p>
+        <div class="swrow">
+          <span class="sw"><span class="trk"></span> AI suggestions</span>
+        </div>
+        <div class="ratio">track on card <span class="bad">1.36</span> · knob on track <span class="bad">1.36</span></div>
+      </div>
+      <div class="cost">Free, and it has always looked like this. The label beside it says what the switch is for, but <b>nothing except the shadow says which way it is set</b>.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ─────────────── 3 ─────────────── -->
+<div class="q">
+  <p class="qh">Question 3 — the delete button</p>
+  <h2>The soft outline on destructive buttons is faint — and the fix costs the colour.</h2>
+  <p class="why">"Delete this menu" has a pale pink border measuring <b>1.40</b>. Raising it to <b>3.0</b> means going to <code>#A3908E</code> — <b>which is no longer pink</b>. The button's own red label already measures <b>5.43</b>, well clear, so the border decorates rather than identifies.</p>
+
+  <div class="opts">
+    <div class="opt">
+      <div class="lbl"><b>A</b> Leave it, and write down why <span class="rec">Recommended</span></div>
+      <div class="phone">
+        <p class="thm">Light · today</p>
+        <span class="dbtn">Delete this menu</span>
+        <div class="ratio">label <span class="ok">5.43</span> · border <span class="bad">1.40</span></div>
+      </div>
+      <div class="cost">Free. The red word is what identifies the button and it is clear of the floor twice over. The record says this was measured and accepted, so no future batch re-finds it as a bug.</div>
+    </div>
+
+    <div class="opt">
+      <div class="lbl"><b>B</b> Raise the border to 3.0</div>
+      <div class="phone">
+        <p class="thm">Light · after</p>
+        <span class="dbtn" style="border-color:#A3908E">Delete this menu</span>
+        <div class="ratio">label <span class="ok">5.43</span> · border <span class="ok">3.03</span></div>
+      </div>
+      <div class="cost">Meets the guideline. <b>The border stops being red</b> — it goes grey-brown, so the button loses the colour that says "this one is dangerous" at a glance, in exchange for an edge nobody was struggling to see.</div>
+    </div>
+  </div>
+</div>
+
+<p class="foot">Reply in chat with the letters, e.g. <b>1A 2A 3A</b>. Anything you want changed instead of picked, just say it.</p>
+</body></html>
