@@ -7410,7 +7410,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v185';
+var APP_VERSION='v186';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -8817,9 +8817,36 @@ if ('serviceWorker' in navigator) {
      clear" of a full-width column by CSS alone; something has to give the document the space back,
      and only the code that knows the banner is visible can do that. The class is set here rather
      than in a CSS :has() so it survives the banner being toggled by any of the four paths below. */
+  /* 226 — THE ONE NUMBER, PUBLISHED BY THE ELEMENT THAT OWNS IT. Three rules have to clear this
+     banner: the document's reserve, the builder's summary bar and the toast. Each used to restate a
+     hardcoded 114px, and 114 is `90 (the height measured at DESKTOP) + 24 (the DESKTOP dock
+     offset)`. The dock offset is 84 below 1024, so that constant was 57px short at every phone
+     width and 113px short once the iOS hint is open — measured: height 87 at 380, 70 at 768, 90 at
+     desktop, 143 at 380 with the hint. 177's comment claims the two copies "cannot drift" because
+     they share the number; they shared a number that was wrong wherever the builder bar exists.
+     ⚠️ THE PUBLISHED VALUE ALREADY CONTAINS env(safe-area-inset-bottom), because the used `bottom`
+     of a fixed element resolves its calc() — a reader that adds the inset again double-counts it.
+     The ResizeObserver is not belt-and-braces: the height changes WHILE the banner is up, when the
+     iOS hint is revealed and when the text rewraps on rotation. It also covers the dock offset
+     changing at a breakpoint, because every breakpoint that moves the dock also changes the
+     banner's width (full-bleed below 1024, a 400px panel above it), so the observer fires. */
+  function publishClear(){
+    var h = banner.getBoundingClientRect().height;
+    if(!h) return;                                       // hidden — the class is off, so nothing reads it
+    var dock = parseFloat(getComputedStyle(banner).bottom) || 0;
+    document.documentElement.style.setProperty('--install-banner-clear', Math.ceil(dock + h) + 'px');
+  }
+  if(window.ResizeObserver){ try{ new ResizeObserver(publishClear).observe(banner); }catch(e){} }
   function show(){
     if(dismissed()||standalone()) return;
     banner.style.display='flex';
+    /* BEFORE the class, so no frame is painted against the stylesheet's fallback — and guarded,
+       because this is the one line in show() that can throw. Raised by 226's pre-push review: an
+       unguarded publish that threw would leave the banner VISIBLE with no `has-install-banner`
+       class, which is the pre-177 failure the class exists to prevent (a fixed panel over the last
+       rows of a 393-row table, and over the builder's Save). Swallowing it falls back to the CSS
+       114px instead, i.e. exactly main's behaviour, which is wrong on a phone and not broken. */
+    try{ publishClear(); }catch(e){}
     document.documentElement.classList.add('has-install-banner');
   }
   function hide(){
@@ -8831,7 +8858,7 @@ if ('serviceWorker' in navigator) {
   document.getElementById('installClose').addEventListener('click',function(){ setDismissed(); hide(); });
   document.getElementById('installBtn').addEventListener('click',function(){
     if(deferred){ deferred.prompt(); deferred.userChoice.then(function(){ deferred=null; setDismissed(); hide(); }); }
-    else if(iosHint){ iosHint.style.display='block'; }   /* iOS Safari has no prompt API */
+    else if(iosHint){ iosHint.style.display='block'; }   /* iOS Safari has no prompt API — this GROWS the banner (87->143 at 380); the ResizeObserver above republishes */
   });
   show();  /* first-visit guidance even where beforeinstallprompt never fires (e.g. iOS) */
 })();

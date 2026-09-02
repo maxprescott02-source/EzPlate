@@ -978,11 +978,17 @@ input.bld-nameinput:focus{background:var(--surface);border-color:var(--accent);b
    symptom was a covered number. 177 puts SAVE in it, and the banner then covers the screen's
    committing action — found by Playwright reporting the click intercepted by `#installClose`, not by
    looking, because the two elements only coexist when the install prompt has fired.
-   114px is not a new number: it is exactly what `html.has-install-banner body` already reserves for
-   the banner, so the bar rides on the same measurement the document does and the two cannot drift.
    Written at (0,2,1) so it beats BOTH the base rule and the >=640 override without depending on
-   source order — `@media` does not win by being later, and this has to win over both. */
-html.has-install-banner .bld-bar{bottom:calc(114px + env(safe-area-inset-bottom))}
+   source order — `@media` does not win by being later, and this has to win over both.
+   ⚠️ 226 — THIS READ `calc(114px + env(safe-area-inset-bottom))`, AND 177's REASON FOR THE 114 WAS
+   RIGHT WHILE THE NUMBER WAS WRONG HERE. Its comment said the bar "rides on the same measurement the
+   document does and the two cannot drift" — true, and both were 90 (the height measured at DESKTOP)
+   + 24 (the DESKTOP dock offset), while the dock is 84 below 1024 and this bar is a PHONE element
+   that `display:none`s at 768. Two copies of one number cannot drift from each other and can both be
+   57px short of the thing they describe. `--install-banner-clear` is published by the banner itself
+   (js/app.js), so there is now one measurement rather than two agreeing constants, and the inset is
+   already inside it — do not add env() back. */
+html.has-install-banner .bld-bar{bottom:var(--install-banner-clear)}
 
 /* ----------------------------------------------------------------------
    10. PLATE ACTIONS — one clear primary, quiet destructive
@@ -1553,12 +1559,33 @@ body.scroll-locked{position:fixed;left:0;right:0}
 .install-banner .ib-text strong{font-size:var(--fs-base);color:var(--text)}
 .install-banner .ib-text span{color:var(--muted2)}
 .install-banner .ios-hint{color:var(--accent)!important;font-weight:700}
+/* ONE OWNER FOR THE BOTTOM STACK (226). `--install-banner-clear` is how far up from the viewport
+   floor this banner actually reaches — its used `bottom` plus its measured height — and it is
+   published by the banner's own code in js/app.js, which is the only thing that knows the banner is
+   on screen, how tall its text wrapped, and whether the iOS hint is open. Three rules read it and
+   none of them may know a number: the document's reserve below, the builder's summary bar (§9) and
+   the toast (§18). The declaration here is the FALLBACK for a build where the JS has not run; the
+   inline custom property `publishClear()` sets on <html> overrides it, and `show()` sets it BEFORE
+   adding the class so no frame is ever painted against the fallback.
+   ⚠️ env(safe-area-inset-bottom) IS ALREADY INSIDE THE PUBLISHED VALUE and must not be added by a
+   reader — a used `bottom` resolves its own calc(). It appears in the fallback only because a
+   fallback has no measurement to resolve. */
+html.has-install-banner{--install-banner-clear:calc(114px + env(safe-area-inset-bottom))}
 /* THE RESERVE. `#installBanner` is `position:fixed`, so it is out of flow and the page has no idea
-   it exists; this gives the height back to the document while it is on screen. 90px is the banner's
-   measured height plus its 24px dock offset, and the safe-area inset keeps it true on a phone with
-   a home indicator. Paired with the class set in js/app.js — if that pairing is ever broken, the
-   symptom is the banner covering the last table row again. */
-html.has-install-banner body{padding-bottom:calc(114px + env(safe-area-inset-bottom))}
+   it exists; this gives the height back to the document while it is on screen. Paired with the class
+   set in js/app.js — if that pairing is ever broken, the symptom is the banner covering the last
+   table row again. */
+html.has-install-banner body{padding-bottom:var(--install-banner-clear)}
+/* THE TOAST STACKS ABOVE THE BANNER (226). They are the one pair v141's three-way split of the
+   bottom chrome does not separate: it split them LEFT / CENTRE / RIGHT, and the toast is centred
+   while the banner is right-aligned and 400px wide, so at 1024-1440 the centre reaches into the
+   right slot. Measured at 1024: toast x431-817 against banner x600-1000, overlapping y787-808 — the
+   Install button and the ✕ under a pill of text. At 380 it is not a clip but a cover: toast x95-285
+   inside banner x12-368, nearly the whole panel. The separation has to be VERTICAL, because no
+   horizontal arrangement survives a toast whose width is its message and a banner whose width is the
+   viewport. Written at (0,2,1) so it beats the base `.toast` rule AND the two `@media` blocks that
+   re-`left` the toast for the sidebar — `@media` does not win by being later. */
+html.has-install-banner .toast{bottom:calc(var(--install-banner-clear) + var(--sp-3))}
 
 /* SECONDARY, NOT PRIMARY (176). This was the accent-filled button — §7 allows ONE primary action per
    screen region, and an unprompted install banner was competing with whatever the screen's real CTA

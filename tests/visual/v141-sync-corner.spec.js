@@ -177,28 +177,41 @@ for (const width of [380, 768]) {
   });
 }
 
-/* The bottom is now a three-way split — left: sync banner, centre: toast, right: install banner —
-   and the whole argument for moving it there is that the three do not collide. Asserting it makes
-   that argument fail loudly rather than quietly. (The toast and install banner overlap EACH OTHER
-   at these widths; that is pre-existing, is queued separately, and is not what this measures.) */
-test('desktop: the banner clears the toast and the install banner at every width', async ({ page }) => {
+/* The bottom is a three-way split — left: sync banner, centre: toast, right: install banner — and
+   the whole argument for moving it there is that the three do not collide. Asserting it makes that
+   argument fail loudly rather than quietly.
+   ⚠️ 226 — THIS MEASURED TWO OF THE THREE PAIRS AND SAID SO, and the pair it left out was the one
+   that was broken. It read "the toast and install banner overlap EACH OTHER at these widths; that
+   is pre-existing, is queued separately, and is not what this measures" — correct, honest, and the
+   reason a spec named for the three-way split could be green while a third of the split was false.
+   The pair is measured here now. Its own geometry, and the mechanism behind the fix, live in
+   `226-bottom-stack.spec.js`; what belongs HERE is only that the split holds three ways.
+   ⚠️ AND `inst.style.display='flex'` USED TO CARRY THE COMMENT "never shown in the fixture; force
+   it", WHICH WAS FALSE. The install-banner IIFE ends with a bare `show()` — first-visit guidance
+   for iOS, where `beforeinstallprompt` never fires — so on Playwright's fresh profile the banner is
+   already up before this line runs. The line is kept because it costs nothing and makes the state
+   explicit; the claim about the fixture is what was wrong. */
+test('desktop: the three-way split of the bottom chrome holds, at every width', async ({ page }) => {
   for (const width of [1024, 1280, 1440, 1920]) {
     await boot(page, width);
     const hits = await page.evaluate(() => {
       window.setSync('error');                                   // the widest state
       const inst = document.getElementById('installBanner');
-      inst.style.display = 'flex';                               // never shown in the fixture; force it
+      inst.style.display = 'flex';                               // already shown on boot; explicit anyway
       const toast = document.querySelector('.toast');
       toast.classList.add('show');
       toast.textContent = 'Couldn’t save product — no database connection';
-      const b = document.getElementById('syncBanner').getBoundingClientRect();
-      const hit = (el) => {
-        const r = el.getBoundingClientRect();
-        return r.right > b.left && r.left < b.right && r.bottom > b.top && r.top < b.bottom;
+      const rect = (el) => el.getBoundingClientRect();
+      const hit = (a, b) => b.right > a.left && b.left < a.right && b.bottom > a.top && b.top < a.bottom;
+      const sync = rect(document.getElementById('syncBanner'));
+      return {
+        syncVsInstall: hit(sync, rect(inst)),
+        syncVsToast: hit(sync, rect(toast)),
+        toastVsInstall: hit(rect(toast), rect(inst)),
       };
-      return { install: hit(inst), toast: hit(toast) };
     });
-    expect(hits, `bottom chrome collision at ${width}px`).toEqual({ install: false, toast: false });
+    expect(hits, `bottom chrome collision at ${width}px`)
+      .toEqual({ syncVsInstall: false, syncVsToast: false, toastVsInstall: false });
   }
 });
 

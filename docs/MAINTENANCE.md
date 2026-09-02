@@ -289,6 +289,24 @@ Requirements: sort every bullet into (a) dead or superseded → delete with the 
 
 ## C — code hygiene and latent defects
 
+### The bottom stack's OTHER pair: a toast covers the builder's Save button, with no install banner involved
+(Measured 2 Sep 2026 by batch 226, which fixed the toast-vs-install-banner pair and measured this one on the way past.)
+
+At 380x800, builder open on a costed plate, no install banner on screen: `.bld-bar` is x0-380 y636-736 and a real-length toast — *"Couldn't save product — no database connection"* — is x95-285 y617-708, **and it covers `.bfs-save`** (measured `saveCovered:true`; an 80px "Saved" pill at x150-230 does not, so a short message hides this).
+The toast docks at `bottom:92px` and the bar at `bottom:calc(var(--bottomnav-h, 64px) + …)`, so the bar's ~100px height reaches 164 and the toast starts inside it. Neither knows about the other.
+
+**It is C rather than B on two measured grounds and it is worth stating which, because both could change.** The toast is `pointer-events:none`, so SAVE is still clickable while it is hidden — the same property that made 177's install-banner collision *cosmetic* until 177 put SAVE in the bar. And the toast auto-dismisses, so this is seconds rather than the install banner's permanent panel.
+**It becomes B if either changes** — a toast that takes pointer events, or any persistent element docked at the toast's height.
+
+**The fix is the mechanism 226 already built, pointed at a second element.** `--install-banner-clear` is published by the banner because the banner is the only thing that knows its own height; `.bld-bar` would publish `--bld-bar-clear` the same way, from `renderBuilderCost`, and the toast would take the max. What must NOT happen is a third hardcoded constant: 226's whole finding was that `114px` was two agreeing copies of a number that was wrong at every phone width.
+
+### `--bottomnav-h` is read with a fallback and published by NOTHING
+(Same batch, found while looking for precedent for the variable above.)
+
+`css/style.css` at the `.bld-bar` rule reads `var(--bottomnav-h, 64px)`, and the comment at the `@media (min-width:640px)` override two rules below says the offset is *"measured against .bottomnav rather than assumed - `--bottomnav-h` is not a token this sheet defines."* **Nothing defines it anywhere** — `grep -n "bottomnav-h" js/app.js` returns nothing — so the 64px fallback has always been the live value, and the comment describes a measurement that does not happen.
+
+This is the failure mode `tests/visual/226-bottom-stack.spec.js` asserts against for `--install-banner-clear`: a variable with a plausible fallback fails SILENTLY, because the fallback is a working number. Either publish it from the code that renders `.bottomnav`, or delete the variable and write the 64 with the reason — but not both halves of a mechanism where only one exists.
+
 ### Nothing records that a user accepted the privacy notice
 (Found 27 Aug 2026 by batch 208's pre-push review, which read the notice's own promise and went looking for the mechanism behind it.)
 
