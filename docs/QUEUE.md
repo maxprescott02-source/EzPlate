@@ -6,6 +6,9 @@ Worked top to bottom by `/batch`. Position is priority. Max adds problems, not b
 **`Blocked on:`** = waiting on a person or an outside thing — `/batch` skips it. **`Do after:`** = waiting on another item in this file, and it is DELETED the moment it is satisfied.
 ⚠️ **THE STATUS IN THE HEADING IS WHAT `/batch` ACTS ON, so a body that disagrees with it is not a nuance — it is the file lying to the only reader that matters.** (31 Aug 2026, batch 225, which found item 5 headed `next` while its own body said the go *"is a condition of the day, not a standing permission"* and to ask again before running it, with a note in between announcing that nothing was waiting on a person. All three were written by different batches, each correctly, over nineteen days.) **An item is worked from its heading and read from its body, and nothing reconciles them** — so when you edit an item's body in a way that changes whether it can be STARTED, change the heading in the same edit, and when you find the two disagreeing, the safer of the two wins and you say in the item which one moved.
 **`project-audit` reports; it does not add queue items.** A finding from a batch defaults to C unless it passes the tier test. **Nothing about the process itself belongs here.**
+⚠️ **AN ITEM THAT NAMES A BEHAVIOUR WITHOUT NAMING ITS SITES IS AN ITEM WHOSE LIST IS ALREADY WRONG.** (2 Sep 2026, AUDIT-v186 R1, measured: **seven of the last eleven batches** found their item's own enumeration short at the point of execution — 220 said three insight families and found five, **222 said six callers of `costFromLines` and found nineteen**, 225 said four rows and found three plus a fifth change, 226 measured desktop and missed that mobile was worse, 221 said "one line" and produced four defects.)
+`CLAUDE.md` blames AGE, and age is no longer the whole story: 222's item was days old and 221's was one line. **The likelier cause is that an item is written as the diagnosis of ONE site while the codebase has nineteen** — and the phrasing invites the partial fix, because "the callers act on it" reads as complete without ever having been counted.
+**So: when you write an item, either COUNT the sites and list them, or say in the item that the list is unmeasured.** Both are honest and the difference is visible; a bare plural is neither. And when you RUN one, grep the enumeration before planning off it — that is not re-asking, and every one of those seven batches did it unprompted.
 *(The one exception this file has ever carried — the mutation-testing gate, which Max put here himself on 13 Aug 2026 over that rule — shipped in batch 180 and its item is deleted. It was never precedent: only he can override this line, and he did it once, in writing, with the count that justified it.)*
 
 ---
@@ -34,7 +37,8 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ## blocked  2b · Move the AI endpoints to Gemini's PAID tier  **[A — post-launch]**
 
-Blocked on: **NOTHING — Max has DEFERRED THIS INDEFINITELY (29 Aug 2026): *"im deferring indefenitly until i saw otherwise."*** It is not waiting on a console visit, a date or a reminder. **Do not surface it, do not re-propose it, and do not count it as a blocked item needing a decision** — the decision is made and the answer is "not now".
+Blocked on: **Max choosing to take it. He has DEFERRED IT INDEFINITELY (29 Aug 2026): *"im deferring indefenitly until i saw otherwise."*** That IS the block, and it is a person, which is what this field is for. It is not waiting on a console visit, a date or a reminder. **Do not surface it, do not re-propose it, and do not count it as a blocked item needing a decision** — the decision is made and the answer is "not now".
+⚠️ **This field read `Blocked on: NOTHING` until 2 Sep 2026** (AUDIT-v186 C2), which is the file's own status vocabulary contradicting its own heading — the exact phrasing item 5 records as preceding a near-miss on destructive work, and the exact shape the header rule above was added to stop. The status was right and the grammar was not; **an item headed `blocked` says in `Blocked on:` who or what it is waiting for, never that it is waiting for nothing.**
 ⚠️ **It stays in the file rather than being deleted because it is DEFERRED, NOT DECLINED**, and the difference is the whole reason this item has survived three re-checks: the free tier means Google may train on café data, and the day that stops being acceptable this item is the ready-made answer. Batch 208's privacy notice is what makes the wait tolerable — a stranger is told, before an account exists, what leaves and where it goes.
 **The original block, still true whenever he takes it:** Max at the Google Cloud billing console — his card, and the assistant may not enter payment details.
 ⚠️ **Set the project SPEND CAP in the same sitting.** `docs/GATE-REVIEW.md` gate 5 makes this the day the AI endpoints' rate-limit residual stops being tolerable: today abuse costs quota, and on the paid tier it costs money.
@@ -79,25 +83,6 @@ Requirements: a fresh export taken minutes before, and **Max's explicit go on th
 When Max gives the go: take a fresh export minutes before, write the one-statement rollback into the item, run `02` then the real backup against staging first as a dress rehearsal, then production. `docs/STAGING.md` has the procedure.
 *(`Blocked on: Max's go on the day` was DELETED here on 12 Aug 2026 with the words "nothing about this item is now waiting on a person". **That line is REINSTATED at the top of this item and this note is kept as the record of the mistake**, not struck: the go was given, and the same item goes on to say the window is a condition of the day and to ask again on the day. Both readings were in this file at once and the header is what `/batch` acts on. **A go that must be re-asked is a block.**)*
 
-## next  10 · Run `project-audit` and FILE its report  **[A — the counter fired]**
-
-Queued 2 Sep 2026 by batch 226 under `skills/batch` step 10, which is the whole trigger: the newest
-`docs/audits/AUDIT-vNN.md` is **AUDIT-v176** and `sw.js` now reads **`ezplate-v186`**, a gap of exactly
-**10**. Nothing to remember and no calendar — the version increments once per batch, so it already is
-the counter.
-**The number in the heading is a label, not a rank; POSITION is priority** (this file's own header), and
-this sits above every unblocked item deliberately. `10` is used rather than the `6` that just freed up,
-because reusing a number for a different item is the renumbering trap this file records at item 5.
-
-Requirements: run the `project-audit` agent, then **YOU file the report** to `docs/audits/AUDIT-v186.md`
-at the version it audited. The agent is read-only and hands the report back rather than saving it, so an
-unfiled report leaves the counter unchanged and **the next audit never gets queued** — the failure is
-silent and compounds.
-Route its findings by tier afterwards: a finding defaults to C and lands in `docs/MAINTENANCE.md`;
-`project-audit` reports, it does not add queue items.
-Out of scope: fixing what it finds. That is the next batch's work, and mixing the two is how an audit
-turns into an unreviewable diff.
-
 ## next  7 · `ensurePlateForDish` starts a second empty recipe instead of relinking the real one  **[B]**
 
 Promoted 31 Aug 2026, same reason. **Max already answered the design question on 9 Aug 2026**, so nothing here is open — the requirements below are settled, not candidates.
@@ -105,7 +90,8 @@ Promoted 31 Aug 2026, same reason. **Max already answered the design question on
 Correct for a genuinely uncosted row; for one whose real recipe exists in the library it leaves that recipe unreferenced and silently starts a second, empty one. Flagged in v113, unchanged.
 Requirements (Max's answer, 9 Aug 2026): the heal looks for an existing library plate by the dish's name BEFORE creating an empty one; exactly one match → relink automatically; several → ask; none → today's behaviour.
 Note **no path creates an unlinked row**: the class arrives only from history or a restore, and production has **0** of them (verified 7 Aug 2026).
-Build it with the both-sides lesson in mind — a relink heals kid-lines only (see `kingMissingImpact`'s v124 history).
+Build it with the both-sides lesson in mind: **a relink heals `{kid, qty}` lines only, so check the OTHER side too** — legacy `{pid, qty}` and `{misc, …}` lines are live data and a heal that walks one shape reports a plate as recovered when it is not.
+⚠️ **This cited `kingMissingImpact`'s v124 history until 2 Sep 2026, and that function was deleted in `ezplate-v139`** (batch F3, the Ingredients rebuild) — one hit repo-wide, and it was this line. The lesson is real, so it is written out here rather than pointed at; a pointer at a deleted function costs a batch a hunt, which is `CLAUDE.md`'s "a queued item's approval does not expire and its FACTS do" landing on the next item due. Found by AUDIT-v186 C3.
 
 ## next  8 · Contrast: body text and control boundaries, decided ONCE in the tokens  **[B]**
 
