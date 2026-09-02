@@ -146,6 +146,9 @@ function harness(opts) {
       'confirmedPrice', 'confirmPrices', 'unlogIngPrices', 'writeSaved',
       'confirmGuardedRepoints', 'kingRepointGuard',
       'mergeChangeLog', 'linkDishToPlate', 'deleteKitchenIngredient', 'saveKingModal',
+      // 228: linkDishToPlate's toast is a decision now. Extracted, not stubbed — the census below
+      // reads these bodies, and a stub would hide whether the real one names the change log.
+      'dishLinkedToast', 'plateFullyCosted',
       'kingValid', 'kingRenameCheck', 'kingNameExists', 'nextKid',
       // READ, never edited — CLAUDE.md hard rule 2 forbids changing unitCatCategory, not slicing it in.
       'unitCatCategory',

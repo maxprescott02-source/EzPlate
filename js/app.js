@@ -3215,9 +3215,17 @@ function menusOfPlate(sp){ var seen={},out=[]; dishesOfPlate(sp).forEach(functio
    plate to test the delete flow, got two rows, and reported a publish bug that was not one.
    BOTH dish-creating paths (submitMenuItem, submitAddDish) now share this ONE decision, so the second
    cannot drift away from the first — it had the identical hole and nobody had noticed.
-   No auto-heal and no name matching, by decision: linking means guessing which dish belongs to this
-   plate, and the v112 repair needed the section, the price and the price history in front of a human
-   before the call could be made. The app surfaces the choice; it does not make it. */
+   No auto-heal and no name matching HERE, by decision: on this side, linking means guessing which DISH
+   belongs to this plate, and the v112 repair needed the section, the price and the price history in
+   front of a human before the call could be made. The app surfaces the choice; it does not make it.
+   ⚠️ 228 — THAT SENTENCE READ AS AN APP-WIDE RULE AND IS NOT ONE. It is about PUBLISHING, where the
+   plate is known and the dish is being guessed at. The mirror direction — an unlinked dish looking for
+   ITS recipe — was put to Max on 8 Aug 2026 and answered on 9 Aug: relink on exactly one name match,
+   ask on several (`docs/decisions/2026-08-08-2.html`, "orphandish"). `plateHealPlan` does that, and the
+   two are consistent rather than in tension: there, one plate could belong to any of several dishes and
+   the evidence a human needs is not on screen; here, the dish is fixed and a single same-named plate is
+   the only thing it could be. **Scope this claim to publishPlan; do not read it as forbidding the
+   heal.** */
 function unlinkedDishesOn(dishes, menuId){
   return (dishes||[]).filter(function(d){ return d && !plateIdOf(d) && dishOnMenu(d, menuId); });
 }
@@ -3229,13 +3237,70 @@ function publishPlan(dishes, plateId, menuId){
   if(existing) return {action:'update', existingId:existing.id, unlinked:[]};   // already on this menu — updating it duplicates nothing, so there is nothing to ask
   return {action:'create', existingId:null, unlinked:unlinkedDishesOn(dishes, menuId)};
 }
+/* 228 — the name key for matching a dish to its lost recipe. Same shape as normSupplier: case and
+   inner whitespace are noise, everything else is signal. An EMPTY name yields '' and the caller
+   treats that as "no candidates", because a nameless dish must not match every nameless plate. */
+function normPlateName(s){ return String(s||'').toLowerCase().replace(/\s+/g,' ').trim(); }
+/* 228 — THE HEAL DECISION, pure, in publishPlan's idiom: one function decides, the callers act.
+   Max's answer, 9 Aug 2026 (`docs/decisions/2026-08-08-2.html`, "orphandish"): *"Look for the plate
+   first — relink if there's exactly one match, ask me if there are several."* Before this, costing a
+   dish whose recipe link was lost minted a SECOND empty plate and left the real one stranded in the
+   library, with the dish reading "not costed" and nothing saying why. The class arrives only from a
+   restore or from history; production has zero rows of it, and the one real incident took 76 of 77.
+
+   ⚠️ A CANDIDATE ALREADY BACKING A DISH ON THIS DISH'S OWN MENU IS EXCLUDED, and the item did not say
+   so. Relinking to one would put two dishes of the same plate on one menu — the "one entry per
+   (plate, menu)" rule v113 established, and the thing dishesOfPlate/menusOfPlate would then report
+   ambiguously. When that empties the set, minting an empty plate is the RIGHT answer rather than a
+   fallback: the real recipe is demonstrably already in use on this menu, so this row is a duplicate
+   for a human to resolve, which is the one call this app does not make for them.
+
+   Four outcomes, named rather than boolean, because "could not find one" and "found several" are
+   different answers that a two-valued return would collapse into the same silent create. */
+function plateHealPlan(m){
+  if(!m) return {action:'create', plate:null, candidates:[]};
+  var sp=plateForMenuItem(m); if(sp) return {action:'linked', plate:sp, candidates:[]};
+  var nm=normPlateName(m.name);
+  var mine=menuIdOf(m);
+  var cands = nm ? (savedPlates||[]).filter(function(s){
+    if(!s || normPlateName(s.name)!==nm) return false;
+    /* dishOnMenu, never a bare `===` (184): a dish on NO menu has a null menu id, and null===null
+       would read two unmenued dishes as sharing a menu and rule out a perfectly good plate. */
+    return !dishesOfPlate(s).some(function(d){ return d && d.id!==m.id && dishOnMenu(d, mine); });
+  }) : [];
+  if(cands.length===1) return {action:'relink', plate:cands[0], candidates:cands};
+  if(cands.length>1)   return {action:'ask',    plate:null,     candidates:cands};
+  return {action:'create', plate:null, candidates:[]};
+}
 // v55: every dish should own a plate (its recipe). If one is missing (a pre-v55 uncosted dish, or a fresh
 // legacy row), create an empty plate and link the dish to it via plateId. §B backfills this at the DB level;
 // this is the app-side guarantee. The dish write is sequenced after the plate (menu_items.plate_id FK).
-function ensurePlateForDish(m){
+/* 228: it consumes plateHealPlan. `ask` is the caller's to route — loadMenuItemBlank opens the picker
+   and calls linkDishToPlate with the chosen one — so reaching here with several candidates would be a
+   caller bug, and it MINTS rather than silently picking one. That is the conservative half of Max's
+   answer honoured at the wrong door: never guess between several. */
+/* 228 — THE RELINK DELEGATES TO THE SHIPPED `linkDishToPlate` RATHER THAN WRITING ITS OWN.
+   A first cut of this batch added a second function of that name, 6500 lines above the real one, and
+   `tests/housekeeping.test.js` failed it immediately — hoisting makes the LAST definition win, so the
+   new one was dead on arrival and twelve unrelated tests broke. That guard is the reason this comment
+   describes a better design instead of a shipped bug.
+   Reusing it is not merely avoiding a collision, it is the correct answer: an unlinked dish becoming
+   costed is `dish_linked`, exactly what that function logs, and its own comment calls it "the single
+   largest one-step move the food-cost average can make". A heal that skipped the log would move the
+   café's average with nothing in `menu_change_log` explaining why — and CLAUDE.md's rule is that log
+   records what MAX did, which a heal he triggered by tapping the dish plainly is. It also brings the
+   menu rebuild, the selector, the analysis re-render and the history point, all of which a relink
+   needs and none of which is worth a second copy. */
+function ensurePlateForDish(m, plan){
   if(!m) return null;
-  var sp=plateForMenuItem(m); if(sp) return sp;
-  var id=uid('SP'); sp={id:id, name:m.name||'Plate', lines:[]};
+  plan = plan || plateHealPlan(m);
+  if(plan.action==='linked') return plan.plate;
+  if(plan.action==='relink') return linkDishToPlate(m, plan.plate) ? plan.plate : null;
+  /* `create` is the only path that mints, and it stays SILENT in the change log on purpose: an empty
+     plate is "not costed yet", so there is no cost movement to explain and `dish_linked` would claim
+     one. The dish write is sequenced after the plate — menu_items.plate_id -> plates.id is this app's
+     only FK that can error. */
+  var id=uid('SP'), sp={id:id, name:m.name||'Plate', lines:[]};
   savedPlates.push(sp);
   m.plateId=id; var i=customMenu.findIndex(function(c){return c.id===m.id;}); if(i>=0) customMenu[i]=m; else customMenu.push(m);
   dbPushMenuAfterPlate(m, sp);
@@ -7410,7 +7475,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v186';
+var APP_VERSION='v187';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -9115,9 +9180,24 @@ function renderPlateSuggest(query){
 }
 function loadMenuItemBlank(id){                              // v55: cost an uncosted dish -> open its (created+linked) plate
   var m=menuById[id]; if(!m) return;
-  var sp=ensurePlateForDish(m); if(!sp) return;
+  /* 228: the plan is computed ONCE here and handed to ensurePlateForDish, rather than each computing
+     its own. They would call the same function and so could not disagree in logic — but CLAUDE.md's
+     rule is that a second computation of a write's decision is a stub of it, and the cheap way to keep
+     that true forever is to not have a second one. */
+  var plan=plateHealPlan(m);
+  if(plan.action==='ask'){ openPlateHealPicker(m, plan.candidates); return; }
+  var sp=ensurePlateForDish(m, plan); if(!sp) return;
+  openHealedPlate(m, sp, plan.action==='relink');
+}
+/* 228 — one exit for every heal outcome, including the picker's, so the builder is opened and the
+   result described in exactly one place. */
+function openHealedPlate(m, sp, relinked){
   loadPlateState(sp.id); openBuilder();
-  toast('Loaded menu item \u201c'+(m.name||'item')+'\u201d \u2014 add ingredients to cost it');
+  /* A RELINK is not toasted here: `linkDishToPlate` has already said its piece, and two toasts in one
+     tick means the user reads whichever won. A MINT is, because nothing else speaks for it. That
+     shipped toast is also where the both-sides lesson lands — 228 made it stop claiming "is now
+     costed" over a plate whose legacy {pid} or {misc} lines cannot be costed. */
+  if(!relinked) toast('Loaded menu item \u201c'+((m&&m.name)||'item')+'\u201d \u2014 add ingredients to cost it');
 }
 function requestLoadMenuItem(id){
   var m=menuById[id]; if(!m) return;
@@ -9737,6 +9817,24 @@ function renderUnlinkedPrompt(boxId, plateId, menuId, onLink){
     b.onclick=function(){ var d=list[parseInt(b.getAttribute('data-n'),10)]; if(d) onLink(d); };
   });
 }
+/* 228 — THE WORDING IS A DECISION, so it is a function rather than a ternary inside a 40-line
+   side-effecting one. Extracted for the reason this repo extracts everything: a test that had to
+   drive `linkDishToPlate` to reach this string would need the whole DOM, the change log and the
+   renderers, so in practice it would be tested by a stub written from the same belief as the code.
+   `dishLinkedToast` can be run against the real costDetail/lineProduct/lineCost with all three line
+   shapes, which is the only way to know the claim is true. */
+function dishLinkedToast(name, sp){
+  /* THREE STATES, NOT TWO, and the third is the one that was being told a lie. This said "is now
+     costed from this plate" for every link, and an EMPTY plate is not costed at all — it is "not
+     costed yet", which is the distinction v55 §B drew when it made a fresh plate empty rather than a
+     $0.00 one. Two-valued, the empty case landed on the confident branch. A plate with lines that
+     cannot all be resolved is a third thing again: it has a total, and the total is understated,
+     which is exactly what 222 stopped every other screen from rendering as a cost. */
+  var lines=(sp&&sp.lines)||[];
+  if(!lines.length) return '\u201c'+name+'\u201d now uses this plate \u2014 add ingredients to cost it.';
+  if(plateFullyCosted(sp)) return '\u201c'+name+'\u201d is now costed from this plate \u2014 its menu price is unchanged.';
+  return '\u201c'+name+'\u201d now uses this plate \u2014 some of its lines still need costing.';
+}
 /* Link an existing, unlinked dish to this plate. The dish keeps its OWN name, price and section: it is
    already priced on that menu, and repricing it from whatever happens to be typed in the modal would be
    the app deciding something it was not asked to. The dish REFERENCES the plate, so the write is
@@ -9769,7 +9867,14 @@ function linkDishToPlate(dish, sp){
   // openPublishModal is often reached FROM Manage menus, which would otherwise sit behind this showing
   // the pre-link state. Same refresh submitMenuItem does, and a no-op when that modal isn't open.
   var mm=document.getElementById('manageMenusModal'); if(mm && mm.classList.contains('open')) renderManageMenus();
-  toast('“'+(item.name||'Untitled')+'” is now costed from this plate — its menu price is unchanged.');
+  /* 228 — THIS SAID "is now costed from this plate" UNCONDITIONALLY, AND IT IS NOT ALWAYS TRUE.
+     A plate whose lines include a product that no longer resolves, or a misc line with no cost typed,
+     costs PARTIALLY: costDetail returns a total with `miss` above zero, and 222 made every screen stop
+     rendering that total as a cost. This toast was the one place still announcing it as one, on both
+     paths that reach here — publishing an unlinked dish, and now the plate heal. `plateFullyCosted`
+     walks all three line shapes, which is the "check the OTHER side too" lesson: reading kid-lines
+     alone reports a plate as whole when its legacy {pid} and {misc} lines are not. */
+  toast(dishLinkedToast(item.name||'Untitled', sp));
   return item;
 }
 function submitMenuItem(){
@@ -12387,6 +12492,51 @@ function openDelChoice(id,nm){
   show('delChoiceModal');
 }
 function closeDelChoice(){ hide('delChoiceModal'); delChoiceId=null; }
+/* ===== 228: the "several recipes share this name" picker =====
+   Max's 9 Aug 2026 answer has two halves and this is the second: relink on exactly one match, and
+   ASK on several. The app surfaces the choice rather than making it, which is the same principle
+   publishPlan's block states for the opposite direction.
+   Each row states what the reader needs to tell two same-named recipes apart — its category, how many
+   lines it has, and its cost — and the cost is `plateCostText`, which reads "not costed" rather than a
+   number whenever a line cannot be resolved. A picker that showed a confident total for a plate with a
+   broken line would be choosing FOR the user with a wrong figure. */
+var plateHealDishId=null;
+function openPlateHealPicker(m, cands){
+  if(!m || !cands || cands.length<2) return;
+  plateHealDishId=m.id;
+  var msg=document.getElementById('plateHealMsg');
+  if(msg) msg.textContent='\u201c'+(m.name||'This item')+'\u201d lost its link to a saved plate, and '+cands.length+' plates share its name. Pick the one it should use.';
+  /* Reuses the add-dish picker's `.ad-list`/`.ad-item`/`.ad-nm`/`.ad-meta` family rather than minting
+     a parallel one: same job, same shape, and no new CSS to keep in step with it. The sharing is
+     recorded in docs/QUEUE.md's design-law list, because a per-screen deletion on the strength of a
+     grep is how a shared family gets removed from under its second wearer. */
+  var list=document.getElementById('plateHealList');
+  if(list) list.innerHTML=cands.map(function(sp){
+    var n=(sp.lines||[]).length;
+    return '<button type="button" class="ad-item" data-plate="'+esc(sp.id)+'">'
+      + '<span class="ad-nm">'+esc(sp.name||'Untitled plate')+'</span>'
+      + '<span class="ad-meta">'+(sp.category?esc(sp.category)+' \u00b7 ':'')+n+(n===1?' ingredient':' ingredients')+' \u00b7 '+esc(plateCostText(sp))+'</span></button>';
+  }).join('');
+  show('plateHealModal');
+}
+function closePlateHeal(){ hide('plateHealModal'); plateHealDishId=null; }
+/* The two exits. Choosing links the dish to that plate; "Start a new recipe" is today's behaviour and
+   is offered because "none of these" is a real answer — without it the only way out of an ambiguous
+   heal would be Cancel, which leaves the dish exactly as broken as it was. */
+function plateHealChoose(plateId){
+  var m=menuById[plateHealDishId]; var sp=(savedPlates||[]).find(function(s){return s.id===plateId;});
+  closePlateHeal();
+  if(!m || !sp) return;
+  if(!linkDishToPlate(m, sp)) return;
+  openHealedPlate(m, sp, true);
+}
+function plateHealStartNew(){
+  var m=menuById[plateHealDishId];
+  closePlateHeal();
+  if(!m) return;
+  var sp=ensurePlateForDish(m, {action:'create', plate:null, candidates:[]});
+  if(sp) openHealedPlate(m, sp, false);
+}
 // v55: "remove from menu" drops just this menu entry; the plate stays in the library (and on any other menus).
 function doDeleteMenuOnly(){
   var id=delChoiceId; if(!id||!menuById[id]){ closeDelChoice(); return; }
@@ -12550,6 +12700,18 @@ document.getElementById('delChoiceClose').addEventListener('click',closeDelChoic
 document.getElementById('delChoiceCancel').addEventListener('click',closeDelChoice);
 document.getElementById('delChoiceMenuOnly').addEventListener('click',doDeleteMenuOnly);
 document.getElementById('delChoiceAll').addEventListener('click',doDeleteEverything);
+/* 228: the heal picker. The list is DELEGATED rather than bound per row, because openPlateHealPicker
+   rewrites its innerHTML on every open and per-row listeners would be re-bound each time. */
+(function(){
+  var cl=document.getElementById('plateHealClose'); if(cl) cl.addEventListener('click',closePlateHeal);
+  var ca=document.getElementById('plateHealCancel'); if(ca) ca.addEventListener('click',closePlateHeal);
+  var nw=document.getElementById('plateHealNew'); if(nw) nw.addEventListener('click',plateHealStartNew);
+  var ls=document.getElementById('plateHealList');
+  if(ls) ls.addEventListener('click',function(e){
+    var b=e.target.closest?e.target.closest('.ad-item'):null;
+    if(b && b.getAttribute('data-plate')) plateHealChoose(b.getAttribute('data-plate'));
+  });
+})();
 edCat=makeCatCombo('ed_cat','ed_catDrop','ed_catNew',edCatState);
 (function(){var ok=document.getElementById('confirmOk'),ca=document.getElementById('confirmCancel'),cx=document.getElementById('confirmClose');
  if(ok)ok.addEventListener('click',function(){ var fn=__confirmFn; closeConfirm(); if(fn)fn(); });
@@ -12562,7 +12724,7 @@ edCat=makeCatCombo('ed_cat','ed_catDrop','ed_catNew',edCatState);
 // used to carry (it is deliberately not backdrop-dismissable, because an accidental tap must not
 // throw away a plate in progress) is moot — a page has no backdrop. `plateActionsModal` left this
 // list with the chooser.
-['menuModal','invModal','confirmModal','editModal','delChoiceModal','manageMenusModal'].forEach(function(id){var m=document.getElementById(id);if(m)m.addEventListener('mousedown',function(e){if(e.target===m)hide(id);});});
+['menuModal','invModal','confirmModal','editModal','delChoiceModal','manageMenusModal','plateHealModal'].forEach(function(id){var m=document.getElementById(id);if(m)m.addEventListener('mousedown',function(e){if(e.target===m)hide(id);});});
 /* v137 (F1b): ONE Escape handler for every modal in the app, closing the TOP LAYER ONLY.
    It replaces a hard-coded list of 8 ids plus two single-modal listeners. See topOverlay() /
    closeTopOverlay() for why the layer is derived from the DOM rather than named.
