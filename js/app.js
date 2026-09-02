@@ -8900,17 +8900,20 @@ if ('serviceWorker' in navigator) {
     if(!r.height || r.height>r.width) return;
     document.documentElement.style.setProperty('--bottomnav-h', Math.ceil(r.height)+'px');
   }
-  /* ⚠️ THE BARE CALL IS NOT ENOUGH ON ITS OWN, and a test written for the no-ResizeObserver path is
-     what proved it. This IIFE runs while the document is still parsing, so `.bottomnav` measures 0
-     high and `publishNavH` correctly declines to publish a zero — leaving the stylesheet's wrong
-     64px fallback live for the whole session in any browser without ResizeObserver. With RO the
-     observer fires again after layout and hides the hole completely, which is exactly why it needed
-     a test that removes the constructor rather than reasoning about it.
-     `load` is the honest second chance: it fires after CSS and fonts, which is when a bar sized by
-     its own padding and label text is finally the height it will be. */
-  if(window.ResizeObserver){ try{ new ResizeObserver(publishNavH).observe(nav); }catch(e){} }
-  else { window.addEventListener('resize', publishNavH); }
-  publishNavH();
+  /* ⚠️ THERE IS NO EAGER CALL HERE, AND ITS ABSENCE IS MEASURED RATHER THAN ASSUMED. A first cut ran
+     `publishNavH()` inline, and it published NOTHING: at this point in the parse `.bottomnav` is
+     0 high, so the guard above correctly declines. That is what made the no-ResizeObserver case fail
+     until `load` was added — and once `load` was there, the inline call became a line that could
+     never have an effect, which is the same dead code this batch deleted elsewhere.
+     `load` is the real publisher: it fires after CSS and fonts, which is when a bar sized by its own
+     padding and label text is finally the height it will be.
+     The `resize` listener is the no-RO path's only way to notice the bar changing size — measured
+     at 65px (380) against 67px (600), so it does change. RO covers both cases where it exists, and
+     the fallback is chosen on whether the constructor actually WORKED rather than on whether the
+     name is defined, so a throwing constructor degrades instead of leaving nothing at all. */
+  var observed=false;
+  if(window.ResizeObserver){ try{ new ResizeObserver(publishNavH).observe(nav); observed=true; }catch(e){} }
+  if(!observed) window.addEventListener('resize', publishNavH);
   window.addEventListener('load', publishNavH);
 })();
 

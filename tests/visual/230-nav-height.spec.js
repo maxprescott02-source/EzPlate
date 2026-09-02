@@ -55,12 +55,17 @@ for (const width of [380, 600]) {
   });
 }
 
-/* THE NO-ResizeObserver PATH, and it exists because a hand-mutation found the hole. Deleting the
-   bare `publishNavH()` call left every test above green: Chromium's ResizeObserver fires once on
-   `observe()`, so the observer alone publishes the value and the direct call looks redundant. It is
-   not — it is the ONLY publisher in a browser without ResizeObserver, and without this test that
-   line could be deleted as dead with nothing going red. The constructor is removed before app.js
-   runs, so the IIFE takes its `if(window.ResizeObserver)` false branch for real. */
+/* THE NO-ResizeObserver PATH. The constructor is removed before app.js runs, so the IIFE takes its
+   fallback branch for real rather than being reasoned about.
+   ⚠️ THIS COMMENT PREVIOUSLY CLAIMED THE TEST PROTECTED AN EAGER `publishNavH()` CALL FROM BEING
+   DELETED AS DEAD CODE, AND THAT WAS FALSE — caught by the pre-push review, which ran the mutation
+   and found all five tests still green. `page.goto('/')` waits for `load` by default, so the `load`
+   listener has already published by the time any assertion runs and the eager call's absence cannot
+   be seen from here. The honest resolution was to delete that call rather than to keep a line no
+   test could defend: measured, it published nothing anyway, because `.bottomnav` is 0 high while
+   the document is still parsing.
+   Recorded rather than quietly corrected, because a batch whose whole purpose was fixing comments
+   that had stopped being true wrote a new one that was never true. */
 test('380px: the value is published even with no ResizeObserver', async ({ page }) => {
   await page.setViewportSize({ width: 380, height: 800 });
   await installBoot(page);
