@@ -146,6 +146,9 @@ const targets = [
      automatically, and a `create` that fires on one leaves the real recipe stranded, which is the
      defect this item exists to fix. The same-menu exclusion is here too: without it a relink puts two
      dishes of one plate on one menu, which v113's guard forbids and no screen would show. */
+  /* 229: the verdict phrases. A mutant that swaps one for a subjectless word is the exact defect the
+     item was about, and nothing pinned these strings before that batch. */
+  { fn: 'marginLightWord', tests: ['verdict-subject.test.js'] },
   { fn: 'plateHealPlan', tests: ['plate-heal.test.js'] },
   { fn: 'normPlateName', tests: ['plate-heal.test.js'] },
   { fn: 'tenantGateState', tests: ['tenant-gate.test.js'] },
