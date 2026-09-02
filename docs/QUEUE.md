@@ -79,14 +79,24 @@ Requirements: a fresh export taken minutes before, and **Max's explicit go on th
 When Max gives the go: take a fresh export minutes before, write the one-statement rollback into the item, run `02` then the real backup against staging first as a dress rehearsal, then production. `docs/STAGING.md` has the procedure.
 *(`Blocked on: Max's go on the day` was DELETED here on 12 Aug 2026 with the words "nothing about this item is now waiting on a person". **That line is REINSTATED at the top of this item and this note is kept as the record of the mistake**, not struck: the go was given, and the same item goes on to say the window is a condition of the day and to ask again on the day. Both readings were in this file at once and the header is what `/batch` acts on. **A go that must be re-asked is a block.**)*
 
-## next  6 · The bottom-of-screen chrome has no single owner, and two pieces overlap  **[B]**
+## next  10 · Run `project-audit` and FILE its report  **[A — the counter fired]**
 
-Promoted from `docs/MAINTENANCE.md`'s displaced-B list on 31 Aug 2026 by batch 225, under that file's own rule — these five passed the launch test and sat there only because this file was at its 20-item cap. It is not: the cap freed up long ago and nobody re-checked, so approved B work was sitting where `/batch` cannot see it. **The trigger is a slot, and the slot has been open for weeks.**
+Queued 2 Sep 2026 by batch 226 under `skills/batch` step 10, which is the whole trigger: the newest
+`docs/audits/AUDIT-vNN.md` is **AUDIT-v176** and `sw.js` now reads **`ezplate-v186`**, a gap of exactly
+**10**. Nothing to remember and no calendar — the version increments once per batch, so it already is
+the counter.
+**The number in the heading is a label, not a rank; POSITION is priority** (this file's own header), and
+this sits above every unblocked item deliberately. `10` is used rather than the `6` that just freed up,
+because reusing a number for a different item is the renumbering trap this file records at item 5.
 
-Found 10 Aug 2026 while measuring a free slot for the sync banner; the same class as the defect v141 fixed — two pieces of `position:fixed` bottom chrome whose owners never met.
-Measured at 1024 with both showing: `.toast` x431-817 / y770-816, `.install-banner` x600-1000 / y787-876 — they share x600-817, y787-816. The same overlap holds at 1280, 1440 and 1920 (both anchored to the bottom, one centred and one right-aligned, so widening does not separate them).
-The toast is `pointer-events:none` so nothing is BLOCKED, but the install banner's "Install" button and its ✕ sit under a pill of text. Only reachable pre-install (`beforeinstallprompt`), so Max on an installed PWA never sees it — **it is a new café's first ten minutes.**
-Requirements: one owner for the bottom stack. v141 established the three-way split (left: sync banner, centre: toast, right: install banner) and this is the one pair that split does not separate, so the fix is vertical — stack the toast above the install banner when both are up, or move one. `tests/visual/v141-sync-corner.spec.js` already measures the banner against both and would extend to cover this pair.
+Requirements: run the `project-audit` agent, then **YOU file the report** to `docs/audits/AUDIT-v186.md`
+at the version it audited. The agent is read-only and hands the report back rather than saving it, so an
+unfiled report leaves the counter unchanged and **the next audit never gets queued** — the failure is
+silent and compounds.
+Route its findings by tier afterwards: a finding defaults to C and lands in `docs/MAINTENANCE.md`;
+`project-audit` reports, it does not add queue items.
+Out of scope: fixing what it finds. That is the next batch's work, and mixing the two is how an audit
+turns into an unreviewable diff.
 
 ## next  7 · `ensurePlateForDish` starts a second empty recipe instead of relinking the real one  **[B]**
 
