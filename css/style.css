@@ -4670,6 +4670,24 @@ html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + var(--header-h,80px)
      just "45.5%". Ours adds the v131 word, and at 130 the pill wrapped to two lines on every amber
      and red row — the rows that matter most. 160 fits "42.9% · well over" on one line, measured. */
   .mnu-band,.mnu-row{grid-template-columns:minmax(0,1fr) 90px 130px 100px 160px;column-gap:var(--sp-4)}
+  /* R1 (ui-audit-2026-09-02): these tracks were sized against the ≥1024 container and only fit
+     there. At 768 the content column measures 610px, so 480px of fixed track + 64px of gaps +
+     32px of row padding left the NAME 34px — every dish read as two to four letters, which is
+     the audit's one blocks-use row. The 768-1023 override below re-tracks from MEASURED content,
+     not from the headers the desktop tracks were sized for:
+       · Cost keeps 90 — its second line ("$18.79–$18.84", the range) is the widest real figure;
+       · Suggested 130 -> 70 and Price 100 -> 60 — their figures are ~55px once the mobile word
+         prefixes are cancelled (the band's "Suggested at 30%" heading wraps to two short lines,
+         which is the price of a readable name column and is deliberate);
+       · the verdict keeps its measured 160 — "42.9% · well over" on one line is why it exists;
+       · gaps sp-4 -> sp-3.
+     That hands the name 150px at 768 (~20 characters) instead of 34. Same selectors, same
+     specificity, LATER in the file — the @media-does-not-win-by-being-later trap is why this
+     block restates the exact pair rather than introducing a new selector. Both containers stay
+     on one identical template, per the drift note above. */
+  @media (max-width:1023px){
+    .mnu-band,.mnu-row{grid-template-columns:minmax(0,1fr) 90px 70px 60px 160px;column-gap:var(--sp-3)}
+  }
   .mnu-switch .plib-search{flex:0 1 200px}
   .mnu-band:not([hidden]){display:grid}
   .mnu-band{
