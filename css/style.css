@@ -4246,6 +4246,20 @@ html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + var(--header-h,80px)
   .king-band,.king-row{
     grid-template-columns:minmax(0,1fr) 130px 110px 110px 100px;column-gap:var(--sp-4);
   }
+  /* R2 (ui-audit-2026-09-02): same defect as the Menu table one section up — these tracks fit the
+     ≥1024 container only. At 768 the content column is 610px, so 450px of track + 64px of gaps +
+     32px of padding left the identity cell 64px: the "→ product — supplier" sentence wrapped one
+     word per line and rows measured 203px tall. Re-tracked from MEASURED content for 768-1023:
+     Category 130 -> 110 (it already ellipsises by design; the longest real value is 185px and
+     truncates either way at these widths), Unit cost 110 -> 78 ("$51.80/kg" measures ~70),
+     Last change 110 -> 64 (its 11.5px heading is the widest thing in it), Used-in 100 -> 68
+     ("17 plates" ~60), gaps sp-4 -> sp-3. The identity cell gets 210px at 768 instead of 64, so
+     the name and its product sentence each sit on one line again. Same selector pair, same
+     specificity, later in the file (the @media trap); one identical template for both containers
+     per the drift note above. */
+  @media (max-width:1023px){
+    .king-band,.king-row{grid-template-columns:minmax(0,1fr) 110px 78px 64px 68px;column-gap:var(--sp-3)}
+  }
   .king-band{
     display:grid;align-items:center;padding:9px var(--sp-4);
     font-size:11.5px;font-weight:500;color:var(--text-3);
