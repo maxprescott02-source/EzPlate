@@ -3809,15 +3809,19 @@ html{scrollbar-gutter:stable}
    to var(--sp-8) — see the §2 desktop block.
    scroll-padding is the sticky bar's other half: without it, keyboard focus (shift-tab up a long
    list), find-in-page and scrollIntoView all put their target at the scrollport's top edge, which
-   is now under an opaque bar. 80px clears the tallest bar at every width (desktop's is exactly
-   --header-h; the mobile bar is 69).
+   is now under an opaque bar. The 80 is a LITERAL on purpose: --header-h exists only ≥1024, so a
+   var() here would read as parameterised while the fallback quietly did all the work below 1024
+   (the pre-push review caught the first draft doing exactly that). 80 clears every bar — desktop's
+   is exactly 80, the mobile Menu bar is 69 — and it applies unconditionally, so the builder page
+   (whose header is deliberately NOT sticky) gets 80px of harmless over-clearance on focus scrolls
+   rather than a second rule keyed to which pane is showing.
    ⚠️ `.bld-head` is EXCLUDED on purpose: the builder's header is up to three rows tall on a
    phone (breadcrumb + name + pill) so pinning it would eat the screen the docket needs, and on
    desktop `.bld-sum` already pins at top:24px — a sticky header would sit on top of it. */
 .scr-head:not(.bld-head){
   position:sticky;top:env(safe-area-inset-top,0px);z-index:50;background:var(--bg);
 }
-html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + var(--header-h,80px))}
+html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 80px)}
 /* `.panel >` is load-bearing, not decoration. Without it this selector is 0-1-1 — the SAME
    specificity as the generic `.panel h2` at the top of the file — so which one won would be
    decided by file order alone, and any equal-specificity rule inserted between them would flip
@@ -4252,13 +4256,19 @@ html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + var(--header-h,80px)
      word per line and rows measured 203px tall. Re-tracked from MEASURED content for 768-1023:
      Category 130 -> 110 (it already ellipsises by design; the longest real value is 185px and
      truncates either way at these widths), Unit cost 110 -> 78 ("$51.80/kg" measures ~70),
-     Last change 110 -> 64 (its 11.5px heading is the widest thing in it), Used-in 100 -> 68
-     ("17 plates" ~60), gaps sp-4 -> sp-3. The identity cell gets 210px at 768 instead of 64, so
-     the name and its product sentence each sit on one line again. Same selector pair, same
-     specificity, later in the file (the @media trap); one identical template for both containers
-     per the drift note above. */
+     Last change 110 -> 70 (its 11.5px heading is the widest thing in it, and "+100.0%" in the
+     11.5px mono pill measures ~64 — 70 leaves real slack where 64 left half a pixel), Used-in
+     100 -> 76 ("17 plates" is 8 MONO chars at 7.5px/char = ~67.5; the first draft wrote "~60",
+     which is what the proportional font measures, and the pre-push review re-measured it in the
+     cell's actual var(--mono)), gaps sp-4 -> sp-3. The identity cell gets ~196px at 768 instead
+     of 64 — which makes the product sentence wrap at TWO to THREE lines instead of one word per
+     line (rows ~57-95px instead of 203). NOT "one line": nothing bounds that cell's height —
+     `.king-link`'s line-clamp at its own rule is dead, `display:block` overrides the
+     -webkit-box the clamp needs, and that predates this batch (filed in docs/MAINTENANCE.md).
+     Same selector pair, same specificity, later in the file (the @media trap); one identical
+     template for both containers per the drift note above. */
   @media (max-width:1023px){
-    .king-band,.king-row{grid-template-columns:minmax(0,1fr) 110px 78px 64px 68px;column-gap:var(--sp-3)}
+    .king-band,.king-row{grid-template-columns:minmax(0,1fr) 110px 78px 70px 76px;column-gap:var(--sp-3)}
   }
   .king-band{
     display:grid;align-items:center;padding:9px var(--sp-4);
@@ -4442,10 +4452,12 @@ html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + var(--header-h,80px)
     grid-template-columns:minmax(220px,1fr) 190px 110px 100px;column-gap:var(--sp-4);
   }
   /* R3 (ui-audit-2026-09-02): the worst of the three tablet-band tables, because its failure was
-     INVISIBLE — the tracks above sum to a 700px minimum (620 of track floor + 48 gaps + 32 row
-     padding) against a 610px container at 768, and #ingList's rounded-corner overflow:hidden then
-     clipped the overhang: the "Last change" column and its drift badges rendered past the right
-     edge and simply never appeared. Data silently hidden, no scroll, no hint (the audit's words).
+     INVISIBLE — the tracks above put the last column's content edge at 684px (620 of track floor
+     + 48 gaps + 16 left padding) against a 610px container at 768 — a MEASURED 76px of hidden
+     overflow (the first draft wrote 700/90 by also counting the right padding, which sits past
+     the content edge; the pre-push review measured it) — and #ingList's rounded-corner
+     overflow:hidden then clipped the overhang: the "Last change" column and its drift badges
+     rendered past the right edge and simply never appeared. Data silently hidden, no scroll, no hint (the audit's words).
      768-1023 override: the name track drops its 220px floor (minmax(0,1fr) — it gets ~268px at
      768 anyway once the fixed tracks shrink, more than the floor asked for), Category 190 -> 130
      (the 190 was sized so NO desktop category truncates; at this band the ellipsis safety net is

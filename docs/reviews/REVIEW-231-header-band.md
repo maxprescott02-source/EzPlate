@@ -128,3 +128,48 @@ The `.scr-head` comment (`css/style.css:3799-3803`) says the z-order was *"check
 - **F7 — CONFIRMED AND FIXED IN THE DOC.** The meta is `default` (verified), so the inset is 0 in standalone and a notch collision cannot occur on the current build. PHONE.md now says exactly what the device check can prove (sticky survives real iOS standalone) and what it cannot; the `env()` offset stays as future-proofing and its CSS comment says so.
 - **Minor gap (headZ>0) — FIXED.** Pinned to the declared 50 (equality, per the roster's denylist rule).
 - **Final nit — FIXED.** The comment now says which three layers the spec pins and that the rest were read by hand.
+
+---
+
+# Review 2 — the tablet band (R1+R2+R3) and the first review's fixes
+
+Reviewed-commit: 8798b8c
+Reviewer: `code-review` agent, forced onto Opus again, given `git diff 2bcdd55..HEAD` and nothing about the brief. It measured rather than reasoned: booted the app at 768/1023/1024, reverted each band override with cp-backed edits, re-measured, restored (tree verified clean).
+Outcome: nine findings — one minor defect-adjacent (a dead rule discovered under a new comment's false claim), three test-honesty items, five nits. All acted on in the follow-up commit; decisions after the verbatim report.
+
+## Verbatim report
+
+(Categories that came back clean, stated by the reviewer: cascade/specificity of all three nested overrides — measured resolved templates at 768/1023/1024, band values apply below, desktop values return at 1024, band and row templates byte-identical at every width; column counts and grid placements — no implicit track re-earned; every band heading and row cell fits its narrowed track; nothing else reads these templates; the `#tab-analysis .scr-head > .scr-gap` fix measured real at 390 — header gap 0, switch-row gap restored, `#menuSelect` 273px; the reworked mobile sub test genuinely stresses its property; `scroll-padding-top` resolves 80px at all widths and `html` is the right scroller; the `status-bar-style: default` correction factually right; the v155 message change honest; six cache spots at v190; spec count 50/49 correct.)
+
+### 1. css/style.css (R2 comment) — states a measured outcome that is false on real data, and the rule it depends on is inert. Minor.
+The comment claimed the identity cell's product sentence "sits on one line again". Measured with the fixture's longest label at 768 WITH the fix: three lines, 93.5px row. Mechanism: `.king-link{-webkit-line-clamp:1}` is dead — `display:block` two rules later overrides the `display:-webkit-box` the clamp requires (computed at 768: display "block", clamp "1"). Nothing bounds the cell's height at ≥768; the inert clamp predates this diff, the false claim does not.
+
+### 2. v190-tablet-band.spec.js — `rowH <= 120` has less than one line of margin. Minor.
+Reverted CSS with this spec's fixture measures 129.5px; the threshold was 120 — 9.5px of slack against a ~17px line box. One CI font wobble from vacuous. Passing case 57.5px; a threshold near 80 is honest and robust. (`idW` still carried the test, so fragility, not a hole.)
+
+### 3. v190-tablet-band.spec.js header — "broken-and-watched-red" was asserted for three tests and run for one. Minor (process).
+The reviewer ran the other two: reverted at 768, `.mnu-id` 32px (vs >=120), `.king-id` 62px / row 129.5px (vs >=150 / <=120), `#ingList` overflow 76px (vs <=1). The claim is true — now measured, all three.
+
+### 4. `verdictInside` / `usedInside` cannot fail independently of the overflow assertion (last-track right edges are pinned to the grid edge); `driftCount >= 30` is structurally always true against current code (the renderer emits a drift span on every card, dash branch included). Nit.
+
+### 5. css/style.css (R3 comment) — the stated overhang was wrong: 700/90 written, 684/76 measured (the right padding sits past the content edge). Nit.
+
+### 6. `scroll-padding-top: var(--header-h, 80px)` reads as parameterised and is not — `--header-h` exists only ≥1024, so the fallback literal did all the work below; and the bare `html` rule over-pads the builder page, whose header is deliberately not sticky. Nit.
+
+### 7. `.king-used-n` at 68px and `.king-drift` at 64px had effectively zero slack — the cells are `var(--mono)`: "17 plates" measures ~67.5 (the comment's "~60" was the proportional font), "+100.0%" ~64.3 in a 64px track. Both overflow leftward, where the inside-checks (finding 4) can never see it. Nit.
+
+### 8. REVIEW-231's `Reviewed-commit: 2bcdd55` predates every commit in this range — the gate accepts any ancestor, so it passed while none of these commits was covered by an artifact. Nit (process).
+
+### 9. Not a defect: the Menu name track measures 218px at 1023 and 170px at 1024 — the band ends where the desktop layout is nearly as tight as where the band started. The 1024 equality test pins the desktop tracks at their tightest width, which is the right place.
+
+## Decisions (follow-up commit after 8798b8c)
+
+- **1 — comment FIXED, dead rule FILED.** The R2 comment now says two-to-three lines and names the dead clamp; the clamp itself predates the batch and is a C item by construction → `docs/MAINTENANCE.md` ("batch 231's pre-push review"), per the where-a-finding-gets-fixed rule.
+- **2 — FIXED.** Threshold 120 → 80, with both measured figures in the comment.
+- **3 — FIXED.** Spec header now states all three reverts were measured and by whom.
+- **4 — KEPT, with honesty comments.** `verdictInside`/`usedInside` stay for their failure messages and are annotated as non-independent; `driftCount` is annotated as a precondition guard (it exists so a renderer that stops emitting drift spans turns `allInside` vacuous loudly, not silently).
+- **5 — FIXED.** Comment now carries the measured 684/76 and records the correction.
+- **6 — FIXED.** The literal 80 is written as a literal, with the reason, and the builder over-clearance is stated at the rule.
+- **7 — FIXED.** Used-in 68 → 76, Last change 64 → 70; comment figures re-measured in the cells' actual mono font. The identity cell gives up 14px (210 → 196), still comfortably over the spec's 150 floor.
+- **8 — FIXED by this very section.** `Reviewed-commit: 8798b8c` names the range's head; the follow-up commit carries the fixes.
+- **9 — noted in the audit's Phase 2 progress row; no code change (desktop tracks are out of this batch's scope and now pinned by the 1024 equality test).**

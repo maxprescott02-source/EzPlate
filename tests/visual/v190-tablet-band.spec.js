@@ -12,9 +12,11 @@
  * Every assertion measures rendered boxes at 768 (the band's worst width) or compares the
  * resolved 1024 template against the desktop tracks — no viewport arithmetic.
  *
- * Broken-and-watched-red before merge: reverting each of the three band overrides in
- * css/style.css reddens its table's test here (hand-run on R3's, whose defect — a clipped
- * column — is the one that was invisible by eye).
+ * Broken-and-watched-red before merge — ALL THREE measured, not asserted (R3's revert was
+ * hand-run by the batch; the pre-push review then reverted the other two and measured every
+ * assertion): reverted at 768, .mnu-id measures 32px (vs >=120), .king-id 62px (vs >=150) with
+ * a 129.5px row (vs <=80), and #ingList hides 76px of overflow (vs <=1). Each table's revert
+ * reddens its own test.
  */
 const { test, expect } = require('@playwright/test');
 const { installBoot } = require('./_boot');
@@ -69,6 +71,9 @@ test('R1 at 768: the Menu table gives its name column real width and clips nothi
   });
   expect(r.rows, 'the seeded dishes must render or nothing here means anything').toBeGreaterThanOrEqual(2);
   expect(r.overflow, 'no hidden horizontal overflow inside the table container').toBeLessThanOrEqual(1);
+  // NOT independent coverage (pre-push review, measured): the verdict is the last track, so its
+  // right edge exceeds the container only when the whole grid overflows — the assertion above.
+  // Kept for its failure message, which names the visible symptom; idW below carries this test.
   expect(r.verdictInside, 'the last column ends inside the container').toBe(true);
   // the defect measured 34px here; the band tracks hand the name ~150 at 768
   expect(r.idW, 'the name column must be readable, not 34px').toBeGreaterThanOrEqual(120);
@@ -93,10 +98,13 @@ test('R2 at 768: an Ingredients row holds its product sentence without balloonin
   });
   expect(r.rows, 'the pushed kitchen ingredient must render as a row').toBeGreaterThanOrEqual(1);
   expect(r.overflow, 'no hidden horizontal overflow').toBeLessThanOrEqual(1);
-  expect(r.usedInside, 'the Used-in column ends inside the container').toBe(true);
-  // the defect: a 64px identity cell wrapped the product sentence one word per line, rows 203px
+  expect(r.usedInside, 'the Used-in column ends inside the container').toBe(true); // same non-independence note as R1's verdictInside
+  // the defect: a 64px identity cell wrapped the product sentence one word per line — 203px rows
+  // on real data, 129.5px with THIS fixture (measured on the reverted CSS). The bound is 80, not
+  // 120: this fixture's passing row measures 57.5, so 80 keeps ~50px of margin to the reverted
+  // case where 120 left 9.5 — less than one line box, one CI font wobble from vacuous.
   expect(r.idW, 'the identity cell must hold a sentence, not 64px').toBeGreaterThanOrEqual(150);
-  expect(r.rowH, 'a row is a row, not a 203px tower').toBeLessThanOrEqual(120);
+  expect(r.rowH, 'a row is a row, not a tower (57.5 passing vs 129.5 reverted, this fixture)').toBeLessThanOrEqual(80);
 });
 
 test('R3 at 768: Products shows its Last-change column instead of clipping it offscreen', async ({ page }) => {
@@ -118,6 +126,9 @@ test('R3 at 768: Products shows its Last-change column instead of clipping it of
     };
   });
   expect(r.rows, 'the fixture catalogue must render — it needs no seeding').toBeGreaterThanOrEqual(30);
+  // a precondition guard, not coverage: today the renderer emits a drift span on every card (the
+  // dash branch included), so this cannot fail against current code — it exists so a future
+  // renderer that stops emitting them turns allInside vacuous LOUDLY instead of silently.
   expect(r.driftCount, 'the drift cells must exist for the inside-check to mean anything').toBeGreaterThanOrEqual(30);
   expect(r.overflow, 'THE defect: hidden horizontal overflow clipping the last column').toBeLessThanOrEqual(1);
   expect(r.allInside, 'every Last-change cell ends inside the container').toBe(true);
