@@ -897,13 +897,25 @@ Then background the app, leave it long enough for iOS to discard the tab, and re
 
 **Only a device settles it** because VoiceOver, not Chromium, is what a person would actually be using, and the whole change is a thing you can only hear.
 
-## The pinned page header vs the iOS status bar — standalone is the only place it can fail (batch 231, `ezplate-v190`)
+## The pinned page header in the installed app (batch 231, `ezplate-v190`)
 
 The page header is `position:sticky` now (audit R22): scroll any list and the screen's title bar — on Menu, the title plus the current menu's name — stays pinned at the top instead of scrolling away.
 
-**Do this, in the INSTALLED app (Home-Screen icon, not Safari):** open Menu, scroll well into the list, and look at the very top of the screen.
+**What this check can and cannot prove, stated up front** (the pre-push review caught the first
+draft promising more): `index.html` ships `apple-mobile-web-app-status-bar-style: default`, and
+under `default` iOS starts the web view BELOW the status bar — `env(safe-area-inset-top)` is 0
+and a clock/notch collision **cannot occur on the current build**. The CSS still offsets by that
+inset as future-proofing for a `black-translucent` switch; nothing today exercises it. So this is
+NOT a "does it clear the notch" check — a pass there would prove nothing.
 
-**Pass:** the pinned "Menu · <menu name>" bar sits fully below the clock/notch area and its text is readable. The thin strip behind the status bar may show list rows sliding past — that strip behaved the same before this change.
-**Fail:** the bar's title renders under the clock or the notch. The sticky offset is `env(safe-area-inset-top)`, which no desktop browser and no simulator in this repo exercises with a real notch value — only the phone knows what that number is in standalone mode.
+**Do this, in the INSTALLED app (Home-Screen icon, not Safari):** open Menu, scroll well into the
+list, and look at the top of the screen.
 
-Safari (non-installed) cannot fail this check — `env()` is 0 there — so a quick Safari look proves nothing either way.
+**Pass:** a pinned "Menu · <menu name>" bar is there, fully visible and readable, with rows
+sliding underneath it — i.e. the sticky itself survives real iOS Safari in standalone mode, which
+no harness in this repo runs.
+**Fail:** the bar scrolls away with the page (sticky not honoured), sits partially off-screen, or
+judders while scrolling — rendering-engine behaviour only the device can show.
+
+If the status-bar style is ever changed to `black-translucent`, rewrite this check: at that point
+the inset becomes real and "does the pinned bar clear the clock" becomes the question.

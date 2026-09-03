@@ -96,7 +96,7 @@ test('the header content column starts and stops exactly where the content does,
     if (Math.abs(head.left - body.left) > 0.5) bad.push(`${key}: left head ${head.left} vs content ${body.left} (${body.tag})`);
     if (!formColumn && Math.abs(head.right - body.right) > 0.5) bad.push(`${key}: right head ${head.right} vs content ${body.right} (${body.tag})`);
   }
-  expect(bad, 'header rule must not overhang the content column').toEqual([]);
+  expect(bad, 'header content column must sit exactly on the body content column (the drawn rule deliberately overhangs since R21 — see v190-sticky-header)').toEqual([]);
 });
 
 /*

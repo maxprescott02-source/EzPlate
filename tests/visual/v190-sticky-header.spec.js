@@ -20,15 +20,15 @@
 const { test, expect } = require('@playwright/test');
 const { installBoot } = require('./_boot');
 
-async function boot(page, width, height) {
+async function boot(page, width, height, menuName) {
   await page.setViewportSize({ width, height });
   await installBoot(page);
   // one named menu, seeded the way 228-plate-heal does: the shim serves `menus` from this key,
   // and with zero menus renderAnalysis correctly leaves #menuHeadSub empty — the mobile test
   // below asserts the pinned bar NAMES the menu, which needs a menu to name.
-  await page.addInitScript(() => {
-    localStorage.setItem('cafeDB_menus', JSON.stringify([{ id: 'MW', name: 'Winter Menu' }]));
-  });
+  await page.addInitScript((name) => {
+    localStorage.setItem('cafeDB_menus', JSON.stringify([{ id: 'MW', name }]));
+  }, menuName || 'Winter Menu');
   await page.goto('/');
   await page.waitForTimeout(1200);
 }
@@ -89,8 +89,14 @@ test('R22: the header pins with an opaque background, under every floating layer
     const head = document.querySelector('#tab-analysis .scr-head');
     const cs = getComputedStyle(head);
     const z = (sel) => { const el = document.querySelector(sel); return el ? parseInt(getComputedStyle(el).zIndex, 10) : null; };
+    const hb = head.getBoundingClientRect();
+    // the strip ABOVE the pinned bar (0..32) is covered by the ::before mask — its comment calls
+    // it load-bearing, so it gets an assertion: a hit-test there must land on the header, not on
+    // a row scrolling past behind it. (An absolutely-positioned pseudo hit-tests as its host.)
+    const atStrip = document.elementFromPoint(Math.round((hb.left + hb.right) / 2), 16);
     const out = {
-      pos: cs.position, bg: cs.backgroundColor, top: head.getBoundingClientRect().top, scrollY: window.scrollY,
+      pos: cs.position, bg: cs.backgroundColor, top: hb.top, scrollY: window.scrollY,
+      maskCovers: !!(atStrip && atStrip.closest('.scr-head')),
       headZ: parseInt(cs.zIndex, 10), navZ: z('.bottomnav'), bannerZ: z('.install-banner'), toastZ: z('.toast'),
     };
     window.scrollTo(0, 0);
@@ -102,30 +108,46 @@ test('R22: the header pins with an opaque background, under every floating layer
   // equality, not a denylist (roster 190): the pinned bar holds exactly the .wrap clearance
   expect(r.top, 'pinned at var(--sp-8) so the rule can hold --header-h').toBeCloseTo(32, 0);
   expect(r.bg, 'an opaque background — a transparent sticky bar shows rows through it').toMatch(/^rgb\(/);
-  // the R13/R19 check the audit row asks for: header under nav under banner under toast
-  expect(r.headZ, 'header z must exist').toBeGreaterThan(0);
+  expect(r.maskCovers, 'the ::before mask must cover the strip above the pinned bar').toBe(true);
+  // the R13/R19 check the audit row asks for: header under nav under banner under toast.
+  // Equality, not >0 (a sticky box with z auto still paints above in-flow content, so >0 proves
+  // nothing): 50 is the declared slot under every floating layer.
+  expect(r.headZ, 'header z is the declared 50').toBe(50);
   for (const [name, zv] of [['nav', r.navZ], ['install banner', r.bannerZ], ['toast', r.toastZ]]) {
     expect(zv, `${name} must carry a z-index for this ordering to be checkable`).not.toBeNull();
     expect(r.headZ, `header stays under the ${name} (z ${zv})`).toBeLessThan(zv);
   }
 });
 
+/* The menu name is 62 characters ON PURPOSE. The first draft seeded "Winter Menu" and asserted
+ * a bar-height threshold of <100, and the pre-push review showed that assertion could not fail:
+ * every single-wrap outcome measures 97-99, and an 11-character name cannot wrap anything at 390
+ * anyway. The property is "the sub never wraps the header row", so the fixture must supply a
+ * name that WOULD wrap without the CSS pair (basis 0 + a zeroed automatic minimum), and the
+ * assertion compares the sub's line against the title's, not a height guess. */
+const LONG_NAME = 'The Very Long Winter Specials And Functions Menu Oct 2026 Rev2';
+
 test('R22 mobile: the bar pins at the top and the Menu header still says WHICH menu', async ({ page }) => {
-  await boot(page, 390, 812);
+  await boot(page, 390, 812, LONG_NAME);
   await makeScrollable(page, '#tab-analysis .panel');
   const r = await page.evaluate(async () => {
     window.showTab('analysis'); window.scrollTo(0, 400);
     await new Promise((res) => setTimeout(res, 250));
     const head = document.querySelector('#tab-analysis .scr-head');
     const sub = document.getElementById('menuHeadSub');
+    const h2 = head.querySelector('h2');
     const sb = sub.getBoundingClientRect();
     const hb = head.getBoundingClientRect();
+    const h2b = h2.getBoundingClientRect();
     const out = {
       pos: getComputedStyle(head).position, top: hb.top, scrollY: window.scrollY,
       subShown: getComputedStyle(sub).display !== 'none' && sb.width > 0 && sb.height > 0,
       subText: sub.textContent.trim(),
       subInBar: sb.top >= hb.top - 0.5 && sb.bottom <= hb.bottom + 0.5,
-      oneRow: hb.height < 100, // the pre-R22 measured mobile bar is 69px; a wrapped sub would add a ~20px line
+      // same LINE as the title, not merely inside the bar — a wrapped sub sits below the h2
+      lineDelta: Math.abs((sb.top + sb.bottom) / 2 - (h2b.top + h2b.bottom) / 2),
+      // and the long name must actually be truncating, or the no-wrap claim was never stressed
+      truncated: sub.scrollWidth > sub.clientWidth + 2,
     };
     window.scrollTo(0, 0);
     return out;
@@ -135,9 +157,10 @@ test('R22 mobile: the bar pins at the top and the Menu header still says WHICH m
   expect(r.top, 'pinned at the viewport top once the app bar scrolls away').toBeCloseTo(0, 0);
   // R22's caveat: without this the pinned header reads a bare "Menu" and identifies nothing
   expect(r.subShown, 'the current menu name must be IN the pinned bar on a phone').toBe(true);
-  expect(r.subText.length, 'and must actually name a menu').toBeGreaterThan(0);
+  expect(r.subText, 'and must actually name the seeded menu').toBe(LONG_NAME);
   expect(r.subInBar, 'inside the bar, not wrapped out of it').toBe(true);
-  expect(r.oneRow, 'the sub must not wrap the header taller (flex-basis 0 is what prevents it)').toBe(true);
+  expect(r.lineDelta, 'on the SAME line as the title — a wrap puts it ~20px lower').toBeLessThanOrEqual(4);
+  expect(r.truncated, 'the 62-char name must be ellipsising, or this test never stressed the wrap').toBe(true);
 });
 
 test('the builder header is deliberately NOT pinned, and its cost panel still is', async ({ page }) => {
