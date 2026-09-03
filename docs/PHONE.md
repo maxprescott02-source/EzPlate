@@ -896,3 +896,14 @@ Then background the app, leave it long enough for iOS to discard the tab, and re
 **Also worth one listen: the Ingredients row used to announce only its name.** It carried `aria-label="Edit <name>"`, which replaces the contents, so none of its figures were spoken at all. That attribute is gone. If an Ingredients row still says nothing but the ingredient's name, the removal did not reach the phone — check the version in Settings → About reads `v185` before concluding anything, since a stale service worker is the likelier cause.
 
 **Only a device settles it** because VoiceOver, not Chromium, is what a person would actually be using, and the whole change is a thing you can only hear.
+
+## The pinned page header vs the iOS status bar — standalone is the only place it can fail (batch 231, `ezplate-v190`)
+
+The page header is `position:sticky` now (audit R22): scroll any list and the screen's title bar — on Menu, the title plus the current menu's name — stays pinned at the top instead of scrolling away.
+
+**Do this, in the INSTALLED app (Home-Screen icon, not Safari):** open Menu, scroll well into the list, and look at the very top of the screen.
+
+**Pass:** the pinned "Menu · <menu name>" bar sits fully below the clock/notch area and its text is readable. The thin strip behind the status bar may show list rows sliding past — that strip behaved the same before this change.
+**Fail:** the bar's title renders under the clock or the notch. The sticky offset is `env(safe-area-inset-top)`, which no desktop browser and no simulator in this repo exercises with a real notch value — only the phone knows what that number is in standalone mode.
+
+Safari (non-installed) cannot fail this check — `env()` is 0 there — so a quick Safari look proves nothing either way.

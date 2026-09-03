@@ -70,7 +70,15 @@ async function boot(page) {
   await page.evaluate(() => { const b = document.querySelector('.install-banner'); if (b) b.remove(); });
 }
 
-test('the header rule starts and stops exactly where the content does, on every screen', async ({ page }) => {
+/* ⚠️ RETITLED FOR R21 (2 Sep 2026). This used to say "the header RULE starts and stops exactly
+ * where the content does", and that stopped being what it measures: R21 moved the drawn hairline
+ * to a `::after` that deliberately overhangs the box to reach the sidebar (Max reversing his own
+ * 12 Aug matching-edges call for the rule only). The BOX edges this test compares are now the
+ * CONTENT column — the title's left edge and the actions' right edge — and that half of the
+ * matching-edges contract still holds and is still pinned here. The drawn rule's new extent, and
+ * the sticky behaviour, are asserted in v190-sticky-header.spec.js. A title naming a property the
+ * assertions cannot see is worse than no test (CLAUDE.md roster, 205), hence this note. */
+test('the header content column starts and stops exactly where the content does, on every screen', async ({ page }) => {
   await boot(page);
   const bad = [];
   for (const key of SCREENS) {
