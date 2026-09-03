@@ -4441,6 +4441,21 @@ html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + var(--header-h,80px)
   .ing-band,.ing-card{
     grid-template-columns:minmax(220px,1fr) 190px 110px 100px;column-gap:var(--sp-4);
   }
+  /* R3 (ui-audit-2026-09-02): the worst of the three tablet-band tables, because its failure was
+     INVISIBLE — the tracks above sum to a 700px minimum (620 of track floor + 48 gaps + 32 row
+     padding) against a 610px container at 768, and #ingList's rounded-corner overflow:hidden then
+     clipped the overhang: the "Last change" column and its drift badges rendered past the right
+     edge and simply never appeared. Data silently hidden, no scroll, no hint (the audit's words).
+     768-1023 override: the name track drops its 220px floor (minmax(0,1fr) — it gets ~268px at
+     768 anyway once the fixed tracks shrink, more than the floor asked for), Category 190 -> 130
+     (the 190 was sized so NO desktop category truncates; at this band the ellipsis safety net is
+     the right trade), Unit cost 110 -> 80 ("$55.14/kg" measures ~72), Last change 100 -> 64 (its
+     11.5px heading is the widest content), gaps sp-4 -> sp-3. Everything fits inside 610 with
+     room, so nothing clips. Same selector pair, same specificity, later in the file; one
+     identical template for band and rows per the drift note above. */
+  @media (max-width:1023px){
+    .ing-band,.ing-card{grid-template-columns:minmax(0,1fr) 130px 80px 64px;column-gap:var(--sp-3)}
+  }
   /* the table's own ceiling, independent of the page container's — see the note above */
   #ingList{max-width:1200px}
   .ing-band{
