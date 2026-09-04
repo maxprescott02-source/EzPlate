@@ -70,3 +70,13 @@ The spec promises the mutation detail lives in the batch handover, which did not
 - Zero-state interactions (zero menus / plates / products / kitchen ingredients) unchanged; `214-empty-menu-action.spec.js` unaffected.
 - The deleted `margin-left:auto` had no consumer; no spec asserted the rehomed button's x.
 - `v142-menu.spec.js`'s Tab walk still terminates within budget; six cache spots agree and are pinned; the workflow spec count is maintained by `tests/ci-workflow.test.js`; CSS braces and comment delimiters balance.
+
+## Addendum — the two commits after the reviewed one (range d2ebea7..3fc8d0c, same reviewer, same model)
+
+The addendum exists because `3fc8d0c` changes `.github/workflows/test.yml`, a guarded prefix — the artifact must not be silent about a CI change it did not cover.
+
+- **`4114808` (the seven fixes): all land correctly**, each re-checked against the code rather than this file's word — the `hasField` selector resolves on all four screens and goes red by name on a renamed id (it pins *an element with that id inside the wrap*, not *the input* — weaker than the message implies, strictly stronger than the dead field, not worth changing); the builder reference stays real; the count guard closes the vacuity; every corrected comment's claim was re-verified (the ~680px arithmetic, the deleted `.mnu-switch` rule's `1 1 100%`, the old orphan mechanism).
+- **`3fc8d0c` (playwright `timeout-minutes` 15 → 25): sound, no finding.** `tests/ci-workflow.test.js`'s 5-60 bound passes; the job-body regex still extracts 25 and cannot read a number out of the new comment's prose (comment lines carry no `timeout-minutes:` at the matched indent); nothing else depends on 15 (the two other occurrences are write-once historical records, correctly left alone); batch 201's refusal at `test.yml` is about Playwright's per-test 30s timeout, a different mechanism, untouched. With `--retries=1 --trace=retain-on-failure` a widespread-failure run does near-double work, so 15 was tight for that case too — 25 is the honest number. Observation for the next raiser: `timeout-minutes` cannot be expressed as a multiple of a baseline the way the mutation gate's bound is, so this constant will rot again at the next growth step; the test's `<= 60` is the backstop.
+- **Two nits, both records, both fixed in the commit that adds this section:** the audit table said "seven" mutations while the handover names eight (the count is now a pointer, not a number), and this artifact was silent about `3fc8d0c` (this section is the fix).
+
+Addendum-reviewed-range: d2ebea7..3fc8d0c (the `Reviewed-commit:` header above stays d2ebea7 — the gate reads the first line, and an ancestor is the rule).

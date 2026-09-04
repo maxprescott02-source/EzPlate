@@ -15,7 +15,9 @@
 Two runs of nothing - ONE run of the `code-review` agent, forced onto Opus, diff only, no brief.
 No critical or major findings; 8 minor/nit, all real: an uncapped mobile search width that needed to be a stated decision rather than an accident (decided, kept, said at the rule), two comments recording wrong causes, a spec table the assertions never read, a self-comparison, a vacuous-on-empty `.every`, a consumerless class, and a spec citing this handover before it existed.
 Seven fixed in `4114808`; the eighth is discharged by this file (see Surprises for the mutation list it promised).
-`docs/reviews/REVIEW-232-control-rows.md` holds the verbatim report and every decision; `Reviewed-commit: d2ebea7`.
+A second, addendum run covered the two commits after the reviewed one - the fixes themselves, and the CI change that made the addendum mandatory: PR #254's Playwright job died at its own 15-minute `timeout-minutes` (real duration had crept to ~11m; the bound catches hangs, not growth), raised to 25 in `3fc8d0c`.
+The addendum found the raise sound and two record nits (a mutation count stated in two files, and the artifact's silence about the CI commit), both fixed.
+`docs/reviews/REVIEW-232-control-rows.md` holds both verbatim reports and every decision; `Reviewed-commit: d2ebea7`, addendum range `d2ebea7..3fc8d0c`.
 
 ## Into CLAUDE.md
 Nothing.
