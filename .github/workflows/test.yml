@@ -259,7 +259,12 @@ jobs:
   playwright:
     name: browser specs (Playwright)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 25, raised from 15 in batch 232, MEASURED not guessed: the suite's real CI duration was
+    # 10m51s-11m14s on the two runs before the raise, and PR #254's run was killed at the 15m cap
+    # by a slow runner day plus one new spec file — a genuine run dying at the bound, which is the
+    # one thing this bound must never do. The bound exists to catch a HANG (batch 201), and a hang
+    # is caught at 25 exactly as it was at 15; a passing suite at 24 minutes is not.
+    timeout-minutes: 25
     # ⚠️ `needs:` AND `if:` ARE A PAIR AND NEITHER WORKS ALONE. Without `needs`, the job
     # does not wait for `changes` and `needs.changes.outputs.browser` evaluates to an
     # empty string, so the `if` is never true and the browser specs NEVER RUN - green,
