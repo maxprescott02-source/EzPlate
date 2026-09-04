@@ -3268,7 +3268,8 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    rules are all retired — each list is display:block now (§26/§27/§29). Tombstones. */
 /* at one-third width the linked-product line ("Bacon Middle Rindless … — Caterers Choice · $12.20/kg")
    wraps to at most 2 lines, then ellipsis — nowrap truncated it to near-nothing in a grid cell */
-/* F3 (v139) tombstone: the `.king-link` clamp moved into §27, which sets it per breakpoint. */
+/* F3 (v139) tombstone: the `.king-link` clamp moved into §27 — where it turned out to be dead at
+   every width (its -webkit-box display lost to later display rules) and batch 232 deleted it. */
 /* Q5 (v124) tombstone: the v103 2-up/3-up #kingList grid media rules are retired — §27 owns the
    list at every width now (one display:block surface). */
 /* item 5 ROOT CAUSE (second attempt — v44's fix never held): three cascade leaks stacked up.
@@ -3846,9 +3847,12 @@ html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 80px)}
    actually mean "never forces a wrap"; then it grows into free space and ellipsises.
    Below 768 the Menu HEADER's `.scr-gap` stops growing so the sub gets ALL the free width (the
    sub is the spacer there); ≥768 restores content sizing and the gap does its usual job.
-   ⚠️ The child combinator is load-bearing: #tab-analysis holds a SECOND .scr-gap, in
-   #menuSwitchRow (the switcher/search row) — an unscoped selector froze that one too and let
-   the menu <select> swallow its whole row at ≤767. Caught by the pre-push review. */
+   ⚠️ The child combinator was load-bearing when written: #tab-analysis then held a SECOND
+   .scr-gap, in #menuSwitchRow — an unscoped selector froze that one too and let the menu
+   <select> swallow its whole row at ≤767. Caught by the pre-push review. Step 3 of the ui-audit
+   (R4) removed that spacer from the row entirely (`.menu-picker-row` right-aligns itself now),
+   so the combinator currently scopes nothing extra — it stays because it is what made this rule
+   safe once and a future gap inside the pane would silently re-earn the bug without it. */
 #menuHeadSub{display:block;flex:1 1 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media (max-width:767px){ #tab-analysis .scr-head > .scr-gap{flex:0 0 auto} }
 @media (min-width:768px){ #menuHeadSub{flex:0 1 auto} }
@@ -3993,12 +3997,20 @@ html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 80px)}
    are different questions — `hidden` still means "this row is not here at all". */
 .plib-controls.is-nofilters > :not([data-mobile-home]){display:none}
 .plib-controls.is-nofilters{padding-top:0}
-/* A REHOMED ACTION KEEPS ITS RIGHT-HAND POSITION. In the header `.scr-gap` pushes it right; here
-   `margin-left:auto` does the same job, so crossing 767 moves the button DOWN a line and not
-   sideways as well. It is also what separates an action from the filters it now shares a row with,
-   which is the cost the queue item recorded when this home was chosen. */
-.plib-controls > [data-mobile-home]{margin-left:auto}
+/* R7 (ui-audit-2026-09-02, step 3): a rehomed action JOINS the filter group instead of floating
+   right of it. The rule this replaces was `margin-left:auto` — "a rehomed action keeps its
+   right-hand position" — and it is exactly what the audit measured as the defect: the moment the
+   row wraps (390px holds Products' two selects and nothing more), auto margin puts the button
+   ALONE on its own line, right-aligned, reading as an orphan row. Left-packed, it sits beside the
+   filters when the line has room and stacks under them at the gutter when it does not, like every
+   other wrapped control in these rows. No rule needed — left-packing is flex's default. */
 .plib-search{flex:1 1 200px;min-width:160px;position:relative;display:flex;align-items:center}
+/* R7's other half: below 768 the search is a full-width line of its OWN on every screen, so all
+   four screens carry one control-stack rhythm — search row, then filter row — instead of the
+   per-screen wrap the audit measured (the search landed at three different y's). Same selector as
+   the base rule above, so same 0-1-0 specificity; this wins below 768 by source order, and above
+   768 only the base rule (and the ≥768 320-400px cap) applies. */
+@media (max-width:767px){ .plib-search{flex:1 1 100%} }
 .plib-search input{
   width:100%;font:inherit;min-height:44px;padding:10px 40px 10px 12px;
   border:1px solid var(--border-2);border-radius:var(--radius-ctl);
@@ -4187,14 +4199,22 @@ html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 80px)}
 .king-name{grid-column:1 / 3;grid-row:1;font-size:var(--fs-base);font-weight:500;line-height:1.3;min-width:0}
 /* the linked-product sentence is the pane's ONLY visible route to Products, so R3 re-houses it as
    the row's meta line rather than dropping it for a column the mock does not draw. */
+/* NO line-clamp here, decided rather than lost (batch 232, closing the docs/MAINTENANCE.md entry
+   batch 231's review filed): the old `-webkit-line-clamp` pair was DEAD at every width — the
+   `display:-webkit-box` it needs was overridden by the `display:none`/`block` pair below on the
+   phone and by `display:block` in the ≥768 block — and the live, shipped rendering it never
+   bounded is the one R2 (ui-audit) measured and sized the 768-1023 tracks for: the product
+   sentence wraps at two to three lines. Restoring a real clamp would truncate a sentence R3
+   re-housed precisely because it is the pane's only visible route to Products. `overflow:hidden`
+   stays — with min-width:0 it is what stops an unbroken token overflowing the grid cell. */
 .king-link{
   grid-column:1 / 3;grid-row:2;font-size:12.5px;color:var(--text-3);
   font-variant-numeric:tabular-nums;min-width:0;
-  white-space:normal;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  white-space:normal;overflow:hidden;
 }
 .king-link::before{content:"\2192\00a0";color:var(--text-3)}   /* the arrow is presentation, not content */
 .king-link.king-missing::before{content:""}
-.king-missing{color:var(--danger);font-weight:600;-webkit-line-clamp:3;line-clamp:3}
+.king-missing{color:var(--danger);font-weight:600}
 /* MOBILE meta line = "Category, in N plates" — the mock's §6 sub exactly. The linked-product
    sentence is DESKTOP ONLY: three stacked meta lines under a name is not the mock's row, and on a
    phone the product is one tap away in the row's own modal. The broken-link warning is the
@@ -4263,8 +4283,8 @@ html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 80px)}
      cell's actual var(--mono)), gaps sp-4 -> sp-3. The identity cell gets ~196px at 768 instead
      of 64 — which makes the product sentence wrap at TWO to THREE lines instead of one word per
      line (rows ~57-95px instead of 203). NOT "one line": nothing bounds that cell's height —
-     `.king-link`'s line-clamp at its own rule is dead, `display:block` overrides the
-     -webkit-box the clamp needs, and that predates this batch (filed in docs/MAINTENANCE.md).
+     the old line-clamp was dead (its -webkit-box display lost to `display:block` below) and
+     batch 232 deleted it, deciding the wrap is the behaviour; see `.king-link`'s base rule.
      Same selector pair, same specificity, later in the file (the @media trap); one identical
      template for both containers per the drift note above. */
   @media (max-width:1023px){
@@ -4280,8 +4300,7 @@ html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 80px)}
   /* identity left (name over its product sentence), then four real columns */
   .king-id{display:flex;flex-direction:column;gap:2px;min-width:0;grid-column:1;grid-row:1}
   .king-name{grid-column:auto;grid-row:auto;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .king-link{grid-column:auto;grid-row:auto;font-size:12px;-webkit-line-clamp:1;line-clamp:1}
-  .king-missing{-webkit-line-clamp:2;line-clamp:2}
+  .king-link{grid-column:auto;grid-row:auto;font-size:12px}
   .king-link{display:block}
   /* `.is-nil` / `.is-broken` are two-class selectors, so the desktop rule that brings the dash
      placeholders back MUST match their specificity — specificity beats source order across a media
@@ -4576,15 +4595,19 @@ html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 80px)}
    written INTO the fix for another.
    ---------------------------------------------------------------------- */
 
-/* ---- the switcher row (mock §3.2: switcher left, search right) ---- */
+/* ---- the switcher row. R4 (ui-audit-2026-09-02, step 3, Max's own instruction): the SEARCH
+        takes the row's left slot at the shared width — the mock's "switcher left, search right"
+        is deviated from, recorded at the markup — so the search needs NO Menu-specific rule any
+        more: the two `.mnu-switch .plib-search` overrides (mobile full-width, ≥768 `0 1 200px`
+        at the right) are DELETED and §26's shared sizing is the whole of it. ---- */
 .menu-pills{display:none}
-/* the picker cluster grows; the search sits at the right. Both `.mnu-switch .plib-search` rules are
-   written at the SAME specificity (0-2-0) at BOTH breakpoints, per the header note — the base one
-   would otherwise be a 0-1-0 `.plib-search` and which rule won would depend on where the file put
-   it rather than on which breakpoint is active. On a phone the search takes its own full-width line
-   (§6 tints and full-widths it); at ≥768 the mock gives it a fixed 200px at the row's right. */
-.menu-picker-row{display:flex;align-items:center;gap:var(--sp-2);flex:1 1 220px;min-width:0}
-.mnu-switch .plib-search{flex:1 1 100%}
+/* the picker cluster: on a phone it is the line under the search, and its BASIS is what decides
+   whether the rehomed "Existing plate" button shares that line or orphans under it — the R7
+   defect. Measured at 390 (content box 334): basis 220 + gap 8 + the 121px button = 349, so the
+   button wrapped alone; 160 + 8 + 121 = 289 fits, and the picker still GROWS into whatever the
+   button leaves, so the select ends up ~200px wide either way. The number is a wrap threshold,
+   not a size. */
+.menu-picker-row{display:flex;align-items:center;gap:var(--sp-2);flex:1 1 160px;min-width:0}
 .mnu-selwrap{flex:1 1 auto;max-width:none}
 /* the mobile mock's food-cost pill beside the menu name (R5 note in index.html: the mock puts
    the trio in the header, which `.scr-head` owns). `:not([hidden])` is load-bearing — an author
@@ -4729,7 +4752,16 @@ html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 80px)}
   @media (max-width:1023px){
     .mnu-band,.mnu-row{grid-template-columns:minmax(0,1fr) 90px 70px 60px 160px;column-gap:var(--sp-3)}
   }
-  .mnu-switch .plib-search{flex:0 1 200px}
+  /* R4: at ≥768 the search owns the left slot with §26's shared 320-400px sizing, and the picker
+     takes the REST of the line and right-aligns its content — `flex:1 1 0` so its hypothetical
+     main size is 0 and it can never wrap onto a second line however many pills it holds (pills
+     wrap INSIDE `.menu-pills`, which is flex-wrap). `justify-content` does the aligning; an auto
+     margin on the item would stop working the moment anything made the item grow. The select
+     stops growing here (it grew to fill the phone's line) and goes content-sized like every other
+     screen's filter select; shrink 1 + its own ellipsis still bound a long menu name. Same 0-1-0
+     specificities as the base rules these override, per the section header note. */
+  .menu-picker-row{flex:1 1 0;justify-content:flex-end}
+  .mnu-selwrap{flex:0 1 auto}
   .mnu-band:not([hidden]){display:grid}
   .mnu-band{
     align-items:center;padding:9px var(--sp-4);

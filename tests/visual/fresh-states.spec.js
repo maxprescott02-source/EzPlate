@@ -514,8 +514,16 @@ for (const size of SIZES) {
     expect(grid.bordered, 'container is bordered only at >=768').toBe(wide);
     expect(grid.band, 'the column band labels the desktop table and nothing on the phone')
       .toBe(wide ? 'grid' : 'none');
-    expect(grid.clamp, 'the linked-product line clamps — 1 line in its column, 2 stacked')
-      .toBe(wide ? '1' : '2');
+    /* 232 HONEST REWRITE, and the old assertion is a roster shape worth naming: it read
+       `webkitLineClamp` from computed style and expected '1'/'2' — but the clamp was DEAD at
+       every width (its `display:-webkit-box` lost to later `display:none`/`block` rules), so the
+       assertion pinned an inert declaration while the sentence it described wrapped to three
+       lines on screen. A computed-style probe proves a declaration REACHES the element, not that
+       it does anything. Batch 232 deleted the dead clamp (docs/MAINTENANCE.md entry from 231's
+       review; the 768-1023 band was already sized for the real 2-3-line wrap), so 'none' is now
+       the decided state and a clamp REAPPEARING is the regression. */
+    expect(grid.clamp, 'no line-clamp — deleted as dead in 232; the sentence wraps by design')
+      .toBe('none');
 
     // every state, asserted on the RENDERED rows rather than on a source grep
     const states = await page.evaluate(() => {
@@ -1180,11 +1188,12 @@ for (const size of SIZES) {
       const cs = getComputedStyle(head);
       return {
         order: [head.getBoundingClientRect().top, T('#menuSwitchRow'), T('#aList')],
-        // the header's text edge is its padding edge; the switcher and rows sit on the same gutter.
-        // The SEARCH is deliberately not measured — the mock puts it at the RIGHT of that row.
-        // `.menu-picker-row`, not `#menuPills` — the pills are a ≥1024 control and measure 0 on a
-        // phone, which reads as a 28px edge break rather than "that element is not here".
-        edges: [head.getBoundingClientRect().left + parseFloat(cs.paddingLeft), L('#tab-analysis .menu-picker-row'), L('#aList')],
+        // the header's text edge is its padding edge; the controls and rows sit on the same gutter.
+        // The SEARCH is the measured control since step 3 of the ui-audit (R4, batch 232): it owns
+        // the row's LEFT slot on every screen now — this used to measure `.menu-picker-row` with a
+        // note that the mock put the search at the right, and Max's R4 instruction inverted that
+        // (the picker right-aligns and its left edge is nowhere in particular).
+        edges: [head.getBoundingClientRect().left + parseFloat(cs.paddingLeft), L('#menuSwitchRow .plib-search'), L('#aList')],
         // ONE row, at both widths: two actions in a mobile header is a known, queued deviation, but
         /* a header that WRAPS is a defect — the mock's own "Add existing plate" caused one at 380.
            ⚠ THE METRIC CHANGED 12 Aug 2026, because the previous one stopped being true. It counted

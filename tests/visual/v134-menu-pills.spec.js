@@ -69,13 +69,22 @@ test('keyboard: focus survives the switch — the re-render must hand it to the 
   expect(focused.menu).toBe('MENU_W');
 });
 
-test('the pills row shares the screen left edge, and Delete has left the switcher entirely', async ({ page }) => {
+test('the pills sit at the search row\'s right, and Delete has left the switcher entirely', async ({ page }) => {
   await boot(page);
-  const L = async (s) => (await page.locator(s).first().boundingBox()).x;
-  // F5 (v142): the header is `.scr-head` now, and its title — not its buttons — holds the left edge.
-  // scoped: four screens carry `.scr-head` and three of them are display:none
-  expect(Math.abs(await L('.menu-pill') - await L('#tab-analysis .scr-head h2')),
-    'pills sit on the screen left edge (the select used to hold this line)').toBeLessThanOrEqual(1.5);
+  // 232 HONEST REWRITE (ui-audit R4, Max's step-3 instruction): this asserted the pills held the
+  // screen LEFT edge, which was true from v134 to v190. R4 gave that slot to the search on every
+  // screen — the one list control that moved between pages — so the pills right-align in the same
+  // row now. Pinned as: on the search's line (y overlap), right of it, ending on the list's right
+  // edge. A left-edge pill row is the REGRESSION now, not the contract.
+  const box = async (s) => await page.locator(s).first().boundingBox();
+  const search = await box('#menuSwitchRow .plib-search');
+  const pills = await box('#menuPills');
+  const list = await box('#aList');
+  expect(pills.y, 'pills start above the search line\'s end').toBeLessThan(search.y + search.height);
+  expect(pills.y + pills.height, 'and end below its start — same line').toBeGreaterThan(search.y);
+  expect(pills.x, 'pills sit right of the search, not under it').toBeGreaterThan(search.x + search.width - 1);
+  expect(Math.abs((pills.x + pills.width) - (list.x + list.width)),
+    'and end on the list\'s right edge').toBeLessThanOrEqual(1.5);
   // R3: Delete moved OUT of the switcher row and into the screen footer, as §2's destructive
   // button. The old pin asserted it kept the switcher row's right edge, which was the best that
   // could be done while it sat beside the most-clicked control; the honest replacement is that it
@@ -84,7 +93,6 @@ test('the pills row shares the screen left edge, and Delete has left the switche
     !!document.querySelector('.menu-picker-row #menuDelBtn'));
   expect(inRow, 'Delete is not in the switcher row any more').toBe(false);
   const del = await page.locator('#menuDelBtn').boundingBox();
-  const list = await page.locator('#aList').boundingBox();
   expect(del.y, 'Delete sits BELOW the list, not above it').toBeGreaterThan(list.y + list.height - 1);
   expect(Math.abs(del.x - list.x), 'and on the screen left edge').toBeLessThanOrEqual(1.5);
 });
