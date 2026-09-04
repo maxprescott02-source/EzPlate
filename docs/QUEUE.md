@@ -36,6 +36,28 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
+## next  0 · UI audit Phase 2, steps 3-6 (R4+R7, R5+R6, R12, R17+R18)  **[B — visible polish, Max's own ordered plan]**
+
+Max wrote this plan himself on 3 Sep 2026 (chat, batch 231) and approved it by ordering the steps, so it is pre-approved work, not a brief to re-confirm.
+Steps 1-2 shipped in batch 231 as `ezplate-v190` (PR #253): R21+R22 (one header band, sticky page header) and R1-R3 (the 768-1023 tablet tables).
+Row ids refer to `docs/ui-audit-2026-09-02.md`, whose Phase 2 progress table tracks status.
+`docs/handovers/HANDOVER-231-header-and-tablet-band.md` is the diary of how steps 1-2 went and what the reviews caught.
+
+**His constraints, verbatim in substance:** no functional change; component APIs, routes, handlers, field names and data fetching unchanged; no new dependencies, no rebrand; CSS and markup only EXCEPT R12, the one approved JS change; one commit per step; STOP and show him after each step.
+
+**The remaining steps, in his order:**
+3. R4 + R7, one commit. Menu search into the same left slot and width as Plates / Products / Ingredients (400x40 top-left), all four screens on one control-row pattern (search + filter row; the secondary action joins the filter row instead of floating alone). ⚠️ The audit's site list for R7 is UNMEASURED — count the control rows before planning (queue header rule).
+4. R5 + R6, one commit. Touch targets to 44px effective via padding and negative margin, visuals unchanged: builder remove-line "x" (15.5x36), pack-price chips (27px tall), Dashboard trend range buttons (32px), and the small text links (Privacy notice, What is sent, wizard Skip, phone link, sign-in links).
+5. R12, APPROVED JS change (the only one): add the "Clear search & filters" link to the Menu zero-results renderer, matching Plates. Show him the diff.
+6. R17 + R18, one commit. More-screen title alignment + back-chevron hit area; one row-height token for desktop list rows (Plates 41 vs Menu 44-45 vs Products 44).
+
+**Deferred by his explicit call — do NOT do:** R20 (token fold — reconsider only after the above ships) · R8 unless CSS `:has()` reaches it with zero JS (if it needs a class toggle, skip and say so) · R10, R11, R13, R14, R15, R16 (leave) · R19 (wontfix, agreed).
+
+**Verification, every commit (his list):** suite + smoke + Playwright green · diff confined to css/style.css and index.html or name the exception · before/after captures at 390, 768, 1024, 1440 for every screen touched · state which flows were not touched.
+The capture harness lives at `~/Documents/EzPlate-ui-audit-2026-09-02/` (`node run.js --out=<dir> --widths=... --states=pop`; befores are `out/shots/`, deliberately NOT in this public repo — real business data).
+Batch 231 already bumped the deploy version to v190 and merged; a new batch on these steps bumps to v191 (one bump per batch).
+The pre-push code-review agent caught 16 real findings across steps 1-2 (two of them in brand-new tests that could not fail) — run it per stop-point, force it onto a different model, and hand-run a mutation on every new assertion.
+
 ## blocked  2b · Move the AI endpoints to Gemini's PAID tier  **[A — post-launch]**
 
 Blocked on: **Max choosing to take it. He has DEFERRED IT INDEFINITELY (29 Aug 2026): *"im deferring indefenitly until i saw otherwise."*** That IS the block, and it is a person, which is what this field is for. It is not waiting on a console visit, a date or a reminder. **Do not surface it, do not re-propose it, and do not count it as a blocked item needing a decision** — the decision is made and the answer is "not now".
