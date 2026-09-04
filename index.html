@@ -102,7 +102,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=190">
+<link rel="stylesheet" href="css/style.css?v=191">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -536,8 +536,24 @@
         <button id="menuAddDishBtn" type="button" class="plib-btn2" data-mobile-home="menuSwitchRow">Existing plate</button>
         <button id="menuNewBtn" type="button" class="btn primary">New menu</button>
       </div>
-      <!-- mock §3.2's control row, verbatim: switcher left, search right. -->
+      <!-- The mock's §3.2 control row says "switcher left, search right", and this row DEVIATES
+           from it on Max's own written instruction (3 Sep 2026, ui-audit R4): the search takes the
+           same left slot and 320-400px width as Plates / Products / Ingredients — it was the one
+           list control that moved between pages — and the switcher sits at the row's right. An
+           explicit owner decision outranks R1, the same precedent as the matching-edges header rule.
+           No `.scr-gap` spacer here: `.menu-picker-row` right-aligns itself in css (and a growing
+           spacer in a wrapping row indents whichever line it wraps onto).
+           `mnu-switch` currently matches NO css rule — step 3 deleted both of its `.plib-search`
+           overrides — and it is KEPT deliberately: it is this row's identity (renaming an
+           identifier is the naming-rule violation), and deleting it invites the next Menu-scoped
+           rule to be written against the shared `.plib-controls` by accident. -->
       <div class="plib-controls mnu-switch" id="menuSwitchRow">
+        <div class="plib-search">
+          <input id="menuSearch" type="search" placeholder="Search plates" aria-label="Search plates" autocomplete="off">
+          <!-- R3, as F2/F4: the mock draws no clear ×, and `type="search"` renders no native one on
+               iOS Safari — Max's phone. The control survives, restyled. -->
+          <button id="menuSearchClear" type="button" class="plib-x" aria-label="Clear search" hidden>&times;</button>
+        </div>
         <div class="menu-picker-row">
           <!-- v134 (V4a): the switcher pills. Desktop-only (CSS) and only when every menu fits (≤5) —
                the mock's "N more ▾" overflow needs a floating layer, queued behind F10 where the layer
@@ -552,13 +568,6 @@
           <!-- the mobile mock's % pill beside the menu name; desktop carries the same figure on each
                pill, so this is hidden there rather than stated twice -->
           <span class="mnu-pct" id="menuScopePct" hidden></span>
-        </div>
-        <span class="scr-gap"></span>
-        <div class="plib-search">
-          <input id="menuSearch" type="search" placeholder="Search plates" aria-label="Search plates" autocomplete="off">
-          <!-- R3, as F2/F4: the mock draws no clear ×, and `type="search"` renders no native one on
-               iOS Safari — Max's phone. The control survives, restyled. -->
-          <button id="menuSearchClear" type="button" class="plib-x" aria-label="Clear search" hidden>&times;</button>
         </div>
       </div>
       <!-- R3: the mock's Menu screen has no filters at all, so it has nothing to say about this row.
@@ -1758,7 +1767,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=190"></script>
+<script src="js/app.js?v=191"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —

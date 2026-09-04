@@ -259,7 +259,12 @@ jobs:
   playwright:
     name: browser specs (Playwright)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 25, raised from 15 in batch 232, MEASURED not guessed: the suite's real CI duration was
+    # 10m51s-11m14s on the two runs before the raise, and PR #254's run was killed at the 15m cap
+    # by a slow runner day plus one new spec file — a genuine run dying at the bound, which is the
+    # one thing this bound must never do. The bound exists to catch a HANG (batch 201), and a hang
+    # is caught at 25 exactly as it was at 15; a passing suite at 24 minutes is not.
+    timeout-minutes: 25
     # ⚠️ `needs:` AND `if:` ARE A PAIR AND NEITHER WORKS ALONE. Without `needs`, the job
     # does not wait for `changes` and `needs.changes.outputs.browser` evaluates to an
     # empty string, so the `if` is never true and the browser specs NEVER RUN - green,
@@ -402,7 +407,7 @@ jobs:
       # spec in that directory - INCLUDING screenshots.spec.js, the one spec excluded above because
       # it reads the cafe's live production database. So the failure mode is not "runs nothing and
       # goes green"; it is "silently runs the non-hermetic spec in a job documented as hermetic".
-      # Latent today (50 specs, 49 survive the filter) - pinned here so it stays that way.
+      # Latent today (51 specs, 50 survive the filter) - pinned here so it stays that way.
       # (That count read "9 specs, 8 survive" until 10 Aug 2026, was corrected to "22 specs, 21
       # survive" on that date, and had drifted AGAIN to 31/30 by v156 - found stale by three
       # consecutive audits. The GUARD is correct and fails closed; only the number lied.
