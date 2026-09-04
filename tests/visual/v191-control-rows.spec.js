@@ -70,6 +70,13 @@ test('R4 @1440: all four screens put the search in ONE left slot at ONE width', 
   for (const s of SCREENS) {
     await page.evaluate((t) => window.showTab(t), s.tab);
     await page.waitForTimeout(250);
+    /* the wrap is measured, and the table's id is ASSERTED to live inside it — without this the
+       `search` key was decoration a rename would leave stale while the spec stayed green (review
+       finding: a mapping the assertions cannot see is the roster's "title names a property the
+       assertions cannot see", one level down). */
+    const hasField = await page.evaluate(
+      ({ row, search }) => !!document.querySelector(`${row} .plib-search ${search}`), s);
+    expect(hasField, `${s.tab}: ${s.search} is the field inside the measured wrap`).toBe(true);
     got[s.tab] = await rect(page, `${s.row} .plib-search`);
     expect(got[s.tab], `${s.tab}: the search field renders`).toBeTruthy();
     /* the POSITIVE width first (roster 190: a denylist assertion is weaker than an equality one).
@@ -77,9 +84,11 @@ test('R4 @1440: all four screens put the search in ONE left slot at ONE width', 
     expect(got[s.tab].w, `${s.tab}: search at the shared 400px cap`).toBeCloseTo(400, 0);
   }
   /* one LEFT slot: every screen's search starts where Plates' does. Plates is the reference
-     because it has carried this slot since F2 — and the assertion cannot go vacuous (roster 205):
-     each rect was asserted truthy above, and the width literal already proved each side is real. */
-  for (const s of SCREENS) {
+     because it has carried this slot since F2 — so it is EXCLUDED from the loop (comparing it
+     against itself is a comparison that cannot fail, roster 205's shape) — and the three real
+     comparisons cannot go vacuous: each rect was asserted truthy above, and the width literal
+     already proved each side is real. */
+  for (const s of SCREENS.filter((x) => x.tab !== 'builder')) {
     expect(Math.abs(got[s.tab].x - got.builder.x), `${s.tab}: search shares Plates' left edge`)
       .toBeLessThanOrEqual(1.5);
   }
@@ -112,16 +121,23 @@ for (const w of [390, 767]) {
       expect(search.w, `${s.tab}: the search takes the row's full content width`)
         .toBeGreaterThanOrEqual(row.w - pad - 1);
       /* and it is the FIRST control: everything else in the row starts on a later line. The
-         probe is the wrap detector v142 uses — a child that begins below another child's end. */
-      const below = await page.evaluate((sel) => {
+         probe is the wrap detector v142 uses — a child that begins below another child's end.
+         The count is asserted too: `.every` on an empty array is true, so a seed that emptied
+         these rows (is-nofilters) would pass this silently (review finding — the same guard
+         v155-products carries for its own precondition). */
+      const others = await page.evaluate((sel) => {
         const row = document.querySelector(sel);
         const search = row.querySelector('.plib-search').getBoundingClientRect();
-        return [...row.children]
+        const vis = [...row.children]
           .filter((el) => !el.classList.contains('plib-search'))
-          .filter((el) => el.getBoundingClientRect().height > 0)
-          .every((el) => el.getBoundingClientRect().top >= search.bottom - 0.5);
+          .filter((el) => el.getBoundingClientRect().height > 0);
+        return {
+          count: vis.length,
+          below: vis.every((el) => el.getBoundingClientRect().top >= search.bottom - 0.5),
+        };
       }, s.row);
-      expect(below, `${s.tab}: every other visible control sits under the search`).toBe(true);
+      expect(others.count, `${s.tab}: the row really holds controls besides the search`).toBeGreaterThan(0);
+      expect(others.below, `${s.tab}: every other visible control sits under the search`).toBe(true);
     }
   });
 }

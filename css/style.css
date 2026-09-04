@@ -4005,11 +4005,17 @@ html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 80px)}
    filters when the line has room and stacks under them at the gutter when it does not, like every
    other wrapped control in these rows. No rule needed — left-packing is flex's default. */
 .plib-search{flex:1 1 200px;min-width:160px;position:relative;display:flex;align-items:center}
-/* R7's other half: below 768 the search is a full-width line of its OWN on every screen, so all
-   four screens carry one control-stack rhythm — search row, then filter row — instead of the
-   per-screen wrap the audit measured (the search landed at three different y's). Same selector as
-   the base rule above, so same 0-1-0 specificity; this wins below 768 by source order, and above
-   768 only the base rule (and the ≥768 320-400px cap) applies. */
+/* R7's other half: below 768 the search is a full-width line of its OWN on every screen, so the
+   stack opens the same way everywhere — search first, filters under it (the Menu keeps its
+   switcher line between the two; "same rhythm" means the same OPENING, not the same line count).
+   Before this, the search landed at three different y's per screen. Same selector as the base
+   rule above, so same 0-1-0 specificity; this wins below 768 by source order, and above 768 only
+   the base rule (and the ≥768 320-400px cap) applies.
+   NO width cap below 768, decided rather than missed (review finding, batch 232): at 561-767 the
+   field runs the row's full ~680px, where ≥768 caps it at 400. That is the MOBILE treatment the
+   Menu search always had (§6 full-widths and tints it; the deleted `.mnu-switch` rule did exactly
+   this) now shared by all four screens — not 176's desktop defect, which was a search swallowing
+   the spare width BESIDE content-sized selects on a one-line row. */
 @media (max-width:767px){ .plib-search{flex:1 1 100%} }
 .plib-search input{
   width:100%;font:inherit;min-height:44px;padding:10px 40px 10px 12px;
@@ -4602,11 +4608,15 @@ html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 80px)}
         at the right) are DELETED and §26's shared sizing is the whole of it. ---- */
 .menu-pills{display:none}
 /* the picker cluster: on a phone it is the line under the search, and its BASIS is what decides
-   whether the rehomed "Existing plate" button shares that line or orphans under it — the R7
-   defect. Measured at 390 (content box 334): basis 220 + gap 8 + the 121px button = 349, so the
-   button wrapped alone; 160 + 8 + 121 = 289 fits, and the picker still GROWS into whatever the
-   button leaves, so the select ends up ~200px wide either way. The number is a wrap threshold,
-   not a size. */
+   whether the rehomed "Existing plate" button shares that line or orphans under it. Measured at
+   390 (content box 334): 160 + gap 8 + the 121px button = 289 fits on one line, where the old
+   220 basis would give 349 and wrap the button alone. (That arithmetic justifies the NEW line —
+   it is NOT why the shipped orphan existed. In the old markup the button followed the full-width
+   search, and a 121px item cannot share a line with a 334px one, so the button was on its own
+   row whatever this basis said; the audit measured it alone at y250. Review finding, batch 232 —
+   a reader wanting 220 back should evaluate the 289-vs-349 claim, not the old defect.) The
+   picker still GROWS into whatever the button leaves, so the select ends up ~200px wide either
+   way; the number is a wrap threshold, not a size. */
 .menu-picker-row{display:flex;align-items:center;gap:var(--sp-2);flex:1 1 160px;min-width:0}
 .mnu-selwrap{flex:1 1 auto;max-width:none}
 /* the mobile mock's food-cost pill beside the menu name (R5 note in index.html: the mock puts
