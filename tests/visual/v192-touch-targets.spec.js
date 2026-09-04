@@ -86,10 +86,13 @@ test('builder row: the remove × and the pack chip reach 44px effective, and the
   // the chip's VISUAL box is unchanged — the extension is an ::after, invisible to layout.
   // If this grows past 32, the fix became a visual change and the rule's comment says why not.
   expect(chipBB.height).toBeLessThanOrEqual(32);
-  // effective hit: 6px above and below the visual box still lands on the chip
+  // effective hit: ±8.5px beyond a ≤27px visual box is the 44px claim itself — probing
+  // shallower (a first cut used ±6) leaves the assertion structurally unable to fail on
+  // the number the audit row states (the review's N1). The rule says ±10; ~1px per edge
+  // goes to the chip's own border, and the .5 is snapping headroom.
   const cx = chipBB.x + chipBB.width / 2;
-  expect(await hit(page, cx, chipBB.y - 6, '.pchip')).toBe(true);
-  expect(await hit(page, cx, chipBB.y + chipBB.height + 6, '.pchip')).toBe(true);
+  expect(await hit(page, cx, chipBB.y - 8.5, '.pchip')).toBe(true);
+  expect(await hit(page, cx, chipBB.y + chipBB.height + 8.5, '.pchip')).toBe(true);
   // the × must NOT have annexed the chip: the chip's own right edge still belongs to it
   expect(await hit(page, chipBB.x + chipBB.width - 2, chipBB.y + chipBB.height / 2, '.pchip')).toBe(true);
 
@@ -123,12 +126,45 @@ test('range buttons: 44px effective in the 640-767 band the audit read as 32px',
   const bb = await btn.boundingBox();
   // visual size is Max's deferred taste call (MAINTENANCE, 31 Jul 2026) — pinned unchanged…
   expect(bb.height).toBeLessThanOrEqual(34);
-  // …while the deepened ::after makes 5px beyond either edge still hit the button.
-  // 5, not 8: pixel snapping eats ~1.4px per edge (measured), and the assertion pins
-  // "44 effective", not the CSS number that produces it.
+  // …while the deepened ::after makes 6px beyond either edge still hit the button —
+  // 32 + 12 = the 44 claim. (The rule says ±8; ~1px per edge goes to the button's own
+  // transparent border — top/bottom on the pseudo resolve against the PADDING box.)
   const cx = bb.x + bb.width / 2;
-  expect(await hit(page, cx, bb.y - 5, '.range-btn')).toBe(true);
-  expect(await hit(page, cx, bb.y + bb.height + 5, '.range-btn')).toBe(true);
+  expect(await hit(page, cx, bb.y - 6, '.range-btn')).toBe(true);
+  expect(await hit(page, cx, bb.y + bb.height + 6, '.range-btn')).toBe(true);
+});
+
+test('boot gate: both link lines get their geometry-bound extensions, and the gate still fits its box', async ({ page }) => {
+  await page.setViewportSize({ width: 380, height: 820 });
+  await installBoot(page, { signedOut: true });
+  await page.goto('/');
+  await page.waitForTimeout(800);
+
+  // The gate's LAST line is the one place full 44px is deliberately NOT delivered — the
+  // box hugs its content, so bottom padding there registers as overflow, and v161/v162
+  // pin "nothing is clipped". These assertions hold both sides of that trade: deleting
+  // the bg-privacy override re-applies the group rule and re-clips (the clip probe goes
+  // red here AND in v161/v162); deleting the #bgUpPrivacyLink rule drops its line under
+  // 24px; and the swap lines must get the group's FULL 45 — an override capping them
+  // was a first-cut mistake this height assertion now refuses.
+  const clipProbe = () => page.evaluate(() => {
+    const el = document.querySelector('#bootGate .bg-inner');
+    return el.scrollHeight > el.clientHeight + 1;
+  });
+  const h = (sel) => page.evaluate((s) => document.querySelector(s).getBoundingClientRect().height, sel);
+
+  // sign-in state: the sign-up swap line (14+17+14 = 45) and the privacy line (12+17 = 29)
+  expect(await h('#bgToSignUp')).toBeGreaterThanOrEqual(44);
+  expect(await h('#bgPrivacyLink')).toBeGreaterThanOrEqual(28);
+  expect(await clipProbe()).toBe(false);
+
+  // sign-up state: the sign-in swap line, and the in-label privacy link (6+17+6 = 29,
+  // WCAG 2.5.8's 24 floor — a fuller bleed would annex the checkbox label around it)
+  await page.locator('#bgToSignUp').click();
+  await page.waitForTimeout(300);
+  expect(await h('#bgToSignIn')).toBeGreaterThanOrEqual(44);
+  expect(await h('#bgUpPrivacyLink')).toBeGreaterThanOrEqual(28);
+  expect(await clipProbe()).toBe(false);
 });
 
 test('text links: the linklike family and the prose privacy links take taps well beyond their line', async ({ page }) => {

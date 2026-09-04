@@ -40,7 +40,7 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 Max wrote this plan himself on 3 Sep 2026 (chat, batch 231) and approved it by ordering the steps, so it is pre-approved work, not a brief to re-confirm.
 Steps 1-2 shipped in batch 231 as `ezplate-v190` (PR #253): R21+R22 (one header band, sticky page header) and R1-R3 (the 768-1023 tablet tables).
-**Step 3 shipped in batch 232 as `ezplate-v191`** (R4+R7, one commit; the audit file's progress table has the detail and the one recorded trade). His plan says STOP and show him after each step, and he was not in the chat — so batch 232 took ONE step and handed over with the captures; the next `/batch` takes step 4. That is the honest reading of his constraint when he is not live; if he'd rather have multiple steps per batch, say so and this line changes.
+**Step 3 shipped in batch 232 as `ezplate-v191`**, **step 4 in batch 233 as `ezplate-v192`** (R5+R6, one commit; the audit file's progress table has the detail — two of R6's readings were corrected by the code, and three shortfalls are geometry-bound and recorded). His plan says STOP and show him after each step, and he was not in the chat — so each batch takes ONE step and hands over with the captures; the next `/batch` takes step 5 (R12, the one approved JS change — show him the diff). That is the honest reading of his constraint when he is not live; if he'd rather have multiple steps per batch, say so and this line changes.
 Row ids refer to `docs/ui-audit-2026-09-02.md`, whose Phase 2 progress table tracks status.
 `docs/handovers/HANDOVER-231-header-and-tablet-band.md` is the diary of how steps 1-2 went and what the reviews caught.
 
