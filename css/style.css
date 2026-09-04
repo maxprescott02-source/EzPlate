@@ -1930,7 +1930,12 @@ html.has-install-banner .toast{bottom:calc(var(--install-banner-clear) + var(--s
 @media (min-width:1024px){
   /* v3 §1.3: desktop shape tokens — containers 10px, controls 6px. Declared here ONCE;
      screens only consume the tokens. */
-  :root{--radius-card:10px;--radius-ctl:6px}
+  /* R21 (ui-audit-2026-09-02): --header-h is the ONE height of the app's header band — the
+     sidebar brand block and every `.scr-head` both end their bottom hairline at exactly this y,
+     which is what makes the two rules read as one continuous line across the sidebar boundary.
+     80 = the measured pre-R21 page-side figure (32px `.wrap` clearance + the 48px §2 bar), chosen
+     so the PAGE side does not move a pixel; only the sidebar's rule moves down to meet it. */
+  :root{--radius-card:10px;--radius-ctl:6px;--header-h:80px}
 
   body{padding-left:224px;padding-bottom:40px}
 
@@ -1939,7 +1944,11 @@ html.has-install-banner .toast{bottom:calc(var(--install-banner-clear) + var(--s
   .bottomnav{
     top:0;bottom:0;left:0;right:auto;width:224px;
     flex-direction:column;align-items:stretch;justify-content:flex-start;gap:2px;
-    padding:16px 12px calc(16px + env(safe-area-inset-bottom));
+    /* R21: top padding 16 -> 0 — the brand row owns the full 0..--header-h band now, so its
+       hairline lands at the same y as every `.scr-head`'s. The nav list starts a little lower
+       (the row's own margin-bottom below the taller band), which is the sidebar-side half of
+       the trade: R21 moves the SIDEBAR to meet the page, never the page to meet the sidebar. */
+    padding:0 12px calc(16px + env(safe-area-inset-bottom));
     border-top:0;border-right:1px solid var(--border);box-shadow:none;
     background:var(--surface2);
   }
@@ -1957,9 +1966,16 @@ html.has-install-banner .toast{bottom:calc(var(--install-banner-clear) + var(--s
   /* The brand row — logo + wordmark. ⚠ 176: the theme toggle is NO LONGER IN IT (Max, 12 Aug 2026);
      it has its own region at the foot of the sidebar, `.side-foot` below. The row keeps its flex
      because the brand still needs to grow into it. */
+  /* R21: the row is exactly --header-h tall with the brand centred in it, so its border-bottom
+     sits at the same y as the `.scr-head` hairline (which the ::after at the §2 header block
+     extends to meet this one at the sidebar boundary). The -12px margins escape the nav's own
+     horizontal padding so the rule spans the sidebar's full width; the 14px padding puts the
+     logo back where the old 12+2 inset had it. Vertical padding is 0 on BOTH boxes — identical
+     by construction, which is the R21 contract. */
   .side-brand-row{
     display:flex;align-items:center;gap:var(--sp-2);
-    padding:0 2px 16px;border-bottom:1px solid var(--border);margin-bottom:var(--sp-4);
+    height:var(--header-h);padding:0 14px;margin:0 -12px var(--sp-4);
+    border-bottom:1px solid var(--border);
   }
   /* THE THEME TOGGLE'S REGION. `margin-top:0` is the load-bearing part: `.nav-bottom`'s first member
      carries `margin-top:auto`, which already pushed the bottom GROUP to the floor, so this sits
@@ -3778,6 +3794,34 @@ html{scrollbar-gutter:stable}
   display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap;
   padding:var(--sp-3) var(--sp-5);border-bottom:1px solid var(--border);
 }
+/* R22 (ui-audit-2026-09-02): the page header PINS — measured as scrolling out of view, not
+   covered (`position:static`, top -339 at scroll 400, `elementFromPoint` finding row content),
+   so the fix is the sticky family, not z-index. It keeps the title and, on Dashboard/Menu, the
+   menu-scope control on screen — the only thing saying which menu the figures belong to.
+   z 50 sits UNDER everything that floats: nav 75, install banner 78, anchorDrop layers 79,
+   modals 80, toast 90 — checked against R13/R19 before this shipped (the spec pins nav, banner
+   and toast; the rest were read by hand). The background is required:
+   a sticky box is transparent by default and rows would show through it.
+   `top` is the safe-area inset — but note it is 0 even in the installed PWA today, because
+   index.html ships `apple-mobile-web-app-status-bar-style: default`, under which iOS starts the
+   web view BELOW the status bar (the pre-push review caught the first draft claiming otherwise).
+   It is future-proofing for a black-translucent switch, not an active offset; ≥1024 overrides it
+   to var(--sp-8) — see the §2 desktop block.
+   scroll-padding is the sticky bar's other half: without it, keyboard focus (shift-tab up a long
+   list), find-in-page and scrollIntoView all put their target at the scrollport's top edge, which
+   is now under an opaque bar. The 80 is a LITERAL on purpose: --header-h exists only ≥1024, so a
+   var() here would read as parameterised while the fallback quietly did all the work below 1024
+   (the pre-push review caught the first draft doing exactly that). 80 clears every bar — desktop's
+   is exactly 80, the mobile Menu bar is 69 — and it applies unconditionally, so the builder page
+   (whose header is deliberately NOT sticky) gets 80px of harmless over-clearance on focus scrolls
+   rather than a second rule keyed to which pane is showing.
+   ⚠️ `.bld-head` is EXCLUDED on purpose: the builder's header is up to three rows tall on a
+   phone (breadcrumb + name + pill) so pinning it would eat the screen the docket needs, and on
+   desktop `.bld-sum` already pins at top:24px — a sticky header would sit on top of it. */
+.scr-head:not(.bld-head){
+  position:sticky;top:env(safe-area-inset-top,0px);z-index:50;background:var(--bg);
+}
+html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 80px)}
 /* `.panel >` is load-bearing, not decoration. Without it this selector is 0-1-1 — the SAME
    specificity as the generic `.panel h2` at the top of the file — so which one won would be
    decided by file order alone, and any equal-specificity rule inserted between them would flip
@@ -3790,6 +3834,24 @@ html{scrollbar-gutter:stable}
 /* the mobile mock's header is title + ONE action and nothing else (§6). The subtitle is a desktop
    affordance; left visible it pushed the action onto a second line, which is how it was found. */
 .scr-sub{display:none;font-size:13px;color:var(--text-3);min-width:0}
+/* R22's mobile caveat, scoped to the ONE sub that is load-bearing: on Menu at ≤767 the current
+   menu's name otherwise lives only in the switcher below the header, which scrolls away under the
+   pinned bar — so a pinned bare "Menu" would identify nothing. Only #menuHeadSub shows on a phone;
+   every other screen keeps F2's title+action mobile header (the mock's §6 decision stands).
+   The wrap-prevention is a PAIR, not the basis alone (the first draft credited basis 0 by itself
+   and the pre-push review caught it): flex line-breaking uses the hypothetical main size — the
+   basis clamped by min-width — and `min-width:auto` on a nowrap span resolves to the whole
+   string, which would clamp a 0 basis right back up. The base `.scr-sub` rule's `min-width:0`
+   (and `overflow:hidden` here, which zeroes the automatic minimum too) is what lets basis 0
+   actually mean "never forces a wrap"; then it grows into free space and ellipsises.
+   Below 768 the Menu HEADER's `.scr-gap` stops growing so the sub gets ALL the free width (the
+   sub is the spacer there); ≥768 restores content sizing and the gap does its usual job.
+   ⚠️ The child combinator is load-bearing: #tab-analysis holds a SECOND .scr-gap, in
+   #menuSwitchRow (the switcher/search row) — an unscoped selector froze that one too and let
+   the menu <select> swallow its whole row at ≤767. Caught by the pre-push review. */
+#menuHeadSub{display:block;flex:1 1 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:767px){ #tab-analysis .scr-head > .scr-gap{flex:0 0 auto} }
+@media (min-width:768px){ #menuHeadSub{flex:0 1 auto} }
 .scr-head > .btn,.scr-head > .plib-btn2{margin-top:0}
 /* The mock's own header uses an explicit flex spacer, and so does this. The rule it replaces put
    `margin-left:auto` on `.btn`, which right-aligned the LAST action only: a screen with a secondary
@@ -3812,6 +3874,10 @@ html{scrollbar-gutter:stable}
      Max chose matching edges on 12 Aug 2026 against that, reversing his own 10 Aug full-bleed
      decision. R1 would say the mock wins; an explicit owner decision outranks the rubric. What we
      give up is the mock's "header is a band across the app, not a lid on the content column".
+     ⚠️ PARTIALLY REVERSED AGAIN BY MAX, 2 Sep 2026 (audit R21): the HAIRLINE is a band once more —
+     drawn by the ≥1024 ::after below this block, reaching the sidebar edge — while the CONTENT
+     edges he chose here still hold. Title, actions and this margin are unchanged; do not "fix"
+     the ::after back onto the box.
      Vertical padding stays 0 ON PURPOSE — §2's bar is 48px and `min-height` + `align-items:center`
      is what holds it there. An 8px vertical padding was tried and reverted: the tallest child is a
      39px `.plib-btn2`, so 39+16 pushed Menu and Ingredients to 56 while Dashboard and Settings
@@ -3853,6 +3919,41 @@ html{scrollbar-gutter:stable}
      zone to 723px, because this is a <button> and intrinsic sizing wins on a form control even at
      `display:block`. Measured, not reasoned about. Scoped to the id for the same reason as above. */
   #invDropZone{width:calc(100% - (2 * var(--sp-5)))}
+}
+/* ---- R21 + R22, the desktop header band (≥1024) ----
+   The bar's BOX does not move: the title, actions and their x/y are exactly the pre-R21 values
+   (the matching-edges contract below is untouched — content and buttons still sit on the card
+   column). What changes is where the HAIRLINE is drawn and what happens on scroll:
+   · sticky `top:var(--sp-8)` pins the 48px bar so its bottom edge sits at --header-h (32+48=80)
+     at EVERY scroll position — the same y the sidebar brand row's border-bottom holds, which is
+     what keeps the R21 line continuous while scrolled, not just at rest.
+   · the border-bottom moves to an ::after that overhangs the box by sp-3+sp-5 (32px) each side:
+     left, that reaches x224 — the sidebar's edge, where the brand row's rule (also widened to its
+     full 224) meets it; right, it runs to the page container's edge. body{overflow-x:clip}
+     swallows the overhang at exactly-container-wide viewports.
+     ⚠️ THIS IS MAX REVERSING HIS OWN 12 AUG 2026 MATCHING-EDGES CALL FOR THE RULE ONLY (R21,
+     2 Sep 2026: "one continuous rule across the full width") — the title/content edges he chose
+     then still hold; only the hairline is a band again. v155-shell-edges.spec.js asserts the new
+     split: content edges match the column, the drawn rule reaches the sidebar.
+   · the ::before is a mask, not decoration: the pinned bar sits 32px below the viewport top (so
+     the hairline can hold y80), and without the mask scrolled rows would show in that strip. At
+     rest it covers the `.wrap` top padding — blank canvas — so it is invisible until it matters.
+   `.bld-head` shares the geometry (its rule reaches the sidebar like every screen's) but stays
+   unpinned — see the base rule's exclusion note. */
+@media (min-width:1024px){
+  .scr-head:not(.bld-head){top:var(--sp-8)}
+  .scr-head{border-bottom:0}
+  /* left overhang = the bar's own sp-5 margin + the .wrap's sp-3 left margin, landing on x224
+     (the sidebar edge). Right overhang = sp-5 only: `.wrap`'s right margin is AUTO, so the
+     container's right edge is exactly one sp-5 past the bar's box. */
+  .scr-head::after{
+    content:"";position:absolute;bottom:0;height:1px;background:var(--border);
+    left:calc(-1 * (var(--sp-3) + var(--sp-5)));right:calc(-1 * var(--sp-5));
+  }
+  .scr-head::before{
+    content:"";position:absolute;top:calc(-1 * var(--sp-8));height:var(--sp-8);background:var(--bg);
+    left:calc(-1 * (var(--sp-3) + var(--sp-5)));right:calc(-1 * var(--sp-5));
+  }
 }
 
 /* -- the list surface. Bordered rounded container on desktop; on mobile the mock has
@@ -4149,6 +4250,26 @@ html{scrollbar-gutter:stable}
   .king-band,.king-row{
     grid-template-columns:minmax(0,1fr) 130px 110px 110px 100px;column-gap:var(--sp-4);
   }
+  /* R2 (ui-audit-2026-09-02): same defect as the Menu table one section up — these tracks fit the
+     ≥1024 container only. At 768 the content column is 610px, so 450px of track + 64px of gaps +
+     32px of padding left the identity cell 64px: the "→ product — supplier" sentence wrapped one
+     word per line and rows measured 203px tall. Re-tracked from MEASURED content for 768-1023:
+     Category 130 -> 110 (it already ellipsises by design; the longest real value is 185px and
+     truncates either way at these widths), Unit cost 110 -> 78 ("$51.80/kg" measures ~70),
+     Last change 110 -> 70 (its 11.5px heading is the widest thing in it, and "+100.0%" in the
+     11.5px mono pill measures ~64 — 70 leaves real slack where 64 left half a pixel), Used-in
+     100 -> 76 ("17 plates" is 8 MONO chars at 7.5px/char = ~67.5; the first draft wrote "~60",
+     which is what the proportional font measures, and the pre-push review re-measured it in the
+     cell's actual var(--mono)), gaps sp-4 -> sp-3. The identity cell gets ~196px at 768 instead
+     of 64 — which makes the product sentence wrap at TWO to THREE lines instead of one word per
+     line (rows ~57-95px instead of 203). NOT "one line": nothing bounds that cell's height —
+     `.king-link`'s line-clamp at its own rule is dead, `display:block` overrides the
+     -webkit-box the clamp needs, and that predates this batch (filed in docs/MAINTENANCE.md).
+     Same selector pair, same specificity, later in the file (the @media trap); one identical
+     template for both containers per the drift note above. */
+  @media (max-width:1023px){
+    .king-band,.king-row{grid-template-columns:minmax(0,1fr) 110px 78px 70px 76px;column-gap:var(--sp-3)}
+  }
   .king-band{
     display:grid;align-items:center;padding:9px var(--sp-4);
     font-size:11.5px;font-weight:500;color:var(--text-3);
@@ -4329,6 +4450,23 @@ html{scrollbar-gutter:stable}
      table stops growing rather than stretching a 393-row list across a 2400px monitor. */
   .ing-band,.ing-card{
     grid-template-columns:minmax(220px,1fr) 190px 110px 100px;column-gap:var(--sp-4);
+  }
+  /* R3 (ui-audit-2026-09-02): the worst of the three tablet-band tables, because its failure was
+     INVISIBLE — the tracks above put the last column's content edge at 684px (620 of track floor
+     + 48 gaps + 16 left padding) against a 610px container at 768 — a MEASURED 76px of hidden
+     overflow (the first draft wrote 700/90 by also counting the right padding, which sits past
+     the content edge; the pre-push review measured it) — and #ingList's rounded-corner
+     overflow:hidden then clipped the overhang: the "Last change" column and its drift badges
+     rendered past the right edge and simply never appeared. Data silently hidden, no scroll, no hint (the audit's words).
+     768-1023 override: the name track drops its 220px floor (minmax(0,1fr) — it gets ~268px at
+     768 anyway once the fixed tracks shrink, more than the floor asked for), Category 190 -> 130
+     (the 190 was sized so NO desktop category truncates; at this band the ellipsis safety net is
+     the right trade), Unit cost 110 -> 80 ("$55.14/kg" measures ~72), Last change 100 -> 64 (its
+     11.5px heading is the widest content), gaps sp-4 -> sp-3. Everything fits inside 610 with
+     room, so nothing clips. Same selector pair, same specificity, later in the file; one
+     identical template for band and rows per the drift note above. */
+  @media (max-width:1023px){
+    .ing-band,.ing-card{grid-template-columns:minmax(0,1fr) 130px 80px 64px;column-gap:var(--sp-3)}
   }
   /* the table's own ceiling, independent of the page container's — see the note above */
   #ingList{max-width:1200px}
@@ -4573,6 +4711,24 @@ html{scrollbar-gutter:stable}
      just "45.5%". Ours adds the v131 word, and at 130 the pill wrapped to two lines on every amber
      and red row — the rows that matter most. 160 fits "42.9% · well over" on one line, measured. */
   .mnu-band,.mnu-row{grid-template-columns:minmax(0,1fr) 90px 130px 100px 160px;column-gap:var(--sp-4)}
+  /* R1 (ui-audit-2026-09-02): these tracks were sized against the ≥1024 container and only fit
+     there. At 768 the content column measures 610px, so 480px of fixed track + 64px of gaps +
+     32px of row padding left the NAME 34px — every dish read as two to four letters, which is
+     the audit's one blocks-use row. The 768-1023 override below re-tracks from MEASURED content,
+     not from the headers the desktop tracks were sized for:
+       · Cost keeps 90 — its second line ("$18.79–$18.84", the range) is the widest real figure;
+       · Suggested 130 -> 70 and Price 100 -> 60 — their figures are ~55px once the mobile word
+         prefixes are cancelled (the band's "Suggested at 30%" heading wraps to two short lines,
+         which is the price of a readable name column and is deliberate);
+       · the verdict keeps its measured 160 — "42.9% · well over" on one line is why it exists;
+       · gaps sp-4 -> sp-3.
+     That hands the name 150px at 768 (~20 characters) instead of 34. Same selectors, same
+     specificity, LATER in the file — the @media-does-not-win-by-being-later trap is why this
+     block restates the exact pair rather than introducing a new selector. Both containers stay
+     on one identical template, per the drift note above. */
+  @media (max-width:1023px){
+    .mnu-band,.mnu-row{grid-template-columns:minmax(0,1fr) 90px 70px 60px 160px;column-gap:var(--sp-3)}
+  }
   .mnu-switch .plib-search{flex:0 1 200px}
   .mnu-band:not([hidden]){display:grid}
   .mnu-band{

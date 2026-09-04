@@ -102,7 +102,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=189">
+<link rel="stylesheet" href="css/style.css?v=190">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -514,8 +514,11 @@
       <div class="scr-head">
         <h2>Menu</h2>
         <!-- filled by renderAnalysis: the current menu's name, exactly as the mock's §3.2 header
-             draws it ("Menu" · "Winter Menu"). On a phone `.scr-sub` is hidden by F2's rule, so
-             the name is carried by the switcher control below instead — see the R5 note there. -->
+             draws it ("Menu" · "Winter Menu"). ⚠️ Since batch 231 (audit R22) this sub shows on
+             the PHONE too — the header pins on scroll now, and the switcher control below (the
+             R5 note's home for the name) scrolls away under it, so a pinned bare "Menu" would
+             identify nothing. The one id-scoped exception to F2's mobile hide; every other
+             screen keeps title + one action. -->
         <span class="scr-sub" id="menuHeadSub"></span>
         <span class="scr-gap"></span>
         <!-- R4 + R3: the mock's header primary is "New plate", which on THIS screen would be a
@@ -1755,7 +1758,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=189"></script>
+<script src="js/app.js?v=190"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —
