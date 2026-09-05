@@ -919,3 +919,25 @@ judders while scrolling — rendering-engine behaviour only the device can show.
 
 If the status-bar style is ever changed to `black-translucent`, rewrite this check: at that point
 the inset becomes real and "does the pinned bar clear the clock" becomes the question.
+
+## Batch 233 (`ezplate-v192`) — the R5+R6 touch targets, by thumb
+
+Only a device can settle these because the whole change is INVISIBLE: every measurement a
+harness can make (elementFromPoint hit tests, boundingBoxes) already passed, and the pixels
+are proven unchanged — what no harness measures is whether a real thumb now lands things it
+used to miss, and whether any invisible hit zone STEALS a tap you meant for something else.
+
+**Do this on the phone, normal one-thumb use:**
+- Builder, any plate with a few lines: tap the remove **×** slightly sloppily (a bit left, a
+  bit high). **Pass:** the line goes on a near-miss. **Fail:** you still need aim, OR a tap
+  meant for the unit-price chip removes the line (the two hit boxes meet at the column gap —
+  they must not feel swapped).
+- Same row: tap the dashed **$…/kg ✎** chip a bit above/below its edge — it should open the
+  price edit. Then, with the edit OPEN, tap inside the little input to move the caret.
+  **Fail:** the tap commits/closes the edit instead of placing the caret.
+- Dashboard: tap each trend range button (3M/6M/1Y…) slightly above and below the pill.
+- Settings → About: tap the phone number a little off-line; sign-out gate: the two small
+  links under the sign-in button. **Known, deliberate:** the gate's bottom "Privacy
+  notice" line and the sign-up form's in-label "privacy notice" link are NOT full 44px
+  (29px each — the geometry has no more to give without visibly moving things); they
+  should still feel notably easier than v191.

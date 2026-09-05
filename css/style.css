@@ -5370,3 +5370,94 @@ html[data-theme="dark"] .ins-spark path{fill:url(#ezSparkGrad)}
   .acct-in{flex:0 0 auto}
   .acct-form .btn{width:100%}
 }
+
+/* ============================================================================
+   233 (step 4 of Max's Phase 2 plan): R5+R6 — sub-44px touch targets, ≤767 only.
+   Same mechanism as the item-7 block (`.ms-clear`/`.range-btn` ::after): the look
+   and the layout stay exactly as they are while the tappable area reaches ~44px.
+   Two techniques, chosen per element:
+   - padding + negative margin where nothing paints (the bare × button, the
+     underlined text links) — the margin box the layout sees keeps its old size,
+     so grids and flex rows measure no change;
+   - an ::after extension where padding would grow something visible (`.pchip`
+     paints a dashed border and a --field background, so padding there is not
+     "visuals unchanged").
+   ⚠️ ON EVERY BORDERED ELEMENT HERE, AN ::after OFFSET BUYS 1px LESS REACH THAN
+   IT SAYS: top/bottom on an absolutely positioned pseudo resolve against the
+   containing block's PADDING box, which sits 1px inside the border box that
+   boundingBox and a thumb both measure. `.range-btn` carries border:1px solid
+   transparent and `.pchip` border:1px dashed, so the border costs ~2px of
+   total reach — measured asymmetrically, nearly all of it on one edge (~1px +
+   a snapping crumb below, almost none above). The pre-push review measured it —
+   the first draft of this comment blamed pixel-snapping alone, derived the
+   correction for .range-btn and then failed to carry it to .pchip, which is
+   how the chip shipped at 43.7. Both offsets below are sized border-inclusive.
+   ⚠️ R6's `.range-btn` keeps its 32px VISUAL box on purpose: the audit's "32px"
+   was a boundingBox reading, which cannot see the item-7 ::after, and
+   docs/MAINTENANCE.md separately records Max deferring the visual-size half of
+   that chip on 31 Jul 2026. Item-7's global ±6 measures ~43 effective; the ≤767
+   depth below (±8) measures ~47.
+   Scoped ≤767 because the audit rows are (R5/R6), and because on a pointer
+   layout an invisible click zone around a destructive × is a mis-click hazard,
+   not a help.
+   ============================================================================ */
+@media (max-width:767px){
+  /* R5: the docket row's remove ×, measured 15.5×36. Horizontal growth is
+     asymmetric on purpose: +12px net toward the pchip (exactly the 12px --sp-3
+     column gap, so the two hit boxes meet without overlapping) and +15px net
+     into the row's 16px padding — fresh-states.spec.js:96 pins the × inside the
+     row edge, and a first cut at +20 poked 4px past it. 42.5×44 effective: the
+     last 1.5px of width has nowhere to come from without crossing a pinned
+     boundary. The glyph does not move: each side's negative margin offsets its
+     own padding gain, so the margin box the grid places is still 15.5px. */
+  .bld-rm{padding:4px 19px 4px 16px;margin:-4px -15px -4px -12px;min-height:44px}
+  /* R5: the pack-price chip, 27px tall. Vertical only, like .range-btn — the
+     band above holds only the line-cost text. ±10, not ±9: the dashed border
+     eats 1px per edge (header comment), and ±9 measured 43.7. :focus-within
+     stands the overlay down while the inline .pin input is open: a positioned
+     ::after paints above in-flow children, so it would otherwise eat caret
+     taps and blur-commit the edit (see editPrice in js/app.js). */
+  .pchip{position:relative}
+  .pchip::after{content:"";position:absolute;left:0;right:0;top:-10px;bottom:-10px}
+  .pchip:focus-within::after{content:none}
+  /* R6: the trend range segments — depth only, see the header comment (the 1px
+     transparent border is why ±6 fell short). Vertical only for item-7's own
+     reason: neighbouring segments never overlap. */
+  .range-btn::after{top:-8px;bottom:-8px}
+  /* R6: of the underlined .linklike family, only ANCHOR members need help —
+     every <button> in it (wizard Skip/Unskip, Clear search & filters, tidy's
+     Rename/Merge/Clear, "or paste text manually") already clears 44 via the
+     base `button,...{min-height:44px}` floor near the top of this sheet. The
+     audit's "wizard Skip ~17px" was the anchors' line box with a button's name
+     on it; a first cut of this block padded the whole family and the hand-run
+     mutation proved the rule dead weight. The one shipped anchor wearing the
+     class is the tel: contact link (Settings → About).
+     R6: grouped with the small prose links — privacy notices, and the
+     sign-in/sign-up swap lines. Inline boxes: vertical padding is layout-inert
+     on an inline element, so no negative margin is needed; it only widens the
+     hit test. 14px against a ~16px line box → ≥44 effective.
+     position:relative (no offsets) is load-bearing, not decoration: an inline's
+     padded area below its line is otherwise covered by the NEXT block's box,
+     which paints later in flow order — measured on the Settings tel: link,
+     whose bottom padding lost every hit to the following hint paragraph. A
+     positioned box paints after in-flow content, so the padding wins; it paints
+     nothing, so nothing changes visually. */
+  a.linklike,.inv-privacy a,.stg-help a,
+  #bootGate .bg-privacy a,#bootGate .bg-alt a{position:relative;padding-top:14px;padding-bottom:14px}
+  /* …except the gate's LAST line (measured at 380×820): the privacy link IS
+     .bg-inner's last content, so any bottom padding there registers as
+     overflow, which v161/v162's "nothing is clipped" assertion rightly refuses
+     (deleting this override re-clips the gate and turns v192-touch-targets'
+     clip probe red). 12px top into the 24px gap above; 29px effective (17px
+     line + 12), a deliberate shortfall like #bgUpPrivacyLink below. The
+     bg-alt swap line above it needs NO override — its bleeds fit the gaps
+     around it, and a first cut that capped it anyway was caught surviving its
+     own mutation: the group's 14/14 gives it the full 45. */
+  #bootGate .bg-privacy a{padding:12px 0 0}
+  /* #bgUpPrivacyLink sits INSIDE the sign-up checkbox's label, where every
+     neighbouring word is a tap that ticks the box — a full ±13px bleed would
+     steal that tap and open the modal instead. ±6px (29px effective) clears
+     WCAG 2.5.8's 24px minimum without annexing the label around it; the
+     deliberate shortfall. position:relative for the group's reason. */
+  #bgUpPrivacyLink{position:relative;padding-top:6px;padding-bottom:6px}
+}
