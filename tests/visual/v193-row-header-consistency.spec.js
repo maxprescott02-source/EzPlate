@@ -64,10 +64,16 @@ test('R18: all three tables render every row at exactly the --lrow-min floor (10
     const heights = await page.evaluate((s) => [...document.querySelectorAll(s)].slice(0, 6)
       .map(r => Math.round(r.getBoundingClientRect().height * 2) / 2), sel);
     expect(heights.length, `${sel} rendered rows`).toBeGreaterThan(0);
+    // ⚠️ toBe, and the FIXTURE is what makes exact equality honest — the token is a FLOOR, not
+    // a height (the CSS says so: a dish with a min/max cost band renders a second .cost-range
+    // line at ≥768 and legitimately exceeds it). THIS seed deliberately contains no such dish,
+    // so every row's content fits inside the floor and every row must land exactly ON it: under
+    // means the token stopped being consumed, over means the floor stopped governing (e.g. the
+    // 45→44 drift, where the pill row's 44.5 content re-opens the within-table inequality the
+    // token's value was chosen to close). If you add a cost-range dish to this seed, split this
+    // into >= for that row — do not weaken it for the rows that still fit.
     for (const h of heights) {
-      // exactly the floor: under it means the token stopped being consumed, over it means some
-      // row content outgrew the floor and the tables have started disagreeing again.
-      expect(h, `${sel} row height sits on the shared floor`).toBe(token);
+      expect(h, `${sel} row height sits exactly on the shared floor (see comment)`).toBe(token);
     }
   }
 });
@@ -93,6 +99,26 @@ test('R17: More and Dashboard titles centre at the same y as a back-chevron scre
   const dash = await titleCentre('dashboard');
   expect(Math.abs(more.text - settings.text), 'More title text centre matches a sibling').toBeLessThanOrEqual(1);
   expect(Math.abs(dash.text - settings.text), 'Dashboard title text centre matches a sibling').toBeLessThanOrEqual(1);
+  // ⚠️ THE CROSS-SCREEN PAIR ABOVE CANNOT CARRY THE TEST ALONE — the review proved it green with
+  // align-items:center DELETED, because the rule hits EVERY h2, so both sides of the comparison
+  // drift up together (roster entry 205's shape: two computed sides, no anchor). The anchor is
+  // the .scr-back glyph on the SAME screen: it centres in the 44px button row independently of
+  // the h2 rule, so a title that stops centring moves ~10px away from it and this goes red.
+  await gotoTab(page, 'settings');   // the anchored pair must be measured on the pane that is SHOWING —
+  await page.waitForTimeout(300);    // a hidden pane's rects are all zero and zero agrees with zero
+  const anchored = await page.evaluate(() => {
+    const h = document.querySelector('#tab-settings .scr-head h2');
+    const g = document.querySelector('#tab-settings .scr-back-i');
+    const gr = g.getBoundingClientRect();
+    const range = document.createRange();
+    range.selectNodeContents(h);
+    const tr = range.getBoundingClientRect();
+    return { title: tr.top + tr.height / 2, glyph: gr.top + gr.height / 2, titleH: tr.height, glyphH: gr.height };
+  });
+  expect(anchored.titleH, 'the title text rect is real, not a hidden pane\'s zero').toBeGreaterThan(0);
+  expect(anchored.glyphH, 'the glyph rect is real, not a hidden pane\'s zero').toBeGreaterThan(0);
+  expect(Math.abs(anchored.title - anchored.glyph),
+    'the title TEXT centres against the back glyph on the same screen').toBeLessThanOrEqual(1.5);
   // the mechanism, so a same-y-by-coincidence cannot satisfy this test while the rule is deleted
   expect(more.boxH, 'the bare h2 carries the 44px row itself').toBeGreaterThanOrEqual(44);
 });
