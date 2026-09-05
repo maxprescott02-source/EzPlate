@@ -40,7 +40,7 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 Max wrote this plan himself on 3 Sep 2026 (chat, batch 231) and approved it by ordering the steps, so it is pre-approved work, not a brief to re-confirm.
 Steps 1-2 shipped in batch 231 as `ezplate-v190` (PR #253): R21+R22 (one header band, sticky page header) and R1-R3 (the 768-1023 tablet tables).
-**Step 3 shipped in batch 232 as `ezplate-v191`**, **step 4 in batch 233 as `ezplate-v192`** (R5+R6, one commit; the audit file's progress table has the detail — two of R6's readings were corrected by the code, and three shortfalls are geometry-bound and recorded). His plan says STOP and show him after each step, and he was not in the chat — so each batch takes ONE step and hands over with the captures; the next `/batch` takes step 5 (R12, the one approved JS change — show him the diff). That is the honest reading of his constraint when he is not live; if he'd rather have multiple steps per batch, say so and this line changes.
+**Step 3 shipped in batch 232 as `ezplate-v191`**, **step 4 in batch 233 as `ezplate-v192`** (R5+R6, one commit; the audit file's progress table has the detail — two of R6's readings were corrected by the code, and three shortfalls are geometry-bound and recorded). **Step 5 (R12) resolved in batch 234 with NO code change: the finding did not reproduce.** The Menu zero-results renderer has offered "Clear search & filters" since v58, via the same shared helper Plates uses; what the audit photographed was the link's text occluded by the install banner in its single 390 capture (R13/R19 stacking family, wontfixed) — the audit file's progress table has the mechanism. There is no diff to show him; the evidence is in `HANDOVER-234`. His plan says STOP and show him after each step, and he was not in the chat — so each batch takes ONE step and hands over with the captures; the next `/batch` takes step 6 (R17+R18). That is the honest reading of his constraint when he is not live; if he'd rather have multiple steps per batch, say so and this line changes.
 Row ids refer to `docs/ui-audit-2026-09-02.md`, whose Phase 2 progress table tracks status.
 `docs/handovers/HANDOVER-231-header-and-tablet-band.md` is the diary of how steps 1-2 went and what the reviews caught.
 
@@ -49,15 +49,113 @@ Row ids refer to `docs/ui-audit-2026-09-02.md`, whose Phase 2 progress table tra
 **The remaining steps, in his order:**
 3. R4 + R7, one commit. Menu search into the same left slot and width as Plates / Products / Ingredients (400x40 top-left), all four screens on one control-row pattern (search + filter row; the secondary action joins the filter row instead of floating alone). ⚠️ The audit's site list for R7 is UNMEASURED — count the control rows before planning (queue header rule).
 4. R5 + R6, one commit. Touch targets to 44px effective via padding and negative margin, visuals unchanged: builder remove-line "x" (15.5x36), pack-price chips (27px tall), Dashboard trend range buttons (32px), and the small text links (Privacy notice, What is sent, wizard Skip, phone link, sign-in links).
-5. R12, APPROVED JS change (the only one): add the "Clear search & filters" link to the Menu zero-results renderer, matching Plates. Show him the diff.
+5. ~~R12, APPROVED JS change (the only one): add the "Clear search & filters" link to the Menu zero-results renderer, matching Plates. Show him the diff.~~ **RESOLVED, batch 234, no change — the link already existed and matched Plates (see above). The approved JS change was never needed.**
 6. R17 + R18, one commit. More-screen title alignment + back-chevron hit area; one row-height token for desktop list rows (Plates 41 vs Menu 44-45 vs Products 44).
 
 **Deferred by his explicit call — do NOT do:** R20 (token fold — reconsider only after the above ships) · R8 unless CSS `:has()` reaches it with zero JS (if it needs a class toggle, skip and say so) · R10, R11, R13, R14, R15, R16 (leave) · R19 (wontfix, agreed).
 
 **Verification, every commit (his list):** suite + smoke + Playwright green · diff confined to css/style.css and index.html or name the exception · before/after captures at 390, 768, 1024, 1440 for every screen touched · state which flows were not touched.
 The capture harness lives at `~/Documents/EzPlate-ui-audit-2026-09-02/` (`node run.js --out=<dir> --widths=... --states=pop`; befores are `out/shots/`, deliberately NOT in this public repo — real business data).
-Batch 231 already bumped the deploy version to v190 and merged; a new batch on these steps bumps to v191 (one bump per batch).
+One deploy-version bump per batch that ships a client asset; a docs-only step (like 234's) ships none and bumps nothing.
 The pre-push code-review agent caught 16 real findings across steps 1-2 (two of them in brand-new tests that could not fail) — run it per stop-point, force it onto a different model, and hand-run a mutation on every new assertion.
+
+---
+
+# The 5 Sep 2026 blind audit — items 12-15
+
+**Source: `docs/audits/BLIND-AUDIT-2026-09-05-code.md`.** A second blind audit, on the 22 Aug pattern: an outside reviewer given the shipping code, the SQL and the tests, and explicitly told NOT to read `CLAUDE.md`, this file, `MAINTENANCE.md` or the handovers. Eleven findings in 25m52s.
+
+⚠️ **READ THIS BEFORE PLANNING OFF ANY OF THE FOUR ITEMS BELOW. ITS TOP-RANKED FINDING, THE ONLY ONE IT CALLED A RELEASE BLOCKER, WAS FALSE.** It claimed `js/app.js` on `main` contains bare English prose at lines 7290 and 11586 and therefore does not parse. `git show origin/main:js/app.js | node --check` **parses clean** at `a56055e`; both citations are continuation lines inside `/* … */` block comments. **The reviewer read the repository in network slices and lost the comment context** — which is exactly the condition that produced its most confident, most precisely cited and most urgent claim.
+
+**So every line citation in these four items is a POINTER TO CHECK, not a fact**, and the queue header's own rule applies with unusual force: *an item that names a behaviour without naming its sites is an item whose list is already wrong.* **Each item below states which of its claims is measured and which is not.** Only item 14 has been verified.
+
+**Step one of every one of these is the repro, and "it does not reproduce" is a legitimate outcome that DELETES the item** — say so in the handover rather than fixing something to make the finding true. That is `CLAUDE.md`'s standing rule about a review's three separable claims (the defect, the mechanism, the remedy) arriving from an outside reviewer instead of the pre-push one.
+
+---
+
+## next  12 · A quantity-first carton line can silently halve an ingredient's unit cost  **[A — silently wrong numbers, the class this repo ranks above a crash]**
+
+⚠️ **UNMEASURED. The fixture below has not been run.** Reproduce it first; if it does not, delete this item.
+
+**The claim:** `parseInvoiceText()` can count the purchased-carton quantity as part of the pack denominator while the monetary chooser selects a **per-carton** price, so the two halves describe different things and the division is wrong in the cheap direction.
+
+**The fixture to run first, verbatim:**
+
+```
+2 CTN Beef Mince 6 x 1kg 60.00 60.00 120.00
+```
+
+The pack parser is claimed to see both `2 CTN` and `6 x 1kg` and produce a **12 kg** denominator, while the price chooser takes the repeated `60.00`. That gives **$60 / 12 kg = $5.00/kg with `needManual:false`**, so the row is not flagged and is pre-ticked. The invoice says two 6 kg cartons at $60 each: **$120 / 12 kg = $10.00/kg.** Apply then writes $5.00/kg onto the product and it flows into every plate line that uses it.
+
+**Nothing errors and the answer is entirely believable**, which is why this is A rather than B: a halved beef price does not look like a bug, it looks like a good week.
+
+**Claimed sites:** `js/app.js:10287-10340`, applied around `11576-11583`. **Grep before planning off those numbers.**
+
+⚠️ **`resolveMatchedPrice`, `unitCatCategory`, `applySupplierMemory` and `packToUnitCost` are on the never-touch list and the protected parser region between `var INV_EXCLUDE=` and `function unitLabelFor(` may not be edited.** If the repro lands inside either, **stop and tell Max** — solve outside the region, the way 0b's `invUnitRebase` did, and extract the decision so the guard and the write cannot disagree.
+
+**What must be true when it is fixed:** that exact line costs $10.00/kg, or is flagged `needManual` rather than silently pre-ticked. **And the regression fixture must put the purchased quantity BEFORE the pack composition**, because that ordering is the whole defect: `parser.test.js` and `inv-packnorm.test.js` both stay green today, and the reviewer's reason is that every existing multi-carton fixture puts composition first. `matched-price.test.js` cannot see it either — it starts downstream of raw parsing.
+
+## next  13 · Café A's settings and supplier memory survive a same-session move into café B  **[A — cross-tenant, and one half writes A's data into B's database]**
+
+⚠️ **UNMEASURED.** Two findings, merged because they are one mechanism at one site: **bootstrap does not clear tenant-scoped in-memory state before applying the new tenant's rows**, so anything café B has no row for keeps café A's value.
+
+**The sequence claimed, and it needs no page reload because the current code implements exactly this transition:** A is loaded with a food-cost target of 30% and a GST default of `inc`. The A membership is revoked while the page stays open — **the non-member path deliberately leaves in-memory state present**, which is 185's `unknown`-third-value work doing what it was built to do. The same account is then admitted to B.
+
+**Half one, wrong numbers.** B has no `food_cost_target` row, so bootstrap never assigns the variable and A's 30% survives. A $6 dish that should price off the 40% baseline is suggested at **$20 instead of $15**. An inherited inclusive-GST default reads a $110 invoice figure as $100.
+
+**Half two, and this is the worse one.** `supplierMem` survives the same transition. B's `supplier_phrases` read **succeeds and returns `[]`**, bootstrap treats A's retained phrases as local unsynced data, and pushes them into B — **correctly stamped as B by the tenant machinery, which is the point.** That is cross-tenant disclosure plus persistent parser pollution: B's later invoices are matched using pack knowledge learned in A.
+
+**The reviewer is explicit that this is NOT an RLS failure:** *"RLS is doing its job; the client is handing B data that originated from A."* It found no ordinary-table cross-tenant bypass in the migrations it traced. **Do not go looking for a policy bug.**
+
+**Claimed sites:** `js/app.js:1082-1085, 1231-1237, 1239-1249, 2737-2751, 9907-9918`, supplier-memory helpers around `4131-4140`.
+
+⚠️ **This is a successful-but-empty read being treated as absence, which is the family `CLAUDE.md` already names three times** — a successful empty read, an RLS-blocked read and a failed read are three different things that arrive looking like two. **The fix belongs at the boundary, not per variable:** a tenant transition clears tenant-scoped state, and `[]` from B means B has nothing rather than "keep what you had".
+
+**What must be true when it is fixed:** after an A → non-member → B bootstrap in one page, every tenant-scoped setting reads B's value or the application default, never A's; and **zero rows originating in A appear in B's `supplier_phrases`.** The regression test is that exact three-step bootstrap with **empty** B settings and phrases — `boot-gate.test.js` does not cover it.
+
+## next  14 · An account with two pending invitations joins the OLDEST café, not the intended one  **[A — multi-tenant correctness, and it also decides their role]**
+
+✅ **CONFIRMED against the SQL, 5 Sep 2026. The only item here that is not a claim.** `supabase/migrations/20260814_invitations.sql:495-540` — and that is still the newest definition, checked by listing the directory rather than trusting this line.
+
+`claim_business_invite()` **takes no arguments at all.** It resolves the caller's confirmed email, then:
+
+```sql
+select i.* into inv
+  from public.business_invites i
+ where i.email = em
+   and i.accepted_at is null
+ order by i.created_at, i.id
+ limit 1
+   for update;
+```
+
+and inserts `business_members` with **`inv.role`** from whichever invitation that picked.
+
+**The failure:** café A invites `alice@` on Monday, café B invites the same address on Tuesday. Alice follows B's path intending to join B. The client calls the argumentless RPC **automatically at boot**, so she is never asked. She becomes an **A** member, with **A's role**, and the one-business-per-user constraint then blocks the membership she actually wanted. No error is raised anywhere.
+
+**Claimed client site:** `js/app.js:1095-1117`.
+
+**What is NOT wrong, and the reviewer checked:** there is no replay turning an accepted invitation into a second membership, and no path where the client chooses a more privileged role during the claim. **The stored role is what SQL inserts. The defect is selection of the wrong valid invitation, not role injection.** Do not widen this item into a rewrite of the invitation flow.
+
+**What must be true when it is fixed:** the claim names which invitation it is claiming, and an ambiguous case is either resolved by that identifier or refused rather than guessed. **Two pending invitations to one confirmed email is the regression test**, and no existing invitation test exercises it, which is why this survived a suite that covers confirmed-email, replay, role and RLS behaviour.
+
+⚠️ **`claim_business_invite()` also carries the `revoke … from public` gap that does not revoke `anon`** — already filed in `MAINTENANCE.md` under its own entry, still reasoned-not-run. **A batch touching this function should close both in one migration**, and must find the newest definition by listing the directory: `grep -l 'create or replace function public.claim_business_invite' supabase/migrations/*.sql | sort | tail -1`. Copying forward from the wrong ancestor is how 219 deleted 187's owner-only guard.
+
+## next  15 · A transient role-lookup failure lets staff move the live costing target, with no rollback  **[B — a wrong price on screen, and the server is not the problem]**
+
+⚠️ **UNMEASURED.**
+
+**The claim:** on a fresh session an unknown or errored role is treated as owner-like client-side. `current_business_role` transiently fails for a staff account, the food-cost target control stays operable, they change 40% to 30%, and **`setCogs()` updates `cogsPct` and recomputes pricing immediately.** The Supabase write is then correctly refused by 187's owner-only restrictive policy — and **nothing rolls the client state back.** A $6 dish shows **$20 instead of $15** until a reload.
+
+**"The server authorization is sound here. The numeric client state is not."** Do not touch the policies.
+
+**Claimed sites:** `js/app.js:916-926, 1131-1133, 2739-2750`, target-input handler around `8534-8540`.
+
+⚠️ **The comment at `js/app.js:916-919` is a finding in its own right** and is the reason this was not caught: it argues fail-open role presentation is harmless because the server rejects the write and the user gets an error. **That is right about authorisation and wrong about consequence** — the number has already moved. This is the shape `CLAUDE.md` names as *a comment that records the defect correctly and files it under the wrong consequence*, and it is that section's fourth dated instance. **Fix the comment in the same change.**
+
+**What must be true when it is fixed:** a cost-affecting client write that the server refuses leaves the client showing what the server holds. **The regression test must assert the rollback, not the refusal** — the existing role/client tests pin unknown-as-owner-like and therefore establish nothing about state after rejection.
+
+---
 
 ## blocked  2b · Move the AI endpoints to Gemini's PAID tier  **[A — post-launch]**
 
