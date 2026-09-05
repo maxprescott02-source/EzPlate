@@ -568,6 +568,12 @@ Struck rather than deleted so the decision is visible where the question was ask
 ### The publish dialog and the Menu row print the same ratio at different precision
 Whole-number % vs one decimal (HANDOVER-125). Same `cost/price` ratio, two displays — align them or record the split as deliberate at both sites.
 
+### Two more sub-44 touch targets the R5/R6 audit rows never named
+Found by batch 233 while doing R5+R6, out of that step's scope (Max's plan enumerated the rows).
+`.use` ("Use this name", king wizard rows) is `min-height:36px`; `.del-link` ("Delete item", edit modal) measures ~37px with its existing 10px padding.
+Both clear WCAG 2.5.8's 24px floor, so this is polish, not a violation.
+If taken, the border/padding-box lesson at the v192 block's header applies: an `::after` offset on a bordered element buys ~1px/edge less than it says.
+
 ### `.range-btn` — visual size only, NOT an accessibility item
 The chip is 32px tall but `css/style.css` gives it a `::after` extending 6px top and bottom, so the tappable area is already 44px. What is left is that the dashboard shows controls at two visual sizes after the 44px selector rows. Max deferred this 31 Jul 2026; it is a taste call.
 
