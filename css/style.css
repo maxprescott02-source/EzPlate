@@ -68,6 +68,16 @@
      The ≥1024 block re-declares the two tokens; screens only ever consume them. */
   --radius-card:12px; --radius-ctl:10px; --radius-chip:9px; --radius-pill:999px;
 
+  /* R18 (ui-audit-2026-09-02): the ONE floor for the three sibling data tables' rows at ≥768
+     (.plib-row, .mnu-row, .ing-card). Measured before: Plates 40.5, Menu 43.5-44.5, Products 43.5
+     - same 10px padding everywhere, the drift was content height, so the fix is a shared
+     min-height rather than per-table padding. 45, not 44, and the half-pixel is the reason:
+     a Menu row carrying a verdict pill is 10+23.5+10+1(hairline) = 44.5, so a 44 floor leaves
+     the pill rows overshooting and the Menu table unequal WITHIN itself; 45 is the smallest
+     floor every routine row lands on exactly. Taller content (the 768-1023 band's wrapped
+     Ingredients sentences) still grows past it; this is a floor, not a height. */
+  --lrow-min:45px;
+
   /* motion system (v72) — ONE easing + a small fixed duration scale.
      No ad-hoc durations/easings anywhere else; everything transitions off these.
      --ease primary ease-out · --ease-in-out symmetric · --ease-spring signature overshoot
@@ -3832,6 +3842,18 @@ html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 80px)}
   font-size:15px;font-weight:600;letter-spacing:0;text-transform:none;
   color:var(--text);margin:0;padding:0;border-bottom:0;
 }
+/* R17 (ui-audit-2026-09-02), ≤767 only - ≥768 has the min-height:48px bar and was measured
+   aligned. A mobile header's height is set by its TALLEST child, and seven of the nine screens
+   carry a 44px button (.scr-back or an action), so their titles centre at y~84 in a 69px head.
+   More and Dashboard have a bare h2 and sat 11px higher in a 47.5px head - the audit named More;
+   Dashboard measured identical, and fixing the h2 rather than one pane covers both and any
+   future buttonless header. min-height on the h2 itself (a flex child) lifts every bare-h2 head
+   to the same 69 and centres the title text at the same y, and changes NOTHING on the seven
+   screens already at 69 (their h2 just grows into slack the button row already spans).
+   The builder's .bld-head has no h2, so it is untouched without needing an exclusion. */
+@media (max-width:767px){
+  .scr-head h2{min-height:44px;display:flex;align-items:center}
+}
 /* the mobile mock's header is title + ONE action and nothing else (§6). The subtitle is a desktop
    affordance; left visible it pushed the action onto a second line, which is how it was found. */
 .scr-sub{display:none;font-size:13px;color:var(--text-3);min-width:0}
@@ -4153,7 +4175,7 @@ html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 80px)}
     background:var(--surface-2);border-bottom:1px solid var(--border);
   }
   .plib-bnum{text-align:right}
-  .plib-row{min-height:0;padding:10px var(--sp-4);align-items:center}
+  .plib-row{min-height:var(--lrow-min);padding:10px var(--sp-4);align-items:center}   /* R18: shared row floor - see --lrow-min */
   /* identity left / published / money right — name and category share ONE cell, as the mock draws
      them ("Bacon & Egg Muffin  Breakfast"), so .plib-id becomes a real box again */
   .plib-id{display:flex;align-items:baseline;column-gap:6px;min-width:0;grid-column:1;grid-row:1}
@@ -4501,7 +4523,7 @@ html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 80px)}
     background:var(--surface-2);border-bottom:1px solid var(--border);
   }
   .ib-num{text-align:right}
-  .ing-card{min-height:0;padding:10px var(--sp-4);align-items:center}
+  .ing-card{min-height:var(--lrow-min);padding:10px var(--sp-4);align-items:center}   /* R18: shared row floor - see --lrow-min */
   .ing-main{font-size:13.5px}
   .ing-name{font-size:13.5px}
   /* THE BRAND YIELDS FIRST. Both labels were `flex:0 1 auto`, so they shrank together and a long
@@ -4781,7 +4803,7 @@ html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 80px)}
   .mb-num{text-align:right}
   .mnu-sec{padding:var(--sp-3) var(--sp-4) 6px;border-bottom:1px solid var(--hairline)}
   .mnu-sec:first-child{padding-top:var(--sp-3)}
-  .mnu-row{min-height:0;padding:10px var(--sp-4);align-items:center;border-bottom:1px solid var(--hairline)}
+  .mnu-row{min-height:var(--lrow-min);padding:10px var(--sp-4);align-items:center;border-bottom:1px solid var(--hairline)}   /* R18: shared row floor - see --lrow-min */
   .mnu-row:last-child{border-bottom:0}
   /* identity left: name and the not-costed note share ONE cell, so `.mnu-id` is a box again */
   .mnu-id{display:flex;align-items:baseline;column-gap:6px;min-width:0;grid-column:1;grid-row:1}
@@ -5222,6 +5244,17 @@ html[data-theme="dark"] .ins-spark path{fill:url(#ezSparkGrad)}
 }
 /* the chevron glyph, sized up so it reads at the label's optical weight */
 .scr-back-i{font-size:19px;line-height:1}
+/* R17 (ui-audit-2026-09-02): below 639 the .btn-noun collapse leaves a bare "‹" and the box
+   measures 22x44 - the 44 is the base button floor, the 22 is the defect. The item-7/233
+   ::after technique widens the HIT to ~44 with zero layout movement (padding here would push
+   the title right). Offsets resolve against the padding box and .scr-back has border:0, so
+   -11px buys exactly 11 per side. The right extension overlaps only the title's dead space;
+   the left ends at x9, still on-screen. At 640-1023 the full "‹ More" box is 60px wide, so
+   only the collapsed form needs the help. */
+@media (max-width:639px){
+  .scr-back{position:relative}
+  .scr-back::after{content:"";position:absolute;top:0;bottom:0;left:-11px;right:-11px}
+}
 /* THE WORD "More" IS A `.btn-noun`, WHICH IS NOT DECORATION — it is what stops the Products header
    wrapping, and the wrap was MEASURED before this line existed rather than predicted. With the full
    "‹ More" the four fixed children of that header (chevron 58, title 65, Import 72, New product 130)
