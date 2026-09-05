@@ -36,31 +36,6 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
-## next  0 · UI audit Phase 2, steps 3-6 (R4+R7, R5+R6, R12, R17+R18)  **[B — visible polish, Max's own ordered plan]**
-
-Max wrote this plan himself on 3 Sep 2026 (chat, batch 231) and approved it by ordering the steps, so it is pre-approved work, not a brief to re-confirm.
-Steps 1-2 shipped in batch 231 as `ezplate-v190` (PR #253): R21+R22 (one header band, sticky page header) and R1-R3 (the 768-1023 tablet tables).
-**Step 3 shipped in batch 232 as `ezplate-v191`**, **step 4 in batch 233 as `ezplate-v192`** (R5+R6, one commit; the audit file's progress table has the detail — two of R6's readings were corrected by the code, and three shortfalls are geometry-bound and recorded). **Step 5 (R12) resolved in batch 234 with NO code change: the finding did not reproduce.** The Menu zero-results renderer has offered "Clear search & filters" since v58, via the same shared helper Plates uses; what the audit photographed was the link's text occluded by the install banner in its single 390 capture (R13/R19 stacking family, wontfixed) — the audit file's progress table has the mechanism. There is no diff to show him; the evidence is in `HANDOVER-234`. His plan says STOP and show him after each step, and he was not in the chat — so each batch takes ONE step and hands over with the captures; the next `/batch` takes step 6 (R17+R18). That is the honest reading of his constraint when he is not live; if he'd rather have multiple steps per batch, say so and this line changes.
-Row ids refer to `docs/ui-audit-2026-09-02.md`, whose Phase 2 progress table tracks status.
-`docs/handovers/HANDOVER-231-header-and-tablet-band.md` is the diary of how steps 1-2 went and what the reviews caught.
-
-**His constraints, verbatim in substance:** no functional change; component APIs, routes, handlers, field names and data fetching unchanged; no new dependencies, no rebrand; CSS and markup only EXCEPT R12, the one approved JS change; one commit per step; STOP and show him after each step.
-
-**The remaining steps, in his order:**
-3. R4 + R7, one commit. Menu search into the same left slot and width as Plates / Products / Ingredients (400x40 top-left), all four screens on one control-row pattern (search + filter row; the secondary action joins the filter row instead of floating alone). ⚠️ The audit's site list for R7 is UNMEASURED — count the control rows before planning (queue header rule).
-4. R5 + R6, one commit. Touch targets to 44px effective via padding and negative margin, visuals unchanged: builder remove-line "x" (15.5x36), pack-price chips (27px tall), Dashboard trend range buttons (32px), and the small text links (Privacy notice, What is sent, wizard Skip, phone link, sign-in links).
-5. ~~R12, APPROVED JS change (the only one): add the "Clear search & filters" link to the Menu zero-results renderer, matching Plates. Show him the diff.~~ **RESOLVED, batch 234, no change — the link already existed and matched Plates (see above). The approved JS change was never needed.**
-6. R17 + R18, one commit. More-screen title alignment + back-chevron hit area; one row-height token for desktop list rows (Plates 41 vs Menu 44-45 vs Products 44).
-
-**Deferred by his explicit call — do NOT do:** R20 (token fold — reconsider only after the above ships) · R8 unless CSS `:has()` reaches it with zero JS (if it needs a class toggle, skip and say so) · R10, R11, R13, R14, R15, R16 (leave) · R19 (wontfix, agreed).
-
-**Verification, every commit (his list):** suite + smoke + Playwright green · diff confined to css/style.css and index.html or name the exception · before/after captures at 390, 768, 1024, 1440 for every screen touched · state which flows were not touched.
-The capture harness lives at `~/Documents/EzPlate-ui-audit-2026-09-02/` (`node run.js --out=<dir> --widths=... --states=pop`; befores are `out/shots/`, deliberately NOT in this public repo — real business data).
-One deploy-version bump per batch that ships a client asset; a docs-only step (like 234's) ships none and bumps nothing.
-The pre-push code-review agent caught 16 real findings across steps 1-2 (two of them in brand-new tests that could not fail) — run it per stop-point, force it onto a different model, and hand-run a mutation on every new assertion.
-
----
-
 # The 5 Sep 2026 blind audit — items 12-15
 
 **Source: `docs/audits/BLIND-AUDIT-2026-09-05-code.md`.** A second blind audit, on the 22 Aug pattern: an outside reviewer given the shipping code, the SQL and the tests, and explicitly told NOT to read `CLAUDE.md`, this file, `MAINTENANCE.md` or the handovers. Eleven findings in 25m52s.

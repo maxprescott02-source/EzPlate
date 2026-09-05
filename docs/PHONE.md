@@ -941,3 +941,13 @@ used to miss, and whether any invisible hit zone STEALS a tap you meant for some
   notice" line and the sign-up form's in-label "privacy notice" link are NOT full 44px
   (29px each — the geometry has no more to give without visibly moving things); they
   should still feel notably easier than v191.
+
+## v193 — the "‹" back chevron on the four More sub-screens (batch 235)
+
+Only a device can prove a thumb-sized hit feels right; the spec proves geometry, not feel.
+
+**Do this on the phone:** open More → Products (or Settings), and tap the bare **‹** in the
+top-left slightly sloppily — a bit left of it, a bit right of it.
+**Pass:** you land back on More without aiming.
+**Fail:** you still need to hit the glyph itself, or a tap meant for **‹** lands on nothing.
+The hit box is ~44px wide around a 22px control; the widening is invisible on purpose.
