@@ -151,6 +151,11 @@ test('boot gate: both link lines get their geometry-bound extensions, and the ga
     const el = document.querySelector('#bootGate .bg-inner');
     return el.scrollHeight > el.clientHeight + 1;
   });
+  // A rect read, not this file's usual elementFromPoint probe — a KNOWN deviation, judged
+  // sound by the addendum review: an inline anchor's rect height IS its padded box (it
+  // cross-checked hit probes at the same coordinates and they agreed), and the clip probe
+  // carries the other half of the gate's trade. A zero-height rect on a hidden state
+  // fails the floor rather than passing vacuously.
   const h = (sel) => page.evaluate((s) => document.querySelector(s).getBoundingClientRect().height, sel);
 
   // sign-in state: the sign-up swap line (14+17+14 = 45) and the privacy line (12+17 = 29)

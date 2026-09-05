@@ -5386,8 +5386,9 @@ html[data-theme="dark"] .ins-spark path{fill:url(#ezSparkGrad)}
    IT SAYS: top/bottom on an absolutely positioned pseudo resolve against the
    containing block's PADDING box, which sits 1px inside the border box that
    boundingBox and a thumb both measure. `.range-btn` carries border:1px solid
-   transparent and `.pchip` border:1px dashed, so each edge loses ~1px to the
-   border (plus a sub-px snapping crumb). The pre-push review measured it —
+   transparent and `.pchip` border:1px dashed, so the border costs ~2px of
+   total reach — measured asymmetrically, nearly all of it on one edge (~1px +
+   a snapping crumb below, almost none above). The pre-push review measured it —
    the first draft of this comment blamed pixel-snapping alone, derived the
    correction for .range-btn and then failed to carry it to .pchip, which is
    how the chip shipped at 43.7. Both offsets below are sized border-inclusive.
