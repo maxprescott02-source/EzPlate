@@ -10659,34 +10659,51 @@ function normPackNotation(text){
    $5/kg for a $10/kg product, needManual:false, pre-ticked. Like normPackNotation above, the fix
    lives OUTSIDE the protected region and CALLS the region's own functions rather than copying
    them (a guard that recomputes the parser's answer is a stub of it — CLAUDE.md).
-   The gate is the line's OWN arithmetic: if the trailing amounts show pair P and total T with
-   T = k*P for the leading integer k, then P priced ONE of the k containers and the honest unit
-   price is k times the parser's (equivalently T over the full folded weight). Three conditions,
-   all required before touching the price:
-     · the line STARTS "k <container-noun>" with k >= 2 (a mid-line "2 x" never matches);
-     · packWeight really folded k — its first factor is k — so there is something to undo
-       (the apostrophe-s count path ignores the prefix and is already right: measured, 400'S at
-       20.00/pack gives $0.05/ea with or without the "2 CTN" prefix);
-     · k*P equals the line total to the cent.
-   When the first two hold and the arithmetic does NOT confirm, the row is flagged needManual
-   instead — the parser's answer might be right (P could be the whole-line total), and a loud row
-   the reviewer prices by hand beats either silent guess. The ml/L family rebases identically,
-   which is the case nothing on screen could ever notice (a plausible magnitude in the wrong
-   basis). tests/inv-qty-first.test.js pins every branch; the mutation gate lists this function. */
+   The gate is the line's OWN arithmetic: if the amounts show a repeated pair P and a SEPARATE
+   total T with T = k*P for the leading integer k, then P priced ONE of the k containers while
+   the weight covers all k, and the honest unit price is k times the parser's. Every condition
+   below is required, and each one was put there by a measured counter-example:
+     · the line STARTS "k <container-noun>", k >= 2. A mid-line "2 CTN" is pack composition and
+       the parser's reading of it stands (the ^ is the whole safety of this function, so a test
+       pins it directly — the mutation gate cannot, it masks regex literals).
+     · packWeight reads the SAME weight from the raw line and from the name. This is the one that
+       matters and it is not belt-and-braces: parsePdfLine computes the price from packWeight(LINE)
+       and an earlier draft of this guard asked packWeight(NAME), so on a line carrying a trailing
+       net-weight column ("… 120.00 12.0kg") the two disagree — 144kg against 12kg — and the guard
+       was then verifying a fold that had nothing to do with the price it multiplied. ⚠️ On such a
+       line the PARSER'S OWN ANSWER IS ALREADY WRONG (measured: $0.42/kg where the truth is $10),
+       silently and pre-ticked, and that is a separate defect inside the protected region — filed,
+       not fixed here. This condition's job is only to keep THIS function from making it worse.
+     · packWeight really folded k — its first factor is k — so there is something to undo. (The
+       apostrophe-s count path ignores the prefix and is already right: measured, 400'S at
+       20.00/pack gives $0.05/ea with or without the "2 CTN" prefix.)
+     · P and T are DIFFERENT amounts. When they are equal the line has no total column — the
+       parser's documented qty-1 shape, where the repeated price IS the line total, so it already
+       covers the whole weight and is correct as parsed. Flagging those was an earlier draft's
+       false alarm on ordinary single-purchase lines: "6 CTN 2kg Chicken 12.00 12.00" is one case
+       of 6 cartons for $12, correctly $1/kg, and it must pass through untouched.
+     · k*P equals T within k cents — a cent of rounding budget per container, since P is itself a
+       2-decimal figure. A wider gap is a line whose arithmetic does not add up either way, and
+       THAT is the one case worth flagging needManual: a loud row beats either silent guess.
+   The ml/L family rebases identically, which is the case nothing on screen could ever notice (a
+   plausible magnitude in the wrong basis). tests/inv-qty-first.test.js pins every branch; the
+   mutation gate lists this function. */
 function invQtyFirstRebase(row){
   if(!row || row.unitPrice==null || row.needManual) return row;
   var m=/^\s*(\d{1,3})\s*(?:ctns?|cartons?|cases?|boxe?s?)\b/i.exec(row.raw||'');
   if(!m) return row;
   var k=parseInt(m[1],10); if(!(k>=2)) return row;
-  var w=packWeight(row.name);
-  if(!w || !w.factors || w.factors[0]!==k) return row;            // k was not folded — nothing to undo
   if(!(row.unit==='kg'||row.unit==='l')) return row;              // only the packWeight-derived rows
-  var monies=moneyMatches(row.raw); if(monies.length<2) return row;
+  var w=packWeight(row.raw), wn=packWeight(row.name);             // the raw line is what priced the row
+  if(!w || !wn || w.qtyInCat!==wn.qtyInCat) return row;           // a weight outside the name: the parser's denominator is not this pack — leave its answer alone
+  if(!w.factors || w.factors[0]!==k) return row;                  // k was not folded — nothing to undo
+  var monies=moneyMatches(row.raw); if(monies.length<3) return row;   // a rebase needs a repeated PAIR and a distinct TOTAL: three amounts at least
   var T=monies[monies.length-1].val;
   var P=firstPairPrice(monies); if(P==null) return row;           // single-amount lines already divide T by the full weight
-  // in integer cents: float 120.01-120 is 0.01000000000000512, so a <=0.01 tolerance EXCLUDES
-  // the exact one-cent rounding it means to include (found by this function's own test fixture)
-  if(Math.round(Math.abs(k*P - T)*100) <= 1){ row.unitPrice=row.unitPrice*k; } // confirmed: P per carton, weight per k cartons
+  if(P===T) return row;                                           // no total column: the repeated price already covers the whole weight
+  // integer cents: float 120.01-120 is 0.01000000000000512, so a <=0.01 tolerance EXCLUDES the
+  // exact one-cent rounding it means to include (found by this function's own test fixture)
+  if(Math.round(Math.abs(k*P - T)*100) <= k){ row.unitPrice=row.unitPrice*k; }  // confirmed: P per carton, weight per k cartons
   else { row.needManual=true; }                                   // qty-first shape, arithmetic unconfirmed: ask, don't guess
   return row;
 }

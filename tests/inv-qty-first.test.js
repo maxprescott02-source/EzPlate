@@ -43,11 +43,74 @@ test('a 3-carton line rebases by 3, not by a hardcoded 2', () => {
 });
 
 test('qty-first shape whose arithmetic does NOT confirm is FLAGGED, never silently kept', () => {
-  // T=60 could mean the pair is the whole-line total (truth $5/kg) or a mis-scan (truth $10/kg).
-  // Guessing either way is the silent-wrong-number class; the row asks instead.
-  const r = parse('2 CTN Beef Mince 6 x 1kg 60.00 60.00 60.00');
+  // A distinct total that is neither P nor k*P: the line does not add up either way, so guessing
+  // is the silent-wrong-number class and the row asks instead.
+  const r = parse('2 CTN Beef Mince 6 x 1kg 60.00 60.00 130.00');
   assert.equal(r.needManual, true, 'unconfirmed arithmetic flags the row');
   assertClose(r.unitPrice, 5, 'the price is left as parsed, for the reviewer to see');
+});
+
+test('NO total column (the pair IS the total) is correct as parsed — not rebased, not flagged', () => {
+  // The parser's documented qty-1 shape: the repeated price is the line total, so it already
+  // covers the whole folded weight. $60 for 2 CTN of 6x1kg = 12kg = $5/kg, and that is right.
+  // An earlier draft flagged these, which is a false alarm on ordinary single-purchase lines.
+  const r = parse('2 CTN Beef Mince 6 x 1kg 60.00 60.00');
+  assertClose(r.unitPrice, 5, 'the pair already covers the whole weight');
+  assert.equal(r.needManual, false, 'nothing to ask about');
+});
+
+test("a composition-only case line keeps its correct price and is NOT flagged", () => {
+  // Found by the pre-push review. "6 CTN 2kg Chicken 12.00 12.00" is ONE case of 6 cartons at
+  // 2kg = 12kg for $12 = $1/kg, already correct, and it previously applied with no human step.
+  const r = parse('6 CTN 2kg Chicken 12.00 12.00');
+  assertClose(r.unitPrice, 1, '$12 over 12kg');
+  assert.equal(r.needManual, false, 'a correct row must not start asking for manual pricing');
+});
+
+test('a trailing net-weight column: the rebase REFUSES rather than compounding a parser error', () => {
+  // ⚠️ The parser alone is ALREADY WRONG here — it takes the trailing "12.0kg" as the pack unit
+  // weight and returns $0.42/kg where the truth is $10/kg, silently and pre-ticked. That is a
+  // separate defect inside the protected region (filed, not fixed here). What this pins is that
+  // invQtyFirstRebase does not MULTIPLY that wrong number: an earlier draft asked packWeight for
+  // the NAME's weight while the price came from the RAW line's, so it "verified" a fold that had
+  // nothing to do with the price it was about to double.
+  const l = '2 CTN Beef Mince 6 x 1kg 60.00 60.00 120.00 12.0kg';
+  const bare = parsePdfLine(l);
+  const r = invQtyFirstRebase({ ...bare });
+  assert.equal(r.unitPrice, bare.unitPrice, 'the rebase leaves a line it cannot reason about alone');
+});
+
+test('a weight that exists ONLY outside the name is refused, not crashed on', () => {
+  // name = "2 CTN Beef Mince" (no weight token at all) while the raw line's trailing column has
+  // one, so packWeight answers null for the name and a real object for the line. The two-sided
+  // guard has to survive that asymmetry: the mutation gate found that flipping its first || turns
+  // this row into a TypeError — a thrown exception inside .map() would break the whole import.
+  const l = '2 CTN Beef Mince 60.00 60.00 120.00 12.0kg';
+  const bare = parsePdfLine(l);
+  assert.equal(bare.unit, 'kg', 'precondition: the parser did derive a weight price here');
+  const r = invQtyFirstRebase({ ...bare });
+  assert.equal(r.unitPrice, bare.unitPrice, 'left exactly as parsed');
+  assert.equal(r.needManual, false, 'and not flagged');
+});
+
+test('a total EQUAL to the pair is already whole-weight, even with a total column present', () => {
+  // three amounts, all the same: the total column agrees with the pair, so the price covers the
+  // whole folded weight and $5/kg is right. Without the P===T gate this rebases to $10 — the
+  // mirror image of the defect this file exists for, in the direction nothing would flag.
+  const r = parse('2 CTN Beef Mince 6 x 1kg 60.00 60.00 60.00');
+  assertClose(r.unitPrice, 5, 'the pair already covers the whole weight');
+  assert.equal(r.needManual, false);
+});
+
+test('the ^ anchor is load-bearing: a mid-line "k CTN" must never trigger a rebase', () => {
+  // The mutation gate CANNOT generate this mutant (it masks regex literals), and the two other
+  // "untouched" fixtures below stay green with the anchor removed — measured, both ways — so
+  // this fixture exists solely to pin the anchor. It is contrived on purpose: the leading pack
+  // factor must equal the mid-line number, or dropping the anchor changes nothing here either.
+  const l = 'Beef Mince 2 x 1kg 2 CTN 60.00 60.00 120.00';
+  const r = parse(l);
+  assertClose(r.unitPrice, 30, 'the parser’s own reading stands');
+  assert.equal(r.needManual, false);
 });
 
 test('composition-first (Bidfood) layout is untouched — qty AFTER the pack is not this shape', () => {
@@ -86,20 +149,12 @@ test('a mid-line quantity never matches — only a line-leading "k <container>" 
   assert.equal(r.needManual, false);
 });
 
-test('a pair with NO line total is unconfirmable — flagged, not silently kept', () => {
-  // monies = [60.00, 60.00]: the pair exists but the total column did not scan, so T falls back
-  // to the pair itself and k*P can never equal it. The mutation gate found the first draft's
-  // length guard let exactly this two-money shape return untouched.
-  const r = parse('2 CTN Beef Mince 6 x 1kg 60.00 60.00');
-  assert.equal(r.needManual, true, 'no total to confirm against flags the row');
-  assertClose(r.unitPrice, 5, 'price left as parsed for the reviewer');
-});
-
-test('one cent of total rounding still confirms — the tolerance is <= a cent, not < it', () => {
-  // GST-rounded totals land a cent off k*P; the boundary is inclusive on purpose, and the
-  // mutation gate watches it (<= -> < survived until this fixture).
-  const r = parse('2 CTN Beef Mince 6 x 1kg 60.00 60.00 120.01');
-  assertClose(r.unitPrice, 10, 'a cent off is still the confirmed shape');
+test('rounding still confirms — the tolerance is a cent per container, inclusive', () => {
+  // A 2-decimal P against a true total drifts up to a cent per container, so the budget scales
+  // with k (the review's finding 4). The boundary is inclusive on purpose and the mutation gate
+  // watches it: <= -> < survived until this fixture existed.
+  const r = parse('2 CTN Beef Mince 6 x 1kg 60.00 60.00 120.02');
+  assertClose(r.unitPrice, 10, 'two cents off on two cartons is still the confirmed shape');
   assert.equal(r.needManual, false);
 });
 
