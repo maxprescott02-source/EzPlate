@@ -42,33 +42,29 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ⚠️ **READ THIS BEFORE PLANNING OFF ANY OF THE FOUR ITEMS BELOW. ITS TOP-RANKED FINDING, THE ONLY ONE IT CALLED A RELEASE BLOCKER, WAS FALSE.** It claimed `js/app.js` on `main` contains bare English prose at lines 7290 and 11586 and therefore does not parse. `git show origin/main:js/app.js | node --check` **parses clean** at `a56055e`; both citations are continuation lines inside `/* … */` block comments. **The reviewer read the repository in network slices and lost the comment context** — which is exactly the condition that produced its most confident, most precisely cited and most urgent claim.
 
-**So every line citation in these four items is a POINTER TO CHECK, not a fact**, and the queue header's own rule applies with unusual force: *an item that names a behaviour without naming its sites is an item whose list is already wrong.* **Each item below states which of its claims is measured and which is not.** Only item 14 has been verified.
+**So every line citation in these four items is a POINTER TO CHECK, not a fact**, and the queue header's own rule applies with unusual force: *an item that names a behaviour without naming its sites is an item whose list is already wrong.* **Each item below states which of its claims is measured and which is not.**
+**Item 12 RAN in batch 236 and its finding was TRUE, reproduced exactly as written** (`ezplate-v194`); item 14 was verified against the SQL. 13 and 15 are still unmeasured claims.
+⚠️ **And running 12 produced 12b, which is a defect the audit never saw and which is WORSE than the one it reported** — the pre-push review of the fix found it. That is the argument for taking these items seriously even where the citations are wrong: the audit was pointing at a real neighbourhood.
 
 **Step one of every one of these is the repro, and "it does not reproduce" is a legitimate outcome that DELETES the item** — say so in the handover rather than fixing something to make the finding true. That is `CLAUDE.md`'s standing rule about a review's three separable claims (the defect, the mechanism, the remedy) arriving from an outside reviewer instead of the pre-push one.
 
 ---
 
-## next  12 · A quantity-first carton line can silently halve an ingredient's unit cost  **[A — silently wrong numbers, the class this repo ranks above a crash]**
+## next  12b · A trailing net-weight column makes the parser divide by the WRONG weight  **[A — silently wrong numbers, and bigger than the one 236 fixed]**
 
-⚠️ **UNMEASURED. The fixture below has not been run.** Reproduce it first; if it does not, delete this item.
-
-**The claim:** `parseInvoiceText()` can count the purchased-carton quantity as part of the pack denominator while the monetary chooser selects a **per-carton** price, so the two halves describe different things and the division is wrong in the cheap direction.
-
-**The fixture to run first, verbatim:**
+**MEASURED, 6 Sep 2026 (batch 236), found by the pre-push review of item 12 and reproduced on the spot.** This is not the audit's claim; it is a second defect the audit never saw.
 
 ```
-2 CTN Beef Mince 6 x 1kg 60.00 60.00 120.00
+2 CTN Beef Mince 6 x 1kg 60.00 60.00 120.00 12.0kg     ->  $0.42/kg      (truth $10.00/kg)
 ```
 
-The pack parser is claimed to see both `2 CTN` and `6 x 1kg` and produce a **12 kg** denominator, while the price chooser takes the repeated `60.00`. That gives **$60 / 12 kg = $5.00/kg with `needManual:false`**, so the row is not flagged and is pre-ticked. The invoice says two 6 kg cartons at $60 each: **$120 / 12 kg = $10.00/kg.** Apply then writes $5.00/kg onto the product and it flows into every plate line that uses it.
+**The mechanism, measured rather than reasoned:** `packWeight` takes the **LAST** weight/volume token in the line it is given, and `parsePdfLine` hands it the WHOLE RAW LINE — money columns included. So a trailing "net weight" / "total kg" column (ordinary on variable-weight meat and produce lines) becomes the pack's unit weight: `2 x 6 x 12.0kg = 144kg` instead of 12kg, and $60 divided by 144 is **$0.42/kg**. `needManual:false`, so the row is **pre-ticked and applied with no prompt** — the same silent shape as item 12 and roughly an order of magnitude further out.
 
-**Nothing errors and the answer is entirely believable**, which is why this is A rather than B: a halved beef price does not look like a bug, it looks like a good week.
+**It is inside the protected parser region** (`packWeight` and `parsePdfLine` both), so the fix goes OUTSIDE it, the way 236's `invQtyFirstRebase` and 0b's `invUnitRebase` did. 236 already refuses to touch such a line — it compares `packWeight(raw)` against `packWeight(name)` and leaves the row alone when they disagree — so **the detection half already exists and is tested**; what is missing is the correction, which is the harder half: deciding which weight token is the PACK and which is a total, and what to do when it cannot be told (flagging is legitimate and is not yet done).
 
-**Claimed sites:** `js/app.js:10287-10340`, applied around `11576-11583`. **Grep before planning off those numbers.**
+**What must be true when it is fixed:** that line costs $10.00/kg or is flagged `needManual`, never silently pre-ticked. The regression fixture must carry a weight token AFTER the money columns, because that is the whole defect and no existing fixture has one. `tests/inv-qty-first.test.js` already holds the line and pins only that 236 does not compound it — extend it, do not duplicate it.
 
-⚠️ **`resolveMatchedPrice`, `unitCatCategory`, `applySupplierMemory` and `packToUnitCost` are on the never-touch list and the protected parser region between `var INV_EXCLUDE=` and `function unitLabelFor(` may not be edited.** If the repro lands inside either, **stop and tell Max** — solve outside the region, the way 0b's `invUnitRebase` did, and extract the decision so the guard and the write cannot disagree.
-
-**What must be true when it is fixed:** that exact line costs $10.00/kg, or is flagged `needManual` rather than silently pre-ticked. **And the regression fixture must put the purchased quantity BEFORE the pack composition**, because that ordering is the whole defect: `parser.test.js` and `inv-packnorm.test.js` both stay green today, and the reviewer's reason is that every existing multi-carton fixture puts composition first. `matched-price.test.js` cannot see it either — it starts downstream of raw parsing.
+⚠️ **Frequency on Scoopy's real invoices is UNKNOWN and is the first thing to establish** — the review said so plainly and it decides how this is prioritised against 13-15. `docs/PHONE.md`'s v194 check asks Max to import a real PDF; if any row comes back wildly cheap, this is why.
 
 ## next  13 · Café A's settings and supplier memory survive a same-session move into café B  **[A — cross-tenant, and one half writes A's data into B's database]**
 

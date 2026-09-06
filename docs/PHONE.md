@@ -951,3 +951,16 @@ top-left slightly sloppily — a bit left of it, a bit right of it.
 **Pass:** you land back on More without aiming.
 **Fail:** you still need to hit the glyph itself, or a tap meant for **‹** lands on nothing.
 The hit box is ~44px wide around a 22px control; the widening is invisible on purpose.
+
+## v194 — import a real supplier PDF and confirm nothing moved (batch 236)
+
+Item 12 changed invoice parsing, and **only a real invoice can prove the change is inert on the
+lines you actually import.** Every Bidfood line puts the pack composition BEFORE the purchased
+quantity ("6x2.5kg CTN 8"), which is not the shape the fix touches — so the expected result is
+that nothing whatsoever changes.
+
+**Do this:** import one of your usual PDFs the way you always do, and read the review screen.
+**Pass:** the same rows, the same prices, the same ticks as before — no new "needs attention".
+**Fail:** any row's price differs from what that invoice imported previously, or a row that used
+to apply silently now asks to be priced by hand. Either would mean the leading-quantity gate is
+matching a Bidfood line it should not; note the line text verbatim, it is the whole diagnosis.

@@ -58,6 +58,12 @@ const targets = [
   { fn: 'invPackUnitOpts', tests: ['inv-unit-rebase.test.js', 'inv-rowmarkup.test.js'] },
   { fn: 'invReResolve', tests: ['invoice-gst.test.js'] },
   { fn: 'invDerivePackQty', tests: ['invoice-gst.test.js'] },
+  /* 236 — the quantity-first carton rebase (queue item 12, the 5 Sep blind audit's finding 1).
+     A target from the hour it was written, per 184. Its three gates are each load-bearing in a
+     different direction: the leading-k regex (drop it and every carton line rebases), the
+     factors[0]===k fold check (drop it and the apostrophe-s path multiplies a correct price),
+     and the k*P===T arithmetic (flip it and the unconfirmed shape silently keeps $5/kg). */
+  { fn: 'invQtyFirstRebase', tests: ['inv-qty-first.test.js'] },
   // ── The guards. `isFinite('')` is TRUE, so these are the lines a blank field walks through. ──
   /* 193: this was `setProduct`, and it MOVED rather than gained a sibling. setProducts is the
      implementation and setProduct is now a one-line delegate to it — and a one-line delegate yields
@@ -379,6 +385,31 @@ const targets = [
  * removes is how a list like this rots into permission to ignore everything.
  */
 const allowedSurvivors = [
+  /* 236 — invQtyFirstRebase's fold check. `!w.factors || w.factors[0]!==k` -> `&&`. Both halves
+     are unreachable by the time this line runs, MEASURED rather than argued:
+       · `w.factors` is always an array — packWeight returns `{qtyInCat, cat, factors, unitNum}`
+         with `factors` initialised to `[]` and only ever pushed to, so `!w.factors` is always
+         false and the mutant's left operand can never rescue the guard;
+       · `factors[0]!==k` cannot be true either, because this function's own entry regex is
+         ANCHORED at position 0 and its container nouns (ctn/carton/case/box) are a SUBSET of
+         packWeight's multiplier alternatives. So whenever the anchor matched "k <noun>" at the
+         start, packWeight's first multiplier match is that same leading number, and factors[0]
+         is k. Probed across spacing, plurals, leading zeros, 3-digit k and both weight orders:
+         factors[0]===k in every case (the probe is in the batch's handover).
+     So the line is a null-safety statement about packWeight's contract rather than a live gate,
+     and no input can distinguish the mutant. Kept rather than deleted because packWeight lives
+     inside the protected parser region: this function must not assume the shape of a return
+     value it does not own. Delete the allowance the day the anchor or the noun list widens —
+     a mid-line match WOULD make factors[0]!==k reachable, and then it is a real gate again. */
+  {
+    key: "invQtyFirstRebase :: if(!w.factors || w.factors[0]!==k) return row;                  // k was not folded — nothing to undo :: logical ||>&& #0",
+    reason: 'packWeight always returns a dense factors array (initialised [], only pushed to), so !w.factors is '
+      + 'never true; and the entry regex is anchored at ^ with a container-noun list that is a subset of '
+      + "packWeight's own multiplier alternatives, so a match at position 0 guarantees factors[0] === k. Measured "
+      + 'across spacing, plurals, leading zeros, 3-digit k and both weight orders. No input distinguishes the '
+      + 'mutant; the line is null-safety on a protected-region contract, not a live gate.',
+  },
+
   /* 215 — gemPhrasingOk's fact-set loop bound. `j < allowed.length` -> `j <= allowed.length` adds one
      iteration that reads `allowed[allowed.length]`, which is `undefined` for every input this
      function can receive: `allowed` is built immediately above by pushing only values for which

@@ -7485,7 +7485,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v193';
+var APP_VERSION='v194';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -10109,7 +10109,7 @@ function handleInvFile(file){
       }
       text=normPackNotation(text);                     // v55 §I: normalise "N x M's" -> "(N*M)'s" before parsing (and before it's shown in the textarea, so a manual re-parse stays consistent)
       invGst=invGstDetect(text); invSupplier=invSupplierDetect(text);
-      var rows=pdfTextToRows(text), ta=document.getElementById('invCsv');
+      var rows=pdfTextToRows(text).map(invQtyFirstRebase), ta=document.getElementById('invCsv');   // 236: undo a leading purchased-qty folded into the pack weight — see invQtyFirstRebase
       // v63 fix: the PDF path builds rows DIRECTLY (it doesn't go through parseInvoice), so the AI
       // second reader was never firing and the status note never set for uploaded invoices \u2014 which is
       // how Max actually imports. Mirror parseInvoice here: stamp the status, then fire ONE reader.
@@ -10650,6 +10650,62 @@ function normPackNotation(text){
   return (text||'').replace(/\b(\d+)\s*[x×*]\s*(\d+)(['’]?s)\b/gi, function(m, a, b){
     var n=parseInt(a,10)*parseInt(b,10); return (isFinite(n)&&n>0) ? (n+"'s") : m;
   });
+}
+/* 236 (queue item 12, the 5 Sep blind audit's finding 1, reproduced before this was written):
+   a QUANTITY-FIRST carton line — "2 CTN Beef Mince 6 x 1kg 60.00 60.00 120.00" — silently halves
+   the unit cost. packWeight's multiplier chain deliberately accepts "N <pack-noun>" so that
+   "6 CTN x 6 x" compositions work, which means a leading PURCHASED quantity ("2 CTN ...") is
+   folded into the pack weight (2*6*1 = 12kg) while firstPairPrice picks the PER-CARTON 60.00 —
+   $5/kg for a $10/kg product, needManual:false, pre-ticked. Like normPackNotation above, the fix
+   lives OUTSIDE the protected region and CALLS the region's own functions rather than copying
+   them (a guard that recomputes the parser's answer is a stub of it — CLAUDE.md).
+   The gate is the line's OWN arithmetic: if the amounts show a repeated pair P and a SEPARATE
+   total T with T = k*P for the leading integer k, then P priced ONE of the k containers while
+   the weight covers all k, and the honest unit price is k times the parser's. Every condition
+   below is required, and each one was put there by a measured counter-example:
+     · the line STARTS "k <container-noun>", k >= 2. A mid-line "2 CTN" is pack composition and
+       the parser's reading of it stands (the ^ is the whole safety of this function, so a test
+       pins it directly — the mutation gate cannot, it masks regex literals).
+     · packWeight reads the SAME weight from the raw line and from the name. This is the one that
+       matters and it is not belt-and-braces: parsePdfLine computes the price from packWeight(LINE)
+       and an earlier draft of this guard asked packWeight(NAME), so on a line carrying a trailing
+       net-weight column ("… 120.00 12.0kg") the two disagree — 144kg against 12kg — and the guard
+       was then verifying a fold that had nothing to do with the price it multiplied. ⚠️ On such a
+       line the PARSER'S OWN ANSWER IS ALREADY WRONG (measured: $0.42/kg where the truth is $10),
+       silently and pre-ticked, and that is a separate defect inside the protected region — filed,
+       not fixed here. This condition's job is only to keep THIS function from making it worse.
+     · packWeight really folded k — its first factor is k — so there is something to undo. (The
+       apostrophe-s count path ignores the prefix and is already right: measured, 400'S at
+       20.00/pack gives $0.05/ea with or without the "2 CTN" prefix.)
+     · P and T are DIFFERENT amounts. When they are equal the line has no total column — the
+       parser's documented qty-1 shape, where the repeated price IS the line total, so it already
+       covers the whole weight and is correct as parsed. Flagging those was an earlier draft's
+       false alarm on ordinary single-purchase lines: "6 CTN 2kg Chicken 12.00 12.00" is one case
+       of 6 cartons for $12, correctly $1/kg, and it must pass through untouched.
+     · k*P equals T within k cents — a cent of rounding budget per container, since P is itself a
+       2-decimal figure. A wider gap is a line whose arithmetic does not add up either way, and
+       THAT is the one case worth flagging needManual: a loud row beats either silent guess.
+   The ml/L family rebases identically, which is the case nothing on screen could ever notice (a
+   plausible magnitude in the wrong basis). tests/inv-qty-first.test.js pins every branch; the
+   mutation gate lists this function. */
+function invQtyFirstRebase(row){
+  if(!row || row.unitPrice==null || row.needManual) return row;
+  var m=/^\s*(\d{1,3})\s*(?:ctns?|cartons?|cases?|boxe?s?)\b/i.exec(row.raw||'');
+  if(!m) return row;
+  var k=parseInt(m[1],10); if(!(k>=2)) return row;
+  if(!(row.unit==='kg'||row.unit==='l')) return row;              // only the packWeight-derived rows
+  var w=packWeight(row.raw), wn=packWeight(row.name);             // the raw line is what priced the row
+  if(!w || !wn || w.qtyInCat!==wn.qtyInCat) return row;           // a weight outside the name: the parser's denominator is not this pack — leave its answer alone
+  if(!w.factors || w.factors[0]!==k) return row;                  // k was not folded — nothing to undo
+  var monies=moneyMatches(row.raw); if(monies.length<3) return row;   // a rebase needs a repeated PAIR and a distinct TOTAL: three amounts at least
+  var T=monies[monies.length-1].val;
+  var P=firstPairPrice(monies); if(P==null) return row;           // single-amount lines already divide T by the full weight
+  if(P===T) return row;                                           // no total column: the repeated price already covers the whole weight
+  // integer cents: float 120.01-120 is 0.01000000000000512, so a <=0.01 tolerance EXCLUDES the
+  // exact one-cent rounding it means to include (found by this function's own test fixture)
+  if(Math.round(Math.abs(k*P - T)*100) <= k){ row.unitPrice=row.unitPrice*k; }  // confirmed: P per carton, weight per k cartons
+  else { row.needManual=true; }                                   // qty-first shape, arithmetic unconfirmed: ask, don't guess
+  return row;
 }
 function parseInvoice(){
   var txt=normPackNotation(document.getElementById('invCsv').value);
