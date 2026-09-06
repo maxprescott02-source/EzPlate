@@ -50,22 +50,6 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
-## next  12b · A trailing net-weight column makes the parser divide by the WRONG weight  **[A — silently wrong numbers, and bigger than the one 236 fixed]**
-
-**MEASURED, 6 Sep 2026 (batch 236), found by the pre-push review of item 12 and reproduced on the spot.** This is not the audit's claim; it is a second defect the audit never saw.
-
-```
-2 CTN Beef Mince 6 x 1kg 60.00 60.00 120.00 12.0kg     ->  $0.42/kg      (truth $10.00/kg)
-```
-
-**The mechanism, measured rather than reasoned:** `packWeight` takes the **LAST** weight/volume token in the line it is given, and `parsePdfLine` hands it the WHOLE RAW LINE — money columns included. So a trailing "net weight" / "total kg" column (ordinary on variable-weight meat and produce lines) becomes the pack's unit weight: `2 x 6 x 12.0kg = 144kg` instead of 12kg, and $60 divided by 144 is **$0.42/kg**. `needManual:false`, so the row is **pre-ticked and applied with no prompt** — the same silent shape as item 12 and roughly an order of magnitude further out.
-
-**It is inside the protected parser region** (`packWeight` and `parsePdfLine` both), so the fix goes OUTSIDE it, the way 236's `invQtyFirstRebase` and 0b's `invUnitRebase` did. 236 already refuses to touch such a line — it compares `packWeight(raw)` against `packWeight(name)` and leaves the row alone when they disagree — so **the detection half already exists and is tested**; what is missing is the correction, which is the harder half: deciding which weight token is the PACK and which is a total, and what to do when it cannot be told (flagging is legitimate and is not yet done).
-
-**What must be true when it is fixed:** that line costs $10.00/kg or is flagged `needManual`, never silently pre-ticked. The regression fixture must carry a weight token AFTER the money columns, because that is the whole defect and no existing fixture has one. `tests/inv-qty-first.test.js` already holds the line and pins only that 236 does not compound it — extend it, do not duplicate it.
-
-⚠️ **Frequency on Scoopy's real invoices is UNKNOWN and is the first thing to establish** — the review said so plainly and it decides how this is prioritised against 13-15. `docs/PHONE.md`'s v194 check asks Max to import a real PDF; if any row comes back wildly cheap, this is why.
-
 ## next  13 · Café A's settings and supplier memory survive a same-session move into café B  **[A — cross-tenant, and one half writes A's data into B's database]**
 
 ⚠️ **UNMEASURED.** Two findings, merged because they are one mechanism at one site: **bootstrap does not clear tenant-scoped in-memory state before applying the new tenant's rows**, so anything café B has no row for keeps café A's value.

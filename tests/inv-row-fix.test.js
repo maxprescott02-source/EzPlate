@@ -76,6 +76,32 @@ test("a composition-only case line keeps its correct price and is NOT flagged", 
   assert.equal(r.needManual, false, 'a correct row must not start asking for manual pricing');
 });
 
+/* ⚠️ THE EXPLICIT-RATE FIXTURES COME FIRST BECAUSE THEY ARE THE ONES THIS FILE DID NOT HAVE.
+   Every other fixture here reaches invFixRow through parsePdfLine's packWeight branch, and the
+   pre-push review found that the entry gate keyed off row.unit — which the explicitUnitPrice
+   branch also sets to kg/l — so a correct, explicitly-stated rate was multiplied by an unrelated
+   weight ratio. A whole branch of the parser had no fixture, and no assertion in this file could
+   have failed against it: the code path was never executed. Both lines below are the real
+   weighed-goods shape (nominal weight, stated rate, delivered-weight column). */
+test('an explicit $/kg rate is NEVER re-based, even with a trailing delivered-weight column', () => {
+  // measured before the fix: $14.90 became $13.46, pre-ticked — a wrong price that looks plausible,
+  // reintroduced by the fix meant to prevent exactly that.
+  const l = 'PORK BELLY BONELESS 3.1kg $14.90/kg 46.19 2.8kg';
+  const bare = parsePdfLine(l);
+  assertClose(bare.unitPrice, 14.9, 'precondition: the parser reads the stated rate correctly');
+  const r = parse(l);
+  assertClose(r.unitPrice, 14.9, 'the stated rate survives untouched');
+  assert.equal(r.needManual, false, 'and is not flagged');
+});
+
+test('an explicit rate with NO weight in the name is not flagged either', () => {
+  // measured before the fix: needManual went true, pulling a correct row out of the auto-tick path
+  // for a pack size it never needed.
+  const r = parse('PORK BELLY $14.90/kg 41.72 2.8kg');
+  assertClose(r.unitPrice, 14.9, 'unchanged');
+  assert.equal(r.needManual, false, 'and no manual step is demanded');
+});
+
 test('12b: a trailing net-weight column is RE-BASED onto the pack, not divided by a total', () => {
   // The headline 12b case. packWeight takes the LAST weight token in the raw line, so "12.0kg"
   // (a net-weight column) became the pack unit weight: 2 x 6 x 12.0 = 144kg, $0.42/kg. The pack

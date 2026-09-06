@@ -122,6 +122,8 @@ function build() {
   // they share. Extracted alongside the parser region so all three answer ONE question about ONE
   // string — a stub of `packWeight` here is exactly the drift the shared function prevents.
   const invPackWeight = extractFn(src, 'invPackWeight');
+  // explicitUnitPrice comes with the parser region slice below; invFixRow calls it to ask WHICH
+  // branch priced the row rather than inferring it from the unit (the pre-push review's finding).
   const invFixRow = extractFn(src, 'invFixRow');
   const dispPrice = extractFn(src, 'dispPrice');
   const invGstDetect = extractFn(src, 'invGstDetect');

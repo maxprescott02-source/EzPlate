@@ -10703,15 +10703,28 @@ function normPackNotation(text){
        2-decimal figure. A wider gap is a line that does not add up either way, and THAT is the
        one case worth flagging: a loud row beats either silent guess.
 
-   Inert by construction on every line whose weight sits inside the name and whose quantity is not
-   leading — the two real Bidfood fixtures measure a ratio of exactly 1 and no anchor match.
+   Inert on every line the parser priced from an explicit rate, on every line whose weight sits
+   inside the name, and on every line whose quantity is not leading — the two real Bidfood fixtures
+   measure a ratio of exactly 1 and no anchor match.
    tests/inv-qty-first.test.js pins every branch; the mutation gate lists this function. */
 function invPackWeight(row){                                      // the pack is described in the NAME; a trailing column is not pack description
   return (row && row.name) ? packWeight(row.name) : null;         // parsePdfLine slices `name` at the FIRST money, so it excludes exactly the money columns
 }
 function invFixRow(row){
   if(!row || row.unitPrice==null || row.needManual) return row;
-  if(!(row.unit==='kg'||row.unit==='l')) return row;              // only a weight-derived price has a weight basis to correct
+  if(!(row.unit==='kg'||row.unit==='l')) return row;              // the count paths ('ea') have no weight basis
+  /* ⚠️ AND `unit` ALONE DOES NOT SAY WHICH BRANCH PRICED THE ROW, which is the whole of this
+     function's premise. `parsePdfLine` tries `explicitUnitPrice` FIRST — a line that states its
+     own rate ("$14.90/kg", "6.20 per kg") is priced from that and from no pack weight at all — and
+     it returns unit kg/l exactly like the weight branch does. Everything below rests on
+     `unitPrice === packPrice / packWeight(raw)`, which is FALSE for such a row, so the ratio would
+     multiply a correct, explicitly-stated price by an unrelated number: measured, a real
+     weighed-goods line "PORK BELLY BONELESS 3.1kg $14.90/kg 46.19 2.8kg" came out at $13.46, and a
+     variant with no weight in the name was flagged for manual review it did not need. Both found
+     by the pre-push review, on the exact invoice shape this fix's own comment names as its target.
+     So the branch is asked, not inferred, and it is asked with the PARSER'S OWN function — the
+     same rule as `invPackWeight` one level up. */
+  if(explicitUnitPrice(row.raw||'')) return row;                  // the line states its own rate: no pack-weight basis exists to correct
   var wr=packWeight(row.raw||'');                                 // what priced the row
   if(!wr) return row;
   var w=invPackWeight(row);                                       // what the pack itself says
