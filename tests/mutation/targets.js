@@ -58,6 +58,12 @@ const targets = [
   { fn: 'invPackUnitOpts', tests: ['inv-unit-rebase.test.js', 'inv-rowmarkup.test.js'] },
   { fn: 'invReResolve', tests: ['invoice-gst.test.js'] },
   { fn: 'invDerivePackQty', tests: ['invoice-gst.test.js'] },
+  /* 236 — the quantity-first carton rebase (queue item 12, the 5 Sep blind audit's finding 1).
+     A target from the hour it was written, per 184. Its three gates are each load-bearing in a
+     different direction: the leading-k regex (drop it and every carton line rebases), the
+     factors[0]===k fold check (drop it and the apostrophe-s path multiplies a correct price),
+     and the k*P===T arithmetic (flip it and the unconfirmed shape silently keeps $5/kg). */
+  { fn: 'invQtyFirstRebase', tests: ['inv-qty-first.test.js'] },
   // ── The guards. `isFinite('')` is TRUE, so these are the lines a blank field walks through. ──
   /* 193: this was `setProduct`, and it MOVED rather than gained a sibling. setProducts is the
      implementation and setProduct is now a one-line delegate to it — and a one-line delegate yields

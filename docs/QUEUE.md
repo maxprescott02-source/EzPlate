@@ -48,7 +48,7 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
-## next  12 · A quantity-first carton line can silently halve an ingredient's unit cost  **[A — silently wrong numbers, the class this repo ranks above a crash]**
+## doing  12 · A quantity-first carton line can silently halve an ingredient's unit cost  **[A — silently wrong numbers, the class this repo ranks above a crash]**
 
 ⚠️ **UNMEASURED. The fixture below has not been run.** Reproduce it first; if it does not, delete this item.
 

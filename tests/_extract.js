@@ -115,6 +115,10 @@ function build() {
   const kingRepointGuard = extractFn(src, 'kingRepointGuard');
   const invReResolve = extractFn(src, 'invReResolve');           // the convert-ONCE decision behind the match dropdown
   const invDerivePackQty = extractFn(src, 'invDerivePackQty');   // applyInvoice's real pack-size fallback
+  // 236: the quantity-first carton rebase. Lives OUTSIDE the region and calls packWeight /
+  // moneyMatches / firstPairPrice from it, so it must be evaluated in the same sandbox as the
+  // parserBlock — extracted, never stubbed, or the test copies the parser it exists to correct.
+  const invQtyFirstRebase = extractFn(src, 'invQtyFirstRebase');
   const dispPrice = extractFn(src, 'dispPrice');
   const invGstDetect = extractFn(src, 'invGstDetect');
   const invGstAdjust = extractFn(src, 'invGstAdjust');
@@ -276,6 +280,7 @@ function build() {
     ${invPackPreviewText}
     ${invReResolve}
     ${invDerivePackQty}
+    ${invQtyFirstRebase}
     ${gemRowLocked}
     ${gemNormKey}
     ${gemHist}
@@ -283,7 +288,7 @@ function build() {
     ${gemApplyReadings}
     ${privacyAcceptNeeded}
     return { setAppState, setInvState, getInvRows, invPaints, flagNeedsAttention,
-      setRefereeState, gemState, gemApplyReadings, privacyAcceptNeeded, gemRowLocked, gemNormKey, gemHist, rankCandidates, invPackPreviewText, invDerivePackQty, invReResolve, buildInvRows, invGstDetect, invGstAdjust, computeInsights, DASH_ALL, parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, gemCleanFields, insightScore, INSIGHT_FLOOR, ruleA, scopeAllows, pts1, insCostBase, insDrift, insCategory, insVolatility, insLongStanding, insNearCluster, insConcentration, insPriceAnomaly, insComplexity, healthyLine, selectInsights, deriveInsights, lightFilterPass, newProductRecord, builderNoMatchHtml, dropPlace, fixedContainingBlock, setDomEnv, invConfirmState, unlinkedDishesOn, publishPlan, plateIdOf };
+      setRefereeState, gemState, gemApplyReadings, privacyAcceptNeeded, gemRowLocked, gemNormKey, gemHist, rankCandidates, invPackPreviewText, invDerivePackQty, invReResolve, invQtyFirstRebase, buildInvRows, invGstDetect, invGstAdjust, computeInsights, DASH_ALL, parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, gemCleanFields, insightScore, INSIGHT_FLOOR, ruleA, scopeAllows, pts1, insCostBase, insDrift, insCategory, insVolatility, insLongStanding, insNearCluster, insConcentration, insPriceAnomaly, insComplexity, healthyLine, selectInsights, deriveInsights, lightFilterPass, newProductRecord, builderNoMatchHtml, dropPlace, fixedContainingBlock, setDomEnv, invConfirmState, unlinkedDishesOn, publishPlan, plateIdOf };
   `);
   return factory();
 }
