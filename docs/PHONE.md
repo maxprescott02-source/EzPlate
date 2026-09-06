@@ -952,7 +952,7 @@ top-left slightly sloppily — a bit left of it, a bit right of it.
 **Fail:** you still need to hit the glyph itself, or a tap meant for **‹** lands on nothing.
 The hit box is ~44px wide around a 22px control; the widening is invisible on purpose.
 
-## v194 — import a real supplier PDF and confirm nothing moved (batch 236)
+## v194/v195 — import a real supplier PDF and confirm nothing moved (batches 236, 237)
 
 Item 12 changed invoice parsing, and **only a real invoice can prove the change is inert on the
 lines you actually import.** Every Bidfood line puts the pack composition BEFORE the purchased
@@ -962,5 +962,12 @@ that nothing whatsoever changes.
 **Do this:** import one of your usual PDFs the way you always do, and read the review screen.
 **Pass:** the same rows, the same prices, the same ticks as before — no new "needs attention".
 **Fail:** any row's price differs from what that invoice imported previously, or a row that used
-to apply silently now asks to be priced by hand. Either would mean the leading-quantity gate is
-matching a Bidfood line it should not; note the line text verbatim, it is the whole diagnosis.
+to apply silently now asks to be priced by hand. Either would mean one of the two gates is matching
+a real line it should not; note the line text verbatim, it is the whole diagnosis.
+
+⚠️ **237 widened what this check covers, so it is worth doing even if you already did the v194 one.**
+Batch 237 also corrects a line whose weight comes from a trailing net-weight column, and its own
+pre-push review found the first cut of that breaking **explicitly rated lines** ("$14.90/kg" with a
+delivered-weight column) — the shape weighed goods like meat actually use. That is fixed and tested,
+but the test fixtures are invented lines; yours are real. **Pay particular attention to any line
+priced per kg with a weight column**, and to whether its price matches the invoice.

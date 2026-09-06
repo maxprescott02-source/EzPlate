@@ -118,7 +118,13 @@ function build() {
   // 236: the quantity-first carton rebase. Lives OUTSIDE the region and calls packWeight /
   // moneyMatches / firstPairPrice from it, so it must be evaluated in the same sandbox as the
   // parserBlock — extracted, never stubbed, or the test copies the parser it exists to correct.
-  const invQtyFirstRebase = extractFn(src, 'invQtyFirstRebase');
+  // 236/237: the two silent-wrong-price corrections on the PDF path, and the pack-weight authority
+  // they share. Extracted alongside the parser region so all three answer ONE question about ONE
+  // string — a stub of `packWeight` here is exactly the drift the shared function prevents.
+  const invPackWeight = extractFn(src, 'invPackWeight');
+  // explicitUnitPrice comes with the parser region slice below; invFixRow calls it to ask WHICH
+  // branch priced the row rather than inferring it from the unit (the pre-push review's finding).
+  const invFixRow = extractFn(src, 'invFixRow');
   const dispPrice = extractFn(src, 'dispPrice');
   const invGstDetect = extractFn(src, 'invGstDetect');
   const invGstAdjust = extractFn(src, 'invGstAdjust');
@@ -280,7 +286,8 @@ function build() {
     ${invPackPreviewText}
     ${invReResolve}
     ${invDerivePackQty}
-    ${invQtyFirstRebase}
+    ${invPackWeight}
+    ${invFixRow}
     ${gemRowLocked}
     ${gemNormKey}
     ${gemHist}
@@ -288,7 +295,7 @@ function build() {
     ${gemApplyReadings}
     ${privacyAcceptNeeded}
     return { setAppState, setInvState, getInvRows, invPaints, flagNeedsAttention,
-      setRefereeState, gemState, gemApplyReadings, privacyAcceptNeeded, gemRowLocked, gemNormKey, gemHist, rankCandidates, invPackPreviewText, invDerivePackQty, invReResolve, invQtyFirstRebase, buildInvRows, invGstDetect, invGstAdjust, computeInsights, DASH_ALL, parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, gemCleanFields, insightScore, INSIGHT_FLOOR, ruleA, scopeAllows, pts1, insCostBase, insDrift, insCategory, insVolatility, insLongStanding, insNearCluster, insConcentration, insPriceAnomaly, insComplexity, healthyLine, selectInsights, deriveInsights, lightFilterPass, newProductRecord, builderNoMatchHtml, dropPlace, fixedContainingBlock, setDomEnv, invConfirmState, unlinkedDishesOn, publishPlan, plateIdOf };
+      setRefereeState, gemState, gemApplyReadings, privacyAcceptNeeded, gemRowLocked, gemNormKey, gemHist, rankCandidates, invPackPreviewText, invDerivePackQty, invReResolve, invPackWeight, invFixRow, buildInvRows, invGstDetect, invGstAdjust, computeInsights, DASH_ALL, parsePdfLine, pdfTextToRows, packWeight, packCount, firstPairPrice, packToUnitCost, normalizePhrase, applySupplierMemory, derivePackPrice, resolveMatchedPrice, unitCatCategory, unitToBaseFields, gemMergeLine, gemCanon, gemPackEq, gemMatchSuspect, gemCleanFields, insightScore, INSIGHT_FLOOR, ruleA, scopeAllows, pts1, insCostBase, insDrift, insCategory, insVolatility, insLongStanding, insNearCluster, insConcentration, insPriceAnomaly, insComplexity, healthyLine, selectInsights, deriveInsights, lightFilterPass, newProductRecord, builderNoMatchHtml, dropPlace, fixedContainingBlock, setDomEnv, invConfirmState, unlinkedDishesOn, publishPlan, plateIdOf };
   `);
   return factory();
 }
