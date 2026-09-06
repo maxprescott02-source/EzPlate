@@ -1,24 +1,33 @@
 /*
- * inv-qty-first.test.js — queue item 12 (the 5 Sep blind audit's finding 1, REPRODUCED before
- * any fix was written): a quantity-first carton line silently halves an ingredient's unit cost.
+ * inv-row-fix.test.js — the two silent-wrong-price defects on the PDF invoice path, both
+ * REPRODUCED before a line of either fix was written.
  *
- * The defect: packWeight's multiplier chain accepts "N <pack-noun>", so a LEADING purchased
- * quantity ("2 CTN ...") is folded into the pack weight while firstPairPrice picks the
- * PER-CARTON price — $60 / 12kg = $5/kg for a $10/kg product, needManual:false, pre-ticked.
+ *   item 12  (5 Sep blind audit): a quantity-FIRST carton line halves the unit cost. packWeight's
+ *            multiplier chain accepts "N <pack-noun>", so a leading purchased quantity is folded
+ *            into the pack weight while the price chooser takes the per-carton figure —
+ *            $60 / 12kg = $5/kg for a $10/kg product, needManual:false, pre-ticked.
+ *   item 12b (found by item 12's own pre-push review): packWeight takes the LAST weight token in
+ *            the WHOLE RAW LINE, so a trailing net-weight column becomes the pack's unit weight —
+ *            $0.42/kg where the truth is $10.00, an order of magnitude out and equally silent.
  *
- * The fix is invQtyFirstRebase, OUTSIDE the protected region, gated on the line's own
- * arithmetic (pair P × leading k = total T). These tests run the REAL parser and the REAL
- * rebase in one sandbox (tests/_extract.js) — no stubs, per the roster.
+ * `invFixRow` is ONE function because 12b's correction must run before 12's, and a comment saying
+ * so is not a mechanism. It lives outside the protected region and calls the region's own
+ * functions through `invPackWeight`, so the price, the guard and the arithmetic cannot end up
+ * asking different questions — which is exactly how the first draft went wrong.
  *
- * ⚠️ Every fixture here puts the purchased quantity BEFORE the pack composition. That ordering
- * is the whole defect, and the reviewer's stated reason the existing parser fixtures stay green
- * against it: they are all composition-first. Do not "tidy" a fixture into the Bidfood order.
+ * These tests run the REAL parser and the REAL fix in one sandbox (tests/_extract.js) — no stubs.
+ *
+ * ⚠️ Fixtures here are deliberately NOT in the Bidfood layout: item 12 needs the purchased
+ * quantity BEFORE the pack composition and item 12b needs a weight token AFTER the money columns,
+ * and no pre-existing fixture in this repo has either. That is why both defects survived a green
+ * suite. Do not "tidy" one into the familiar order. The two real Bidfood lines below are the
+ * control: they must come through untouched.
  */
 const test = require('node:test');
 const assert = require('node:assert');
-const { parsePdfLine, invQtyFirstRebase } = require('./_extract.js');
+const { parsePdfLine, invFixRow } = require('./_extract.js');
 
-const parse = (line) => invQtyFirstRebase(parsePdfLine(line));
+const parse = (line) => invFixRow(parsePdfLine(line));
 
 function assertClose(actual, expected, msg) {
   assert.ok(Math.abs(actual - expected) < 0.005, `${msg}: expected ~${expected}, got ${actual}`);
@@ -67,39 +76,56 @@ test("a composition-only case line keeps its correct price and is NOT flagged", 
   assert.equal(r.needManual, false, 'a correct row must not start asking for manual pricing');
 });
 
-test('a trailing net-weight column: the rebase REFUSES rather than compounding a parser error', () => {
-  // ⚠️ The parser alone is ALREADY WRONG here — it takes the trailing "12.0kg" as the pack unit
-  // weight and returns $0.42/kg where the truth is $10/kg, silently and pre-ticked. That is a
-  // separate defect inside the protected region (filed, not fixed here). What this pins is that
-  // invQtyFirstRebase does not MULTIPLY that wrong number: an earlier draft asked packWeight for
-  // the NAME's weight while the price came from the RAW line's, so it "verified" a fold that had
-  // nothing to do with the price it was about to double.
+test('12b: a trailing net-weight column is RE-BASED onto the pack, not divided by a total', () => {
+  // The headline 12b case. packWeight takes the LAST weight token in the raw line, so "12.0kg"
+  // (a net-weight column) became the pack unit weight: 2 x 6 x 12.0 = 144kg, $0.42/kg. The pack
+  // says 6 x 1kg and two cartons were bought, so the truth is $10.00/kg — and BOTH corrections
+  // have to run, in order, to get there: re-base 0.42 -> 5.00, then undo the fold 5.00 -> 10.00.
   const l = '2 CTN Beef Mince 6 x 1kg 60.00 60.00 120.00 12.0kg';
-  const bare = parsePdfLine(l);
-  const r = invQtyFirstRebase({ ...bare });
-  assert.equal(r.unitPrice, bare.unitPrice, 'the rebase leaves a line it cannot reason about alone');
+  assertClose(parsePdfLine(l).unitPrice, 0.4167, 'precondition: the parser alone is an order of magnitude out');
+  const r = parse(l);
+  assertClose(r.unitPrice, 10, 'the pack\'s own weight prices the row');
+  assert.equal(r.needManual, false);
 });
 
-test('a weight that exists ONLY outside the name is refused, not crashed on', () => {
-  // name = "2 CTN Beef Mince" (no weight token at all) while the raw line's trailing column has
-  // one, so packWeight answers null for the name and a real object for the line. The two-sided
-  // guard has to survive that asymmetry: the mutation gate found that flipping its first || turns
-  // this row into a TypeError — a thrown exception inside .map() would break the whole import.
+test('12b alone: a trailing weight with no leading quantity is still re-based', () => {
+  // No "k CTN" prefix, so only the basis correction applies: 6 x 1kg = 6kg for $60 = $10/kg,
+  // where the trailing "6.0kg" had made it 36kg and $1.67.
+  const l = 'Beef Mince 6 x 1kg 60.00 60.00 60.00 6.0kg';
+  assertClose(parsePdfLine(l).unitPrice, 1.6667, 'precondition: wrong before');
+  const r = parse(l);
+  assertClose(r.unitPrice, 10, 'right after');
+  assert.equal(r.needManual, false);
+});
+
+test('12b, the litre twin — the case nothing on any screen could notice', () => {
+  const r = parse('Olive Oil 4 x 4L 80.00 80.00 80.00 16L');
+  assert.equal(r.unit, 'l');
+  assertClose(r.unitPrice, 5, '$80 over 16L');
+});
+
+test('a weight that exists ONLY outside the name is FLAGGED — the pack size is unknown', () => {
+  // name = "2 CTN Beef Mince" carries no weight at all, so the price was derived entirely from a
+  // trailing column and there is nothing to re-base onto. Guessing a pack size is the defect;
+  // the row asks instead. (Before 12b this passed through silently at $2.50/kg.)
   const l = '2 CTN Beef Mince 60.00 60.00 120.00 12.0kg';
   const bare = parsePdfLine(l);
   assert.equal(bare.unit, 'kg', 'precondition: the parser did derive a weight price here');
-  const r = invQtyFirstRebase({ ...bare });
-  assert.equal(r.unitPrice, bare.unitPrice, 'left exactly as parsed');
-  assert.equal(r.needManual, false, 'and not flagged');
+  const r = parse(l);
+  assert.equal(r.needManual, true, 'flagged for a human');
+  assert.equal(r.unitPrice, bare.unitPrice, 'and its price is left as parsed, not invented');
 });
 
-test('a total EQUAL to the pair is already whole-weight, even with a total column present', () => {
-  // three amounts, all the same: the total column agrees with the pair, so the price covers the
-  // whole folded weight and $5/kg is right. Without the P===T gate this rebases to $10 — the
-  // mirror image of the defect this file exists for, in the direction nothing would flag.
-  const r = parse('2 CTN Beef Mince 6 x 1kg 60.00 60.00 60.00');
-  assertClose(r.unitPrice, 5, 'the pair already covers the whole weight');
-  assert.equal(r.needManual, false);
+test('a DIFFERENT weight category is flagged, and never silently switches the unit', () => {
+  // name says 6 x 500ml, the trailing column says 3.0kg. The parser priced per kg off the wrong
+  // token. Correcting the number while leaving the unit would be an ml->g style basis flip, which
+  // CLAUDE.md records as impossible to notice on any screen — so this one goes to a human.
+  const l = 'Sauce 6 x 500ml 30.00 30.00 60.00 3.0kg';
+  const bare = parsePdfLine(l);
+  const r = parse(l);
+  assert.equal(r.needManual, true, 'flagged');
+  assert.equal(r.unit, bare.unit, 'the unit is NOT rewritten');
+  assert.equal(r.unitPrice, bare.unitPrice, 'and neither is the price');
 });
 
 test('the ^ anchor is load-bearing: a mid-line "k CTN" must never trigger a rebase', () => {
@@ -158,27 +184,31 @@ test('rounding still confirms — the tolerance is a cent per container, inclusi
   assert.equal(r.needManual, false);
 });
 
-test('no rebase when packWeight did not actually fold k — the undo must match the fold', () => {
-  // name and raw can diverge (parsePdfLine slices the name; the referee can clean it). If the
-  // NAME the weight was computed from carries no leading qty, there is nothing to undo, and
-  // multiplying anyway would double a correct price — the exact defect in the other direction.
-  const row = { unitPrice: 10, unit: 'kg', needManual: false, name: 'Beef Mince 6 x 1kg', raw: '2 CTN Beef Mince 6 x 1kg 60.00 60.00 120.00' };
-  const r = invQtyFirstRebase({ ...row });
-  assertClose(r.unitPrice, 10, 'an unfolded price is not multiplied');
-  assert.equal(r.needManual, false);
-});
+/* ⚠️ THERE IS NO TEST HERE FOR "k was not folded", AND THAT IS A FINDING RATHER THAN A GAP.
+   An earlier draft had one, built by hand from a row whose name and raw disagreed — a state
+   `parsePdfLine` cannot produce. Once 12b re-bases such a row the fixture described nothing real,
+   and rather than repair a fixture to keep a title, it is deleted and the reason written down:
+   the `factors[0]!==k` branch is UNREACHABLE. The entry regex is anchored at ^ and its container
+   nouns are a subset of packWeight's multiplier alternatives, so whenever it matches "k <noun>"
+   at the start of the line, the name starts there too and packWeight's first factor IS k. Probed
+   across spacing, plurals, leading zeros, 3-digit k and both weight orders. The branch is kept as
+   null-safety on a protected-region contract and carries a written allowance in
+   tests/mutation/targets.js — which is where a claim of unreachability belongs, because the gate
+   re-checks it every run and a test asserting it cannot. */
 
 test('a row with NO price is returned untouched — null must never become $0.00', () => {
   // null * k is 0, and a fabricated $0.00 that nothing flags is this repo's oldest defect family
-  // (the isFinite('') rule). Found by the mutation gate: flipping only the FIRST || in the entry
-  // guard leaves the needManual arm working and opens exactly this one.
+  // (the isFinite('') rule). ⚠️ This test was DELETED by accident while the two rebases were being
+  // merged — a block edit whose range ran one test too far — and the mutation gate is what noticed,
+  // by reporting the entry guard as survived. That is the gate doing the job the roster describes:
+  // a test that quietly stops existing looks exactly like a test that passes.
   const row = { unitPrice: null, unit: 'kg', needManual: false, name: '2 CTN Beef Mince 6 x 1kg', raw: '2 CTN Beef Mince 6 x 1kg 60.00 60.00 120.00' };
-  const r = invQtyFirstRebase({ ...row });
+  const r = invFixRow({ ...row });
   assert.strictEqual(r.unitPrice, null, 'a priceless row stays priceless');
 });
 
 test('rows the parser already flagged are not touched', () => {
   const flagged = { unitPrice: 5, unit: 'kg', needManual: true, raw: '2 CTN Beef Mince 6 x 1kg 60.00 60.00 120.00', name: '2 CTN Beef Mince 6 x 1kg' };
-  const r = invQtyFirstRebase({ ...flagged });
+  const r = invFixRow({ ...flagged });
   assert.equal(r.unitPrice, 5, 'a needManual row is the reviewer’s, not the rebase’s');
 });

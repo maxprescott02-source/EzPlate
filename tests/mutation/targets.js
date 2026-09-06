@@ -58,12 +58,17 @@ const targets = [
   { fn: 'invPackUnitOpts', tests: ['inv-unit-rebase.test.js', 'inv-rowmarkup.test.js'] },
   { fn: 'invReResolve', tests: ['invoice-gst.test.js'] },
   { fn: 'invDerivePackQty', tests: ['invoice-gst.test.js'] },
-  /* 236 — the quantity-first carton rebase (queue item 12, the 5 Sep blind audit's finding 1).
-     A target from the hour it was written, per 184. Its three gates are each load-bearing in a
-     different direction: the leading-k regex (drop it and every carton line rebases), the
-     factors[0]===k fold check (drop it and the apostrophe-s path multiplies a correct price),
-     and the k*P===T arithmetic (flip it and the unconfirmed shape silently keeps $5/kg). */
-  { fn: 'invQtyFirstRebase', tests: ['inv-qty-first.test.js'] },
+  /* 236/237 — the two silent-wrong-price corrections on the PDF invoice path (queue items 12 and
+     12b), and the pack-weight authority they share. Targets from the hour they were written, per
+     184. Every gate is load-bearing in a different direction: the weight-category check (drop it
+     and a name in ml is priced per kg), the qtyInCat comparison (drop it and a trailing net-weight
+     column silently divides by 144kg), the anchored leading-k regex (drop it and every carton line
+     rebases), and the k*P===T arithmetic (flip it and the unconfirmed shape silently keeps $5/kg).
+     invPackWeight is one line and is listed anyway BECAUSE it is one line: it is the single
+     sentence "the pack is described in the name" that the price, the guard and the arithmetic all
+     depend on, and the defect this batch's review found was two of them disagreeing about it. */
+  { fn: 'invFixRow', tests: ['inv-row-fix.test.js'] },
+  { fn: 'invPackWeight', tests: ['inv-row-fix.test.js'] },
   // ── The guards. `isFinite('')` is TRUE, so these are the lines a blank field walks through. ──
   /* 193: this was `setProduct`, and it MOVED rather than gained a sibling. setProducts is the
      implementation and setProduct is now a one-line delegate to it — and a one-line delegate yields
@@ -385,7 +390,23 @@ const targets = [
  * removes is how a list like this rots into permission to ignore everything.
  */
 const allowedSurvivors = [
-  /* 236 — invQtyFirstRebase's fold check. `!w.factors || w.factors[0]!==k` -> `&&`. Both halves
+  /* 237 — invPackWeight's null guard. `(row && row.name)` -> `(row || row.name)`. MEASURED
+     equivalent in every reachable state rather than argued: with a truthy row the two agree by
+     definition; with row null/undefined the mutant's `(null || undefined)` is falsy, so both
+     yield null; and with a row whose `name` is missing or empty the mutant reaches
+     `packWeight(undefined)` / `packWeight('')`, whose weight-token regex matches nothing on the
+     coerced string and which therefore returns null — the same answer, by a different route.
+     There is no input that distinguishes them, so no assertion can kill it. The guard stays
+     because this function is the ONE place the rest of the invoice path asks "which string
+     describes the pack", and it must answer null rather than throw for a row that has no name. */
+  {
+    key: "invPackWeight :: return (row && row.name) ? packWeight(row.name) : null;         // parsePdfLine slices `name` at the FIRST money, so it excludes exactly the money columns :: logical &&>|| #0",
+    reason: 'Equivalent in every reachable state, measured: truthy row -> identical; null/undefined row -> both '
+      + 'null (the mutant\'s || chain is falsy); row with missing/empty name -> the mutant calls packWeight on a '
+      + 'coerced string whose regex matches no weight token, returning null anyway. No input distinguishes the two.',
+  },
+
+  /* 236/237 — invFixRow's fold check. `!w.factors || w.factors[0]!==k` -> `&&`. Both halves
      are unreachable by the time this line runs, MEASURED rather than argued:
        · `w.factors` is always an array — packWeight returns `{qtyInCat, cat, factors, unitNum}`
          with `factors` initialised to `[]` and only ever pushed to, so `!w.factors` is always
@@ -402,7 +423,7 @@ const allowedSurvivors = [
      value it does not own. Delete the allowance the day the anchor or the noun list widens —
      a mid-line match WOULD make factors[0]!==k reachable, and then it is a real gate again. */
   {
-    key: "invQtyFirstRebase :: if(!w.factors || w.factors[0]!==k) return row;                  // k was not folded — nothing to undo :: logical ||>&& #0",
+    key: "invFixRow :: if(!w.factors || w.factors[0]!==k) return row;                  // k was not folded — nothing to undo :: logical ||>&& #0",
     reason: 'packWeight always returns a dense factors array (initialised [], only pushed to), so !w.factors is '
       + 'never true; and the entry regex is anchored at ^ with a container-noun list that is a subset of '
       + "packWeight's own multiplier alternatives, so a match at position 0 guarantees factors[0] === k. Measured "
