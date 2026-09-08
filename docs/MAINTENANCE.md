@@ -997,6 +997,23 @@ revoke execute on function public.business_team()        from anon;
 
 **It is a dashboard toggle, so it is Max's to flip** — one switch under Authentication → Policies. It is filed here rather than in the queue because nothing in the repo can do it and nothing is broken without it; `docs/GATE-REVIEW.md` (batch 210) reviewed the signup gates and did not cover this one, because the bullet naming it existed only on the unmerged café-creation branch at the time.
 
+### There is no inventory of the settings this app depends on that live OUTSIDE the repo
+
+Batch 238, 8 Sep 2026. Filed here rather than in the queue because the fix is a page of prose, and because the two live instances are each already recorded — what is missing is the list.
+
+**The prompt was a real defect that cost a real stranger their sign-up.** GoTrue's **Site URL** was still the factory default `http://localhost:3000` on the day self-service sign-up shipped, so every confirmation email verified the address correctly and then handed the browser to a machine that was not theirs. 238 fixed the client half (`authRedirectTo` names an origin explicitly) and the dashboard half is Max's click. **Nothing in this repo could have caught it, and that is not a gap in the suite** — the value lived in a Supabase dashboard field, so there was no file to read, no migration to grep and no MCP call that reaches it. A test asserting the app "sends a redirect" would have been green throughout, because the app did not send one and the default was doing the work.
+
+**Two of these are now known and they were found separately, years of versions apart, each by something breaking:**
+
+- the **auth URL configuration** — Site URL and the Redirect URLs allow-list (238);
+- **`auth_leaked_password_protection`**, the entry directly above (218).
+
+Both are one switch, both are Max's, and neither is discoverable from the repo. `GEMINI_API_KEY` in Vercel is a third of the same class, differing only in that `CLAUDE.md` happens to name it.
+
+**Requirements:** one file — `docs/EXTERNAL-CONFIG.md` — listing every setting the running app depends on that is not in git: what it is, where it lives, what it should be, how to check it by hand, and what breaks silently when it is wrong. It is a checklist, not a mechanism; the point is that a reader can go and look, which is currently impossible without knowing in advance that the field exists.
+⚠️ **`docs/GATE-REVIEW.md` (batch 210) reviewed the sign-up gates and missed BOTH of these**, which is the argument for the list rather than for another review: a review reads what is in front of it, and none of this is.
+⚠️ **Staging almost certainly carries the same default and nobody has looked.** A sign-up rehearsed there will land on `localhost:3000` exactly as production did — which means the flow this repo cannot test is also the flow staging cannot rehearse until that field is set on both projects.
+
 ### The café name limit is 60 in three places and only two of them count the same thing
 
 Found by batch 218's pre-push review, measured on both sides rather than reasoned:

@@ -332,6 +332,17 @@ Do not tidy it away.
 Also: **an anon UPDATE or DELETE returns 204 with NO error** and touches nothing.
 A caller checking only for an error would believe it had written.
 
+## Some of this app's behaviour is not in this repo at all, and nothing here can read it
+
+(Batch 238, 8 Sep 2026. A stranger's confirmation email sent them to `http://localhost:3000`.)
+
+**GoTrue's Site URL and Redirect URLs live in the Supabase dashboard.** There is no file, no migration, no table and no MCP call that reaches them. So when `signUp` shipped without an `emailRedirectTo`, every confirmation link inherited a factory default that no test could see, no grep could find and no review could read - and the account was created *correctly*, so nothing on any screen was wrong either. The defect lived entirely in the gap between two things that were each fine.
+
+**The tell: a flow where every artefact you can inspect is correct and the user still ends up somewhere wrong.** When you reach that, stop looking for the bug in the code and ask **which of this behaviour is decided somewhere I cannot read** - Supabase's auth settings, Vercel env vars, GitHub's branch protection, a DNS record. Then go and look at it by hand, because there is no other way.
+
+**And the corollary that is easy to get backwards: a client-side fix for an out-of-repo default is usually NECESSARY AND NOT SUFFICIENT.** GoTrue validates `emailRedirectTo` against its allow-list and **silently falls back to the Site URL** when it does not match - no error, no warning, no way to tell from the app that the option was ignored. So shipping the redirect is safe (its worst case is the old behaviour) and *proves nothing about whether it works*. Say so at the site, or the next reader will read a green suite as a working flow.
+`docs/MAINTENANCE.md` carries the item for writing these down; two are known and both were found by something breaking.
+
 ## Three foreign keys between the DATA tables, and only one can ever error
 
 ⚠️ **This heading said "Three foreign keys" until 13 Aug 2026, and the live count is MUCH HIGHER** - fifteen after **181** added `business_id → businesses` on all ten public tables plus two on `business_members`, eighteen after **191** added `business_invites`'s three, and **whatever it is when you read this.** (182 is the policy swap and the key widening and adds no foreign key at all; a first draft of this line credited it and was corrected by batch 194's pre-push review. Only two migrations have ever added one of these: `20260813_business_id_part1.sql` and `20260814_invitations.sql`.)
