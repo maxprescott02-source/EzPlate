@@ -78,16 +78,27 @@ function makeGate(present, opts) {
     // the 4s swap itself is exercised in the browser (it needs real elapsed time to mean anything).
     var setTimeout = function(fn, ms){ C.slowTimerMs = ms; return 1; };
     var clearTimeout = function(){ C.slowTimerCleared = (C.slowTimerCleared||0)+1; };
+    /* 238: the verdict read out of the URL at load. Injected as a VALUE rather than extracted with
+       its initialiser, because the shipped line calls captureAuthUrlError(location, history) and
+       this harness has neither — and faking those two here would put a stub between the test and
+       the decision it is checking. The parse and the wording are pinned against the real functions
+       in auth-url-error.test.js; what belongs HERE is the one thing only bootGate can answer:
+       whether reaching the sign-in state paints it, and whether reaching it again repaints it. */
+    var AUTH_URL_ERR = ${JSON.stringify((opts && opts.urlErr) || '')};
     ${extractVar(SRC, 'SIGNIN_MSG')}
     ${extractFn(SRC, 'gateErr')}
+    ${extractVar(SRC, '_authUrlErrShown')}
+    ${extractFn(SRC, 'paintAuthUrlError')}
     ${extractFn(SRC, 'bootGate')}
-    return { bootGate: bootGate, gateErr: gateErr, SIGNIN_MSG: SIGNIN_MSG };
+    return { bootGate: bootGate, gateErr: gateErr, SIGNIN_MSG: SIGNIN_MSG,
+             shown: function(){ return _authUrlErrShown; } };
   `)(nodes, calls, signOutResult);
   return { gate: nodes.bootGate, msg: nodes.bootGateMsg, retry: nodes.bootGateRetry,
            out: nodes.bootGateOut, form: nodes.bgSignForm, err: nodes.bgErr, email: nodes.bgEmail,
            brand: nodes.bootGateBrand,
            cafeForm: nodes.bgCafeForm, cafeNote: nodes.bgCafeNote, cafeName: nodes.bgCafeName,
-           run: api.bootGate, gateErr: api.gateErr, SIGNIN_MSG: api.SIGNIN_MSG, calls };
+           run: api.bootGate, gateErr: api.gateErr, SIGNIN_MSG: api.SIGNIN_MSG,
+           urlErrShown: api.shown, calls };
 }
 
 test('loading shows the gate, with no retry offered yet', () => {
@@ -603,4 +614,66 @@ test('186: signing out ELSEWHERE mid-session still surfaces, exactly like a revo
   assert.strictEqual(g.gate.hidden, false, 'a working-looking app on a dead session is the silent failure');
   assert.strictEqual(g.form.hidden, false, 'and the way back in must be offered');
   assert.strictEqual(g.msg.textContent, g.SIGNIN_MSG);
+});
+
+/* ---- 238: the verdict from a confirmation link, painted onto the screen that can act on it ----
+ *
+ * `captureAuthUrlError` reads GoTrue's answer out of the URL at load; its parse and its wording are
+ * pinned in auth-url-error.test.js. What only bootGate can answer is the timing, and the timing is
+ * where 209 was bitten on this exact branch: the sign-in state is re-entered on every re-sync that
+ * reaches it, so anything painted here has to be a ONE-SHOT or it walks over live state.
+ */
+
+test('238: a dead confirmation link is explained on the sign-in screen', () => {
+  const g = makeGate(true, { urlErr: 'That link has already been used.' });
+  assert.strictEqual(g.err.hidden, true, 'nothing is said before the gate exists');
+  g.run('signin');
+  assert.strictEqual(g.err.hidden, false, 'a bare form with no explanation is the defect');
+  assert.strictEqual(g.err.textContent, 'That link has already been used.');
+});
+
+test('238: an ordinary boot is never accused of a broken link', () => {
+  /* The overwhelmingly common case, and the one a careless painter breaks: every signed-out visitor
+     who has clicked nothing at all reaches this same state. */
+  const g = makeGate(true, { urlErr: '' });
+  g.run('signin');
+  assert.strictEqual(g.err.hidden, true);
+  assert.strictEqual(g.err.textContent, '');
+  assert.strictEqual(g.urlErrShown(), false, 'and the one-shot is not spent by a boot with nothing to say');
+});
+
+test('238: ⚠️ ONE SHOT — a re-sync must not repaint it over a live sign-in error', () => {
+  /* THE DEFECT THIS PINS, and it is 209's on the branch next door rather than a hypothetical.
+     bootGate('signin') runs again on every `online` blip and every pull-to-refresh. Someone who has
+     read the link message, typed their password and got it wrong is now looking at "Invalid login
+     credentials" — and a repaint would replace that with a stale complaint about a link they have
+     already dealt with, at the exact moment they need the other message. */
+  const g = makeGate(true, { urlErr: 'That link has already been used.' });
+  g.run('signin');
+  assert.strictEqual(g.urlErrShown(), true, 'said once');
+  g.gateErr('Invalid login credentials');
+  g.run('signin');                          // an online blip, mid-typing
+  assert.strictEqual(g.err.textContent, 'Invalid login credentials',
+    'the live error survives; the spent one does not come back');
+});
+
+test('238: it is not painted onto screens that cannot act on it', () => {
+  /* 'nomember' and 'error' call hideForms() and have their own message. A link complaint there
+     would be an answer to a question the user is no longer asking. */
+  const g = makeGate(true, { urlErr: 'That link has already been used.' });
+  g.run('loading');
+  assert.strictEqual(g.err.hidden, true);
+  g.run('nomember', 'x');
+  assert.strictEqual(g.err.hidden, true);
+  assert.strictEqual(g.urlErrShown(), false, 'and the one shot is still in hand for the sign-in screen');
+  g.run('signin');
+  assert.strictEqual(g.err.hidden, false, 'which is where it is spent');
+});
+
+test('238: a cached index.html with no bgErr degrades to silence, not a throw', () => {
+  /* The network-first service worker fetches index.html and js/app.js as two requests, so a newer
+     app.js against an older cached page is a real state. gateErr already no-ops on a missing
+     element; this pins that paintAuthUrlError does not reach past it. */
+  const g = makeGate(true, { urlErr: 'That link has already been used.', omit: ['bgErr'] });
+  assert.doesNotThrow(() => { g.run('signin'); g.run('signin'); });
 });

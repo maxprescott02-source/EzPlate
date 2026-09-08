@@ -164,6 +164,98 @@ function uid(prefix){
        + '-' + _uidSeq.toString(36) + '-' + uidRandom(8);
 }
 
+/* ---- 238: WHAT A DEAD CONFIRMATION LINK SAYS, AND WHY IT IS READ *HERE* ----------------------
+   Supabase's `/auth/v1/verify` endpoint answers a confirmation link by redirecting the browser
+   back to the app with its verdict in the URL FRAGMENT — `#access_token=…` when it worked, and
+   `#error=access_denied&error_code=otp_expired&error_description=…` when it did not. Until this
+   batch nothing in this app read the second kind, so a stranger who clicked a dead link landed on
+   the plain sign-in gate with no explanation at all: a form, where an answer belonged.
+
+   ⚠️ THE MEASURED CASE IS NOT "EXPIRED", IT IS "ALREADY USED", AND THAT IS WHY THE COPY NAMES
+   BOTH. A confirmation token is SINGLE-USE. The 8 Sep 2026 report that commissioned this read as a
+   broken sign-up, and `auth.users` said the opposite — created 06:50:05, `email_confirmed_at`
+   06:50:23 — so the FIRST click had worked perfectly and it was the second that returned
+   `otp_expired`. GoTrue returns that one code for both, and it cannot tell them apart either, so a
+   message naming only expiry would be a confident guess at the less likely half. The action is the
+   same in both cases and is what the sentence leads with: try signing in.
+
+   ⚠️ CAPTURED BEFORE `createClient` BELOW, AND THE FIRST DRAFT OF THIS COMMENT GOT THE REASON
+   WRONG, which is worth writing out because the wrong reason was the more plausible one. It said
+   supabase-js clears this fragment, so reading later would race it. Measured against the pinned
+   build (2.110.8, read off the CDN rather than reasoned about): `_initialize` calls
+   `_getSessionFromURL`, which THROWS on an `error_description` or `error_code` — several hundred
+   bytes BEFORE the `history.replaceState` that tidies the URL. So it clears the SUCCESS fragment
+   and never the error one; there was no race to lose. `_initialize` then swallows that throw into
+   an `{error}` return this app never reads, which is why nothing surfaced anywhere.
+   The order is still right, for two reasons that survive the correction. Reading synchronously,
+   above the client, means ONE reader owns the fragment and sees it exactly as the browser
+   delivered it, whatever a future supabase-js does with it — this file's default rather than a
+   claim about someone else's code. And clearing it here means `_getSessionFromURL` never throws
+   in the first place, so the library stops manufacturing an error object nobody consumes.
+   `flowType` defaults to `implicit` in that build, which is why the verdict arrives in the
+   fragment at all; the query branch below is for the day that changes.
+
+   ⚠️ AND IT STRIPS THE HASH BUT NEVER THE SEARCH, which is not fastidiousness — `index.html` reads
+   `?env=staging` out of `location.search` to pick the PROJECT, above the theme resolver and long
+   before this file is fetched. Rewriting the URL to a bare pathname would therefore kick a staging
+   session silently back to production on its next boot, which is the accident the whole staging
+   item exists to prevent. So the fragment is cleaned (a refresh should not re-accuse a link the
+   user has already been told about) and everything left of the `#` is returned untouched. When the
+   error arrives in the QUERY instead — the PKCE flow's shape, which this app does not use today —
+   the message is still shown and the URL is left exactly as it came, because guessing which of a
+   stranger's query keys are ours is the same mistake one step further on. */
+function authUrlParams(str){
+  var out={}, s=String(str||'').replace(/^[#?]/,'');
+  if(!s) return out;
+  s.split('&').forEach(function(kv){
+    if(!kv) return;
+    var i=kv.indexOf('='), k=(i<0?kv:kv.slice(0,i)), v=(i<0?'':kv.slice(i+1));
+    if(!k) return;
+    /* `+` is a SPACE here and `decodeURIComponent` does not know that — it is form encoding, not
+       percent encoding, and GoTrue sends `Email+link+is+invalid+or+has+expired`. Decoding without
+       this shows the user the plus signs. */
+    try{ out[decodeURIComponent(k)]=decodeURIComponent(v.replace(/\+/g,' ')); }catch(e){ out[k]=v; }
+  });
+  return out;
+}
+/* The DECISION, extracted rather than inlined at the capture site, for this repo's standing reason:
+   a test that re-implements it agrees with whatever the code believes. It takes a plain object so
+   the test and the app read the same function without a fake `location` between them. */
+function authUrlErrorMessage(p){
+  if(!p) return '';
+  var code=p.error_code||'', err=p.error||'', desc=p.error_description||'';
+  if(!code && !err && !desc) return '';
+  if(code==='otp_expired' || /expired/i.test(desc)){
+    return 'That confirmation link has already been used, or it has expired. If you’ve already confirmed your email, sign in below — otherwise sign up again and we’ll send a new one.';
+  }
+  /* The server's own words when it has any, for `authSubmit`'s reason: a friendly guess is how
+     somebody spends ten minutes on a problem the server had already named.
+     ⚠️ `err` IS DELIBERATELY NOT IN THIS CHAIN, and the first cut had it there. `error` is an enum
+     — `access_denied`, `server_error` — written for a log rather than for a person, so falling
+     back to it shows a café owner a word they cannot act on where a sentence belongs. It earns its
+     place in the emptiness test above, which is the question it can actually answer: was there a
+     verdict here at all? The mutation gate is what turned that up: with `err` in the chain the
+     branch was unreachable in every shape GoTrue sends, so two mutants on this line were equivalent
+     and no assertion could have killed them. Dead code and an unkillable mutant are the same
+     finding seen from two sides. */
+  return desc || 'That link could not be used. Sign in below, or sign up again for a new one.';
+}
+function captureAuthUrlError(loc, hist){
+  if(!loc) return '';
+  var hp=authUrlParams(loc.hash), sp=authUrlParams(loc.search);
+  var inHash=!!(hp.error || hp.error_code || hp.error_description);
+  var msg=authUrlErrorMessage(inHash ? hp : sp);
+  if(!msg) return '';
+  if(inHash && !hp.access_token && hist && typeof hist.replaceState==='function'){
+    try{ hist.replaceState(null, '', (loc.pathname||'') + (loc.search||'')); }catch(e){}
+  }
+  return msg;
+}
+var AUTH_URL_ERR = captureAuthUrlError(
+  (typeof location!=='undefined') ? location : null,
+  (typeof history!=='undefined') ? history : null
+);
+
 /* ================== Supabase data layer (single source of truth) ==================
    Local storage is kept only as an OFFLINE MIRROR so the app still opens and search
    still works with no signal. On every load we replace the mirror with server data. */
@@ -702,6 +794,7 @@ function bootGate(state, msg){
       var em=document.getElementById('bgEmail');
       if(em && typeof em.focus==='function'){ try{ em.focus(); }catch(e){} }
     }
+    paintAuthUrlError();                                    // 238: why the link they clicked did nothing — see the function
     return;
   }
   if(_bootSlowTimer){ clearTimeout(_bootSlowTimer); _bootSlowTimer=null; }   // v115 (review): the patient message must never overwrite an error — cleared here, not just guarded
@@ -7485,7 +7578,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v195';
+var APP_VERSION='v196';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -7621,10 +7714,49 @@ async function authSignIn(email, password){
    WHAT STILL MAKES AN UNINVITED ACCOUNT SURVIVABLE is unchanged and is 186 and 182 rather than
    anything here: an account that joins no café answers NULL from `current_business_id()` and every
    read comes back empty. What 209 adds is that it can now DO something about that. */
+/* ---- 238: WHERE THE CONFIRMATION EMAIL POINTS ------------------------------------------------
+   Until this batch `signUp` was called with no `emailRedirectTo`, so every confirmation link
+   inherited the PROJECT'S "Site URL" — a dashboard field this repo cannot see, cannot state and
+   cannot test, and which was still GoTrue's factory default `http://localhost:3000` on the day
+   self-service sign-up shipped. Every stranger who confirmed an address was therefore verified
+   correctly and then handed to a machine that was not theirs. The account worked; the journey to
+   it did not, which is why nothing on any screen and nothing in the suite could notice.
+
+   ⚠️ THIS IS THE BELT AND THE DASHBOARD IS THE BRACES — it does NOT stand alone, and reading it as
+   the fix is the trap. GoTrue validates `emailRedirectTo` against the project's Redirect URLs
+   allow-list and SILENTLY FALLS BACK to the Site URL when it does not match: no error, no warning,
+   and a link that still lands wherever the dashboard says. So the worst case here is exactly
+   today's behaviour, which is what makes it safe to ship on its own — and the allow-list entry is
+   what makes it WORK.
+   ⚠️ THAT ENTRY IS NOT MADE BY THIS REPO AND CANNOT BE CHECKED FROM IT. GoTrue's URL configuration
+   lives in the Supabase dashboard; there is no migration, no table and no MCP call that reaches it,
+   so no test in this suite can tell you whether it is right — which is precisely how the default
+   survived from the day self-service sign-up shipped until a stranger hit it. The handover records
+   what has to be set and by whom. Treat this function as necessary and not sufficient.
+
+   WHY IT IS COMPUTED RATHER THAN A LITERAL. A hardcoded production URL would send every local and
+   preview sign-up to production, and the staging project exists precisely so that flows can be
+   rehearsed somewhere that is not Max's café. `location` already knows which build is asking, and
+   an origin that is not allow-listed degrades to the fallback above rather than to a wrong café.
+   The directory rather than the file — `/index.html` and `/` must produce the same entry, or the
+   allow-list has to carry both spellings to mean one place. */
+function authRedirectTo(loc){
+  try{
+    var l=loc || ((typeof location!=='undefined') ? location : null);
+    /* `file:` has no meaningful origin (`"null"` as a STRING, which is truthy and would be sent
+       verbatim); anything that is not http(s) cannot be a redirect target either. Returning null
+       omits the option entirely, which is the pre-238 call and a documented fallback. */
+    if(!l || !/^https?:$/i.test(l.protocol||'') || !l.origin) return null;
+    return l.origin + String(l.pathname||'/').replace(/[^\/]*$/, '');
+  }catch(e){ return null; }
+}
 async function authSignUp(email, password){
   if(!SUPA || !SUPA.auth || !SUPA.auth.signUp) return {error:{message:'No connection to the server.'}};
   try{
-    var r=await SUPA.auth.signUp({email:email, password:password});
+    var back=authRedirectTo();
+    var r=await SUPA.auth.signUp(back
+      ? {email:email, password:password, options:{emailRedirectTo:back}}
+      : {email:email, password:password});
     if(r && r.error) return {error:r.error};
     return {data:r && r.data};
   }catch(e){ return {error:{message:errText(e)}}; }
@@ -7867,6 +7999,35 @@ function authErr(msg){
 function gateErr(msg){
   var e=document.getElementById('bgErr'); if(!e) return;
   e.textContent=msg||''; e.hidden=!msg;
+}
+
+/* 238 — the verdict `captureAuthUrlError` read out of the URL at load, painted onto the one screen
+   that can act on it. Called from the 'signin' branch of `bootGate` rather than at load, because
+   at load there is no gate yet to write into.
+
+   ⚠️ ONE SHOT, AND THE LATCH IS ITS OWN VARIABLE RATHER THAN `bgErr`'s STATE — 209's lesson, which
+   cost that batch a stolen caret and a cleared message. `bootGate('signin')` runs again on every
+   re-sync that reaches it (an `online` blip, a pull-to-refresh), and the surrounding branch is
+   built entirely on "shown, never reset" for that reason. Reading `bgErr` to decide whether to
+   paint would make the test a statement about THIS call — the element is empty again the moment
+   anything else clears it — and would then re-accuse the link over the top of a live error from a
+   sign-in the user has since attempted. A dedicated flag says what is meant: this was said once.
+
+   It is deliberately silent when nobody needs it: a dead link clicked by someone ALREADY signed in
+   never reaches this state, and that is right — they are in the app, and the link was redundant
+   rather than broken.
+
+   ⚠️ IT RETURNS NOTHING, and the first cut returned a boolean nobody read. The mutation gate is
+   what made that visible: flipping either literal survived every test, because a value no caller
+   consumes cannot be observed through a caller. The honest fix is to delete it rather than to
+   assert it into significance — a test written only to give a dead return a witness is this repo's
+   own defect class wearing the gate's badge. What the batch actually needs to observe is the LATCH,
+   and boot-gate.test.js reads that directly. */
+var _authUrlErrShown=false;
+function paintAuthUrlError(){
+  if(_authUrlErrShown || !AUTH_URL_ERR) return;
+  _authUrlErrShown=true;
+  gateErr(AUTH_URL_ERR);
 }
 
 /* 186 — ONE submit sequence, worn by TWO forms: the Account card's and the boot gate's.
