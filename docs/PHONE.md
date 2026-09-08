@@ -971,3 +971,29 @@ pre-push review found the first cut of that breaking **explicitly rated lines** 
 delivered-weight column) — the shape weighed goods like meat actually use. That is fixed and tested,
 but the test fixtures are invented lines; yours are real. **Pay particular attention to any line
 priced per kg with a weight column**, and to whether its price matches the invoice.
+
+## v196 — the sign-up confirmation email, on a real inbox (batch 238)
+
+⚠️ **THIS CHECK IS THE ONLY THING THAT CAN PROVE THE HALF THE REPO CANNOT TEST**, which is why it
+is here rather than in a spec. GoTrue's **Site URL** and **Redirect URLs** live in the Supabase
+dashboard, not in git — no test, grep or review can read them — and GoTrue **silently falls back**
+to the Site URL when a redirect is not allow-listed. So the suite is green either way, and a real
+email is the only signal.
+
+**DO THE DASHBOARD SETTING FIRST or this check cannot pass.** Supabase → Authentication → URL
+Configuration: **Site URL** `https://scoopyscosting.vercel.app`, and add
+`https://scoopyscosting.vercel.app/**` to **Redirect URLs**.
+
+**Do this:** sign up with a fresh address you can read, and click the link in the email.
+**Pass:** it opens `scoopyscosting.vercel.app` and you land on the "name your café" screen.
+**Fail:** it opens `localhost:3000`, or anything with `#error=` still in the address bar — that
+means the dashboard entry did not take, and the client's redirect was ignored without saying so.
+
+**Then click the SAME link a second time.**
+**Pass:** the sign-in screen carries a line saying the link has already been used or expired, and
+telling you to sign in. **Fail:** a bare sign-in form with no explanation — which is the defect this
+batch was reported for.
+
+⚠️ **`maxgrailed820@gmail.com` already exists and is CONFIRMED** (8 Sep 2026, no café yet). It is
+not broken and does not need deleting — it can sign in today. Use a different fresh address for the
+test above, so the confirmation link is a live one.
