@@ -172,6 +172,29 @@ const targets = [
   // password off the network, and its two settle paths are what keep the button alive on the one
   // screen with nothing else on it.
   { fn: 'authSubmit', tests: ['auth.test.js'] },
+  /* 238: THE CONFIRMATION LINK, both ends of it, and they are targets from the hour they were
+     written for 184's reason — the cheapest moment to add one is the moment it acquires a test
+     worth protecting. Every failure here is silent in the way this repo keeps being burned by:
+     nothing on any screen can tell you the email pointed at the wrong machine, and nothing in the
+     suite could, because the destination used to live in a Supabase dashboard field this repo
+     cannot read. It took a real stranger's sign-up to surface it.
+     authRedirectTo: its `file:`/non-http guard is the whole of the degraded arm. A mutant that
+     lets a bad origin through sends the literal string "null" into a confirmation email; one that
+     refuses a good one silently restores the pre-238 defect, with the new code sitting there
+     reading correctly. Both arms are pinned, in two files on purpose.
+     captureAuthUrlError: `inHash` decides WHICH URL half gets rewritten, and the mutant that
+     matters strips `?env=staging` — returning a rehearsal to Max's real café, which is the exact
+     accident the staging project exists to prevent. The `!hp.access_token` clause is the other
+     one: dropping it rewrites a SUCCESSFUL confirmation out from under supabase-js.
+     authUrlErrorMessage / paintAuthUrlError: the wording's `||` chain falls back to the server's
+     own words, and the painter's one-shot latch is 209's defect on the branch next door — a
+     mutant that flips it repaints a stale link complaint over a live sign-in error on every
+     `online` blip, which is invisible until somebody mistypes a password on a train. */
+  { fn: 'authRedirectTo', tests: ['auth-url-error.test.js', 'auth.test.js'] },
+  { fn: 'authUrlParams', tests: ['auth-url-error.test.js'] },
+  { fn: 'authUrlErrorMessage', tests: ['auth-url-error.test.js'] },
+  { fn: 'captureAuthUrlError', tests: ['auth-url-error.test.js'] },
+  { fn: 'paintAuthUrlError', tests: ['boot-gate.test.js'] },
   // 188: the role. Every one of these defaults the OPPOSITE way to the tenant gate above — the
   // server refuses a non-owner regardless, so the client's job is to avoid offering a button that
   // fails, and being wrong toward "owner" costs a toast while being wrong toward "staff" hides four
@@ -390,6 +413,26 @@ const targets = [
  * removes is how a list like this rots into permission to ignore everything.
  */
 const allowedSurvivors = [
+  /* 238 — authUrlParams' VALUE ternary, `i<0` -> `i<=0`. The two ternaries on that line take the
+     same test and only ONE of them is observable, which is why the key's `#1` matters: `#0` is the
+     KEY ternary and is killed by an assertion (a `=foo` pair must not become the key `"=foo"`).
+     `#1` is the value, and it is equivalent in every reachable state, measured rather than argued.
+     The two differ only at `i === 0` — a pair whose `=` is the first character. At `i === 0` the
+     key is `kv.slice(0, 0)`, the empty string, so the very next statement is `if(!k) return;` and
+     the value is discarded before anything can read it. At `i < 0` (no `=` at all) both conditions
+     are true and both yield `''`; at `i > 0` both are false and both slice from `i + 1`. There is
+     no input that distinguishes them, so no assertion can kill it.
+     ⚠️ IT IS NOT DELETED, because the ternary is what makes the `!k` guard SAFE rather than
+     redundant: reordering so the value is computed after the guard would leave the same mutant and
+     lose the property that this function never slices past the end of a pair it has rejected. */
+  {
+    key: "authUrlParams :: var i=kv.indexOf('='), k=(i<0?kv:kv.slice(0,i)), v=(i<0?'':kv.slice(i+1)); :: relational <><= #1",
+    reason: 'Equivalent in every reachable state, measured: the two conditions differ only at i===0, where the key '
+      + 'is the empty string and `if(!k) return;` discards the pair before the value is read. At i<0 both yield "" '
+      + 'and at i>0 both slice from i+1. No input distinguishes them. The sibling #0, on the KEY, is killed by an '
+      + 'assertion in auth-url-error.test.js.',
+  },
+
   /* 237 — invPackWeight's null guard. `(row && row.name)` -> `(row || row.name)`. MEASURED
      equivalent in every reachable state rather than argued: with a truthy row the two agree by
      definition; with row null/undefined the mutant's `(null || undefined)` is falsy, so both

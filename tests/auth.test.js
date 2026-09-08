@@ -268,13 +268,25 @@ test('209: sign-up is SELF-SERVICE — no invitation gate anywhere on the path',
       rpc: function(){ S.rpcs++; throw new Error('fixture: nothing on the sign-up path may ask the server a question first'); }
     };
     ${extractFn(SRC, 'errText')}
+    var location = null;   // 238: pinned, not inherited — see the note at the deepEqual below
+    ${extractFn(SRC, 'authRedirectTo')}
     ${extractFn(SRC, 'authSignUp')}
     return authSignUp;
   `)(S);
   const r = await signUp('stranger@example.com', 'pw123456');
   assert.ok(!r.error && r.data, 'an uninvited address signs up: ' + JSON.stringify(r.error || {}));
+  /* ⚠️ 238 KEPT THIS EXACT-EQUALITY ASSERTION AND PINNED THE THING THAT MAKES IT TRUE, rather than
+     loosening it to accommodate a new key. `authSignUp` now sends `options.emailRedirectTo` when it
+     can work out where the app is; the harness above declares `var location = null` so it cannot,
+     which is the DEGRADED call — and the degraded call must stay byte-for-byte what shipped before
+     this batch, because it is what a `file:` open and every non-http context still send.
+     `location` is pinned rather than inherited from the runtime on purpose: node has no global
+     `location` today, so leaving it out would pass for the right reason now and silently start
+     testing a different branch the day that changes. The ALLOWED shape — options present, pointing
+     at this origin's directory — is pinned in auth-url-error.test.js against the same real
+     function; the two arms live apart so neither can be quietly satisfied by the other. */
   assert.deepEqual(S.signUps, [{ email: 'stranger@example.com', password: 'pw123456' }],
-    'with the address and password it was given, unchanged');
+    'with the address and password it was given, unchanged — and no options key when there is no origin to name');
   assert.equal(S.rpcs, 0, 'and nothing on this path asks the server anything first');
 
   /* 2. NO CLIENT AT ALL must RETURN an error, never throw. Inherited from the deleted
@@ -287,6 +299,8 @@ test('209: sign-up is SELF-SERVICE — no invitation gate anywhere on the path',
     "use strict";
     var SUPA = null;
     ${extractFn(SRC, 'errText')}
+    var location = null;   // 238: pinned, not inherited — see the note at the deepEqual below
+    ${extractFn(SRC, 'authRedirectTo')}
     ${extractFn(SRC, 'authSignUp')}
     return authSignUp;
   `)();
@@ -300,6 +314,8 @@ test('209: sign-up is SELF-SERVICE — no invitation gate anywhere on the path',
     "use strict";
     var SUPA = { auth: {} };
     ${extractFn(SRC, 'errText')}
+    var location = null;   // 238: pinned, not inherited — see the note at the deepEqual below
+    ${extractFn(SRC, 'authRedirectTo')}
     ${extractFn(SRC, 'authSignUp')}
     return authSignUp;
   `)();
