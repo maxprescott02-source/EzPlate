@@ -179,11 +179,21 @@ function uid(prefix){
    message naming only expiry would be a confident guess at the less likely half. The action is the
    same in both cases and is what the sentence leads with: try signing in.
 
-   ⚠️ CAPTURED BEFORE `createClient` BELOW, AND THE ORDER IS LOAD-BEARING. supabase-js reads the
-   same fragment for its own purposes and clears it, so a reader that ran after the client was
-   constructed would race it for the only copy of the answer and usually lose. Reading first costs
-   nothing and cannot lose: an error fragment carries no session, so there is nothing here for the
-   client to have wanted.
+   ⚠️ CAPTURED BEFORE `createClient` BELOW, AND THE FIRST DRAFT OF THIS COMMENT GOT THE REASON
+   WRONG, which is worth writing out because the wrong reason was the more plausible one. It said
+   supabase-js clears this fragment, so reading later would race it. Measured against the pinned
+   build (2.110.8, read off the CDN rather than reasoned about): `_initialize` calls
+   `_getSessionFromURL`, which THROWS on an `error_description` or `error_code` — several hundred
+   bytes BEFORE the `history.replaceState` that tidies the URL. So it clears the SUCCESS fragment
+   and never the error one; there was no race to lose. `_initialize` then swallows that throw into
+   an `{error}` return this app never reads, which is why nothing surfaced anywhere.
+   The order is still right, for two reasons that survive the correction. Reading synchronously,
+   above the client, means ONE reader owns the fragment and sees it exactly as the browser
+   delivered it, whatever a future supabase-js does with it — this file's default rather than a
+   claim about someone else's code. And clearing it here means `_getSessionFromURL` never throws
+   in the first place, so the library stops manufacturing an error object nobody consumes.
+   `flowType` defaults to `implicit` in that build, which is why the verdict arrives in the
+   fragment at all; the query branch below is for the day that changes.
 
    ⚠️ AND IT STRIPS THE HASH BUT NEVER THE SEARCH, which is not fastidiousness — `index.html` reads
    `?env=staging` out of `location.search` to pick the PROJECT, above the theme resolver and long
