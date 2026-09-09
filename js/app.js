@@ -4327,9 +4327,17 @@ function changeName(e){
 }
 /* ⚠️ 251 — WHAT KIND OF CHANGE THIS ROW IS, which the card never said. QUEUE item 55's second half.
    Every row here is a PLATE COST movement — that is not a design choice, it falls out of the filter
-   below needing both cost figures, and only two writers supply both. So the card was five rows of
-   "«plate» · 3 days ago · +$5.00" with nothing saying whether the cost moved because the plate's
-   ingredients were edited, because the plate was new, or because a stranded line was linked.
+   below needing both cost figures. So the card was five rows of "«plate» · 3 days ago · +$5.00"
+   with nothing saying whether the cost moved because the plate's ingredients were edited or because
+   a stranded line was linked.
+   ⚠️ EXACTLY TWO EVENTS CAN REACH THIS CARD, AND "New plate" IS NOT ONE OF THEM. The first cut of
+   this function had a `plate_created` → 'New plate' branch and it was DEAD: `saveCurrentPlate`
+   chooses that kind with `_isNew=(_costBefore==null)`, so a `plate_created` entry carries a null
+   costBefore BY CONSTRUCTION, and the filter below drops every entry without both figures. The
+   branch could be called and could never return. Removed rather than kept, on the same reasoning
+   that removed `plateIdOf`'s third branch in v112 — a case that cannot fire reads as coverage and
+   is not. Found by the pre-push review; `tests/dash-recent.test.js` now pins the writer invariant
+   that makes it unreachable, so the day somebody gives a new plate a costBefore, something says so.
    ⚠️ THE WORDS ARE CONSTRAINED, and the first draft of this shipped a forbidden one. "Recipe" names
    nothing in this app (CLAUDE.md Tier 2: the four object nouns are Product, Ingredient, Plate,
    Menu), and `tests/terminology.test.js` refused it — which is that guard doing precisely its job on
@@ -4344,7 +4352,6 @@ function changeKindWord(e){
   if(!e) return '';
   var d=(e.detail && typeof e.detail==='object') ? e.detail : {};
   if(d.via==='orphan-link') return 'Line linked';
-  if(e.kind==='plate_created') return 'New plate';
   if(e.kind==='plate_edited') return 'Ingredients';
   return '';
 }

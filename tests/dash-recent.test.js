@@ -222,9 +222,14 @@ test('251: …and the entries that DO render still colour by effect on food cost
 });
 
 test('251: the row says what kind of change it was, read from detail and not from kind alone', () => {
+  /* ⚠️ TWO EVENTS, NOT THREE, AND THE FIRST DRAFT OF THIS TEST HAD A THIRD THAT CANNOT EXIST.
+     It asserted a 'New plate' word using a `plate_created` entry with `costBefore: 0` — a shape no
+     writer can produce. `saveCurrentPlate` picks that kind with `_isNew=(_costBefore==null)`, so a
+     `plate_created` entry ALWAYS carries a null costBefore, and the filter drops it. The fixture
+     violated the writer's own invariant, so the test was green about something unreachable, and it
+     contradicted the "only ONE cost figure is dropped" test in this same file without saying so.
+     Found by the pre-push review. The invariant is now pinned below rather than assumed. */
   const api = harness({ log: [
-    entry({ id: 'A', t: 1e12 - DAY, kind: 'plate_created', plateId: 'P1',
-            costBefore: 0, costAfter: 4, detail: { name: 'New one' } }),
     entry({ id: 'B', t: 1e12 - 2 * DAY, kind: 'plate_edited', plateId: 'P2',
             costBefore: 3, costAfter: 5, detail: { name: 'Edited one' } }),
     /* ⚠️ THE SAME KIND, A DIFFERENT EVENT — 249's orphan link writes `plate_edited` too, and
@@ -233,8 +238,40 @@ test('251: the row says what kind of change it was, read from detail and not fro
     entry({ id: 'C', t: 1e12 - 3 * DAY, kind: 'plate_edited', plateId: 'P3',
             costBefore: 2, costAfter: 6, detail: { name: 'Linked one', via: 'orphan-link' } }),
   ] });
-  assert.deepEqual(api.rows(null).map((r) => r.kindWord), ['New plate', 'Ingredients', 'Line linked'],
-    'three events, three words, and the two sharing a kind are still told apart');
+  assert.deepEqual(api.rows(null).map((r) => r.kindWord), ['Ingredients', 'Line linked'],
+    'two events sharing one kind, still told apart');
+});
+
+test('251: a NEW plate cannot reach this card, which is why there is no word for it', () => {
+  /* The reason the branch was removed, asserted rather than remembered — as the entry a real writer
+     produces, not as a fixture invented to make a label appear. */
+  const api = harness({ log: [entry({
+    kind: 'plate_created', costBefore: null, costAfter: 4, detail: { name: 'Brand new' },
+  })] });
+  assert.deepEqual(api.rows(null), [], 'no costBefore, so no delta, so no row');
+});
+
+test('251: and the WRITER is what makes that true, so the day it changes something says so', () => {
+  /* ⚠️ THE UNREACHABILITY IS A PROPERTY OF ANOTHER FUNCTION, and properties change. `changeKindWord`
+     has no branch for `plate_created` because `saveCurrentPlate` chooses that kind exactly when
+     costBefore is null. If that link is ever broken — someone defaulting `_costBefore` to 0, say —
+     new plates start reaching the card UNLABELLED, which is quiet. This is the coupling check that
+     names it. A source assertion, and labelled as one; the behaviour is pinned by the test above. */
+  const src = extractFn(APP, 'saveCurrentPlate').replace(/\/\*[\s\S]*?\*\//g, '')
+    .split('\n').map((l) => l.replace(/(^|[^:])\/\/.*$/, '$1')).join('\n');
+  assert.match(src, /_isNew\s*=\s*\(_costBefore\s*==\s*null\)/,
+    'plate_created is chosen exactly when there is no costBefore');
+  assert.match(src, /_isNew\s*\?\s*'plate_created'\s*:\s*'plate_edited'/,
+    'and that is still what picks the kind');
+  assert.match(src, /costBefore\s*:\s*_costBefore/,
+    'and the SAME variable is what gets logged — otherwise the two could say different things');
+  /* ⚠️ AND IT IS ASSIGNED EXACTLY ONCE. The three assertions above all survive a REASSIGNMENT
+     between the choice and the write (`_costBefore = _costBefore || 0`), which is precisely the
+     change that would start sending new plates to the card unlabelled — I tried it, and the first
+     draft of this test stayed green. Counting the assignments is what closes that. */
+  const assigns = (src.match(/_costBefore\s*=(?!=)/g) || []).length;
+  assert.strictEqual(assigns, 1,
+    '_costBefore is set once, at the top; a second assignment can break the invariant silently');
 });
 
 test('251: a kind this cannot name says NOTHING rather than guessing', () => {
@@ -267,8 +304,8 @@ test('251: a malformed detail is a blank word, not a throw', () => {
 });
 
 test('251: the word reaches the markup, before the relative day', () => {
-  const api = harness({ log: [entry({ kind: 'plate_created', costBefore: 0, costAfter: 4 })] });
+  const api = harness({ log: [entry({ kind: 'plate_edited', costBefore: 0, costAfter: 4 })] });
   const html = api.html(null, 30);
-  assert.match(html, /New plate/, 'the word is on screen, not just in the row object');
-  assert.match(html, /New plate\s*·/, 'and sits before the relative day, separated');
+  assert.match(html, /Ingredients/, 'the word is on screen, not just in the row object');
+  assert.match(html, /Ingredients\s*·/, 'and sits before the relative day, separated');
 });
