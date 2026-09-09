@@ -3829,6 +3829,35 @@ function relDayLabel(ms){
   var mo=Math.round(d/30);
   return mo+' month'+(mo===1?'':'s')+' ago';
 }
+/* 241 (item 18) — THE DISHES THE HEADLINE LEAVES OUT, NAMED.
+   The bound is only half a fix. A figure that silently drops a dish is the same class of defect as
+   one that silently includes it: both are a number nobody can reconcile against the menu in front of
+   them. So every dish the average refuses is listed here, by name, with what it costs and what it
+   sells for — which is enough to see the typo without opening anything.
+   ⚠️ IT IS DELIBERATELY NOT A VERDICT AND CARRIES NO COLOUR. `CLAUDE.md`'s colour law is that a tint
+   means "against target", and this dish has no meaningful position against target — that is exactly
+   why it was excluded. Calling it "check the price" rather than flagging it red says what is known
+   (this number cannot be right) without implying what is not (that the margin is bad).
+   The copy names PLATES, never "dishes" or "recipes" — the four object nouns, and no fifth. */
+function mispricedHtml(scope){
+  var bad=(typeof mispricedDishes==='function')?mispricedDishes(scope):[];
+  if(!bad.length) return '';
+  bad.sort(function(a,b){ return b.pct-a.pct; });
+  var n=bad.length;
+  return '<section class="dash-sec dash-mispriced">'
+    +'<div class="ds-head"><h2>Check the price</h2></div>'
+    +'<p class="hint mp-why">'+(n===1?'This plate is':n+' plates are')+' left out of every figure above'
+    +' — '+(n===1?'its':'their')+' food cost is over '+FOOD_COST_SANE_MAX+'%, which is a sell price that needs a look'
+    +' rather than a margin to fix.</p>'
+    +'<ul class="mv-list">'+bad.map(function(b){
+      return '<li class="mv-row"><span class="mv-main">'
+        +'<span class="mv-name">'+esc(b.name||'Unnamed plate')+'</span>'
+        +'<span class="mv-sub">costs '+money(b.cost)+', sells for '+money(b.price)+'</span></span>'
+        +'<span class="dig-v">'+Math.round(b.pct)+'%</span>'
+        +'</li>';
+    }).join('')+'</ul>'
+    +'</section>';
+}
 function recentChangesHtml(scope, current){
   var rows=recentChangeRows(scope);
   /* The since-line, REHOMED from its own full-width banner into this card's header band (177). It is
@@ -4230,8 +4259,29 @@ function dbPushMenuHistory(iso, v, menuId){ pushWrite(function(){ return SUPA.fr
    Deliberately NOT mean-of-menu-averages either: that weights a three-plate specials menu equally with a
    forty-plate main menu, i.e. it measures how the menus have been SPLIT. */
 var DASH_ALL='all';
-function avgFoodCostForScope(scope){
-  var vals=[];
+/* ===== 241 (queue item 18) — THE SANITY BOUND, AND WHY THE NUMBER IS WRITTEN ONCE, HERE =====
+   This average is the MEAN OF PER-DISH RATIOS with no bound, so ONE dish contributes without limit.
+   Measured on production, 8 Sep 2026: a $0.01 sell-price typo put a dish at 30000%, took the
+   Dashboard headline to 354.4% and "324.4 pts over your target", scaled the trend chart's axis to
+   380% so every real week flattened into the floor, and appended a 354.4 point to `price_history`
+   that nothing in the app can delete. The AI phrasing then reported "swings 20000-30000%" — every
+   figure deterministically computed, correctly phrased, and about a typo.
+   ⚠️ A RATIO THIS HIGH IS NOT A MENU THAT NEEDS REPRICING, IT IS A PRICE THAT IS WRONG, and that
+   distinction is the whole design. Excluding it is NOT hiding it: the dish is listed by name on its
+   own Dashboard row, because a figure the app cannot stand behind is left out rather than
+   approximated — exactly the treatment the uncosted plate below already gets, and for the same
+   reason. Silently averaging it in is what let a typo rewrite every headline in the app.
+   **300 is the audit's number and it is written ONCE.** A real food cost above 300% is not a
+   business, it is a data-entry error: it means selling at under a third of what the food costs, and
+   nobody needs a dashboard to notice that. The bound is deliberately far above anything arguable —
+   it is a typo detector, not an opinion about margin. */
+var FOOD_COST_SANE_MAX=300;
+/* ONE WALK, TWO READERS. The mean and the "check the price" list are the same decision seen from
+   two sides, so they share the loop rather than each having one — a second copy would be the
+   stub-that-agrees-with-the-code defect this repo's roster is entirely about, and here the two
+   copies would disagree about WHICH DISH IS WRONG, which is the only thing the list is for. */
+function dishRatios(scope){
+  var used=[], excluded=[];
   MENU.forEach(function(m){
     if(!(m.price>0)) return;
     if(scope && scope!==DASH_ALL && !dishOnMenu(m, scope)) return;
@@ -4243,11 +4293,21 @@ function avgFoodCostForScope(scope){
        treatment the unpriced dish above already gets: a figure the app cannot compute honestly is
        left out rather than approximated. */
     var d=costDetail(sp.lines);
-    if(d.miss===0 && d.cost>0) vals.push(d.cost/m.price);
+    if(!(d.miss===0 && d.cost>0)) return;
+    var pct=d.cost/m.price*100;
+    if(pct>FOOD_COST_SANE_MAX) excluded.push({id:m.id, name:m.name||'', price:m.price, cost:d.cost, pct:pct});
+    else used.push(pct);
   });
-  if(!vals.length) return null;
-  return vals.reduce(function(a,b){return a+b;},0)/vals.length*100;   // percent
+  return {used:used, excluded:excluded};
 }
+function avgFoodCostForScope(scope){
+  var r=dishRatios(scope);
+  if(!r.used.length) return null;
+  return r.used.reduce(function(a,b){return a+b;},0)/r.used.length;   // percent
+}
+/* The dishes the average leaves out, for the Dashboard row that names them. Same walk, so the row
+   can never list a dish the mean counted, or miss one it dropped. */
+function mispricedDishes(scope){ return dishRatios(scope).excluded; }
 function computeAvgFoodCost(){ return avgFoodCostForScope(DASH_ALL); }
 /* v89: which menu the DASHBOARD is looking at. Deliberately NOT currentMenuId — that is the Menu tab's
    own selection, and re-scoping a read-only dashboard must not silently re-point the tab where Max edits
@@ -5974,7 +6034,27 @@ function trendChart(scope){
      target at the edge instead of stretching the axis to reach it. Domain = tick extent ± half a step,
      so headroom stays consistent in tick units and similar ranges can't jitter. */
   var dvals=pts.map(function(p){return p.v;});
-  var dmn=Math.min.apply(null,dvals), dmx=Math.max.apply(null,dvals);
+  /* ===== 241 (item 18) — THE AXIS IS CAPPED AT 100%, AND A POINT ABOVE IT IS CLIPPED, NOT SCALED TO
+     ===== The bound above stops a mispriced dish ever ENTERING this series again, but the series is
+     append-only and nothing in the app can delete a point: production carries a 354.4 written by a
+     $0.01 typo, and one such point takes the axis to 380% so every real week — 20% to 35% — flattens
+     into the bottom tenth of the plot and the chart stops being readable at all. A single bad
+     reading must not cost the reader every good one.
+     100 is the cap because a food cost above it means the food costs more than the dish sells for,
+     which is off the scale this chart is FOR. Clipping is honest here in a way it would not be on a
+     figure: the point is still in the data, still in the backup, and still the thing the tooltip
+     names — what changes is that the axis stops pretending 380% is a scale worth drawing. */
+  var CAP=100;
+  /* The domain is built from the readings that are ON the scale, and a reading above the cap does
+     not get a vote in it — capping only the MAXIMUM was not enough, measured: with data at 22-26 and
+     one stored 354.4, `dmx=100` still generated ticks to 130 and left the real week in the bottom
+     fifth of the plot. The whole point is that one bad reading must not cost the reader every good
+     one, so the bad reading is excluded from the SCALE and clamped onto the top of it, where `y`
+     below puts it. It is still drawn, still in the data, and still what the tooltip names. */
+  var inRange=dvals.filter(function(v){ return v<=CAP; });
+  var clipped=inRange.length<dvals.length;
+  var basis=inRange.length?inRange:[CAP];   // every reading over the cap: the axis is the cap itself
+  var dmn=Math.min.apply(null,basis), dmx=Math.max.apply(null,basis);
   /* ===== v145 — THE DOMAIN, and why it is now built two different ways =====
      The reported defect: with the target near the readings the series collapsed into a band with
      most of the plot empty under it. Measured before fixing, target 30 with data 31.0-32.5: ticks
@@ -6053,7 +6133,11 @@ function trendChart(scope){
   var axGap=8, maxCh=Math.max.apply(null,ticks.map(function(v){ return fmtTick(v).length; }));
   var padL=Math.ceil(maxCh*axCharW()+axGap);
   var x=function(i){ return padL+(W-padL-padR)*(pts.length===1?0.5:i/(pts.length-1)); };
-  var y=function(v){ return padT+(H-padT-padB)*(1-(v-mn)/(mx-mn)); };
+  /* 241: CLAMPED to the domain. A point above the cap is excluded from the scale above, so an
+     unclamped y would place it far outside the viewBox — drawn nowhere, or dragging the line off
+     the plot. Clamping draws it hard against the top edge, which is what "clipped" means and is
+     the honest picture: this reading is off the scale, and here is the direction it went. */
+  var y=function(v){ var c=(v>mx?mx:(v<mn?mn:v)); return padT+(H-padT-padB)*(1-(c-mn)/(mx-mn)); };
   var xs=[], ys=[];
   pts.forEach(function(p,i){ xs.push(x(i)); ys.push(y(p.v)); });
   var tan=tcTangents(xs,ys);
@@ -6172,12 +6256,19 @@ function trendChart(scope){
     :(overCount?('crosses your '+fmtTargetPct()+' target in this range')
     :('under your '+fmtTargetPct()+' target across this range'));
   var capMk=marks.length?(' <span class="mk-note"><span class="mk-dot">●</span> marks changes you made.</span>'):'';
+  /* 241 (item 18) — CLIPPING WITHOUT SAYING SO IS A LIE, and this line is the half that makes the
+     cap honest. Caught in a browser, not by a test: with the axis rebuilt from the in-range readings
+     the stored 354.4 draws hard against the top edge, and a reader sees a gentle hump peaking at
+     about 31%. Nothing on screen said the point was off the scale, so the chart quietly understated
+     a reading by three hundred points — a smaller lie than the 380% axis it replaced, and the same
+     kind. `clipped` was computed and unread until this line, which is its own tell. */
+  var capClip=clipped?(' One reading is above '+CAP+'% and is drawn at the top of the scale.'):'';
   // v115: "All menus" prefixes only the all-menus line. A scoped draw says "This menu" — a
   // reference, not a restatement (the heading owns the NAME, v97's one-statement rule).
   var capScope=drawingScoped?'This menu':'All menus';
   return '<div class="dash-chart" id="trendWrap">'+svg
     +'<div class="tp-tip" id="trendTip" aria-hidden="true"></div>'
-    +'<p class="hint chart-hint">'+capScope+' \u00b7 '+capPos+'.'+capMk+'</p>'+scopeNote+'</div>';
+    +'<p class="hint chart-hint">'+capScope+' \u00b7 '+capPos+'.'+capClip+capMk+'</p>'+scopeNote+'</div>';
 }
 /* ===== v90: "Dig in" — four headline cards that drill down INLINE ============================
    Replaces the three highlight cards and #hlModal. The brief's pattern is list → detail → back —
@@ -6218,8 +6309,14 @@ function digData(kind, scope){
       if(!isAll && !dishOnMenu(m, scope)) return;
       var sp=plateForMenuItem(m); if(!sp) return;
       var d=costDetail(sp.lines); if(d.miss || !(d.cost>0)) return;   // 222: no % and no light off a partial total
-      var c=d.cost;
-      rows.push({name:m.name, val:c/m.price*100, disp:(c/m.price*100).toFixed(1)+'%', light:analyze(c, m.price).light});
+      var c=d.cost, fc=c/m.price*100;
+      /* 241 (item 18): the same bound, because this card is a RANKING and a typo takes the top of it.
+         Measured in a browser rather than reasoned: with a $0.01 plate present the card read
+         "Highest food cost %: Pineapple Fritter 30000.0%", which is true, useless, and pushes the
+         genuinely worst real plate off the row entirely. The plate is not hidden — the "Check the
+         price" card above names it, and that card is where a wrong sell price belongs. */
+      if(fc>FOOD_COST_SANE_MAX) return;
+      rows.push({name:m.name, val:fc, disp:fc.toFixed(1)+'%', light:analyze(c, m.price).light});
     });
     rows.sort(function(a,b){ return b.val-a.val || String(a.name).localeCompare(String(b.name)); });
     return {title:'Highest food cost %', sub:dashScopeLabel(isAll?DASH_ALL:scope), rows:rows};
@@ -6865,6 +6962,13 @@ function computeInsights(scope, seed){
       var _cd=sp?costDetail(sp.lines):{cost:0,miss:0};
       var cost=_cd.miss?0:_cd.cost;                                  // 222: a partial total is no cost at all here
       if(!sp || !(cost>0)) return;                                   // a priced dish with no plate / no cost has no margin read
+      /* 241 (item 18): the SAME bound the average uses, at the SAME gate every other exclusion here
+         goes through, so a dish the headline refuses to average cannot turn up in the phrasing the
+         headline is explaining. It is not theoretical — measured on production, a $0.01 typo had
+         `api/insight` reporting "swings 20000-30000%" and "Uncategorised sits at 958%", every
+         figure deterministic and correctly phrased. The money-law is satisfied and the sentence is
+         still about a typo, which is the failure the law cannot catch on its own. */
+      if(cost/m.price*100 > FOOD_COST_SANE_MAX) return;
       var range=costRangeForLines(sp.lines);
       var volName=null, volSpread=0, seen={};
       (sp.lines||[]).forEach(function(l){
@@ -7316,8 +7420,17 @@ function verdictHtml(scope, cmp){
      and the desktop mock's own KPI label is a bare "Avg food cost" for exactly that reason. So the
      mock is being followed, not deviated from: scope is stated by the control where a control
      exists. It is also v97's one-statement rule, which was paid for once already. */
+  /* 241 (item 23): the label names the METHOD, because this figure is the MEAN OF PER-DISH RATIOS
+     and there is a defensible second answer that is 1.4 points away on the same data — 25.0% here
+     against 26.4% as a ratio of sums, which would turn "5.0 pts under" into "3.6". Unstated method
+     is the defect: the tile, the pills and the badge all agree with each other, so nothing on any
+     screen ever hints there was a choice. Naming it costs three words and settles it in the reader's
+     head. The method itself is unchanged and is written up beside per-publication counting.
+     ⚠️ The item's suggested wording was "average of DISH food costs" and it could not be used: "dish"
+     is a forbidden UI noun (Max, 25 Jul 2026 — a plate on a menu is still a plate) and
+     tests/terminology.test.js caught it within a minute. The object is a Plate. */
   return '<div class="dash-hero">'
-    +'<div class="dh-label">Average food cost</div>'
+    +'<div class="dh-label">Average of plate food costs</div>'
     +'<div class="dh-fig"><span class="dh-num '+cls+'">'+pct.toFixed(1)+'%</span></div>'
     +'<p class="dh-ctx">'+esc(vs)+'</p></div>';
 }
@@ -7520,7 +7633,16 @@ function kpiStripHtml(scope, cmp){
        costed, over/under was judged on an understated total, and nothing anywhere said a line was
        missing. A partially-costed dish is unready, which is what it is. */
     var c=d0.miss?0:d0.cost;
-    if(m.price>0 && c>0){ costed++; if(c/m.price*100 > cogsPct+0.05) over++; }
+    /* 241 (item 18): a dish over FOOD_COST_SANE_MAX is not "over target", it is MISPRICED, and it
+       counts as neither. Counting it as over target puts a typo in the same sentence as the real
+       work — "3 dishes over target" reading 4 sends Max hunting a margin problem that is a wrong
+       sell price, and the KPI strip is the one place the two must not be conflated. It is unready,
+       which is what a dish the app cannot judge has always been called here. */
+    if(m.price>0 && c>0){
+      var pct0=c/m.price*100;
+      if(pct0>FOOD_COST_SANE_MAX){ unready++; return; }
+      costed++; if(pct0 > cogsPct+0.05) over++;
+    }
     else unready++;
   });
   var d=pct-cogsPct;
@@ -7528,7 +7650,7 @@ function kpiStripHtml(scope, cmp){
         : (d<-0.05 ? (Math.abs(d).toFixed(1)+' pts under your '+fmtTargetPct()+' target')
                    : ('at your '+fmtTargetPct()+' target'));
   return '<div class="kpi-strip">'
-    +'<div class="kpi-cell"><div class="kpi-label">Average food cost</div><div class="kpi-row">'
+    +'<div class="kpi-cell"><div class="kpi-label">Average of plate food costs</div><div class="kpi-row">'
       +'<span class="kpi-num '+dashPctClass(pct)+'">'+pct.toFixed(1)+'%</span></div>'
       +'<div class="kpi-sub">'+sub+'</div></div>'
     +'<div class="kpi-cell"><div class="kpi-label">Plates over target</div><div class="kpi-row"><span class="kpi-num'+(over>0?' bad':'')+'">'+over+'</span></div>'
@@ -7589,6 +7711,10 @@ function renderDashboard(){
        all-menus rule: its figures ARE the all-menus series, so subtracting them from a per-menu
        current fabricates drift. See recentChangesHtml. */
     +'</div>'
+    /* 241 (item 18): directly under the headline, because it is the sentence that makes the headline
+       true. Everything above this line silently EXCLUDES these dishes; without the row, the exclusion
+       is a number quietly moving and nobody can tell it happened. */
+    +mispricedHtml(scope)
     /* 177 — the trend and the changes it marks, side by side (2/3 + 1/3 at >=1024, stacked below).
        v115: the chart owns the scope decision — it emits the scope-note itself ONLY on the
        all-menus fallback. The range control stays in the chart's own header and governs both. */
@@ -7778,7 +7904,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v197';
+var APP_VERSION='v198';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI

@@ -47,6 +47,10 @@ function build() {
     extractVar(src, 'INSIGHT_DIMS'), extractVar(src, 'INSIGHT_VALUE'), extractVar(src, 'INSIGHT_FLOOR'),
     extractVar(src, 'CONC_MIN_PTS'), extractVar(src, 'ANOM_MIN_RATIO'),
     extractVar(src, 'COMPLEX_MIN_GAP'),
+    // 241 (item 18): computeInsights excludes a dish over this bound, so the harness needs the
+    // number. Sliced from source, never mirrored — a hand-copied 300 here would keep agreeing with
+    // itself after the app's changed.
+    extractVar(src, 'FOOD_COST_SANE_MAX'),
   ].join('\n    ');
   const clamp01 = extractFn(src, 'clamp01');
   const insightScore = extractFn(src, 'insightScore');

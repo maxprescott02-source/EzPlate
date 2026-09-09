@@ -15,7 +15,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { loadApp, extractFn } = require('./_extractfn');
+const { loadApp, extractFn, extractVar } = require('./_extractfn');
 
 const APP = loadApp();
 /* ---------------------------------------------------------------- the fixture café
@@ -87,6 +87,7 @@ function digHarness() {
     var kitchenIngredients=[];
     ${extractFn(APP, 'productRefs')}
     ${extractFn(APP, 'moverWhen')}
+    ${extractVar(APP, 'FOOD_COST_SANE_MAX')}
     ${extractFn(APP, 'digData')}
     ${extractFn(APP, 'digInHtml')}
     var DIG_CARDS=[

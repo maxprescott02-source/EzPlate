@@ -5121,6 +5121,15 @@ html[data-theme="dark"] .ins-spark path{fill:url(#ezSparkGrad)}
 .mv-row .dig-v{flex:0 0 auto}
 .mv-row .dig-v.pill{font-size:12px}
 .mv-empty{margin:0;padding:13px 20px}
+/* 241 (item 18) — the "Check the price" card. It borrows .dash-sec, .ds-head and .mv-list wholesale,
+   so the only rule it needs of its own is the explaining line's box; a second row grammar for four
+   plates a year would be a family nobody keeps in step. Same padding as .mv-empty, which is the
+   other prose line living directly inside one of these cards.
+   NO TINT AND NO ACCENT, deliberately: colour in this app means "against target" (CLAUDE.md Tier 1)
+   and a plate that was excluded has no honest position against target. The card earns attention by
+   being there at all, and it is not there when there is nothing to say. */
+.mp-why{margin:0;padding:13px 20px 0}
+.dash-mispriced .mv-row{min-height:52px}
 
 /* the Dig-in row: label · subject · figure, the mock's own three columns. Still a button, still
    opening the same inline drill-down — `.dig-card` is the hook renderDashboard wires. */
