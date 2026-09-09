@@ -246,7 +246,7 @@ From `docs/MAINTENANCE.md`. The exposure is closed (186 asks and discards on swi
 
 ⚠️ **AND THE IN-MEMORY SIBLING, measured by batch 242 and deliberately not fixed there.** `resetTenantState` clears every tenant-scoped store on a café move but does NOT touch the builder's `plate[]`, so an in-progress plate survives into the new café with `kid` lines that now resolve to nothing: it renders and costs **zero**, and saving it writes a plate whose lines reference kitchen ingredients the café does not have. **No data from the previous café is written by that path** — a line is `{kid, qty}` and a kid is an opaque local id — which is why this is a note here rather than an item of its own, and why 242 left it alone. It is the same question as the draft (whose unsaved work is this, and may it cross a tenant), it needs the same decision about discarding somebody's typing, and the two should be answered together. **`refreshFromCloud`'s comment says bootstrapSync "does NOT touch plate[]… so an in-progress build survives a refresh" — true, and now incomplete: across a MOVE, surviving is the defect. Fix that comment in the same change.**
 
-## next  40 · `claim_business_invite()` and `business_team()` are callable by `anon`, and both files say otherwise  **[C, neither is a hole; the stated mechanism is wrong and the fix is two lines]**
+## ~~40 · `claim_business_invite()` and `business_team()` are callable by `anon`, and both files say otherwise~~  **SHIPPED, batch 243, `ezplate-v200` — applied to STAGING; production with the deploy. Rode 14's migration exactly as this item said it should.**
 
 ```sql
 revoke execute on function public.claim_business_invite() from anon;
@@ -254,6 +254,9 @@ revoke execute on function public.business_team()        from anon;
 ```
 
 **Rides 14's migration** (it must replace `claim_business_invite` anyway; find the newest definition by listing the directory, never from a header). Verify from `pg_proc.proacl`, not the file; `get_advisors('security')` lint `0028` should stop naming both. `invite_pending`, `current_business_id`, `current_business_role`, `set_member_role` are NOT in scope, each for the reason `docs/MAINTENANCE.md` gives. **Test:** assert the revoke by name in the newest migration (roster 190).
+
+✅ **Done exactly that way**, in `supabase/migrations/20260909_invite_choice.sql`. Measured from `proacl` on staging: `anon=X` on both before, gone after, and all three RPCs answer HTTP 401 to an anon caller — the GRANT refusing rather than the body. **`my_pending_invites()` needed the same revoke**, being new and therefore born with the default grant.
+⚠️ **The test is an ORDERING, not the presence check this item asked for, and the difference is the whole finding.** "Assert the revoke in the newest migration" is wrong when the function is not redefined: `business_team` is DEFINED by `20260814_invitations.sql` and REVOKED by `20260909`, so a check that looks only where it is defined finds no revoke and reports a hole that is not there. `tests/invites.test.js` asserts that the newest revoke is **not older than** the newest definition — because `create or replace` re-runs the default privilege and hands `anon` EXECUTE straight back — and that a same-file revoke FOLLOWS its create.
 
 ## next  41 · Nothing records that a user accepted the privacy notice  **[C, becomes B the day 2b ships, because the notice reverses in the user's favour and nobody can be re-asked]**
 
