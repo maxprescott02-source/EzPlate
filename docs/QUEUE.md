@@ -80,15 +80,10 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 ⚠️ **Every line number in these items is a POINTER TO GREP, not a fact** — the consolidated file says so of itself, and the blind audit above is why. **Step one of each is the repro**, and "it does not reproduce" deletes the item and says so in the handover.
 *(G1's only [B — wrong number] item, 15, shipped in batch 244; what is left of the group is below. The two headings were folded into one when it went, because a section with a title and no items reads as work nobody has got to.)*
 
-## next  20 · A failed `menus` read is treated as a valid boot and mints a menu the server never had  **[B, unmeasured; presents as "my dishes disappeared", then as a failed publish]**
-
-**Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 20.
-⚠️ **Moved into G1 from G3 on 9 Sep 2026, deliberately and against its context.** Its natural home is the boot group, but **21 is `Do after: 20`** — 20's fictional menu is the deterministic repro trigger for 21's dish path — and leaving it in G3 would strand 21 here unworkable for several groups. **This does not contradict** the standing rule that `ensureDefaultMenu`'s gate lives at its call site and a successful EMPTY read must be respected: this is the third case, a read that FAILED, which a two-valued gate cannot express.
-
 ## next  21 · Success is announced, and history is logged, before the write that justifies it has settled  **[B, unmeasured; a false completion message and a history point for a price that never landed]**
 
 **Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 21. One mechanism, four instances.
-**Do after:** 20 — reproduce its fictional menu first; part of this may fall out of that.
+⚠️ **`Do after: 20` DELETED 9 Sep 2026 — satisfied, AND ITS REASON FALSIFIED BY THE SAME BATCH.** 20 shipped as 246 / `ezplate-v203`, and its fix removed the fictional menu this item was told to reproduce as its deterministic failure trigger. **Nothing falls out of 20; this needs a trigger of its own** — a refused `menu_items` upsert injected at the client, copying `tests/visual/246-menus-read.spec.js`. Read the note on the item before planning.
 
 ## next  22 · Nothing records when or how a price last moved  **[B, "Last change" reads a dash on 163 of 163 ingredients, including one whose unit cost doubled that minute]**
 

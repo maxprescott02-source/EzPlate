@@ -120,15 +120,24 @@ Four documents held three positions. `CLAUDE.md` Tier 1 says *"never edit anythi
 ⚠️ **AND THE HEADLINE'S HARM WAS THE WRONG ONE, which the item's own body got right.** *"lowers every average it is in"* is false for a plate whose total goes negative: `dishRatios` excludes it at `d.cost>0`. The one that got through is the plate a negative line merely **drags down** — still positive, still averaged, understated by the amount of the bad line, reading healthier than the menu is. That is the case the tests are written about.
 ⚠️ **The minus-$2.00 plate is GONE from production** — it was one of the 8 Sep ZZ-AUDIT objects, and Tranche 0's cleanup took it. Measured 9 Sep 2026: zero negative misc lines and zero negative `cost_per_base_unit` in 428 products. The defect was real and its artefact was not still there.
 
-## next  20 · A failed `menus` read is treated as a valid boot and mints a menu the server never had  **[B, unmeasured; presents as "my dishes disappeared", then as a failed publish]**
+## ~~20 · A failed `menus` read is treated as a valid boot and mints a menu the server never had~~  **SHIPPED, batch 246, `ezplate-v203`**
 
-**Claim (blind audit #6, unverified):** `menus` is excluded from the fatal bootstrap-read check in `bootstrapSync` (`js/app.js:1174`, grep the fatal-read list); on a transient failure of that one request boot proceeds, `ensureDefaultMenu` (`:2840`) unshifts an in-memory "Original menu" with a fresh `uid('MENU')`, existing `menu_items` stop matching any menu, and the publish guard (grep `menusList.length` near `submitMenuItem` / `publishPlan`) sees a non-empty list, skips the create path, and a write with the fictional id hits the FK. The comment at the publish guard says a non-empty `menusList` means server menus, which is false on this path: **fix the comment in the same change as the behaviour.**
+✅ **THE CLAIM WAS TRUE AND IT REPRODUCED ON THE FIRST ATTEMPT**, deterministically, by failing that one request in Chromium:
 
-**This does not contradict the standing rule** that `ensureDefaultMenu`'s gate lives at its call site and a successful EMPTY read must be respected. It is the third case, a read that FAILED, which a two-valued gate cannot express (the 185 family).
+```
+boot gate visible : false                      <- the app reported a clean boot
+menusList         : [{"id":"MENUmttz2qz2-1-uyhz2oci","name":"Original menu"}]
+currentMenuId     : MENUmttz2qz2-1-uyhz2oci
+MENU (via rebuild): [{"id":"MI1","menuId":"MENU_WINTER"}]      <- the dish was fine all along
+menu screen       : "Nothing on this menu yet. Publish a plate from the Plates tab to see it here."
+```
 
-**What must be true:** a failed `menus` read is a failed boot (join the fatal list) or is retried, never an empty menu list. **Test:** `boot-gate.test.js` gains `menus` as a bootstrap dependency; `menu-default.test.js` gains the failed-SELECT path it never exercised (the reviewer called it an expensive green test). Step one is the repro; "it does not reproduce" deletes the item and says so in the handover.
+The café's data was all there; the app hid the failure behind a working-looking screen and then invited a republish against an id no `menus` row answers to.
 
-⚠️ **BATCH 242 GAVE THIS A SECOND DOOR, deliberately, and said so at the site.** `resetTenantState` empties `menusList` on a move to a different café, so a failed `menus` read on the boot that FOLLOWS a move now reaches `ensureDefaultMenu` with an empty array and mints the fictional menu — where the old code would have shown café A's menus as though they were B's. **Both are wrong and 242 took the less wrong one**: a made-up menu is visible and local, a previous café's menu list is a cross-tenant leak. It is not fixable at the reset (clearing is the whole point), and it is fixable here, at the read. **So this item now has two triggers, and the repro is easier: a boot after a tenant change with `menus` erroring needs no transient failure to be contrived.** Nothing about the required fix changes.
+**The fix is the item's first option:** `menus` joins the four required reads, so its error raises the boot gate. `soft()` was written for *"an older project may not have this table"* and cannot tell that from *"this one request failed"* — the 185 family, one table along.
+⚠️ **BE PRECISE ABOUT WHICH HALF IS LOAD-BEARING, because the pair reads as two guards and is one:** the fatal check on `mres.error` is the mechanism, and dropping `soft` is legibility. Measured by mutating each separately — re-softening the read alone leaves the browser correct, dropping `mres.error` from the throw alone restores the bug in full.
+✅ **`ensureDefaultMenu` IS DELETED with the branch that called it, and that buys an invariant rather than a tidy-up.** `menusList` means menus the server has — two comments already asserted it while that function quietly falsified it — and the three surviving writers all wait for the server. The comment at the publish guard is corrected, as this item asked.
+**Tests:** `tests/visual/246-menus-read.spec.js` fails the real request in a browser and asserts the gate, plus a counterweight that the ordinary boot still loads the menu; `boot-gate.test.js` names `menus` as a bootstrap dependency. `menu-default.test.js` and `unique-ids.test.js` were REWRITTEN rather than deleted to go green — the minted-id property moved to `ensurePublishMenu`, which is now the only path that makes a default menu.
 
 ## next  21 · Success is announced, and history is logged, before the write that justifies it has settled  **[B, unmeasured; a false completion message and a history point for a price that never landed]**
 
@@ -139,7 +148,9 @@ Four documents held three positions. `CLAUDE.md` Tier 1 says *"never edit anythi
 - **`doDeleteMenu`'s unawaited dish deletes** (`docs/MAINTENANCE.md`): the change-log entry chains off the write that decides the menu is gone; no FK to violate (SET NULL), same class as the v112 sequencing fixes.
 - **`priceHistory` wholesale replace at boot** (`docs/MAINTENANCE.md`): an empty or filtered server response replaces local; `menuHistory` merges. A point logged offline is lost at next sync. Make it merge like its siblings or say at the site why not.
 
-**Do after:** 20 (its fictional menu is the deterministic failure trigger for the dish path; reproduce that first and this may fall out of it).
+⚠️ **`Do after: 20` DELETED 9 Sep 2026 — SATISFIED, AND ITS STATED REASON IS NOW FALSE, WHICH ARE TWO SEPARATE FACTS.** 20 shipped as batch 246 / `ezplate-v203`, so the ordering is met. But the line's REASON was *"its fictional menu is the deterministic failure trigger for the dish path; reproduce that first and this may fall out of it"* — and 246's whole fix was to make that state unreachable: the `menus` read is fatal and the seeder is deleted, so **there is no fictional menu to reproduce and nothing falls out of it.**
+**So this item needs a failure trigger of its own, and that is the work 20 did not do for it.** The straightforward one is a refused `menu_items` upsert injected at the Supabase client, which `tests/visual/246-menus-read.spec.js` already does for a different table and can be copied verbatim. Do not go looking for the fictional menu.
+*(Caught by 246's pre-push review, which is exactly the "a queued item's approval does not expire and its FACTS do" trap — except this time the falsifying batch was the one immediately before, and the item would have been picked up next.)*
 
 ## next  22 · Nothing records when or how a price last moved: "Last change" ignores relinks, `price_as_of` is never written, an import leaves no change-log event  **[B, the column reads a dash on 163 of 163 ingredients, including one whose unit cost doubled that minute]**
 
