@@ -78,10 +78,6 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ⚠️ **Every line number in these items is a POINTER TO GREP, not a fact** — the consolidated file says so of itself, and the blind audit above is why. **Step one of each is the repro**, and "it does not reproduce" deletes the item and says so in the handover.
 
-## next  18 · One mispriced dish rewrites every headline, rescales the chart, and leaves a permanent history point  **[A, a $0.01 typo took production to 354.4%, "324.4 pts over target", and a 380% axis, measured 8 Sep]**
-
-**Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 18.
-Deleting the bad history point itself is Tranche 0 and is Max's; this item is the bound that stops the next one, plus the way to remove one from the app.
 
 ## next  13 · Café A's settings and supplier memory survive a same-session move into café B  **[A — cross-tenant, and one half writes A's data into B's database]**
 
@@ -166,16 +162,18 @@ and inserts `business_members` with **`inv.role`** from whichever invitation tha
 **Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 22.
 *(`Do after: 16` DELETED 9 Sep 2026 — satisfied. 16 shipped as batch 239 / `ezplate-v197`, so the plate lines a relink touches are settled and this is ready. Deleting the line is the mechanism, not tidying.)*
 
-## next  23 · The Dashboard headline does not say which average it is  **[B, 25.0% mean-of-ratios against 26.4% ratio-of-sums on the same data]**
-
-**Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 23.
-**Do after:** 18 — same function. The choice gets written once beside per-publication counting in `CLAUDE.md`.
 
 ## next  88 · Thirteen plate lines cost off a product no ingredient uses, and only a person can say which ingredient they meant  **[B, item 16's measured harm, which its own remedy could not reach]**
 
 **Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 88 — raised by batch 239, with the six products and their nine plates measured on production on 9 Sep 2026.
 **The app already NAMES them**: the "Fix older plate lines" confirm lists every one, grouped by product, and Max can fix each by hand in the builder today. What is missing is the app ASKING — one choice per product, never a guess.
 ⚠️ **Do not close this by name-matching a product to an ingredient**; `CLAUDE.md` records why (batch 223), and the failure mode has no symptom.
+
+## next  89 · A `price_history` point cannot be deleted or corrected from the app  **[B, the 354.4 written by the 8 Sep typo is still on production]**
+
+**Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 89 — split out of 18 by batch 241, which shipped the bound that stops another one being written.
+The chart no longer flattens (241 caps the axis and says when a reading is clipped), but the point is still there, still in every backup, and still the answer to "what was our food cost that week".
+⚠️ **Deleting the existing point is Max's**; building the surface is not.
 
 ## next  55 · Recent changes colours a sell-price rise red and never says what changed  **[B, the colour language everywhere else is anchored to the target, so a red plus reads as bad news]**
 
