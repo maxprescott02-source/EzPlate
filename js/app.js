@@ -1902,7 +1902,21 @@ function money(x){return '$'+x.toFixed(2);}
    `!(qty>0)` rather than a null check on purpose: it refuses null, undefined, 0, NaN and '' in one
    expression, which is the CLAUDE.md rule that Number('') and Number(null) are both 0 and both pass an
    isFinite guard. A numeric string still costs, because '100' > 0 and '100' * c is 100c. */
-function lineCost(p,qty){if(!p)return null;const c=cpbu(p);if(c==null)return null;return (qty>0)?qty*c:null;}
+/* ⚠️ 245's pre-push review — A NEGATIVE IS UNPRICEABLE, AND THE REFUSAL LIVES HERE RATHER THAN AT
+   THE CALLERS, which is where the first cut put it and where it was wrong.
+   `null` from this function already means "this line cannot be priced", and there are FOUR readers of
+   that answer: `costDetail`'s walk, `renderPlate`'s cost cell, `updateLine`'s repaint of the same
+   cell, and the supplier-exposure sum. The first cut guarded the WALK — `if(lc==null||lc<0)` — and
+   left the other three checking `lc==null` only, so a plate holding a negative product cost would
+   have rendered the line as a real-looking `$-2.00` while the total below it and the flag beside it
+   both said the line was excluded. **The screen would have contradicted itself**, which is worse than
+   either answer alone, and the supplier exposure would quietly have summed it.
+   This is CLAUDE.md's standing remedy for exactly that: extract the decision and have every reader
+   call it, rather than repeating a condition at each site and hoping they stay in step.
+   ZERO IS NOT NEGATIVE and stays priceable — production carries a product at $0.00, and a free
+   ingredient is a finished line. `qty>0` is unchanged and is the other half: "none of this" is an
+   unfinished line, "this is free" is not. */
+function lineCost(p,qty){if(!p)return null;const c=cpbu(p);if(c==null||c<0)return null;return (qty>0)?qty*c:null;}
 function esc(s){return (s==null?'':String(s)).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
 /* The spoken name of a column, for a figure cell that shows only the number. Every converted list
    row is ONE button, so its accessible name is its cells concatenated in DOM order — which made
@@ -3704,6 +3718,11 @@ function costDetail(lines){
        builder says so at the line. That is the treatment an uncostable line already gets, and the
        reason it is right here is the one stated three lines up — a total that is missing a cost
        reads HEALTHIER than the menu is, which is the direction nobody looks.
+       ⚠️ THE PRODUCT ROUTE IS REFUSED IN `lineCost` AND NOT HERE, and the reason is worth the line
+       because the first cut of this batch got it wrong: three OTHER readers ask `lineCost` the same
+       question — the builder's cost cell, its repaint, and the supplier-exposure sum — so a condition
+       written only here would have shown a line at `$-2.00` under a total that excluded it. Found by
+       the pre-push review. One decision, four readers, one site.
        ⚠️ AND IT IS WHY THERE IS NO "refuse to save a negative plate cost" GUARD, which the item asked
        for: with this line the total CANNOT be negative, so such a guard could never fire, and this
        repo has already deleted one fallback for exactly that reason (see `plateIdOf`, v112 — a
@@ -3715,7 +3734,7 @@ function costDetail(lines){
       return;
     }
     const p=lineProduct(l); if(!p){miss++;return;}
-    const lc=lineCost(p,l.qty); if(lc==null||lc<0)miss++; else c+=lc;   // 245: a negative product cost is the same claim by the other route
+    const lc=lineCost(p,l.qty); if(lc==null)miss++; else c+=lc;   // 245: `lineCost` refuses a negative itself now, so there is no second condition to keep in step here
   });
   return {cost:c, miss:miss};
 }

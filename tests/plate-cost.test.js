@@ -52,7 +52,7 @@ function harness() {
     ${extractFn(APP, 'lineProduct')}
     ${extractFn(APP, 'costDetail')}
     ${extractFn(APP, 'costFromLines')}
-    return { costFromLines:costFromLines, costDetail:costDetail };
+    return { costFromLines:costFromLines, costDetail:costDetail, lineCost:lineCost };
   `)({ PRODUCTS });
 }
 const H = harness();
@@ -92,6 +92,17 @@ test('245: a NEGATIVE line is not costable, by either route, and is counted as m
     'ZERO is still a legitimate misc cost and is left alone — the boundary is below zero, not at it');
   assert.deepEqual(costDetail([{ pid: 5, qty: 100 }]), { cost: 0, miss: 1 },
     'a negative PRODUCT cost is the same claim by the other route');
+
+  /* ⚠️ AND THE REFUSAL IS INSIDE `lineCost`, NOT IN THE WALK, which is the whole of the pre-push
+     review's finding on this batch. `null` from `lineCost` means "cannot be priced", and FOUR
+     readers act on it — this walk, the builder's cost cell, that cell's repaint, and the supplier
+     exposure sum. A condition written only in the walk left the other three showing a real-looking
+     `$-2.00` on a line the total beside it excluded: the screen contradicting itself, which is worse
+     than either answer on its own. Asserted at the source so the three cannot drift from it. */
+  assert.strictEqual(H.lineCost({ base_unit: 'g', cost_per_base_unit: -0.02 }, 100), null,
+    'a negative unit cost is unpriceable AT lineCost — every reader of null gets the same answer');
+  assert.strictEqual(H.lineCost({ base_unit: 'g', cost_per_base_unit: 0 }, 100), 0,
+    'and zero is priceable, so a free ingredient still renders as $0.00 rather than "no cost"');
 
   /* ⚠️ THE BOUNDARY IS BELOW ZERO ON BOTH ROUTES, and this half is what stops the rule being drawn
      one value too wide. A free line is a real answer — production carries a product at $0.00 — and

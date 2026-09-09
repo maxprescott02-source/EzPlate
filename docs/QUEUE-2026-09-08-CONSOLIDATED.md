@@ -111,7 +111,7 @@ Four documents held three positions. `CLAUDE.md` Tier 1 says *"never edit anythi
 ## ~~19 · A misc cost accepts a negative number and the plate saves at a negative cost~~  **SHIPPED, batch 245, `ezplate-v202`**
 
 ✅ **Reproduced in Chromium before it was fixed** — the item was right about the mechanism and this is what it looked like: typing `-2` put a $0.92 plate at **$-1.08** in the builder, saved it there, and left *"plate cost $-1.08"* in the Plates library.
-⚠️ **The field already carried `min="0"` and the browser already knew** — `validity.rangeUnderflow` was TRUE on that keystroke. `min` constrains the spinner and native form validation; this field is in no form and is read on `oninput`, so nothing ever asked. That half is now a `CLAUDE.md` Tier 1 rule, and the other **twelve** un-checked `min="0"` inputs are counted and filed in `docs/MAINTENANCE.md` rather than fixed on sight.
+⚠️ **The field already carried `min="0"` and the browser already knew** — `validity.rangeUnderflow` was TRUE on that keystroke. `min` constrains the spinner and native form validation; this field is in no form and is read on `oninput`, so nothing ever asked. That half is now a `CLAUDE.md` Tier 1 rule, and the other **eleven** un-checked `min="0"` inputs are counted and filed in `docs/MAINTENANCE.md` rather than fixed on sight.
 
 **Two guards, because the input is not the only way in.** `setMiscCost` clamps at zero, the way `setQty` one screen up already did — it was the one unguarded number of three on that screen. And `costDetail` counts a NEGATIVE line as MISSING by either route, which is what keeps it out of every average, out of `plateFullyCosted` and flagged in the builder; a clamp cannot reach a line that arrived from a restore or a backup file.
 
