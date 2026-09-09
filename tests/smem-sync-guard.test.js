@@ -65,6 +65,14 @@ async function syncWith(localMem, serverRows, opts) {
       function dbPushSupplierPhrase(e){ S.pushed.push(e.id); }
       function invDbg(){}
       ${extractFn(SRC, 'rowToSupplierPhrase')}
+      /* 242: the decision the block used to make inline is now the real supplierMemApply, extracted
+         so that tenant-switch.test.js can call it directly — the boot has to be able to prove that a
+         move to another cafe re-pushes NOTHING, and an inline branch cannot be called. The block
+         sliced below still owns the sequencing (log, push, adopt); this owns the choice. Extracted
+         here for the same reason rowToSupplierPhrase is: a mirrored copy would let this file pass
+         against a decision production no longer makes.
+         (No backticks in this comment — it lives inside a template literal.) */
+      ${extractFn(SRC, 'supplierMemApply')}
       /* v108: bootstrapSync now hands the block its already-settled read. Same stub, same values —
          only the fetch moved out, so the guard below still sees exactly what production gives it. */
       var spr = await SUPA.from('supplier_phrases').select('*');

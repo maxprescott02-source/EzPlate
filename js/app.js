@@ -891,6 +891,44 @@ function tenantGateState(res){
   return res.data===undefined ? 'unknown' : 'ok';
 }
 
+/* ---- 242: WHICH tenant, not just whether there is one --------------------------------------
+   `tenantGateState` answers a three-valued question about MEMBERSHIP and deliberately throws the
+   uuid away. Until this batch nothing else read it either — the comments at the claim re-sync and
+   at `create_business` both say "rather than patching `businessId` in place", and they are right
+   that re-running the boot is the correct response to a NEW café. What was missing is that the
+   boot then applied the new café's rows ON TOP of the old one's memory, so anything café B has no
+   row for kept café A's value.
+
+   THE SAME THREE ANSWERS, COLLAPSED TO "definite id" or "no definite id", because that is the only
+   distinction the caller needs: an id may only be compared against another DEFINITE id. An error,
+   a null and an absent body all return '' and therefore change nothing in either direction, which
+   is `_bootNoMember`'s law arriving at a second question. A non-string is '' for `claimState`'s
+   recorded reason — `tenantGateState` says 'ok' for any non-null non-undefined body, and a number
+   or an object must not become an identity that a later boot is compared against. */
+function tenantIdOf(res){
+  if(!res || res.error) return '';
+  return (typeof res.data==='string' && res.data) ? res.data : '';
+}
+/* The last tenant whose rows were actually APPLIED to memory — not the last one seen. It is set at
+   the boundary below, after the non-member branch has returned, so a boot that gated never claims
+   to have loaded anybody. '' until the first successful load, which is why a FIRST boot resets
+   nothing: there is nothing in memory to belong to anyone. */
+var _lastTenantId='';
+/* Pure, and the only reader of the pair. Two definite ids that differ is the whole condition; every
+   other combination is false, including "could not tell" in either position. */
+function tenantChanged(id){ return !!(id && _lastTenantId && id!==_lastTenantId); }
+/* THE WHOLE BOUNDARY DECISION, IN ONE FUNCTION, so `bootstrapSync` contributes one line and a test
+   can drive the real thing rather than retyping three statements — which is this repo's most
+   recorded defect (a stub written from the same belief as the code, passing against the bug).
+   Returns whether it cleared, for the tests and for nobody else. */
+function applyTenantBoundary(res){
+  var id=tenantIdOf(res);
+  var cleared=false;
+  if(tenantChanged(id)){ resetTenantState(); cleared=true; }
+  if(id) _lastTenantId=id;                                 // only a definite answer is remembered
+  return cleared;
+}
+
 /* ---- 186: SIGNED OUT is not the same failure as SIGNED IN WITHOUT A CAFÉ -------------------
    This batch removes the `auth.uid() is null` branch from `current_business_id()`, which was the
    last permissive read in the database: the published anon key resolved to the seeded café, so any
@@ -1170,6 +1208,56 @@ function applyRoleUi(){
   if(_acctShowing || teamData.status!=='idle') loadTeam();
 }
 
+/* ---- 242: EVERY TENANT-SCOPED STORE, PUT BACK TO WHAT A FRESH PAGE LOAD WOULD HOLD ----------
+   WHY THIS EXISTS. `bootstrapSync` applies a café's rows to memory, and for most stores it does so
+   UNCONDITIONALLY — `productsById`, `savedPlates`, `customMenu` are rebuilt from the read whatever
+   it returned. Eleven are not, in two different ways, and both are individually correct:
+
+     * a SETTING is applied only `if(theRow)`, because a café with no row must keep the app default
+       rather than be handed a null — `food_cost_target`, `gst_default`, `kitchen_ingredients`,
+       `king_wiz_skips`, the two AI toggles, `last_invoice_import`;
+     * a HISTORY SERIES is MERGED rather than replaced, because `pushWrite` has no queue and a
+       point logged with no signal exists only in memory — `changeLog`, `menuHistory`,
+       `menuPriceLog`; and `supplierMem` keeps local entries over an empty read for v107's reason.
+
+   Every one of those reads "the server said nothing about this, so keep what you had", and that is
+   right for a re-sync of the SAME café and wrong for a different one. Nothing distinguished the
+   two, because until this batch the app never retained which café was in memory.
+
+   ⚠️ THE ITEM NAMED TWO OF THESE AND THERE ARE ELEVEN, which is why this is one function at the
+   boundary rather than a guard per variable. A per-variable fix is a list that the next `if(row)`
+   silently falls off; the boundary cannot be fallen off, because it clears the store rather than
+   remembering to check it.
+
+   WHAT "the application default" MEANS HERE: what the store would hold on a fresh page load with
+   no server rows — so the two AI toggles go back to `load*()`, their per-DEVICE preference, which
+   is what a reopened tab in café B would give and is deliberately not treated as café A's data.
+   `cafeDB_lastImport` is the exception and IS cleared: it mirrors a tenant setting and prints a
+   tenant fact ("Last import 3 Sep") rather than a preference. The remaining localStorage keys that
+   carry no tenant — the plate draft above all — are item 39 and are deliberately untouched here.
+
+   ⚠️ NOT CALLED ON THE NON-MEMBER PATH, and that is 185 working rather than an omission: losing a
+   membership leaves memory alone under the gate, so being re-admitted to the SAME café does not
+   re-fetch. Only a definite move to a DIFFERENT café clears anything. */
+function resetTenantState(){
+  productsById={}; rebuild();
+  kitchenIngredients=[]; rebuildKById();
+  setKingWizSkips([]);
+  customMenu=[]; menusList=[]; savedPlates=[];
+  changeLog=[];
+  priceHistory=[]; menuHistory={}; menuPriceLog={}; ingPriceLog={};
+  supplierMem={};
+  cogsPct=COGS_PCT_DEFAULT;
+  gstDefault=GST_DEFAULT_MODE;
+  aiInvoiceCheck=loadAiInvoiceCheck();
+  aiSuggestions=loadAiSuggestions();
+  try{ localStorage.removeItem('cafeDB_lastImport'); }catch(e){}
+  /* The other café's members and their email addresses. `applyRoleUi` re-reads the team whenever
+     the card is showing or the state is not idle, so putting this back to idle is not a lost
+     fetch — it is the one state in which nothing of the previous café is rendered or held. */
+  teamData={status:'idle', members:[], invites:[], err:''};
+}
+
 /* pull everything from Supabase and refresh the UI */
 async function bootstrapSync(){
   /* v108: no client and no connection are DIFFERENT failures and say so. Neither falls back to
@@ -1288,6 +1376,20 @@ async function bootstrapSync(){
       bootReady('signin', SIGNIN_MSG);
       return;
     }
+    /* ---- 242: THE TENANT BOUNDARY. Everything below this line applies ONE café's rows to memory,
+       so this is the last moment at which the previous café's can be cleared, and it is placed
+       here rather than lower for two reasons that are not the same:
+
+         * BEFORE `applyRoleUi`, so the team card's re-read decision is made against a cleared
+           `teamData` rather than against the other café's members;
+         * BEFORE the required-table throw below, deliberately. If the tenant lookup succeeded and
+           `ingredients` did not, we KNOW the memory in hand belongs to a café we are no longer in,
+           and an error gate over an empty app is honest where an error gate over café A's prices
+           is not. Clearing on the way to an error is the safe direction here.
+
+       The decision is false for a first boot, for an unreadable answer, and for a re-sync of the
+       same café — so the ordinary path costs one string comparison and does nothing. */
+    applyTenantBoundary(_biz);
     /* 188 — AFTER the tenant gate, never before it. A non-member's role is NULL, which is not a
        role and must not become one; and there is no screen to apply a role to while the gate is
        covering the app. Only a definite answer moves the standing role — see roleState. */
@@ -1392,12 +1494,10 @@ async function bootstrapSync(){
       ingPriceLog=_series;
     }
     if(spr && !spr.error && Array.isArray(spr.data)){
-      var mm={}; spr.data.forEach(function(r){ mm[r.id]=rowToSupplierPhrase(r); });
-      var localIds=Object.keys(supplierMem);
-      if(!spr.data.length && localIds.length){
-        invDbg('[smem] server returned 0 rows but', localIds.length, 'held locally — keeping local, re-pushing');
-        localIds.forEach(function(id){ if(typeof dbPushSupplierPhrase==='function') dbPushSupplierPhrase(supplierMem[id]); });
-      } else { supplierMem=mm; }
+      var _sm=supplierMemApply(spr.data, supplierMem);
+      if(_sm.rePush.length) invDbg('[smem] server returned 0 rows but', _sm.rePush.length, 'held locally — keeping local, re-pushing');
+      _sm.rePush.forEach(function(e){ if(typeof dbPushSupplierPhrase==='function') dbPushSupplierPhrase(e); });
+      supplierMem=_sm.mem;
     }   /* supplier_phrases table may not exist yet -> keep local */
     var impRow=setRows.filter(function(r){return r.key==='last_invoice_import';})[0];
     if(impRow && impRow.value){ try{ localStorage.setItem('cafeDB_lastImport', impRow.value); }catch(e){} }
@@ -2931,7 +3031,12 @@ function upsertCustomMenu(item){
   return dbPushMenu(item);   // v42: return the push so a dependent plate write can be sequenced after this menu_items upsert confirms (heals an orphaned existing dish)
 }
 rebuildMenu();
-var cogsPct = 40;                                  // target food cost, as a percent (e.g. 40)
+/* 242: the default is a CONSTANT because two places now need it — the declaration below, and
+   `resetTenantState`, which puts this variable back when the app moves to a café that has no
+   `food_cost_target` row of its own. Writing `40` twice would be two definitions of one number,
+   and the one that drifts is the one nobody looks at. */
+var COGS_PCT_DEFAULT = 40;
+var cogsPct = COGS_PCT_DEFAULT;                    // target food cost, as a percent (e.g. 40)
 function foodTarget(){ return cogsPct/100; }               // as a fraction for the maths
 function setCogs(pct, persist){
   pct=Math.max(1,Math.min(99, Math.round(pct))); cogsPct=pct;
@@ -4423,6 +4528,34 @@ function logMenuHistory(){
 var invSupplier='';
 /* ===== supplier memory: state + persistence ===== */
 var supplierMem={};
+/* ---- 242: WHAT THE BOOT DOES WITH THE SERVER'S SUPPLIER PHRASES, extracted so it can be tested
+   ------------------------------------------------------------------------------------------
+   PURE: no globals, no writes, no clock. Returns the memory to hold and the entries the caller
+   must re-push. `bootstrapSync` is the one caller and does exactly what it is told.
+
+   THE v107 PROTECTION IS THE `rePush` BRANCH AND IT IS DELIBERATE. A successful-but-empty read and
+   an RLS-blocked read are indistinguishable over PostgREST, so a policy fault once presented as
+   "zero rows" and destroyed every taught pack, saving over the local copy in the same breath.
+   Taught packs are user-confirmed ground truth with no other copy: keeping a stale entry costs one
+   Remove, losing them all costs a re-teach per phrase. Accepted trade, unchanged by this batch —
+   deleting your LAST remaining phrase no longer propagates across devices.
+
+   ⚠️ AND IT IS EXACTLY WHY A TENANT MOVE HAD TO BE FIXED AT THE BOUNDARY RATHER THAN HERE. Café B
+   reads `[]` — correctly, it has no phrases — and this function cannot tell that the entries it is
+   about to protect were learned in café A. It would then re-push café A's packs INTO café B, where
+   the tenant machinery stamps them as B's, which is the disclosure half of item 13 and is worse
+   than the wrong-number half. The distinction is not available here and must not be guessed at
+   here: the caller clears `supplierMem` when the tenant changes, so what reaches this function is
+   only ever memory that belongs to the café being loaded. See `resetTenantState`. */
+function supplierMemApply(rows, localMem){
+  rows = rows || [];
+  var mm={}; rows.forEach(function(r){ if(r) mm[r.id]=rowToSupplierPhrase(r); });
+  var localIds=Object.keys(localMem||{});
+  if(!rows.length && localIds.length){
+    return { mem: localMem, rePush: localIds.map(function(id){ return localMem[id]; }) };
+  }
+  return { mem: mm, rePush: [] };
+}
 function normSupplier(s){ return String(s||'').toLowerCase().replace(/\s+/g,' ').trim(); }
 function memKey(supplier, phrase){ return normSupplier(supplier)+'|'+normalizePhrase(phrase); }
 /* The id is memKey(supplier, phrase) — content-derived ON PURPOSE, so re-teaching the same pack UPDATES
@@ -7935,7 +8068,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v198';
+var APP_VERSION='v199';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -10699,7 +10832,8 @@ var invGst={mode:'unknown', note:''};
    thing: what to assume when the invoice doesn't say. An explicit statement on the
    invoice still wins; this only replaces the hardcoded ex-GST assumption in the
    'unknown' branch. See the handover note. */
-var gstDefault='ex';   // v108: default until app_settings arrives
+var GST_DEFAULT_MODE='ex';   // 242: one definition — the declaration below and resetTenantState both read it
+var gstDefault=GST_DEFAULT_MODE;   // v108: default until app_settings arrives
 function setGstDefault(mode, persist){
   if(mode!=='inc'&&mode!=='ex') return;
   gstDefault=mode;
