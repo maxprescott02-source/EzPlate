@@ -4325,6 +4325,36 @@ function changeName(e){
   var sp=savedPlates.find(function(s){ return s.id===e.plateId; });
   return (sp && sp.name)?sp.name:'';
 }
+/* ⚠️ 251 — WHAT KIND OF CHANGE THIS ROW IS, which the card never said. QUEUE item 55's second half.
+   Every row here is a PLATE COST movement — that is not a design choice, it falls out of the filter
+   below needing both cost figures. So the card was five rows of "«plate» · 3 days ago · +$5.00"
+   with nothing saying whether the cost moved because the plate's ingredients were edited or because
+   a stranded line was linked.
+   ⚠️ EXACTLY TWO EVENTS CAN REACH THIS CARD, AND "New plate" IS NOT ONE OF THEM. The first cut of
+   this function had a `plate_created` → 'New plate' branch and it was DEAD: `saveCurrentPlate`
+   chooses that kind with `_isNew=(_costBefore==null)`, so a `plate_created` entry carries a null
+   costBefore BY CONSTRUCTION, and the filter below drops every entry without both figures. The
+   branch could be called and could never return. Removed rather than kept, on the same reasoning
+   that removed `plateIdOf`'s third branch in v112 — a case that cannot fire reads as coverage and
+   is not. Found by the pre-push review; `tests/dash-recent.test.js` now pins the writer invariant
+   that makes it unreachable, so the day somebody gives a new plate a costBefore, something says so.
+   ⚠️ THE WORDS ARE CONSTRAINED, and the first draft of this shipped a forbidden one. "Recipe" names
+   nothing in this app (CLAUDE.md Tier 2: the four object nouns are Product, Ingredient, Plate,
+   Menu), and `tests/terminology.test.js` refused it — which is that guard doing precisely its job on
+   a line written by someone who had read the rule. Anything added here answers to the same list.
+   ⚠️ READ FROM `detail`, NEVER FROM `kind` ALONE — CLAUDE.md's Tier 1 rule, and this is exactly the
+   case it is about: `plate_edited` covers two different events and `detail.via` is what tells them
+   apart. 249's orphan-link writes the same kind for a different reason, which is what made this
+   worth adding now rather than when the item was written.
+   A word this cannot name is left EMPTY rather than guessed at: the renderer prints nothing, the row
+   reads as it always did, and a future kind that reaches this card does not arrive mislabelled. */
+function changeKindWord(e){
+  if(!e) return '';
+  var d=(e.detail && typeof e.detail==='object') ? e.detail : {};
+  if(d.via==='orphan-link') return 'Line linked';
+  if(e.kind==='plate_edited') return 'Ingredients';
+  return '';
+}
 function recentChangeRows(scope){
   if(typeof changeLog==='undefined' || !changeLog || !changeLog.length) return [];
   var cutoff=dashRangeCutoff(), narrowed=!!(scope && scope!==DASH_ALL), out=[];
@@ -4337,7 +4367,7 @@ function recentChangeRows(scope){
     var d=e.costAfter-e.costBefore;
     if(Math.abs(d)<0.005) return;
     var nm=changeName(e); if(!nm) return;
-    out.push({t:e.t, name:nm, delta:d});
+    out.push({t:e.t, name:nm, delta:d, kindWord:changeKindWord(e)});
   });
   out.sort(function(a,b){ return b.t-a.t; });
   return out.slice(0,5);
@@ -4396,7 +4426,7 @@ function recentChangesHtml(scope, current){
       var up=r.delta>0;   // a cost going UP is bad news, not "positive" — the same anchoring .dig-v carries
       return '<li class="mv-row"><span class="mv-main">'
         +'<span class="mv-name">'+esc(r.name)+'</span>'
-        +'<span class="mv-sub">'+esc(relDayLabel(r.t))+'</span></span>'
+        +'<span class="mv-sub">'+(r.kindWord?esc(r.kindWord)+' \u00b7 ':'')+esc(relDayLabel(r.t))+'</span></span>'
         +'<span class="dig-v '+(up?'up':'down')+'">'+(up?'+':'−')+money(Math.abs(r.delta))+'</span>'
         +'</li>';
     }).join('')+'</ul>';
@@ -8761,7 +8791,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v206';
+var APP_VERSION='v207';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI

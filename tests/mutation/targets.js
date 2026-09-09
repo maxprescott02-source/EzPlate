@@ -480,6 +480,11 @@ const targets = [
      matters: it is the ONLY thing standing between the user and a committed cost change they were
      not shown, and its uncostable-line branch is the app's standing rule about never printing a
      confident figure over a line it cannot cost. */
+  /* 251 — the word on a Recent-changes row. Listed because it is the live case of CLAUDE.md's
+     "read `detail`, never `kind` alone": two different events share the kind `plate_edited` and only
+     `detail.via` tells them apart, so a mutant that drops that branch mislabels 249's rows with no
+     error anywhere. Confirmed red by hand before listing. */
+  { fn: 'changeKindWord', tests: ['dash-recent.test.js'] },
   { fn: 'orphanPidGroups', tests: ['bare-pid-heal.test.js'] },
   { fn: 'orphanChoiceDelta', tests: ['bare-pid-heal.test.js'] },
   /* 247 — the gate that decides whether a food-cost trend point describes a write that landed.
