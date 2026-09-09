@@ -276,7 +276,11 @@ test('CENSUS: no product-price path names the change log at all', () => {
      "since you last acted" clock, and that is decided by whether it carries an average — so the
      mechanism is asserted below, by running it, and the shape is only a subset check. */
   const inv = extractFn(SRC, 'applyInvoice');
-  const kinds = [...inv.matchAll(/logChange(?:IfSaved)?\([^,]*,\s*'([a-z_]+)'/g)].map((m) => m[1]);
+  /* Both spellings: `logChangeIfSaved(write, 'kind', …)` and `logChange('kind', …)`. The census
+     missed the second until 248 used it, which would have let a new kind into applyInvoice unseen —
+     the census's own subject. */
+  const kinds = [...inv.matchAll(/logChangeIfSaved\([^,]*,\s*'([a-z_]+)'/g)].map((m) => m[1])
+    .concat([...inv.matchAll(/logChange\(\s*'([a-z_]+)'/g)].map((m) => m[1]));
   assert.ok(kinds.length > 0, 'the invoice DOES relink ingredients — that path must log');
   const allowed = ['ingredient_repointed', 'invoice_applied'];
   for (const k of new Set(kinds)) {
@@ -291,10 +295,18 @@ test('CENSUS: no product-price path names the change log at all', () => {
      A coupling check, labelled as one, because the whole of `applyInvoice` cannot be driven here. */
   const invCode = inv.replace(/\/\*[\s\S]*?\*\//g, '').split('\n')
     .map((l) => l.replace(/(^|[^:])\/\/.*$/, '$1')).join('\n');
-  const call = /logChangeIfSaved\([^,]*,\s*'invoice_applied',\s*\{([^}]*)/.exec(invCode);
+  const call = /logChange\(\s*'invoice_applied',\s*\{([^}]*)/.exec(invCode);
   assert.ok(call, "the invoice_applied call site is still findable");
   assert.match(call[1], /avgBefore:\s*null/, 'the import record must carry NO average before…');
   assert.match(call[1], /avgAfter:\s*null/, '…and none after — an average here resets the since-line clock');
+  /* ⚠️ AND IT IS UNGATED ON PURPOSE. The first cut of 248 wrote `logChangeIfSaved(setWrite, …)`,
+     gating the record on the `last_invoice_import` settings upsert — a write that says nothing about
+     whether the PRICES landed, so it would drop the record for an import that fully succeeded and
+     keep it for one whose price chunk did not. An import's honest verdict is a COUNT from the saved
+     manifest, which is queue item 90's. Until then this records the ACT, which is what this log is
+     for and is true whatever the writes did. */
+  assert.doesNotMatch(invCode, /logChangeIfSaved\([^,]*,\s*'invoice_applied'/,
+    'the import record must not be gated on an unrelated write');
 });
 
 test('248: the import record cannot reset the "since you last acted" clock', () => {

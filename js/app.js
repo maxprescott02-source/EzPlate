@@ -13197,10 +13197,25 @@ function applyInvoice(){
        So the entry carries no avg and no cost figures, which keeps it out of BOTH surfaces by the
        same mechanism `plate_relinked` is kept out of them — and it is still a record, which is what
        the item actually measured as missing.
-       Gated on the setting write for the same reason 247 gates the trend point: a record of an
-       import that the server did not keep is a record of nothing. */
-    logChangeIfSaved(setWrite, 'invoice_applied', {avgBefore:null, avgAfter:null,
-      detail:{supplier:(invSupplier||null), lines:(invRows||[]).length, changed:n, added:added}});
+       ⚠️ UNGATED, AND THE FIRST CUT OF THIS BATCH GATED IT ON `setWrite` WITH A JUSTIFICATION THAT
+       CITED A PRECEDENT SAYING THE OPPOSITE — the 247 comment eleven lines above this one, which is
+       about not gating `logHistory` on that same settings write because it "decides nothing about
+       the prices". Caught by the pre-push review, which read the two comments together.
+       `setWrite` is the `last_invoice_import` upsert. The prices went out as one `setProduct` per
+       row, earlier, each with its own verdict. So gating on it is wrong in BOTH directions: the
+       settings key failing on a flaky connection would drop this record for an import whose prices
+       all landed, and the settings key succeeding says nothing about a price chunk that did not.
+       **There is no honest boolean here**, which is the same sentence 247 wrote at this site: an
+       import's real verdict is a COUNT of what the server kept, and assembling it needs the saved
+       manifest. That is queue item 90's, together with the completion message that has the identical
+       dependency.
+       So this records what MAX DID — he applied an invoice of this size from this supplier — which
+       is what `menu_change_log` is for, and it is true whatever the writes did. The counts are
+       ATTEMPTED and the detail says so by name, because a record claiming 36 confirmed changes when
+       the server kept none would be the wrong number in the one log that is supposed to be about
+       intent rather than about prices. */
+    logChange('invoice_applied', {avgBefore:null, avgAfter:null,
+      detail:{supplier:(invSupplier||null), lines:(invRows||[]).length, attempted:n, addedAttempted:added}});
   }
   renderPlate(); renderAnalysis(); updateLastImport();
   var overAfter=dishesOverTarget();

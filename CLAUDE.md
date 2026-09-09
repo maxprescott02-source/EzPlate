@@ -583,6 +583,20 @@ That matters here because "anchor it `position:fixed` to the input's viewport re
 
 Same family as the section below, reached from the other end: there the comment's observation was right and its conclusion wrong; here the conclusion was right about the thing it was written for and was being read about everything the guard touched.
 
+## A justification that CITES A PRECEDENT is a claim that the precedent's CONDITION holds here, and it is never checked
+
+(Batches 247 and 248, 9 Sep 2026. Two consecutive batches, both caught by the pre-push review, both by the same author in the same session — which is what makes it a shape rather than a slip.)
+
+**An exemption with no comment invites the next reader to check it. An exemption justified by naming a rule from elsewhere in the file closes the question**, because the citation reads as the checking already having been done. Both instances below were confident, specific, and wrong in the same way: the cited rule was real, and its condition did not hold at the site.
+
+- **247** left two product-price paths ungated, arguing that *"`setProducts` returns a CHUNKED write whose verdict is a saved manifest rather than a single error"*. True of the catalogue importer, which passes hundreds of entries. **`setProduct` is the N=1 wrapper** — one entry, one chunk, one `pushWrite` — so the verdict is a plain binary error and there was nothing partial to lose. This file already says *"GREP THE PLURAL"* about that exact pair, one section up, for the mirror-image mistake.
+- **248** gated an import record on a settings write, arguing it was *"the same reason 247 gates the trend point"*. **The 247 comment ELEVEN LINES ABOVE IT says the opposite** — that this same settings write is not a valid gate because it *"decides nothing about the prices"*. The contradicting sentence was in the same function, on screen, and unmodified by the diff that contradicted it.
+
+**The tell is the citation itself: "for the same reason as X", "the pattern above", "as `foo` already does".** When you write one, the claim you are actually making is *X's precondition is true here* — so state that precondition in the comment and check it. If you cannot say what the precondition is, you are borrowing authority rather than reasoning.
+**And read the neighbours.** 248's contradiction was eleven lines away; a citation is exactly the case where the surrounding comments are evidence rather than noise.
+
+⚠️ **This is the same family as "an exemption is scoped to the CLAIM that justified it", pointed at the comment instead of the code** — and it is more dangerous, because that one leaves a silent gap while this one leaves a gap with an argument in front of it. **A wrong justification is worse than none.**
+
 ## A comment can record the defect CORRECTLY and file it under the wrong consequence
 
 (Named 2 Sep 2026 by AUDIT-v186 R2, on its third dated instance. Three batches each found one, each correctly declined to add a roster bullet because the roster is about TESTS, and the shape then had no name of its own. **No count in this line on purpose** — it said "third" while the list below it grew to five, which is this file's own most-recorded rot. Count the bullets.)
