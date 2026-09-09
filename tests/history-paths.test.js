@@ -70,6 +70,13 @@ function harness(opts) {
     function dbDeletePlate(id){ S.writes.push('delplate:'+id); return res('plate'); }
     function dbDeleteMenuRecord(id){ S.writes.push('delmenurec:'+id); return res('menurec'); }
     function dbSetSetting(k,v){ S.writes.push('setting:'+k); return res('setting'); }
+    /* 247 (from the pre-push review): the PRODUCT write. setProduct is setProducts' N=1 wrapper, so
+       its result is one pushWrite's - a complete binary verdict, not the catalogue importer's saved
+       manifest. Stubbed at that boundary rather than running setProducts, because what is under test
+       is whether logHistory waits for it, not what setProducts does with it.
+       (No backticks in this block: it is inside a template literal, as the note at uid() says.) */
+    var plate=${JSON.stringify(opts.plate || [])};
+    function setProduct(id, patch){ S.writes.push('product:'+id); Object.assign(byId[id]||{}, patch); return res('product'); }
     function dbPushChange(e){ return res('changelog'); }
     function dbPushHistory(iso, v){ S.histPushes.push(v); }
     function dbPushMenuHistory(){} function dbPushMenuPrice(){}
@@ -120,6 +127,7 @@ function harness(opts) {
       // not stubbed, because a hand-rolled `return true` here would pass against a guard that was
       // silently inverted. businessRole defaults to 'owner', which is the role these paths assume.
       'isOwner', 'ownerOnly',
+      'commitPrice',   // 247: the builder's per-unit price edit — one of the two sites the review found still ungated
       'dbDeletePlateAfterDishes', 'rollbackPlateDelete', 'deletePlate', 'doDeleteEverything',
       'confirmGuardedRepoints', 'kingRepointGuard',
       'deleteKitchenIngredient', 'saveKingModal',
@@ -141,6 +149,7 @@ function harness(opts) {
       confirmGuardedRepoints:function(l){ confirmGuardedRepoints(l); if(S.confirmFn) S.confirmFn(); },
       deleteKitchenIngredient:function(kid){ deleteKitchenIngredient(kid); if(S.confirmFn) S.confirmFn(); },
       saveKingModal:function(){ saveKingModal(); if(S.confirmFn) S.confirmFn(); },
+      commitPrice:commitPrice,
     };
   `);
   return { S, api: factory(S) };
@@ -268,6 +277,31 @@ test('247: a REFUSED write pushes nothing to the server either', async () => {
   api.mmRemove('D3');
   await flush();
   assert.deepStrictEqual(S.histPushes, [], 'no row for a mutation the server refused');
+});
+
+test('247 (review): the builder price edit gates on the PRODUCT write too', async () => {
+  /* Found by 247's own pre-push review, which is the reason this test exists rather than the four
+     above it. The first cut of the batch left this site and `saveIngEdit` ungated, with a comment
+     arguing that `setProducts` returns a chunked write whose verdict is a manifest rather than a
+     single error. **That is true of the catalogue importer and false here:** `setProduct` is the
+     N=1 wrapper, so `dbPushIngredients` builds one chunk, issues one `pushWrite`, and `.error` is a
+     complete binary verdict. A justification that is wrong is worse than no justification, because
+     it argues — and this one shipped inside the batch whose whole subject is the gate. */
+  const { api, S } = harness(Object.assign(threeDishes(), {
+    plate: [{ uid: 1, pid: 'P1', qty: 100 }],
+    fail: { product: true },
+  }));
+  api.commitPrice(1, '8');
+  await flush();
+  assert.deepStrictEqual(api.priceHistory(), [], 'a refused price edit must not move the trend line');
+  assert.deepStrictEqual(S.histPushes, [], 'and must not push a row for it');
+});
+
+test('247 (review): …and still logs when that write lands', async () => {
+  const { api } = harness(Object.assign(threeDishes(), { plate: [{ uid: 1, pid: 'P1', qty: 100 }] }));
+  api.commitPrice(1, '8');
+  await flush();
+  assert.strictEqual(api.priceHistory().length, 1, 'the gate is not a blanket refusal here either');
 });
 
 /* =============================================================================================

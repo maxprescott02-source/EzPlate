@@ -299,6 +299,17 @@ Requirements: sort every bullet into (a) dead or superseded → delete with the 
 
 ## C — code hygiene and latent defects
 
+### A refused optimistic edit is left in memory, so the next successful edit's history point includes it
+(Raised 9 Sep 2026 by batch 247's pre-push review, which stated it at medium confidence and was right to.)
+
+247 made `logHistory` wait for the write that justifies its point. **The gate proves that write landed; it does not prove the STATE the point is computed from landed**, because `computeAvgFoodCost` reads live memory and this app does not roll back an optimistic edit outside the plate and menu delete paths.
+
+**The sequence:** edit A mutates memory and calls `logHistory(writeA)`; edit B mutates memory further and calls `logHistory(writeB)`; B's write is refused, so B correctly logs nothing — **and leaves its un-landed change sitting in memory**; A's write then succeeds and its point is computed off the combined state, including B's. The point is real about A and wrong about the total.
+
+**It is C on three measured grounds and each could change.** The window is one round trip. `pushWrite` toasts B's failure, so the user is told. And the next boot replaces memory with the server's snapshot, so the wrongness does not persist in the app — only in the `price_history` row, which is the part that matters and is why this is written down at all.
+**The real fix is not a harder gate — it is rolling back a refused edit**, which is what the plate and menu delete paths already do (`rollbackPlateDelete`, `submitNewMenu`'s filter) and what every other optimistic path does not. That is a bigger change than 247 and it is the honest shape of this entry: **do not "fix" this by gating `logHistory` more tightly; there is nothing tighter to gate on.**
+⚠️ **Related and NOT the same:** `docs/QUEUE.md` item 90 is about announcing success before a write settles. This is about the state a correctly-gated success is computed from. A batch that takes 90 should read this entry and decide whether the rollback belongs with it.
+
 ### The `type="number"` inputs nothing has asked a question of
 (Raised 9 Sep 2026 by batch 245, which fixed the one that was measured and counted the surface rather than guessing at it.)
 

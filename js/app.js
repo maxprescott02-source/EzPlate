@@ -2121,14 +2121,16 @@ function commitPrice(uid,raw){
     // (v91 added an explicit logIngPrice call here, which was correct and incomplete: keeping the two
     // logs in agreement by remembering to call it at each site is exactly how the Products tab was
     // missed for 18 versions. logHistory stays — it is the OTHER log, the all-menus average.)
-    setProduct(p.id,{cost_per_base_unit:base});
-   /* 247: NOT GATED, deliberately. `setProducts` returns a CHUNKED write whose verdict is a saved
-      manifest rather than a single error (see saveIngLog / writeSaved), so `!r||r.error` is the
-      wrong question here: a partial success really did move the average, and gating on the error
-      would drop a point that belongs on the line. The per-product series this path feeds is
-      already gated correctly by 224, at the manifest. Doing the same for the all-menus average
-      needs the manifest too, and is queued with the invoice half of item 21. */
-    logHistory();
+    /* 247: gated on the product write, like every other single-mutation path.
+       ⚠️ THE FIRST CUT OF THIS BATCH LEFT THIS UNGATED WITH A JUSTIFICATION THAT IS FALSE HERE, and
+       the pre-push review caught it: it said `setProducts` returns a CHUNKED write whose verdict is
+       a manifest rather than a single error, so a partial success would be dropped. True of the
+       CATALOGUE IMPORTER, which passes hundreds of entries. **`setProduct` is the N=1 wrapper** —
+       one entry, one chunk in `dbPushIngredients`, one `pushWrite` — so `.error` is a complete
+       binary verdict and there is nothing partial to lose.
+       That comment was worse than no comment, because it argued. It is the wrong-consequence shape
+       this file records, written into the batch that ships the gate. */
+    logHistory(setProduct(p.id,{cost_per_base_unit:base}));
   }
   renderPlate();
 }
@@ -4904,7 +4906,14 @@ function logHistory(write){
   if(write && typeof write.then==='function'){
     repaintDashboardIfVisible();                                      // v60 item 1a: liveness is not gated on anything
     return Promise.resolve(write).then(function(r){
-      if(!r || r.error) return null;                                  // the mutation did not land, so nothing moved
+      /* ⚠️ SAY EXACTLY WHAT THIS PROVES, WHICH IS LESS THAN IT LOOKS (247's pre-push review).
+         It proves THIS write landed. It does not prove that everything the point is computed from
+         landed: `computeAvgFoodCost` reads live memory, and this app does not roll back an optimistic
+         edit outside the plate and menu delete paths — so a sibling edit whose own write failed a
+         moment ago is still in memory and still in this average. That window is narrow and it is not
+         new (the live read predates all of this), but a comment saying "the state is real" would be
+         the overclaim, and closing it means rolling back a refused edit rather than gating harder. */
+      if(!r || r.error) return null;                                  // THIS mutation did not land
       return logHistoryPoint();
     }, function(){ return null; });
   }
@@ -5438,17 +5447,14 @@ function saveIngEdit(){
   var sup=resolveCombo('ig_sup', prodSuppliers); if(!sup.ok) return fail('\u201c'+sup.value+'\u201d is a new supplier \u2014 pick \u201cCreate new\u201d to confirm.');
   var ub=invUnitToBase(unitType);
   var pq=parseFloat(document.getElementById('ig_packQty').value); var pu=document.getElementById('ig_packUnit').value;
-  setProduct(id, {description:name, brand:br.value||null, category:cat.value||null, supplier:sup.value||null,
+  var _prodWrite=setProduct(id, {description:name, brand:br.value||null, category:cat.value||null, supplier:sup.value||null,
     base_unit:ub.base_unit, cost_basis:ub.cost_basis, cost_per_base_unit:price/ub.div,
     pack_qty:(isNaN(pq)?null:pq), pack_unit:(pu||null)});
   if(!isNaN(pq) && pq>0) syncMemoryToProduct(id, pq, (pu||'ea'));   // ITEM 1: no stale Remembered-items entry left behind
-   /* 247: NOT GATED, deliberately. `setProducts` returns a CHUNKED write whose verdict is a saved
-      manifest rather than a single error (see saveIngLog / writeSaved), so `!r||r.error` is the
-      wrong question here: a partial success really did move the average, and gating on the error
-      would drop a point that belongs on the line. The per-product series this path feeds is
-      already gated correctly by 224, at the manifest. Doing the same for the all-menus average
-      needs the manifest too, and is queued with the invoice half of item 21. */
-  logHistory();
+  /* 247: gated on the product write. See `commitPrice` for the reason the first cut of this batch
+     got this wrong at both sites — `setProduct` is the N=1 wrapper, so its write carries a complete
+     binary verdict and the "chunked manifest" argument belongs to the catalogue importer alone. */
+  logHistory(_prodWrite);
   renderIngredients(); if(typeof renderPlate==='function') renderPlate(); if(typeof renderAnalysis==='function') renderAnalysis();
   closeIngEdit(); toast('Product updated');
 }
