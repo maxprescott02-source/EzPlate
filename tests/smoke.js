@@ -63,10 +63,14 @@ const FIXTURE_PRODUCTS = fs.readFileSync(path.join(__dirname, 'fixtures', 'base-
    Concatenating puts the assignment in the same scope as the declaration, which is the only thing that
    reaches it. */
 const HYDRATE = '\n;productsById = ' + FIXTURE_PRODUCTS + ';\nrebuild();\n'
-  /* v108: a menu too. The module-scope ensureDefaultMenu() call is gone — an empty menus TABLE
-     is a legitimate zero-menu state and must not be re-seeded, so only bootstrapSync may decide
-     to seed, and only when the table did not answer. smoke has no server, so it supplies what a
-     loaded app would hold. */
+  /* v108: a menu too. An empty menus TABLE is a legitimate zero-menu state and must not be
+     re-seeded; smoke has no server, so it supplies what a loaded app would hold.
+     ⚠️ 246: this used to end "...so only bootstrapSync may decide to seed, and only when the table
+     did not answer." NOTHING SEEDS ANY MORE. That branch was reached by a failed `menus` read as
+     well as by a missing table, and it invented a menu the server had never seen — so the read is
+     fatal now and the seeder is deleted. `ensurePublishMenu` creates a real row at the point of
+     first need and is the only path left. Caught by 246's pre-push review, which is the second
+     comment in two batches to have been correct when written and falsified by a later change. */
   /* 184: the id here is a uid()-SHAPED literal, not 'MENU_ORIGINAL'. Nothing minted that name any
      more, and leaving it would have read as "this is what the app produces" to the next person. */
   + ";menusList = [{id:'MENU-smoke01',name:'Original menu',season:null}];\n";

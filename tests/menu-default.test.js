@@ -54,7 +54,6 @@ function harness(opts = {}) {
     ${extractFn(SRC, 'uidRandom')}
     ${extractFn(SRC, 'uid')}
     ${extractVar(SRC, 'DEFAULT_MENU_NAME')}
-    ${extractFn(SRC, 'ensureDefaultMenu')}
     ${extractFn(SRC, 'fallbackMenuId')}
     ${extractFn(SRC, 'loadCurrentMenuId')}
     ${extractFn(SRC, 'setCurrentMenuId')}
@@ -64,7 +63,7 @@ function harness(opts = {}) {
     ${extractFn(SRC, 'ensurePublishMenu')}
     ${extractFn(SRC, 'withPublishMenu')}
     return {
-      ensureDefaultMenu:ensureDefaultMenu, ensurePublishMenu:ensurePublishMenu,
+      ensurePublishMenu:ensurePublishMenu,
       withPublishMenu:withPublishMenu, fallbackMenuId:fallbackMenuId,
       loadCurrentMenuId:loadCurrentMenuId, menuNameById:menuNameById, menuIdOf:menuIdOf,
       DEFAULT_MENU_NAME:DEFAULT_MENU_NAME,
@@ -83,31 +82,55 @@ function harness(opts = {}) {
 
 /* ---------------------------------------------------------------------------
    1. The id is minted, not named.
+
+   ⚠️ REWRITTEN IN 246, NOT DELETED TO GO GREEN. These three ran against `ensureDefaultMenu`, the
+   boot seeder, which QUEUE item 20 deleted along with the branch that called it. The PROPERTY they
+   pinned is not gone — a default menu still gets minted, by `ensurePublishMenu`, which is now the
+   only path that makes one — so they are pointed at that instead. What has genuinely gone with the
+   seeder is "seeds into memory without a write", and the new tests in section 5 are about that.
    --------------------------------------------------------------------------- */
 
-test('184: the seeded default menu carries a MINTED id, never a hard-coded one', () => {
-  const a = harness().api; a.ensureDefaultMenu();
-  const b = harness().api; b.ensureDefaultMenu();
-  const idA = a.menus()[0].id, idB = b.menus()[0].id;
+test('184/246: a minted default menu id, never a hard-coded one', async () => {
+  const a = harness(); const b = harness();
+  a.api.ensurePublishMenu(); b.api.ensurePublishMenu();
+  a.resolveWrite({ data: [{}], error: null }); b.resolveWrite({ data: [{}], error: null });
+  await Promise.resolve(); await Promise.resolve();
+  const idA = a.S.pushes[0].id, idB = b.S.pushes[0].id;
 
   assert.notStrictEqual(idA, 'MENU_ORIGINAL', 'a hard-coded id is what two cafes collide on');
   // A WHOLE-VALUE comparison, not a substring: 183(b) is the incident where gluing a prefix onto
   // either end of a key left a substring assertion green through the exact change it forbade.
-  assert.notStrictEqual(idA, idB, 'two cafes seeding their first menu must not land on the same id');
+  assert.notStrictEqual(idA, idB, 'two cafes creating their first menu must not land on the same id');
   assert.match(idA, /^MENU/, 'still recognisably a menu id — uid() keeps the prefix');
   assert.ok(idA.includes('-'), 'the uid() separator, which is what can never collide with a legacy id');
 });
 
-test('184: the seed still respects a menus list that already has something in it', () => {
-  const { api } = harness({ menus: [{ id: 'MENU-abc', name: 'Winter', season: null }] });
-  api.ensureDefaultMenu();
-  assert.strictEqual(api.menus().length, 1, 'never seeds over a real menu — hard rule 7');
+test('184/246: a list that already has something in it is never seeded over', () => {
+  const { api, S } = harness({ menus: [{ id: 'MENU-abc', name: 'Winter', season: null }] });
+  api.ensurePublishMenu();
+  assert.strictEqual(api.menus().length, 1, 'never creates over a real menu — hard rule 7');
+  assert.deepStrictEqual(S.pushes, [], 'and issues no write at all');
 });
 
-test('184: the seeded name is the ONE constant every path promises', () => {
-  const { api } = harness();
-  api.ensureDefaultMenu();
-  assert.strictEqual(api.menus()[0].name, api.DEFAULT_MENU_NAME);
+test('184/246: the default name is the ONE constant every path promises', async () => {
+  const { api, S, resolveWrite } = harness();
+  api.ensurePublishMenu();
+  resolveWrite({ data: [{}], error: null });
+  await Promise.resolve();
+  assert.strictEqual(S.pushes[0].name, api.DEFAULT_MENU_NAME);
+});
+
+test('246: the boot seeder is GONE, and the point is that a menu now costs a confirmed write', () => {
+  /* The property the deletion bought, asserted as a property rather than as an absence. Every
+     surviving writer of `menusList` waits for the server, which is what `withPublishMenu` has always
+     trusted `menusList.length` to mean and what item 20 found untrue. */
+  assert.throws(() => extractFn(SRC, 'ensureDefaultMenu'), /not found/,
+    'the in-memory seeder is deleted, not merely uncalled');
+  const { api, S } = harness();
+  api.ensurePublishMenu();
+  assert.strictEqual(api.menus().length, 0,
+    'nothing is in the list while the write is still in flight — the old seeder put it there first');
+  assert.strictEqual(S.pushes.length, 1, 'a real row is written instead');
 });
 
 /* ---------------------------------------------------------------------------

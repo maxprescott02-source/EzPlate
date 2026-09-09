@@ -150,11 +150,37 @@ const DELETED = [
   'doDeleteMenuItem', 'editOpenInBuilder', 'plateEditAction', 'tipText',
   'saveProductCache', 'saveKitchenLS', 'saveCustomMenu', 'saveMenus', 'savePlatesLS', 'saveHistory',
   'saveMenuHistory', 'saveMenuPriceLog', 'saveSupplierMem',
+  /* 246: the boot's default-menu seeder. Its only caller was the `else` on a failed `menus` read,
+     and that read is fatal now — so it could not be reached, and a seeder that cannot be reached
+     reads as a safety net while being the one writer that put a menu the server had never seen into
+     `menusList`. `ensurePublishMenu` is the surviving path and creates a REAL row. */
+  'ensureDefaultMenu',
 ];
 
+/* ⚠️ COMMENTS ARE STRIPPED BEFORE THE SEARCH, and 246 is why. This test read the raw source, so a
+   name was forbidden in PROSE as well as in code — which made it impossible to record a deletion at
+   the site of the thing that replaced it. That is exactly backwards: the tombstone explaining why a
+   function went is the most useful thing anyone can write about it, and this test was pushing the
+   next reader to write "the old seeder" instead of naming it.
+   It is also CLAUDE.md roster 183(a) in miniature — a grep over a source file searches prose as well
+   as code — and the weakening is in the safe direction only: what this test exists to catch is a
+   reintroduced DEFINITION or CALL SITE, and neither of those is a comment. */
+const jsCode = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').split('\n')
+  .map((l) => l.replace(/(^|[^:])\/\/.*$/, '$1')).join('\n');
+
 test('v111: every deleted name is gone from app.js entirely — definition AND call sites', () => {
-  const alive = DELETED.filter(n => new RegExp(`\\b${n}\\b`).test(SRC));
+  const code = jsCode(SRC);
+  const alive = DELETED.filter(n => new RegExp(`\\b${n}\\b`).test(code));
   assert.deepEqual(alive, [], 'a reintroduced name means either dead code came back or a real call site was missed');
+});
+
+test('246: …and the stripper has not turned the test vacuous — a name in CODE is still caught', () => {
+  /* The half that matters after a weakening: prove the assertion can still fail. A fake source
+     carrying one deleted name as a real call, and the same name only inside a comment. */
+  const asCall = jsCode('function keep(){ return subseq(1); }\n');
+  const asProse = jsCode('/* subseq was deleted in v111 */\nfunction keep(){ return 1; }\n');
+  assert.match(asCall, /\bsubseq\b/, 'a live call survives the strip and would fail the test above');
+  assert.doesNotMatch(asProse, /\bsubseq\b/, 'a tombstone comment does not');
 });
 
 test('v111: the survivors are the two `save*` names that are NOT no-ops', () => {

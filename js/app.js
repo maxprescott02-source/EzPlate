@@ -1418,14 +1418,13 @@ function applyRoleUi(){
    membership leaves memory alone under the gate, so being re-admitted to the SAME café does not
    re-fetch. Only a definite move to a DIFFERENT café clears anything.
 
-   ⚠️ ONE HONEST CONSEQUENCE, MEASURED RATHER THAN DISCOVERED LATER: emptying `menusList` changes what
-   a FAILED `menus` read does on the boot that follows a move. `ensureDefaultMenu` seeds whenever the
-   array it is handed is empty, so where the old code would have shown café A's menus as though they
-   were B's, this mints a fictional 'Original menu' for B instead. Both are wrong and this one is less
-   wrong — a made-up menu is visible and local, A's menu list is a cross-tenant leak — but it is QUEUE
-   item 20's defect (a failed read treated as a valid boot) reached by a second door, and that item is
-   the fix. Do not "solve" it here by not clearing: the gate belongs at the read, which is where item
-   20 puts it. Noted on that item. */
+   ✅ ONE HONEST CONSEQUENCE, RECORDED HERE AND SINCE CLOSED. Emptying `menusList` changed what a
+   FAILED `menus` read did on the boot that follows a move: where the old code would have shown café
+   A's menus as though they were B's, it minted a fictional 'Original menu' for B instead. Both are
+   wrong and 242 took the less wrong one on purpose — a made-up menu is visible and local, A's menu
+   list is a cross-tenant leak. It was QUEUE item 20's defect reached by a second door, and 246 fixed
+   it where this note said it belonged: **at the READ**, which is now fatal, so neither door exists.
+   The clearing here is unchanged and was never the problem. */
 function resetTenantState(){
   productsById={}; rebuild();
   kitchenIngredients=[]; rebuildKById();
@@ -1517,7 +1516,29 @@ async function bootstrapSync(){
       SUPA.from('menu_items').select('*'),
       SUPA.from('plates').select('*'),
       SUPA.from('app_settings').select('*'),
-      soft(SUPA.from('menus').select('*')),
+      /* ⚠️ 246 — REQUIRED SINCE THIS BATCH, and it was `soft` for eleven versions. QUEUE item 20.
+         `soft` was written for "an older project may not have this table", and it cannot tell that
+         from "this one request failed" — so a single flaky `menus` read out of the thirteen in this
+         batch fell through to `ensureDefaultMenu`, which UNSHIFTS an in-memory menu with a fresh
+         `uid('MENU')` that the server has never seen.
+         Measured in Chromium, deterministically, before the fix: boot reports success, the café's
+         real menu is gone from `menusList`, `currentMenuId` is repointed at the invented one, every
+         dish is on a menu that is not in the list, and the Menu screen reads **"Nothing on this menu
+         yet. Publish a plate from the Plates tab to see it here."** — which is the app inviting a
+         republish against a menu id no `menus` row answers to.
+         There is no third value to reach for here, and that is the difference from the tenant gate:
+         a tenant we cannot identify still lets the app show what it has, while menus we cannot read
+         means we do not know what the dishes are ON. Every publish decision downstream is made from
+         that list, so an unreadable answer is a failed boot, which the gate already words honestly
+         and offers a retry for.
+         ⚠️ BE PRECISE ABOUT WHICH HALF IS LOAD-BEARING, because the pair reads as two guards and is
+         one: **the fatal check on `mres.error` is the mechanism.** Dropping `soft` as well is a
+         legibility change — it puts this line with the four reads it now belongs to — and it is very
+         nearly a no-op, because `soft` only ever converted a REJECTION into `{error}`, and a
+         rejection that reaches `Promise.all` bare lands in the same outer catch and the same error
+         state. Measured by mutating each half separately: re-softening this line alone leaves the
+         browser's behaviour correct; removing `mres.error` from the throw alone restores the bug. */
+      SUPA.from('menus').select('*'),
       soft(SUPA.from('price_history').select('recorded_at,avg_food_cost_pct,menu_id').order('recorded_at',{ascending:true})),
       soft(SUPA.from('menu_price_history').select('recorded_at,price,menu_item_id').order('recorded_at',{ascending:true})),
       soft(SUPA.from('supplier_phrases').select('*')),
@@ -1629,7 +1650,10 @@ async function bootstrapSync(){
     // the food-cost target back to its 40% default, which moves every suggested price on the Menu tab.
     // Falling back to an empty settings list is exactly the partial-render-pretending-to-be-real that
     // online-only exists to stop.
-    if(ing.error||men.error||pla.error||setg.error) throw (ing.error||men.error||pla.error||setg.error);
+    // 246: `mres` (the `menus` table) joins them, for the reason written at its read. It is last in
+    // the chain rather than first only so the diff reads as an addition; the order does not matter,
+    // every one of the five is fatal on its own.
+    if(ing.error||men.error||pla.error||setg.error||mres.error) throw (ing.error||men.error||pla.error||setg.error||mres.error);
     menuHistSupported = !(_h && _h.error);                 // the query IS the probe now
     menuPriceHistSupported = !(_mp2 && _mp2.error);
     /* v114: probe-by-query, so an unapplied migration records nothing rather than toasting on every
@@ -1673,11 +1697,13 @@ async function bootstrapSync(){
     // ordering rule itself is unchanged and still lives in dbPushMenuAfterPlate for real publishes.
     customMenu=(men.data||[]).map(rowToMenu);
     /* v54/v108: a SUCCESSFUL EMPTY read is the user having deleted every menu, and zero menus is a
-       legitimate state — so it must be respected, not re-seeded. Seed only when the table did not
-       answer at all (it may not exist on an older project). */
-    var menusRead = !!(mres && !mres.error && Array.isArray(mres.data));
-    if(menusRead) menusList=mres.data.map(rowToMenuRecord);
-    else ensureDefaultMenu();
+       legitimate state — so it must be respected, not re-seeded. That rule is unchanged.
+       ⚠️ 246: WHAT IS GONE IS THE `else`. It read "seed only when the table did not answer at all",
+       and `mres.error` cannot tell a missing table from one failed request — so the branch written
+       for an older project's schema was reached by a network blip and invented a menu. The read is
+       fatal now (see its site above), so by the time control is here `mres` has answered, and the
+       only two cases left are the two the rule above is about: rows, or a legitimate zero. */
+    menusList=(mres.data||[]).map(rowToMenuRecord);
     if(!menusList.some(function(m){return m.id===currentMenuId;})) setCurrentMenuId(fallbackMenuId());
     savedPlates=(pla.data||[]).map(rowToPlate); rebuildMenu();
     // v89/v108: support is read off the fetch above — naming menu_id in the select means the query
@@ -3185,21 +3211,32 @@ var menusList=[];
 // Menus reference plates; deleting a menu deletes its dishes and UNLINKS (never deletes) their plates,
 // which live on in the Plates tab. With plates able to stand alone, ZERO menus is a legitimate state.
 /* v108: menusKeyExists is DELETED. It read `cafeDB_menus`, and phase 5b removed every write to that
-   key — so it returned false forever, which made ensureDefaultMenu re-seed "Original menu" on EVERY
-   boot once the user had deleted their last menu. That silently violates hard rule 7 (zero menus is a
+   key — so it returned false forever, which made the old seeder re-add "Original menu" on EVERY boot
+   once the user had deleted their last menu. That silently violates hard rule 7 (zero menus is a
    legitimate state) and would have resurrected a deleted menu indefinitely. Found by CodeRabbit.
-   The replacement signal is whether the menus TABLE answered — see bootstrapSync. */
-/* Seeds "Original menu" ONLY when the caller has established there is no server answer to respect.
-   The caller decides; this function must never guess, because an empty menus table and a fresh
-   install are indistinguishable from in here — and they mean opposite things. */
-/* 184: the seeded id is MINTED, not a literal. It was 'MENU_ORIGINAL' — a NAME two cafes both answer
-   to, on a table whose id is a global primary key. Every menu a user creates has always carried a
-   random uid('MENU') (see submitNewMenu), so the hard-coded seed was the only value that could ever
+   Its replacement was "did the menus TABLE answer", and 246 retired that too: the table has to
+   answer or the boot fails, so nothing is left that re-seeds under any signal. */
+/* ⚠️ 246 — `ensureDefaultMenu` IS DELETED, and with it the last writer that could put a menu into
+   `menusList` that the server has never seen. QUEUE item 20.
+   It seeded "Original menu" when its caller had established there was no server answer to respect,
+   and it had exactly one caller: `bootstrapSync`'s `else` on a `menus` read that errored. That read
+   is fatal now, so the branch is gone and the function had no way to be reached. A seeder kept for a
+   caller that no longer exists is the shape this file has deleted before (`plateIdOf`, v112) — it
+   reads as a safety net and is not one.
+   ⚠️ WHAT THAT BUYS IS AN INVARIANT RATHER THAN A TIDY-UP, and it is worth stating because two
+   comments elsewhere already ASSERTED it while this function quietly falsified it: **`menusList`
+   means menus the server has.** The three remaining writers all keep that promise — `bootstrapSync`
+   assigns what the table returned, `submitNewMenu` pushes and then takes back anything the server
+   refused, `ensurePublishMenu` pushes only after a confirmed write. `withPublishMenu` trusts
+   `menusList.length` to mean exactly that, and now it can.
+   184's reasoning about the seeded id is kept below because `ensurePublishMenu` still mints one. */
+/* 184: a minted id, not a literal. It was 'MENU_ORIGINAL' — a NAME two cafes both answer to, on a
+   table whose id is a global primary key. Every menu a user creates has always carried a random
+   uid('MENU') (see submitNewMenu), so the hard-coded seed was the only value that could ever
    collide, and minting it closes that with no schema change and no composite foreign key.
    Scoopy's existing row KEEPS its 'MENU_ORIGINAL' id — it is a valid value, and rewriting it would
    mean chasing every reference for nothing, which is the same trade the uid() header declines. */
-var DEFAULT_MENU_NAME='Original menu';                              // 184: named once — ensureDefaultMenu, ensurePublishMenu and the Add-dish label must all promise the same thing
-function ensureDefaultMenu(){ if(!menusList.length) menusList.unshift({id:uid('MENU'),name:DEFAULT_MENU_NAME,season:null}); }
+var DEFAULT_MENU_NAME='Original menu';                              // 184: named once — ensurePublishMenu and the Add-dish label must promise the same thing
 function fallbackMenuId(){                                          // v54: never a deleted id; null when no menu exists (a valid zero-menu state)
   return (menusList[0] && menusList[0].id) || null;                 // 184: the 'MENU_ORIGINAL'-first preference is gone with the literal
 }
@@ -3226,10 +3263,12 @@ function menuIdOf(m){ return (m && m.menuId) || null; }
    One named comparison, so the guard cannot be forgotten at the next call site. */
 function dishOnMenu(m, menuId){ var mid=menuIdOf(m); return !!mid && mid===menuId; }
 /* 184 — THE SECOND DEFECT under the same literal, and it is not the collision.
-   `ensureDefaultMenu` seeds menusList IN MEMORY and nothing has ever pushed that row. Worse, for a
-   brand-new cafe it is not even CALLED: bootstrapSync only seeds when the menus table did not answer
-   at all, and an empty table answers fine. So a new cafe reaches the Publish button with menusList
-   empty, and the dish it saves references a menu row that does not exist.
+   The old boot seeder put a menu into menusList IN MEMORY and nothing ever pushed that row. Worse,
+   for a brand-new cafe it was not even CALLED: bootstrapSync seeded only when the menus table did
+   not answer at all, and an empty table answers fine. So a new cafe reached the Publish button with
+   menusList empty, and the dish it saved referenced a menu row that does not exist.
+   (246 deleted that seeder outright — see its tombstone above. This function is what replaced it and
+   is now the ONLY path that creates a default menu, which is what 184 was arguing for anyway.)
 
    Zero menus stays a legitimate state and boot still respects it (hard rule 7). This seeds at the
    point of first NEED instead — the only moment at which the two indistinguishable zero states, a
@@ -3268,8 +3307,17 @@ function withPublishMenu(errBoxId, fn){
      pre-push review was right that it makes ensurePublishMenu's first branch unreachable from the app.
      Kept anyway, for two different jobs: here it keeps the common path SYNCHRONOUS (see below), and
      there it keeps ensurePublishMenu total, so a future caller reaching it directly gets the menu id
-     rather than a second menu. What menusList.length is trusted to MEAN — only menus the server has —
-     is enforced by submitNewMenu putting back anything the server refused. */
+     rather than a second menu.
+     ⚠️ WHAT `menusList.length` IS TRUSTED TO MEAN — only menus the server has — WAS NOT TRUE WHEN
+     THIS SENTENCE WAS WRITTEN, and that is QUEUE item 20. It named `submitNewMenu` putting back
+     anything the server refused, which is one of the writers; it missed `ensureDefaultMenu`, which
+     unshifted a menu nobody had ever written on a failed `menus` read, and this gate then waved
+     every later dish through against an id no `menus` row answers to — 23503, or the silent
+     cross-tenant accept this file's FK section describes.
+     246 made the read fatal and deleted that seeder, so the claim is now true by construction and
+     the enumeration is complete: `bootstrapSync` assigns what the table returned, `submitNewMenu`
+     rolls back a refusal, `ensurePublishMenu` pushes only after a confirmed write. **Three writers,
+     all of which wait for the server.** If a fourth is ever added, this gate is what it owes. */
   if(menusList.length) return fn();
   return ensurePublishMenu().then(function(id){
     if(id) return fn();
@@ -8420,7 +8468,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v202';
+var APP_VERSION='v203';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
