@@ -61,6 +61,7 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 **Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 17. **Promoted here on 9 Sep 2026 by batch 240 ALREADY BLOCKED, which is the point of promoting it** — it is the largest open defect in the backlog and it was invisible to `/batch` while sitting in a group nobody had reached.
 
 **Blocked on: MAX, ONE SENTENCE — does the parser-region protection stand or is it lifted?**
+**Put to him 10 Sep 2026 — `docs/decisions/2026-09-10.md`, question 1.**
 
 `CLAUDE.md` Tier 1 says *"never edit anything inside it"* and names four never-touch functions. `docs/QUEUE-2026-09-08-CONSOLIDATED.md`'s owner-override block says the protection **is lifted** and attributes that to him on 8 Sep. That file's own Tranche 0 lists *getting the reversal in writing* as still outstanding. `docs/QUEUE-GROUPS.md` blocks the whole G2 group on it. **Four documents, three positions, and no decision file.**
 
@@ -84,7 +85,7 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 **Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 91 — raised by AUDIT-v207 out of a question batch 250 handed off, and measured against `pg_policies` rather than the schema file.
 
-**Blocked on: MAX, two sentences.** May staff delete a **product**? May staff delete a **taught pack** (`supplier_phrases`)? Both are deletable by any member today, through the same permissive `FOR ALL` policy that made `price_history` a hole until 250.
+**Blocked on: MAX, two sentences. Put to him 10 Sep 2026 — `docs/decisions/2026-09-10.md`, question 2.** May staff delete a **product**? May staff delete a **taught pack** (`supplier_phrases`)? Both are deletable by any member today, through the same permissive `FOR ALL` policy that made `price_history` a hole until 250.
 ⚠️ **`menu_items` is the third such table and is DELIBERATE** — 187 decided staff may unpublish a dish, and it says so in the migration. It is not part of this.
 **Why it needs him:** what staff may do is his decision — 187 was his. The migration, if the answer is no, is 187's exact idiom with 250 as the worked example.
 
@@ -93,6 +94,7 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 **Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 90.
 
 **Blocked on: MAX, one sentence — after applying an invoice, would you rather have your screen back straight away, or wait on the invoice list while it saves so any row the server refused stays on screen with its own error?**
+**Put to him 10 Sep 2026 — `docs/decisions/2026-09-10.md`, question 3, with the cost corrected.**
 
 ✅ **The other three parts have shipped.** The completion message in 253 (`ezplate-v208`); the menu delete's sequencing and the boot-time history merge in 254 (`ezplate-v209`).
 
