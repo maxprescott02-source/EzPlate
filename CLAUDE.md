@@ -552,9 +552,25 @@ That matters here because "anchor it `position:fixed` to the input's viewport re
 
 **The remedy is `fixedContainingBlock`, which ASKS instead of assuming**, and every coordinate `anchorDrop` writes is offset by it. **The tell to recognise: `position:fixed` set from JS together with numbers out of `getBoundingClientRect()`.** Before trusting that pair, ask what is between the element and the root — and if the answer is "nothing today", note that adding a shadow, a transform or a `contain` anywhere above it is enough to break it silently.
 
+## "The server refuses it anyway" is true of an ACTION and false of a VALUE
+
+(Batch 244, 9 Sep 2026, the food-cost target. Reproduced before it was fixed: a $6 dish reading **$20** against a 30% the server had rejected, where the honest answer is $15.)
+
+**A permissive client-side guess costs nothing when the thing being guessed at is permission to DO something**, because the server's refusal means nothing happened. That argument is written into this app in several places and it is right in all of them but one. The role default says it in as many words — *"guessing owner shows a control that then fails honestly, with the server's own words in a toast"* — and three of the four controls it excuses are actions: delete a plate, delete a menu, restore a backup.
+
+**The fourth was a NUMBER, and setting a number has already changed what the user reads before the server is asked.** `setCogs` moved `cogsPct` — which every suggested price and every good/bad colour in the app is divided by — then sent the write unawaited with its promise discarded. The refusal arrived as a toast over a screen that had already recomputed, and a reload silently "fixed" it, so nothing was left to notice.
+
+**So: an optimistic write that changes a FIGURE owes a rollback; one that performs an ACTION does not.** The tell is a guard, a comment or a review finding that excuses a permissive client default with *"the server refuses it either way"* — go and ask what the client did BEFORE it asked, and if the answer is "showed a number", the refusal is only half the story.
+
+**Two details of the remedy that generalise past this one number:**
+- **Roll back to the last value the server CONFIRMED, not to the value before this call.** They are different the moment a control can write twice before the first answer lands, and the confirmed one is correct in either settle order. It is a second variable (`cogsServer` here), it belongs to the tenant, and it must be cleared with everything else on a café move.
+- **A rollback and a live control fight each other unless the PERSIST is debounced and the repaint is not.** Restoring a field somebody is still typing into is worse than the bug; the split is what makes the rollback safe rather than merely present. Pay the debounce's own cost in the same change — a delay is a window in which the tab can close, so flush on `change`.
+
+Same family as the section below, reached from the other end: there the comment's observation was right and its conclusion wrong; here the conclusion was right about the thing it was written for and was being read about everything the guard touched.
+
 ## A comment can record the defect CORRECTLY and file it under the wrong consequence
 
-(Named 2 Sep 2026 by AUDIT-v186 R2, on its third dated instance. Three batches each found one, each correctly declined to add a roster bullet because the roster is about TESTS, and the shape then had no name of its own.)
+(Named 2 Sep 2026 by AUDIT-v186 R2, on its third dated instance. Three batches each found one, each correctly declined to add a roster bullet because the roster is about TESTS, and the shape then had no name of its own. **No count in this line on purpose** — it said "third" while the list below it grew to five, which is this file's own most-recorded rot. Count the bullets.)
 
 **The dangerous comment is not the wrong one. It is the one whose first half is exactly right and whose second half draws the wrong conclusion from it** — because the accurate half is what buys the reader's trust, and the conclusion is what they carry away.
 
@@ -562,6 +578,8 @@ That matters here because "anchor it `position:fixed` to the input's viewport re
 - **225** — a renderer's comment said *"the four figures are never announced"* and concluded *"the label gains nothing here and loses nothing"*. First half right; the `aria-label` it was excusing **was** the cause.
 - **226** — a spec said the toast and the install banner overlap each other, that it was pre-existing, and that it was not what that test measured. Every clause true; the result was a test named for a three-way split, green, with a third of the split false.
 - **242** — a REVIEW FINDING did it, and the batch nearly copied the disposal into a comment and a test. It correctly found `businessRole` uncleared across a café switch, and gave the consequence as *"owner in A, staff in B, so B's screen offers the owner-only controls"*. **The defect was real; that consequence is unchanged by the fix**, because `unknown` reads as owner by design — so the case comes out `owner` with the fix AND without it. The direction that actually moves is the opposite one (**staff** in A, who then cannot see the controls in a café they own). Written from the finding's words, the comment stated the wrong harm and the test asserted `'owner'` against a fixture where both sides were already `'owner'` — roster **184(b)** — so it **survived the hand-mutation**.
+- **244** — the fifth, and the reason the section above it now exists as its own rule. The role default's comment argued that a permissive guess is harmless *"because the server refuses either way, with its own words in a toast"*. Right about the three ACTIONS it was written for and wrong about the fourth control, which sets a NUMBER — so the toast arrived over a screen that had already recomputed every suggested price off a target the server had rejected. **The observation and the conclusion were both true of what the author had in mind, and the conclusion was being read about a wider set than the observation covered**, which is the same failure as an exemption scoped to the claim that justified it.
+
 
 ⚠️ **242 is why this section is not only about comments.** The other three are an author disposing of their own observation; this is an author inheriting somebody else's disposal, which is harder to catch because the finding arrives with the authority of a second reader. **A finding's stated consequence is a fourth separable claim, after the defect, the mechanism and the remedy** — and it is the one that ends up written into the comment and chosen as the test's fixture. The existing rule ("run the finding's own repro, then run its FIX, before you apply it") is what caught it: run it **in both directions**, and if the fix changes nothing in the direction the finding named, you have not found its bug yet.
 
