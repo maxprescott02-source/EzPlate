@@ -5,7 +5,7 @@
  * WHY THIS BAND GETS ITS OWN SPEC: every existing table spec runs at 380 or 1280/1360, so the
  * band between them was measured by NOTHING — which is exactly how three tables shipped desktop
  * column tracks that only fit at ≥1024 (a 34px name column on Menu, 203px-tall rows on
- * Ingredients, and Products' "Last change" column clipped clean off the screen with no scroll
+ * Ingredients, and Products' rightmost figure column clipped clean off the screen with no scroll
  * and no hint). The audit called the band "broken on all three data tables"; this file is the
  * regression net.
  *
@@ -107,7 +107,7 @@ test('R2 at 768: an Ingredients row holds its product sentence without balloonin
   expect(r.rowH, 'a row is a row, not a tower (57.5 passing vs 129.5 reverted, this fixture)').toBeLessThanOrEqual(80);
 });
 
-test('R3 at 768: Products shows its Last-change column instead of clipping it offscreen', async ({ page }) => {
+test('R3 at 768: Products shows its Supplier-move column instead of clipping it offscreen', async ({ page }) => {
   await boot(page, 768);
   const r = await page.evaluate(() => {
     window.showTab('ingredients'); window.scrollTo(0, 0);
@@ -131,7 +131,7 @@ test('R3 at 768: Products shows its Last-change column instead of clipping it of
   // renderer that stops emitting them turns allInside vacuous LOUDLY instead of silently.
   expect(r.driftCount, 'the drift cells must exist for the inside-check to mean anything').toBeGreaterThanOrEqual(30);
   expect(r.overflow, 'THE defect: hidden horizontal overflow clipping the last column').toBeLessThanOrEqual(1);
-  expect(r.allInside, 'every Last-change cell ends inside the container').toBe(true);
+  expect(r.allInside, 'every Supplier-move cell ends inside the container').toBe(true);
   expect(r.nameW, 'and the name column still gets the width the freed tracks hand it').toBeGreaterThanOrEqual(200);
 });
 

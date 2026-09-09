@@ -61,7 +61,10 @@ test('desktop: the band labels four columns, and every row lines up with it', as
      ("$3.45/kg"), computed by dispPrice — the pack price is a different number living on the edit
      form. The honest heading is pinned so a later "make it match the mock" pass has to argue with a
      failing test rather than quietly relabel a figure. Same refusal F3 made of "30-day change". */
-  await expect(band).toHaveText('ProductCategoryUnit costLast change');
+  /* 248 (QUEUE item 22): renamed from "Last change". The figure is the linked product's supplier
+     price movement, and it does not move when the ingredient's cost changes by another route — a
+     relink most of all. The header now says which of the two logs the reader is looking at. */
+  await expect(band).toHaveText('ProductCategoryUnit costSupplier move');
 
   const geo = await page.evaluate(() => {
     const l = (e) => e.getBoundingClientRect().left;

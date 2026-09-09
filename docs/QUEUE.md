@@ -85,11 +85,6 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 **Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 90.
 ⚠️ **SPLIT OUT OF 21 BY BATCH 247, which shipped 21's history half as `ezplate-v204`.** 21 grouped four instances under one mechanism and only one of them shared it in substance: the history gating was fifteen call sites and a dedup interaction, the invoice completion message needs a COUNT of what landed rather than a boolean, the menu delete is a sequencing change, and the boot-time replace is a merge decision. **Each needs its own repro; none falls out of the others**, and 21's old `Do after: 20` reason was falsified by 246 before either could be used.
 
-## next  22 · Nothing records when or how a price last moved  **[B, "Last change" reads a dash on 163 of 163 ingredients, including one whose unit cost doubled that minute]**
-
-**Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 22.
-*(`Do after: 16` DELETED 9 Sep 2026 — satisfied. 16 shipped as batch 239 / `ezplate-v197`, so the plate lines a relink touches are settled and this is ready. Deleting the line is the mechanism, not tidying.)*
-
 
 ## next  88 · Thirteen plate lines cost off a product no ingredient uses, and only a person can say which ingredient they meant  **[B, item 16's measured harm, which its own remedy could not reach]**
 

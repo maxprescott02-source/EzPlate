@@ -35,8 +35,12 @@ const settle = () => new Promise((r) => setTimeout(r, 0));
 function sandbox(seed) {
   const productPushes = [];   // one entry per dbPushIngredients CALL, not per product
   const pointPushes = [];     // one entry per dbPushIngPrices CALL
+  /* 248: the ROWS as byId held them at call time, kept apart from `productPushes` on purpose — that
+     array is deep-compared between two sandboxes by the equivalence test, and a wall-clock stamp
+     would make two identical operations differ. Two arrays, two questions. */
+  const pushRows = [];
   // eslint-disable-next-line no-new-func
-  const factory = new Function('SEED', 'PP', 'HP', `
+  const factory = new Function('SEED', 'PP', 'HP', 'PR', `
     "use strict";
     var productsById = JSON.parse(JSON.stringify(SEED || {}));
     var PRODUCTS, byId;
@@ -48,6 +52,7 @@ function sandbox(seed) {
        description for a product that certainly has one. */
     function dbPushIngredients(ids){
       PP.push((ids||[]).map(function(id){ return byId[id] ? (byId[id].description || '(no description)') : null; }));
+      PR.push((ids||[]).map(function(id){ return byId[id] ? JSON.parse(JSON.stringify(byId[id])) : null; }));
       // 224: the manifest is part of this function's resolved shape, so the stub carries it. Section
       // 8 below runs the REAL one against the REAL chunking, which is what proves the shape here.
       return Promise.resolve({error:null, saved:(ids||[]).slice()});
@@ -74,9 +79,10 @@ function sandbox(seed) {
       pending: function(){ return _ingLogPending.slice(); }
     };
   `);
-  const api = factory(seed, productPushes, pointPushes);
+  const api = factory(seed, productPushes, pointPushes, pushRows);
   api.productPushes = productPushes;
   api.pointPushes = pointPushes;
+  api.pushRows = pushRows;
   return api;
 }
 
@@ -89,6 +95,62 @@ const SEED = {
            supplier: 'Bidfood', base_unit: 'g', cost_per_base_unit: 0.0098, cost_basis: '$/g',
            is_food: true },
 };
+
+/* =============================================================================================
+ * 248 / QUEUE item 22 — `price_as_of`, which nothing wrote until this batch.
+ *
+ * The column has existed since the schema was written and both row mappers round-trip it faithfully,
+ * which is exactly what made it invisible: measured on production 9 Sep 2026, 0 of 428 products
+ * carried a date and 421 of them had a price. The app could say what a price is and never when it
+ * was true.
+ * ========================================================================================== */
+
+test('248: a price write stamps price_as_of', async () => {
+  const s = sandbox(SEED);
+  const before = s.product('P0004').price_as_of;
+  assert.ok(before == null, 'precondition: the fixture carries no date, like production did');
+  s.setProduct('P0004', { cost_per_base_unit: 0.02 });
+  await settle();
+  assert.match(String(s.product('P0004').price_as_of), /^\d{4}-\d{2}-\d{2}T/, 'an ISO stamp lands');
+});
+
+test('248: an UNCHANGED price is still an observation, and still stamps', async () => {
+  /* The decision this field turns on, and it is the opposite of `ing_price_history`'s. That series
+     records MOVEMENTS and deliberately skips a re-write of the same number. This one answers "as of
+     when is this price known to be current" — so an invoice confirming $10 again has observed $10
+     today, and a staleness reading that ignored it would call a price checked this morning six
+     months old. Two questions, two mechanisms. */
+  const s = sandbox(SEED);
+  const was = s.product('P0004').cost_per_base_unit;
+  s.setProduct('P0004', { cost_per_base_unit: was });
+  await settle();
+  assert.match(String(s.product('P0004').price_as_of), /^\d{4}-\d{2}-\d{2}T/,
+    'the stamp moves even though the number did not');
+  assert.deepStrictEqual(s.points('P0004'), [],
+    'and the history series does NOT gain a point — that is the difference between the two');
+});
+
+test('248: a patch that carries no price does not stamp', async () => {
+  const s = sandbox(SEED);
+  s.setProduct('P0004', { description: 'Renamed' });
+  await settle();
+  assert.ok(s.product('P0004').price_as_of == null,
+    'a rename is not a price observation — stamping it would date a price nobody looked at');
+  assert.strictEqual(s.product('P0004').description, 'Renamed', 'and the patch still applied');
+});
+
+test('248: the stamp is written through the row boundary, not just held in memory', async () => {
+  /* The half that decides whether any of this survives a reload. `dbPushIngredients` reads `byId`,
+     which is rebuilt from `productsById` — so the stamp has to be in the object BEFORE the rebuild,
+     and this asserts the row that actually goes to the server carries it. */
+  const s = sandbox(SEED);
+  s.setProduct('P0004', { cost_per_base_unit: 0.02 });
+  await settle();
+  const rows = s.pushRows.flat();
+  const row = rows.find((r) => r && r.id === 'P0004');
+  assert.ok(row, 'the product was written');
+  assert.match(String(row.price_as_of), /^\d{4}-\d{2}-\d{2}T/, 'and the row carries the date');
+});
 
 /* ---------------------------------------------------------------------------
  * 1. THE EXTRACTION PRESERVED THE SINGLE CASE.
@@ -111,7 +173,17 @@ test('setProduct(id, patch) and setProducts([{id, patch}]) are the same operatio
   await settle();
   assert.strictEqual(plural.pointPushes.length, 1, 'a flush really happened, so the comparison below has something to compare');
 
-  assert.deepStrictEqual(plural.product('P0004'), single.product('P0004'), 'the stored product must be identical');
+  /* 248: `price_as_of` is a wall-clock stamp taken at write time, so the two sandboxes differ by the
+     milliseconds between them — the same reason the price POINTS below are compared "timestamps
+     aside". It is asserted separately rather than dropped: both must HAVE one (that is the whole of
+     item 22's second half) and it must be an ISO string, and then the rest of the product is
+     compared whole, so a field going missing on one path still fails. */
+  const asOfP = plural.product('P0004').price_as_of, asOfS = single.product('P0004').price_as_of;
+  assert.match(String(asOfP), /^\d{4}-\d{2}-\d{2}T/, 'the plural path stamps price_as_of');
+  assert.match(String(asOfS), /^\d{4}-\d{2}-\d{2}T/, 'and so does the singular one');
+  assert.deepStrictEqual({ ...plural.product('P0004'), price_as_of: null },
+                         { ...single.product('P0004'), price_as_of: null },
+                         'the stored product must be identical in every other respect');
   assert.deepStrictEqual(plural.points('P0004'), single.points('P0004').map((p, i) => ({ ...p, t: plural.points('P0004')[i].t })),
     'the same price point must be logged (timestamps aside)');
   assert.strictEqual(plural.productPushes.length, single.productPushes.length, 'the same number of product writes');

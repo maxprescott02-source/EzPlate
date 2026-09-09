@@ -1870,10 +1870,23 @@ function setProducts(entries){
   entries=(entries||[]).filter(function(e){ return e && e.id!=null; });
   if(!entries.length) return Promise.resolve({data:[], error:null});
   var priced=[];
+  /* ⚠️ 248 — `price_as_of` IS STAMPED HERE, AND UNTIL THIS BATCH NOTHING WROTE IT AT ALL. QUEUE item
+     22. The column has existed since the schema was written and both row mappers round-trip it
+     faithfully, which is what made it invisible: measured on production 9 Sep 2026, **0 of 428
+     products carried a date** and 421 of them had a price. So the app could show what a price is and
+     never when it was true, and MM-4's weekly page needs a date per price.
+     ⚠️ STAMPED WHENEVER A PRICE IS WRITTEN, NOT ONLY WHEN IT MOVED, and the difference is the whole
+     meaning of the field. `ing_price_history` records MOVEMENTS — its guard below is deliberately
+     `had==null || !samePrice(...)`. This one answers a different question: "as of when is this price
+     known to be current". An invoice that confirms $10 again has observed $10 today, and a staleness
+     reading that ignored it would call a price checked this morning six months old.
+     Two questions, two mechanisms, which is the five-series doctrine one field along. */
+  var _asOf=new Date().toISOString();
   entries.forEach(function(e){
     var had=confirmedPrice(e.id);
-    productsById[e.id] = Object.assign({}, productsById[e.id]||{}, e.patch);
-    if(e.patch && Object.prototype.hasOwnProperty.call(e.patch, 'cost_per_base_unit')){
+    var isPrice=!!(e.patch && Object.prototype.hasOwnProperty.call(e.patch, 'cost_per_base_unit'));
+    productsById[e.id] = Object.assign({}, productsById[e.id]||{}, e.patch, isPrice?{price_as_of:_asOf}:{});
+    if(isPrice){
       priced.push({id:e.id, had:had, now:e.patch.cost_per_base_unit});
     }
   });
@@ -4605,8 +4618,13 @@ var changeLogSupported = true;
    ⚠️ An OLDER cached build restoring a newer backup drops these entries from its in-memory log,
    because changeEntry refuses an unknown kind — true of any new kind, not of this one. The server
    row survives; only that build's own export would be missing them. */
+/* 248: `invoice_applied` is the SECOND kind carrying no figures, and for a stronger reason than
+   `plate_relinked`'s. It could carry an average — an import moves one — and it must not: the
+   since-line picks the newest entry that has one, so an invoice would reset the "since you last
+   acted" clock every time a supplier raised a price. See the note at its call site; the figures are
+   omitted to keep it off two surfaces, not because none exists. */
 var CHANGE_KINDS = ['plate_created','plate_edited','plate_deleted','plate_relinked',
-                    'ingredient_repointed','ingredient_deleted',
+                    'ingredient_repointed','ingredient_deleted','invoice_applied',
                     'dish_added','dish_linked','dish_price','dish_moved','dish_removed','menu_deleted'];
 /* Client-generated, like every other id in this app (SP*, um*, MENU*, K*). That is what makes a restore
    exactly idempotent: an entry carries its own identity into the backup file and back out, so the server
@@ -5294,7 +5312,19 @@ function renderIngredients(){
      as an `srLabel` span, so the row says which number is which without a floating header row being
      announced before every one of them. Add a cell, add its label. */
   var band='<div class="ing-band" aria-hidden="true"><span>Product</span><span>Category</span>'
-    +'<span class="ib-num">Unit cost</span><span class="ib-num">Last change</span></div>';
+/* ⚠️ 248 — "Last change" WAS THE WRONG NAME AND IT WAS MEASURABLY MISLEADING. QUEUE item 22.
+   The figure is `ingLastMovePct`: the percentage between the last two points in the linked PRODUCT's
+   `ing_price_history` series. It moves when a supplier's price moves, and it does NOT move when the
+   INGREDIENT's unit cost changes by any other route — most obviously a relink, which is the app's
+   cheapest real intervention. Measured 8 Sep: K0164 was relinked from a $10/kg product to a $20/kg
+   one and this column stayed a dash, on a row whose cost had just doubled.
+   The item offered two fixes — make it reflect any route, or name it for what it measures — and this
+   takes the second. The first needs a per-INGREDIENT cost series that does not exist, and inventing
+   one to answer a column header would be a sixth series against a rule that keeps five apart.
+   A relink is not unrecorded: it writes `ingredient_repointed` to `menu_change_log`, which is the
+   log for things Max did, and this column is the log for things suppliers did. Naming it says which
+   of the two the reader is looking at. */
+    +'<span class="ib-num">Unit cost</span><span class="ib-num">Supplier move</span></div>';
   wrap.innerHTML=band+items.map(function(p){
     /* Q7 (v126) unchanged in substance: the change column reads the last LOGGED move, by the same
        ingLastMovePct rule the Ingredients row and the dashboard's What-moved panel use, so the three
@@ -5543,7 +5573,7 @@ function renderKitchenPanel(){
      as an `srLabel` span, so the row says which number is which without a floating header row being
      announced before every one of them. Add a cell, add its label. */
   var band='<div class="king-band" aria-hidden="true"><span>Ingredient</span><span>Category</span>'
-    +'<span class="kb-num">Unit cost</span><span class="kb-num">Last change</span><span class="kb-num">Used in</span></div>';
+    +'<span class="kb-num">Unit cost</span><span class="kb-num">Supplier move</span><span class="kb-num">Used in</span></div>';   // 248: renamed with Products' — see the note at that header
   // v44 item 6b: the whole row opens the Edit modal (Products pattern) — no visible Edit/Remove links.
   // Remove lives INSIDE the modal now, still going through deleteKitchenIngredient unchanged.
   box.innerHTML=band+list.map(function(k){
@@ -8519,7 +8549,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v204';
+var APP_VERSION='v205';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -13147,7 +13177,46 @@ function applyInvoice(){
      completion message that does not wait), which is split into its own queue item because it
      needs the count of what landed, not a boolean. Left as it was rather than gated on the
      `last_invoice_import` setting write beside it, which decides nothing about the prices. */
-  if(n||added){ var iso=new Date().toISOString(); try{localStorage.setItem('cafeDB_lastImport',iso);}catch(e){} dbSetSetting('last_invoice_import',iso); logHistory(); }
+  if(n||added){
+    var iso=new Date().toISOString(); try{localStorage.setItem('cafeDB_lastImport',iso);}catch(e){}
+    var setWrite=dbSetSetting('last_invoice_import',iso);
+    logHistory();
+    /* ⚠️ 248 — THE IMPORT LEAVES A RECORD, AND IT CARRIES NO AVERAGE ON PURPOSE. QUEUE item 22.
+       Measured 8 Sep: `menu_change_log` held ZERO invoice events while the Invoices screen printed
+       "Prices last updated 29/08/2026", so the app's only memory of an import was one date in
+       `app_settings.last_invoice_import` — overwritten by the next one, and carrying no supplier and
+       no size. This entry is that memory: who, how many lines, how many moved.
+       ⚠️ AND THE ITEM ASKED FOR SOMETHING THIS DELIBERATELY DOES NOT DO. It said the event should be
+       written "so the Dashboard's since-line and Recent changes can show it". **That contradicts a
+       Tier 1 rule and the rule wins.** `sinceLineHtml` reads `lastChangeEntry`, which picks the
+       newest entry carrying avgBefore/avgAfter — so an invoice event with those figures would become
+       "your last change" and RESET the "how long since you last acted" clock. Applying an invoice is
+       not acting on food cost; it is recording that a supplier moved, which is the exact event the
+       drift counter exists to accumulate. CLAUDE.md: "if it wrote here, the clock would reset every
+       time a supplier raised a price... Self-defeating."
+       So the entry carries no avg and no cost figures, which keeps it out of BOTH surfaces by the
+       same mechanism `plate_relinked` is kept out of them — and it is still a record, which is what
+       the item actually measured as missing.
+       ⚠️ UNGATED, AND THE FIRST CUT OF THIS BATCH GATED IT ON `setWrite` WITH A JUSTIFICATION THAT
+       CITED A PRECEDENT SAYING THE OPPOSITE — the 247 comment eleven lines above this one, which is
+       about not gating `logHistory` on that same settings write because it "decides nothing about
+       the prices". Caught by the pre-push review, which read the two comments together.
+       `setWrite` is the `last_invoice_import` upsert. The prices went out as one `setProduct` per
+       row, earlier, each with its own verdict. So gating on it is wrong in BOTH directions: the
+       settings key failing on a flaky connection would drop this record for an import whose prices
+       all landed, and the settings key succeeding says nothing about a price chunk that did not.
+       **There is no honest boolean here**, which is the same sentence 247 wrote at this site: an
+       import's real verdict is a COUNT of what the server kept, and assembling it needs the saved
+       manifest. That is queue item 90's, together with the completion message that has the identical
+       dependency.
+       So this records what MAX DID — he applied an invoice of this size from this supplier — which
+       is what `menu_change_log` is for, and it is true whatever the writes did. The counts are
+       ATTEMPTED and the detail says so by name, because a record claiming 36 confirmed changes when
+       the server kept none would be the wrong number in the one log that is supposed to be about
+       intent rather than about prices. */
+    logChange('invoice_applied', {avgBefore:null, avgAfter:null,
+      detail:{supplier:(invSupplier||null), lines:(invRows||[]).length, attempted:n, addedAttempted:added}});
+  }
   renderPlate(); renderAnalysis(); updateLastImport();
   var overAfter=dishesOverTarget();
   if(learned.length){ var L=learned[0]; toast('EzPlate will remember: "'+L.phrase+'" = '+ (L.qty%1===0?L.qty:L.qty.toFixed(2)) +' '+(L.unit==='ea'?'units':L.unit)+(learned.length>1?(' (+'+(learned.length-1)+' more)'):'')); }
