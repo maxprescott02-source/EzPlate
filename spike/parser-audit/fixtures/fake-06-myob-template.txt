@@ -1,0 +1,15 @@
+Tax Invoice
+COASTAL DAIRY SUPPLIES
+A.B.N. 33 333 333 333
+Invoice No. 00011234 Date 04/09/2026
+Ship To: The Corner Cafe
+Ship Qty Item Number Description Price Disc% Total Tax
+10 MILK2L Milk Full Cream 2L $3.20 $32.00 FRE
+4 CRM1L Cream Thickened 1L $5.60 $22.40 FRE
+2 BUT5KG Butter Unsalted 5kg $52.00 $104.00 FRE
+6 YOG1KG Yoghurt Greek 1kg $7.90 5.00% $45.03 FRE
+1 CHS2KG Cheese Tasty Block 2kg $21.50 $21.50 FRE
+Subtotal: $224.93
+Freight: $12.00
+Tax: $1.20
+Total Amount: $238.13

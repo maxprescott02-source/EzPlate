@@ -1,0 +1,15 @@
+{
+ "gst": "ex",
+ "subtotal": -55.1,
+ "gst_amount": 0.0,
+ "total": -55.1,
+ "lines": [],
+ "exclude": [
+  "chips straight",
+  "milk full cream",
+  "sub total",
+  "total credit"
+ ],
+ "style": "Credit note from a foodservice distributor: negative quantities and amounts, same columns as the invoice.",
+ "source": "pdf"
+}

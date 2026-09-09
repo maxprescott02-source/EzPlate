@@ -11,6 +11,11 @@ Worked top to bottom by `/batch`. Position is priority. Max adds problems, not b
 **So: when you write an item, either COUNT the sites and list them, or say in the item that the list is unmeasured.** Both are honest and the difference is visible; a bare plural is neither. And when you RUN one, grep the enumeration before planning off it — that is not re-asking, and every one of those seven batches did it unprompted.
 *(The one exception this file has ever carried — the mutation-testing gate, which Max put here himself on 13 Aug 2026 over that rule — shipped in batch 180 and its item is deleted. It was never precedent: only he can override this line, and he did it once, in writing, with the count that justified it.)*
 
+⚠️ **THIS FILE IS NOT THE WHOLE BACKLOG AS OF 8 SEP 2026, AND `/batch` READING ONLY THIS FILE WILL MISS MOST OF THE OPEN WORK.**
+`docs/QUEUE-2026-09-08-CONSOLIDATED.md` holds **72 further items** consolidated from every audit, `docs/MAINTENANCE.md` and the margin-monitor spec, numbered from 16 so they continue this file. `docs/QUEUE-GROUPS.md` groups them by the context a batch must load and states the order.
+**They are NOT all in this file because 72 items cannot be, and the cap does not need raising:** this file is the **WORKING SET**, refilled one group at a time from the backlog, and `skills/batch` does the refill when nothing unblocked is left. **G1 was promoted on 9 Sep 2026.** So what `/batch` works is whatever stands here now — read it, do not count it from this sentence.
+A promoted item is **referenced, not copied**: read the full item in the consolidated file under the number it names.
+
 ---
 
 # Design law — inherited from the v3 fold-in, and STILL BINDING
@@ -49,6 +54,25 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 **Step one of every one of these is the repro, and "it does not reproduce" is a legitimate outcome that DELETES the item** — say so in the handover rather than fixing something to make the finding true. That is `CLAUDE.md`'s standing rule about a review's three separable claims (the defect, the mechanism, the remedy) arriving from an outside reviewer instead of the pre-push one.
 
 ---
+
+# Promoted 9 Sep 2026 — group G1, the costing core
+
+**These came from `docs/QUEUE-2026-09-08-CONSOLIDATED.md` by promotion, per `docs/QUEUE-GROUPS.md`.** They are referenced, not copied: **the full item — mechanism, sites, acceptance, the test that pins it — is in the consolidated file under the number given, and that file is the one to read before planning.** One description, in one place.
+**When one ships, delete it here AND strike it there**, with the batch and deploy version. `skills/batch` step 10 carries the rule; the strike is what stops finished work being re-promoted.
+**Their C riders are NOT promoted** — 25 (rides 15), 69, 76, 77 and 81 ride whichever batch opens their function, per `docs/MAINTENANCE.md`'s standing rule.
+
+⚠️ **Every line number in these items is a POINTER TO GREP, not a fact** — the consolidated file says so of itself, and the blind audit above is why. **Step one of each is the repro**, and "it does not reproduce" deletes the item and says so in the handover.
+
+## next  16 · Relinking an ingredient leaves every legacy bare-pid plate line on the old product  **[A, silent mis-costing on the live October menu, measured 8 Sep]**
+
+**Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 16.
+**Measured, not inferred:** 44 bare `{pid}` lines across 11 plates on production, 13 of them pointing at a product no ingredient uses any more; seven named dishes mis-cost, all on Ethen's Menu Oct 2026.
+⚠️ **The heal rewrites production `plates` rows, so it is MAX'S GO ON THE DAY** — rehearse on staging against a real export first. The rest of the item does not wait on that.
+
+## next  18 · One mispriced dish rewrites every headline, rescales the chart, and leaves a permanent history point  **[A, a $0.01 typo took production to 354.4%, "324.4 pts over target", and a 380% axis, measured 8 Sep]**
+
+**Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 18.
+Deleting the bad history point itself is Tranche 0 and is Max's; this item is the bound that stops the next one, plus the way to remove one from the app.
 
 ## next  13 · Café A's settings and supplier memory survive a same-session move into café B  **[A — cross-tenant, and one half writes A's data into B's database]**
 
@@ -109,6 +133,39 @@ and inserts `business_members` with **`inv.role`** from whichever invitation tha
 ⚠️ **The comment at `js/app.js:916-919` is a finding in its own right** and is the reason this was not caught: it argues fail-open role presentation is harmless because the server rejects the write and the user gets an error. **That is right about authorisation and wrong about consequence** — the number has already moved. This is the shape `CLAUDE.md` names as *a comment that records the defect correctly and files it under the wrong consequence*, and it is that section's fourth dated instance. **Fix the comment in the same change.**
 
 **What must be true when it is fixed:** a cost-affecting client write that the server refuses leaves the client showing what the server holds. **The regression test must assert the rollback, not the refusal** — the existing role/client tests pin unknown-as-owner-like and therefore establish nothing about state after rejection.
+
+---
+
+# G1 continued — the B items
+
+## next  19 · A misc cost accepts a negative number and the plate saves at a negative cost  **[B, a plate at minus $2.00 persisted to production on 8 Sep]**
+
+**Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 19.
+
+## next  20 · A failed `menus` read is treated as a valid boot and mints a menu the server never had  **[B, unmeasured; presents as "my dishes disappeared", then as a failed publish]**
+
+**Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 20.
+⚠️ **Moved into G1 from G3 on 9 Sep 2026, deliberately and against its context.** Its natural home is the boot group, but **21 is `Do after: 20`** — 20's fictional menu is the deterministic repro trigger for 21's dish path — and leaving it in G3 would strand 21 here unworkable for several groups. **This does not contradict** the standing rule that `ensureDefaultMenu`'s gate lives at its call site and a successful EMPTY read must be respected: this is the third case, a read that FAILED, which a two-valued gate cannot express.
+
+## next  21 · Success is announced, and history is logged, before the write that justifies it has settled  **[B, unmeasured; a false completion message and a history point for a price that never landed]**
+
+**Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 21. One mechanism, four instances.
+**Do after:** 20 — reproduce its fictional menu first; part of this may fall out of that.
+
+## next  22 · Nothing records when or how a price last moved  **[B, "Last change" reads a dash on 163 of 163 ingredients, including one whose unit cost doubled that minute]**
+
+**Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 22.
+**Do after:** 16 — the relink heal changes which plates a relink touches.
+
+## next  23 · The Dashboard headline does not say which average it is  **[B, 25.0% mean-of-ratios against 26.4% ratio-of-sums on the same data]**
+
+**Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 23.
+**Do after:** 18 — same function. The choice gets written once beside per-publication counting in `CLAUDE.md`.
+
+## next  55 · Recent changes colours a sell-price rise red and never says what changed  **[B, the colour language everywhere else is anchored to the target, so a red plus reads as bad news]**
+
+**Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 55.
+⚠️ **Which field the row reads for a `dish_price` entry is UNMEASURED** — grep `costBefore` in `logChange`'s writers before planning.
 
 ---
 

@@ -1,0 +1,15 @@
+FRESH MARKET PRODUCE
+TAX INVOICE 30991
+Sold to: THE CORNER CAFE
+Qty Unit Item Price Amount
+24 EACH Avocado Hass $1.85 $44.40
+6 BUNCH Coriander $2.50 $15.00
+5.20 KG Tomatoes Gourmet @ $6.90/kg $35.88
+1 BOX Mixed Lettuce 1.5kg $20.00 $20.00
+12 KG Onions Brown 6.90 per kg $82.80 $82.80
+2 BAG Potatoes Washed 20kg $28.00 $56.00
+1 TRAY Mushrooms Cup 3kg $27.00 $27.00
+3 PUN Strawberries 250g $4.50 $13.50
+Subtotal $294.58
+GST $0.00
+Total $294.58

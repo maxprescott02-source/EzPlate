@@ -1,0 +1,107 @@
+{
+ "gst": "ex",
+ "subtotal": 369.1,
+ "gst_amount": 12.8,
+ "total": 381.9,
+ "lines": [
+  {
+   "desc": "CHIPS 6X2KG x3",
+   "match": "chips straight",
+   "qty": 3,
+   "pack": "6x2kg",
+   "unitPriceEx": 38.2,
+   "per": "ctn",
+   "lineTotal": 114.6,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 3.1833333333333336
+    }
+   ]
+  },
+  {
+   "desc": "FLOUR 12.5KG x2",
+   "match": "flour plain",
+   "qty": 2,
+   "pack": "12.5kg",
+   "unitPriceEx": 14.2,
+   "per": "bag",
+   "lineTotal": 28.4,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 1.136
+    }
+   ]
+  },
+  {
+   "desc": "SUGAR 25KG x1",
+   "match": "sugar white",
+   "qty": 1,
+   "pack": "25kg",
+   "unitPriceEx": 32.0,
+   "per": "bag",
+   "lineTotal": 32.0,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 1.28
+    }
+   ]
+  },
+  {
+   "desc": "RICE 20KG x1 (page 2)",
+   "match": "rice long grain",
+   "qty": 1,
+   "pack": "20kg",
+   "unitPriceEx": 41.5,
+   "per": "bag",
+   "lineTotal": 41.5,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 2.075
+    }
+   ]
+  },
+  {
+   "desc": "TOMATO CRUSHED A10 3KG x6",
+   "match": "tomato crushed",
+   "qty": 6,
+   "pack": "3kg",
+   "unitPriceEx": 4.1,
+   "per": "can",
+   "lineTotal": 24.6,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 1.3666666666666665
+    }
+   ]
+  },
+  {
+   "desc": "COFFEE BEANS 1KG x4",
+   "match": "coffee beans",
+   "qty": 4,
+   "pack": "1kg",
+   "unitPriceEx": 32.0,
+   "per": "bag",
+   "lineTotal": 128.0,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 32.0
+    }
+   ]
+  }
+ ],
+ "exclude": [
+  "sub total",
+  "total due",
+  "continued",
+  "page 1 of 2",
+  "page 2 of 2"
+ ],
+ "style": "Foodservice invoice whose item table breaks across two pages: page footer, page header and column header repeat between two items, and one description wraps across the break.",
+ "source": "pdf"
+}

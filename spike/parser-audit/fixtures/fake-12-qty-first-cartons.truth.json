@@ -1,0 +1,74 @@
+{
+ "gst": "ex",
+ "subtotal": 591.5,
+ "gst_amount": 0.0,
+ "total": 591.5,
+ "lines": [
+  {
+   "desc": "2 CTN Beef Mince 6x1kg at 60.00/ctn",
+   "match": "beef mince",
+   "qty": 2,
+   "pack": "6x1kg",
+   "unitPriceEx": 60.0,
+   "per": "ctn",
+   "lineTotal": 120.0,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 10.0
+    }
+   ]
+  },
+  {
+   "desc": "3 CTN Chicken Thigh 4x2.5kg at 85.00/ctn",
+   "match": "chicken thigh",
+   "qty": 3,
+   "pack": "4x2.5kg",
+   "unitPriceEx": 85.0,
+   "per": "ctn",
+   "lineTotal": 255.0,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 8.5
+    }
+   ]
+  },
+  {
+   "desc": "1 CTN Lamb Shoulder 5x1kg at 92.50",
+   "match": "lamb shoulder",
+   "qty": 1,
+   "pack": "5x1kg",
+   "unitPriceEx": 92.5,
+   "per": "ctn",
+   "lineTotal": 92.5,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 18.5
+    }
+   ]
+  },
+  {
+   "desc": "4 BAG Pork Belly 2kg at 31.00/bag",
+   "match": "pork belly",
+   "qty": 4,
+   "pack": "2kg",
+   "unitPriceEx": 31.0,
+   "per": "bag",
+   "lineTotal": 124.0,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 15.5
+    }
+   ]
+  }
+ ],
+ "exclude": [
+  "sub total",
+  "total 591.50"
+ ],
+ "style": "Butcher/wholesaler with the quantity and container FIRST: \"2 CTN Beef Mince 6 x 1kg\", then unit price, unit price repeated, line total.",
+ "source": "pdf"
+}

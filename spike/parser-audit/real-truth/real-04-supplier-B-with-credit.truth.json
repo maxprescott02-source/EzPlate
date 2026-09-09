@@ -1,0 +1,204 @@
+{
+ "style": "Supplier B (poultry and smallgoods distributor, dompdf PDF). Columns: Item Code | Item Description (wraps onto a SECOND line for brand/notes) | Ordered | Shipped | UOM | Ship Doc + Unit UOM | Item Price | GST | Line Total. Item Price is per UOM: per KG when UOM is KG (catch-weight bacon, chipolatas, chicken), per CTN/BAG/UNIT otherwise. Ex-GST. A FUEL LEVY line carries the only GST. Ordered and Shipped print as equal 2-decimal numbers on every line. Three pages: items, then totals + EFT, then a CREDIT NOTE (page 3) crediting 2 cartons of chips at -2.00 qty, $-59.00, with an all-zero second row. The credit line must not become a purchase.",
+ "source": "pdf",
+ "gst": "ex",
+ "subtotal": 1098.75,
+ "gst_amount": 0.3,
+ "total": 1099.05,
+ "lines": [
+  {
+   "desc": "FZ CHIPS - S/CUT 10MM GF 6X2KG (carton)",
+   "match": "fz chips",
+   "qty": 11,
+   "pack": "6x2kg",
+   "unitPriceEx": 29.5,
+   "per": "ctn",
+   "lineTotal": 324.5,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 2.4583333333333335
+    }
+   ]
+  },
+  {
+   "desc": "VINEGAR - WHITE 20LTR CASK",
+   "match": "vinegar",
+   "qty": 1,
+   "pack": "20L",
+   "unitPriceEx": 20.4,
+   "per": "drum",
+   "lineTotal": 20.4,
+   "accept": [
+    {
+     "unit": "l",
+     "price": 1.02
+    }
+   ]
+  },
+  {
+   "desc": "FZ BEEF BURGER PATTIES PART COOKED 60*120G (carton; the 60*120G is on the wrapped 2nd line)",
+   "match": "fz beef burger",
+   "qty": 1,
+   "pack": "60x120g",
+   "unitPriceEx": 99.1,
+   "per": "ctn",
+   "lineTotal": 99.1,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 13.763888888888888
+    },
+    {
+     "unit": "ea",
+     "price": 1.6516666666666666
+    }
+   ],
+   "note": "the pack size is on the wrapped second line; from the first line alone the pack is unknown, so a manual row is also acceptable"
+  },
+  {
+   "desc": "EGGS - 600G 15X1 DOZEN (carton of 180)",
+   "match": "eggs",
+   "qty": 3,
+   "pack": "15 dozen",
+   "unitPriceEx": 58.5,
+   "per": "ctn",
+   "lineTotal": 175.5,
+   "accept": [
+    {
+     "unit": "ea",
+     "price": 0.325
+    }
+   ]
+  },
+  {
+   "desc": "BACON - RINDLESS MIDDLE 2X2.5KG PENDLE per KG (30 kg = 6 ctn)",
+   "match": "bacon - rindless",
+   "qty": 30,
+   "pack": "2x2.5kg ctn, priced per kg",
+   "unitPriceEx": 11.0,
+   "per": "kg",
+   "lineTotal": 330.0,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 11.0
+    }
+   ]
+  },
+  {
+   "desc": "FZ BREAD - WHITE SLICED 700G/UNIT 6 UNITS/CTN",
+   "match": "fz bread - white",
+   "qty": 1,
+   "pack": "6x700g",
+   "unitPriceEx": 25.0,
+   "per": "ctn",
+   "lineTotal": 25.0,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 5.9523809523809526
+    },
+    {
+     "unit": "ea",
+     "price": 4.166666666666667
+    }
+   ],
+   "note": "the '6' ends the first line and 'UNITS/CTN' wraps; from the first line alone the pack is 700g per unit and units per carton is ambiguous, so a manual row is acceptable"
+  },
+  {
+   "desc": "PORK CHIPOLATAS 1.5KG (3) per KG",
+   "match": "pork chipolatas",
+   "qty": 1.5,
+   "pack": "1.5kg pack, priced per kg",
+   "unitPriceEx": 12.9,
+   "per": "kg",
+   "lineTotal": 19.35,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 12.9
+    }
+   ]
+  },
+  {
+   "desc": "FZ BREAD - RAISIN THICK 600G/UNIT 6UNITS/CTN",
+   "match": "fz bread - raisin",
+   "qty": 1,
+   "pack": "6x600g",
+   "unitPriceEx": 38.0,
+   "per": "ctn",
+   "lineTotal": 38.0,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 10.555555555555555
+    },
+    {
+     "unit": "ea",
+     "price": 6.333333333333333
+    }
+   ],
+   "note": "units per carton is on the wrapped second line; manual is acceptable"
+  },
+  {
+   "desc": "OIL - CANOLA OIL SPRAY 450G(12) per UNIT",
+   "match": "oil - canola",
+   "qty": 4,
+   "pack": "450g can",
+   "unitPriceEx": 4.75,
+   "per": "unit",
+   "lineTotal": 19.0,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 10.555555555555555
+    },
+    {
+     "unit": "ea",
+     "price": 4.75
+    }
+   ]
+  },
+  {
+   "desc": "FLOUR - PLAIN FLOUR 12.5KG",
+   "match": "flour - plain",
+   "qty": 1,
+   "pack": "12.5kg",
+   "unitPriceEx": 12.5,
+   "per": "bag",
+   "lineTotal": 12.5,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 1.0
+    }
+   ]
+  },
+  {
+   "desc": "CHEESE - DANISH FETTA 2KG (4) per UNIT",
+   "match": "cheese - danish fetta",
+   "qty": 2,
+   "pack": "2kg",
+   "unitPriceEx": 16.2,
+   "per": "unit",
+   "lineTotal": 32.4,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 8.1
+    }
+   ]
+  }
+ ],
+ "exclude": [
+  "fuel levy",
+  "total ex",
+  "outstanding amount",
+  "credit claims",
+  "$4,188.00",
+  "-2.00 -2.00 ctn $29.50 $-59.00",
+  "0.00 0.00 $0.00 $0.00",
+  "total -59"
+ ]
+}

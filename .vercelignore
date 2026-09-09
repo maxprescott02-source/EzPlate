@@ -25,6 +25,12 @@ tests/
 test-results/
 playwright.config.js
 playwright-report/
+# Spikes - throwaway harnesses, fixtures and proposed patches that are NOT the app.
+# Added 9 Sep 2026, in the commit that first tracked spike/, because until it is listed here
+# every file in it answers 200 on the production origin. The real extracted invoice text
+# deliberately lives OUTSIDE the repo; what is committed is anonymised truth files and the
+# harness, and this line is what keeps even those off the origin.
+spike/
 
 # Database - schema and the restore RPC's definition
 supabase/

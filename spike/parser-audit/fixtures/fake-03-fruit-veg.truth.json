@@ -1,0 +1,139 @@
+{
+ "gst": "ex",
+ "subtotal": 294.58,
+ "gst_amount": 0.0,
+ "total": 294.58,
+ "lines": [
+  {
+   "desc": "Avocado 24 each",
+   "match": "avocado",
+   "qty": 24,
+   "pack": "each",
+   "unitPriceEx": 1.85,
+   "per": "ea",
+   "lineTotal": 44.4,
+   "accept": [
+    {
+     "unit": "ea",
+     "price": 1.85
+    }
+   ]
+  },
+  {
+   "desc": "Coriander 6 bunch",
+   "match": "coriander",
+   "qty": 6,
+   "pack": "bunch",
+   "unitPriceEx": 2.5,
+   "per": "bunch",
+   "lineTotal": 15.0,
+   "accept": [
+    {
+     "unit": "ea",
+     "price": 2.5
+    }
+   ]
+  },
+  {
+   "desc": "Tomatoes 5.20kg @ 6.90/kg",
+   "match": "tomatoes",
+   "qty": 5.2,
+   "pack": "per kg",
+   "unitPriceEx": 6.9,
+   "per": "kg",
+   "lineTotal": 35.88,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 6.9
+    }
+   ]
+  },
+  {
+   "desc": "Mixed Lettuce 1.5kg box",
+   "match": "mixed lettuce",
+   "qty": 1,
+   "pack": "1.5kg",
+   "unitPriceEx": 20.0,
+   "per": "box",
+   "lineTotal": 20.0,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 13.333333333333334
+    }
+   ]
+  },
+  {
+   "desc": "Onions 12kg at 6.90 per kg",
+   "match": "onions",
+   "qty": 12,
+   "pack": "per kg",
+   "unitPriceEx": 6.9,
+   "per": "kg",
+   "lineTotal": 82.8,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 6.9
+    }
+   ]
+  },
+  {
+   "desc": "Potatoes 20kg bag x2",
+   "match": "potatoes",
+   "qty": 2,
+   "pack": "20kg",
+   "unitPriceEx": 28.0,
+   "per": "bag",
+   "lineTotal": 56.0,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 1.4
+    }
+   ]
+  },
+  {
+   "desc": "Mushrooms 3kg tray",
+   "match": "mushrooms",
+   "qty": 1,
+   "pack": "3kg",
+   "unitPriceEx": 27.0,
+   "per": "tray",
+   "lineTotal": 27.0,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 9.0
+    }
+   ]
+  },
+  {
+   "desc": "Strawberries 250g punnet x3",
+   "match": "strawberries",
+   "qty": 3,
+   "pack": "250g",
+   "unitPriceEx": 4.5,
+   "per": "pun",
+   "lineTotal": 13.5,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 18.0
+    },
+    {
+     "unit": "ea",
+     "price": 4.5
+    }
+   ]
+  }
+ ],
+ "exclude": [
+  "subtotal",
+  "gst $0.00",
+  "total $294.58"
+ ],
+ "style": "Fruit and vegetable wholesaler. Qty | Unit | Description | Price per unit | Amount, with @ rates and per-kg weighed lines. Ex-GST (fresh produce is GST-free).",
+ "source": "pdf"
+}
