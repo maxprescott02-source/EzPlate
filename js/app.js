@@ -1247,7 +1247,16 @@ function applyRoleUi(){
 
    ⚠️ NOT CALLED ON THE NON-MEMBER PATH, and that is 185 working rather than an omission: losing a
    membership leaves memory alone under the gate, so being re-admitted to the SAME café does not
-   re-fetch. Only a definite move to a DIFFERENT café clears anything. */
+   re-fetch. Only a definite move to a DIFFERENT café clears anything.
+
+   ⚠️ ONE HONEST CONSEQUENCE, MEASURED RATHER THAN DISCOVERED LATER: emptying `menusList` changes what
+   a FAILED `menus` read does on the boot that follows a move. `ensureDefaultMenu` seeds whenever the
+   array it is handed is empty, so where the old code would have shown café A's menus as though they
+   were B's, this mints a fictional 'Original menu' for B instead. Both are wrong and this one is less
+   wrong — a made-up menu is visible and local, A's menu list is a cross-tenant leak — but it is QUEUE
+   item 20's defect (a failed read treated as a valid boot) reached by a second door, and that item is
+   the fix. Do not "solve" it here by not clearing: the gate belongs at the read, which is where item
+   20 puts it. Noted on that item. */
 function resetTenantState(){
   productsById={}; rebuild();
   kitchenIngredients=[]; rebuildKById();

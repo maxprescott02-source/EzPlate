@@ -145,5 +145,11 @@ its own sake is churn.
 ## After the fixes
 
 `npm test` 1970 pass / 0 fail · `npm run smoke` green · `npm run mutate` 1195 mutants, 45 survivors
-all allowed · `npx playwright test` 465 passed / 14 skipped (run at `1e0fd2e`; the review fixes touch
-only the boot role default and tests).
+all allowed · `npx playwright test` 465 passed / 14 skipped (run at `1e0fd2e`).
+
+**What landed after the reviewed commit**, so a reader can judge whether the review still covers the
+branch: the `businessRole` reset and its constant, the tests above, `resetTenantState` added to the
+gate targets, and **two comment-only additions to `js/app.js`** — the corrected note on which role
+direction actually moves, and a note recording that emptying `menusList` lets a failed `menus` read
+mint a fictional menu (queue item 20's defect, reached by a second door, and noted on that item).
+No behaviour beyond the role default changed after the review read the branch.
