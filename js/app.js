@@ -4522,11 +4522,41 @@ function writeSaved(r){ return (r && Array.isArray(r.saved)) ? r.saved : []; }
    chunked write can resolve without error while a chunk inside it saved nothing.
    A rejected promise counts as not kept: that is the offline arm, and `pushWrite` has already said
    so in its own toast. */
+/* ⚠️ 253 — DID THIS IMPORT MOVE ANY COST, and therefore does it owe a trend point? Extracted for
+   the reason `importKeptCount` beside it was: it is a decision buried in a 500-line function, and
+   the first cut got it wrong in a way every test in the batch missed.
+   `relinked` IS PART OF IT, and leaving it out reintroduced exactly what v114 was written to fix.
+   A repoint inside an import moves the cost of every plate using that ingredient — and it takes the
+   `addNew` branch, so it increments `added` and `relinked` and NEVER touches `priceWrites`. Gating
+   on the price manifest alone meant a single-line invoice that only repointed logged no point at
+   all, on the one path `tests/history-paths.test.js`'s own header records as having been missed
+   once already. Found by 253's pre-push review.
+   `kept===null` is the bounded-wait arm and logs NOTHING on its own: an unanswered write is not a
+   movement, and a point is a claim that one happened. A repoint alongside it still counts, because
+   that one is applied in memory and its own write is gated separately.
+   `added` is deliberately NOT here: a product created by an import is used by no plate yet, so no
+   cost moves — the same reasoning the kitchen-word comment above gives for not logging a creation. */
+function importMovedCost(kept, relinked){ return !!(kept || relinked); }
+var IMPORT_VERDICT_MS=15000;
 function importKeptCount(writes){
-  return Promise.all((writes||[]).map(function(w){
+  var settled=Promise.all((writes||[]).map(function(w){
     return Promise.resolve(w && w.write).then(function(r){ return writeSaved(r).indexOf(w.pid)>=0; },
                                               function(){ return false; });
   })).then(function(oks){ return oks.filter(Boolean).length; });
+  /* ⚠️ A PROMISE THAT NEVER SETTLES IS A THIRD OUTCOME, and this function is the one place in the
+     import that can be held by it. (`CLAUDE.md` roster 195; found here by 253's pre-push review.)
+     `pushWrite` always settles — GIVEN that the fetch underneath it does. `createClient` is built
+     with no timeout, and this file already records that gap elsewhere. So one stalled request on
+     café mobile data would hold `Promise.all` open forever, and the caller waits on this before it
+     says ANYTHING: the completion card would never appear at all.
+     **That is a worse failure than the one this batch fixed**, by this project's own rule that the
+     user would rather be told a thing did not save than discover it next week — the old code was
+     wrong and always spoke; unbounded, the new code would be right and silent.
+     So the verdict is BOUNDED. `null` means "no answer yet", which the caller renders as its own
+     sentence rather than as a count — because "0 of 36 saved" and "we do not know yet" are different
+     claims and only one of them is true here. The writes are not cancelled and `pushWrite` will
+     still toast each real failure whenever it arrives. */
+  return Promise.race([settled, new Promise(function(res){ setTimeout(function(){ res(null); }, IMPORT_VERDICT_MS); })]);
 }
 /* Undo a batch the server never got. logIngPrice writes in TWO places — the in-memory series and the
    pending queue — so gating the queue alone would leave the session showing a movement that was
@@ -13540,10 +13570,12 @@ function applyInvoice(){
      mandate to answer. */
   if(n||added){
     importKeptCount(priceWrites).then(function(kept){
+      /* `kept===null` is the bounded-wait arm: the writes have not answered inside
+         IMPORT_VERDICT_MS. Neither a count nor a claim of success is honest there. */
       /* The trend point moves with the same verdict. 247 left `logHistory()` ungated on this path
          and said why at its site — one call standing for dozens of writes with no single answer —
          and named this item as where the manifest would settle it. It has. */
-      if(kept) logHistory();
+      if(importMovedCost(kept, relinked)) logHistory();
       showImportSummary(priceChanges, added, overBefore, overAfter, {made:kingsMade, relinked:relinked}, kept, n);
     });
   }
@@ -13605,10 +13637,22 @@ function showImportSummary(changes, added, overBefore, overAfter, kings, kept, a
      cannot say is how much of the import survived, and a card headed "Invoice imported" over a
      partial result is the false completion this item is about.
      `kept===undefined` is the old five-argument call and prints exactly what it always did. */
-  var shortfall=(typeof kept==='number' && typeof attempted==='number' && kept<attempted);
-  var partial = shortfall
-    ? '<div class="ct-margin is-warn">\u26a0 '+kept+' of '+attempted+' price'+(attempted===1?'':'s')+' saved \u2014 the rest did not reach the server</div>'
-    : '';
+  /* ⚠️ THREE STATES, NOT TWO, and the middle one is why `kept` may be null. A number below
+     `attempted` is a measured shortfall; `null` is "the writes have not answered inside the bounded
+     wait", which is neither success nor failure and must not be printed as a count — "0 of 36 saved"
+     would be a claim nobody has established. The five-argument call passes neither and prints what
+     it always did. (253's pre-push review: the bounded wait exists because an unbounded one could
+     leave this card unrendered forever.)
+     ⚠️ AND THE WORD IS "WRITES", NOT "PRICES", because the headline above already says "N prices"
+     counting something else — `priceChanges`, the rows that MOVED by more than half a percent —
+     while these count every price the import sent, re-confirmations included. Two true numbers on
+     one card, both called prices, would read as contradicting each other. */
+  var partial = '';
+  if(kept===null && typeof attempted==='number' && attempted>0){
+    partial='<div class="ct-margin is-muted">'+attempted+' price write'+(attempted===1?'':'s')+' still saving \u2014 you\u2019ll be told if any fail</div>';
+  } else if(typeof kept==='number' && typeof attempted==='number' && kept<attempted){
+    partial='<div class="ct-margin is-warn">\u26a0 '+kept+' of '+attempted+' price write'+(attempted===1?'':'s')+' saved \u2014 the rest did not reach the server</div>';
+  }
   var margin = newlyOver>0 ? '<div class="ct-margin is-warn">\u26a0 '+newlyOver+' plate'+(newlyOver===1?'':'s')+' now over '+cogsPct+'% target</div>'
              : (overAfter>0 ? '<div class="ct-margin is-muted">'+overAfter+' still over '+cogsPct+'% target</div>' : '');
   var top=changes.slice().sort(function(a,b){return b.pctAbs-a.pctAbs;})[0];   // ONE biggest mover, not three
