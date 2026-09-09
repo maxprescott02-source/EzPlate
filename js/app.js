@@ -2107,7 +2107,19 @@ function addMiscCost(){                                               // Builder
   var rows=document.querySelectorAll('.bld-row.is-misc .misc-name'); var last=rows[rows.length-1]; if(last) last.focus();   // v69: name field restored (reverses v60) — focus it so the line can be labelled
 }
 function setMiscLabel(uid,v){ var l=plate.find(function(x){return x.uid===uid;}); if(l) l.label=v; scheduleDraftSave(); }
-function setMiscCost(uid,v){ var l=plate.find(function(x){return x.uid===uid;}); if(l){ l.cost=parseFloat(v)||0; var lc=document.getElementById('lc-'+uid); if(lc) lc.innerHTML=money(l.cost); updateTotals(); } }
+/* ⚠️ 245 — CLAMPED AT ZERO, THE WAY `setQty` ONE SCREEN UP ALREADY IS, and the missing clamp is the
+   whole of QUEUE item 19. This read `parseFloat(v)||0` with no sign guard, so a typed "-2" went
+   straight into the plate: measured in Chromium, a $0.92 plate read **$-1.08** in the builder, saved
+   at that, and showed "plate cost $-1.08" in the Plates library.
+   ⚠️ THE FIELD ALREADY CARRIES `min="0"` AND THE BROWSER ALREADY KNOWS IT IS WRONG — `validity
+   .rangeUnderflow` is TRUE on that keystroke. `min` constrains the spinner and form validation, and
+   this input is in no form and is read on `oninput`, so nothing ever asked. **A validity flag nobody
+   reads is not a guard**, and markup that states a constraint the code does not enforce is worse
+   than markup that states nothing, because it reads like the check.
+   Its two numeric siblings on this screen both guard already — `setQty` clamps with the same
+   `Math.max(0,…)` and `commitPrice` refuses `v<0` — so this was the one unguarded number of three,
+   which is why the clamp rather than a message: it is what this screen already does. */
+function setMiscCost(uid,v){ var l=plate.find(function(x){return x.uid===uid;}); if(l){ l.cost=Math.max(0, parseFloat(v)||0); var lc=document.getElementById('lc-'+uid); if(lc) lc.innerHTML=money(l.cost); updateTotals(); } }
 /* F7 (v146) — the builder's ingredient table, rebuilt from mock §3.7. One markup, two layouts:
    desktop is the mock's five-column grid (Ingredient | Qty | Unit cost | Cost | remove), mobile is
    §6's stacked row (name over qty-and-unit-cost, cost right). Same cells in the same reading order
@@ -2212,7 +2224,10 @@ function updateTotals(){
      #bTotal is the one on-screen total (§7 forbids the same figure twice on one screen) and
      renderBuilderCost below writes it from this very number. */
   const flag=document.getElementById('flag');
-  if(missing){flag.style.display='block';flag.textContent='⚠ '+missing+' item'+(missing>1?'s':'')+' have no cost data and are not in the total.';}else flag.style.display='none';
+  /* 245: "no cost data" was true of every line this counted until a NEGATIVE could reach it, and a
+     line reading -$2.00 has cost data — it has the wrong data. The wording covers both cases now,
+     because the flag is the only thing on screen that says why the total is short. */
+  if(missing){flag.style.display='block';flag.textContent='⚠ '+missing+' item'+(missing>1?'s':'')+(missing>1?' have':' has')+' no usable cost and '+(missing>1?'are':'is')+' not in the total.';}else flag.style.display='none';
   renderBuilderCost(tot);                                     // Q6 (v125): the cost panel + mobile footer render from the SAME total this function just displayed
   scheduleDraftSave();                                        // v82 D1: qty / misc / price edits funnel through here
 }
@@ -3680,13 +3695,27 @@ function costDetail(lines){
        misc line in a way it never is for an ingredient quantity. A numeric STRING still costs, because
        restored data carries them and tests/plate-cost.test.js has pinned that since 0c.
        Found by the pre-push review, which was right that the first draft's test defended this. */
+    /* ⚠️ 245 — AND A NEGATIVE IS NOT COSTABLE EITHER, which is the same sentence one value along.
+       The clamp in `setMiscCost` stops one being TYPED; it cannot reach a line that arrived from a
+       restore, a backup file or a row saved before that clamp existed, and this walk is what every
+       average, every verdict and the builder's own total are computed from.
+       Counting it as MISSING rather than adding it is what makes the rest true: `plateFullyCosted`
+       goes false, `dishRatios` drops the dish instead of averaging an understated ratio, and the
+       builder says so at the line. That is the treatment an uncostable line already gets, and the
+       reason it is right here is the one stated three lines up — a total that is missing a cost
+       reads HEALTHIER than the menu is, which is the direction nobody looks.
+       ⚠️ AND IT IS WHY THERE IS NO "refuse to save a negative plate cost" GUARD, which the item asked
+       for: with this line the total CANNOT be negative, so such a guard could never fire, and this
+       repo has already deleted one fallback for exactly that reason (see `plateIdOf`, v112 — a
+       fallback that cannot fire reads as a safety net and is not one). Item 19's third requirement
+       is met structurally instead of by a message. */
     if(l&&l.misc){
       var mc=(l.cost===''||l.cost==null)?NaN:Number(l.cost);
-      if(isNaN(mc)) miss++; else c+=mc;
+      if(isNaN(mc)||mc<0) miss++; else c+=mc;
       return;
     }
     const p=lineProduct(l); if(!p){miss++;return;}
-    const lc=lineCost(p,l.qty); if(lc==null)miss++; else c+=lc;
+    const lc=lineCost(p,l.qty); if(lc==null||lc<0)miss++; else c+=lc;   // 245: a negative product cost is the same claim by the other route
   });
   return {cost:c, miss:miss};
 }
@@ -8372,7 +8401,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v201';
+var APP_VERSION='v202';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI

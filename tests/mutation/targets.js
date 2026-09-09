@@ -469,6 +469,11 @@ const targets = [
      either clamp silently widens the range the server is asked to store. */
   { fn: 'setCogs', tests: ['cogs-rollback.test.js'] },
   { fn: 'cogsRound', tests: ['cogs-rollback.test.js'] },
+  /* 245 — the last unguarded number on the builder. Its two siblings were already effectively
+     pinned through `costDetail`; this one had no clamp at all, so a typed "-2" put a $0.92 plate at
+     $-1.08 and saved it there. Listed for 184's reason: `setQty` and `commitPrice` guard, this one
+     did not, and nothing had ever asked the question of any of the three at this level. */
+  { fn: 'setMiscCost', tests: ['misc-cost-sign.test.js'] },
 ];
 
 /*
