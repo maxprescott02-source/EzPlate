@@ -163,6 +163,7 @@ declare
   em  text;
   n   int;
   inv public.business_invites%rowtype;
+  rec public.business_invites%rowtype;
 begin
   if uid is null then
     return null;
@@ -184,27 +185,42 @@ begin
     -- 243: COUNT BEFORE CHOOSING. Two pending invitations to one address is a question only the
     -- person can answer, and it decides their ROLE as well as their café. `limit 1` over an
     -- ordering answered it silently, always in favour of whoever invited them first.
-    -- Bounded at 2: the count is only ever compared against 1, and an address invited by fifty
-    -- cafés should not make the boot read fifty rows to learn the same thing.
-    select count(*) into n
-      from (select 1
-              from public.business_invites i
-             where i.email = em
-               and i.accepted_at is null
-             limit 2) probe;
-    if n <> 1 then
-      -- 0 = nobody invited this address. 2+ = we will not guess. Both are "nothing was claimed",
-      -- and `my_pending_invites()` is how the client tells the two apart and says so.
+    --
+    -- ⚠️ ONE STATEMENT, NOT TWO, AND THAT IS THE POINT. The first cut counted with one query and
+    -- then picked with another. Under READ COMMITTED nothing holds between two statements, so a
+    -- second invitation arriving in the gap made the count of 1 stale and the pick went ahead
+    -- anyway -- silently restoring the guessing behaviour this function exists to remove, for
+    -- exactly the race it is least able to notice. Caught by the pre-push review.
+    -- The loop's query is a single `select ... limit 2 for update`: it LOCKS both candidates and
+    -- counts them in the same breath, so what is counted is what is locked. Bounded at 2 because
+    -- the count is only ever compared against 1, and an address invited by fifty cafés should not
+    -- make the boot read fifty rows to learn the same thing.
+    -- ⚠️ ASSIGNED INSIDE THE LOOP, to `inv`, from a SEPARATE loop variable. PL/pgSQL only
+    -- guarantees a query-FOR loop's variable inside the loop; its value afterwards is not something
+    -- to build on. Copying the row out explicitly costs one line and removes the question.
+    n := 0;
+    for rec in
+      select i.*
+        from public.business_invites i
+       where i.email = em
+         and i.accepted_at is null
+       order by i.created_at, i.id
+       limit 2
+         for update
+    loop
+      n := n + 1;
+      if n > 1 then
+        -- Two candidates. Only the person can say which, and `my_pending_invites()` is how the
+        -- client asks. The locks are released by the return.
+        return null;
+      end if;
+      inv := rec;
+    end loop;
+    -- 0 = nobody invited this address. `inv` is untouched by a loop that never ran, so the
+    -- `not found` check below is not what answers this -- say it explicitly.
+    if n = 0 then
       return null;
     end if;
-
-    select i.* into inv
-      from public.business_invites i
-     where i.email = em
-       and i.accepted_at is null
-     order by i.created_at, i.id
-     limit 1
-       for update;
   else
     -- 243: NAMED. Every condition of the blind path is repeated here rather than assumed, because
     -- this argument arrives from the client: the row must still be PENDING and must be addressed to

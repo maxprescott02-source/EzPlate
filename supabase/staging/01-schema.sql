@@ -779,7 +779,7 @@ $fn$;
 revoke all on function public.invite_pending(text) from public;
 grant execute on function public.invite_pending(text) to anon, authenticated, service_role;
 
-create or replace function public.claim_business_invite()
+create or replace function public.claim_business_invite(p_invite uuid default null)
 returns uuid
 language plpgsql
 security definer
@@ -790,6 +790,7 @@ declare
   em  text;
   n   int;
   inv public.business_invites%rowtype;
+  rec public.business_invites%rowtype;
 begin
   if uid is null then
     return null;
@@ -807,13 +808,60 @@ begin
     return null;
   end if;
 
-  select i.* into inv
-    from public.business_invites i
-   where i.email = em
-     and i.accepted_at is null
-   order by i.created_at, i.id
-   limit 1
-     for update;
+  if p_invite is null then
+    -- 243: COUNT BEFORE CHOOSING. Two pending invitations to one address is a question only the
+    -- person can answer, and it decides their ROLE as well as their café. `limit 1` over an
+    -- ordering answered it silently, always in favour of whoever invited them first.
+    --
+    -- ⚠️ ONE STATEMENT, NOT TWO, AND THAT IS THE POINT. The first cut counted with one query and
+    -- then picked with another. Under READ COMMITTED nothing holds between two statements, so a
+    -- second invitation arriving in the gap made the count of 1 stale and the pick went ahead
+    -- anyway -- silently restoring the guessing behaviour this function exists to remove, for
+    -- exactly the race it is least able to notice. Caught by the pre-push review.
+    -- The loop's query is a single `select ... limit 2 for update`: it LOCKS both candidates and
+    -- counts them in the same breath, so what is counted is what is locked. Bounded at 2 because
+    -- the count is only ever compared against 1, and an address invited by fifty cafés should not
+    -- make the boot read fifty rows to learn the same thing.
+    -- ⚠️ ASSIGNED INSIDE THE LOOP, to `inv`, from a SEPARATE loop variable. PL/pgSQL only
+    -- guarantees a query-FOR loop's variable inside the loop; its value afterwards is not something
+    -- to build on. Copying the row out explicitly costs one line and removes the question.
+    n := 0;
+    for rec in
+      select i.*
+        from public.business_invites i
+       where i.email = em
+         and i.accepted_at is null
+       order by i.created_at, i.id
+       limit 2
+         for update
+    loop
+      n := n + 1;
+      if n > 1 then
+        -- Two candidates. Only the person can say which, and `my_pending_invites()` is how the
+        -- client asks. The locks are released by the return.
+        return null;
+      end if;
+      inv := rec;
+    end loop;
+    -- 0 = nobody invited this address. `inv` is untouched by a loop that never ran, so the
+    -- `not found` check below is not what answers this -- say it explicitly.
+    if n = 0 then
+      return null;
+    end if;
+  else
+    -- 243: NAMED. Every condition of the blind path is repeated here rather than assumed, because
+    -- this argument arrives from the client: the row must still be PENDING and must be addressed to
+    -- THIS caller's own confirmed address. An id belonging to somebody else's invitation therefore
+    -- finds nothing and refuses, rather than joining a café that never invited this person.
+    select i.* into inv
+      from public.business_invites i
+     where i.id = p_invite
+       and i.email = em
+       and i.accepted_at is null
+     limit 1
+       for update;
+  end if;
+
   if not found then
     return null;
   end if;
@@ -833,8 +881,31 @@ begin
 end;
 $fn$;
 
-revoke all on function public.claim_business_invite() from public;
-grant execute on function public.claim_business_invite() to authenticated, service_role;
+revoke all     on function public.claim_business_invite(uuid) from public;
+revoke execute on function public.claim_business_invite(uuid) from anon;
+grant  execute on function public.claim_business_invite(uuid) to authenticated, service_role;
+
+create or replace function public.my_pending_invites()
+returns table (invite_id uuid, business_id uuid, business_name text, role text, created_at timestamptz)
+language sql
+stable
+security definer
+set search_path = ''
+as $fn$
+  select i.id, i.business_id, b.name, i.role, i.created_at
+    from public.business_invites i
+    join public.businesses b on b.id = i.business_id
+   where i.accepted_at is null
+     and i.email = (select lower(btrim(u.email))
+                      from auth.users u
+                     where u.id = auth.uid()
+                       and u.email_confirmed_at is not null)
+   order by i.created_at, i.id;
+$fn$;
+
+revoke all     on function public.my_pending_invites() from public;
+revoke execute on function public.my_pending_invites() from anon;
+grant  execute on function public.my_pending_invites() to authenticated, service_role;
 
 create or replace function public.business_team()
 returns table (user_id uuid, email text, role text)
@@ -851,8 +922,9 @@ as $fn$
    order by m.created_at, m.user_id;
 $fn$;
 
-revoke all on function public.business_team() from public;
-grant execute on function public.business_team() to authenticated, service_role;
+revoke all     on function public.business_team() from public;
+revoke execute on function public.business_team() from anon;
+grant  execute on function public.business_team() to authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
 -- 209 — CREATE A CAFÉ. The one function that can bring a `businesses` row and

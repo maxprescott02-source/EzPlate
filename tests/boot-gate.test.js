@@ -144,11 +144,12 @@ function makeGate(present, opts) {
     ${extractFn(SRC, 'esc')}
     ${extractFn(SRC, 'invitesOf')}
     ${extractVar(SRC, '_pendingInvites')}
+    ${extractFn(SRC, 'applyPendingInvites')}
     ${extractFn(SRC, 'renderInviteChoices')}
     ${extractFn(SRC, 'bootGate')}
     return { bootGate: bootGate, gateErr: gateErr, SIGNIN_MSG: SIGNIN_MSG,
              shown: function(){ return _authUrlErrShown; },
-             setInvites: function(rows){ _pendingInvites = invitesOf(rows); },
+             setInvites: function(rows){ return applyPendingInvites(rows); },
              invites: function(){ return _pendingInvites; } };
   `)(nodes, calls, signOutResult);
   return { gate: nodes.bootGate, msg: nodes.bootGateMsg, retry: nodes.bootGateRetry,
@@ -804,15 +805,43 @@ test('243: with NO invitations the screen is byte-for-byte the one 209 shipped',
   assert.strictEqual(g.out.hidden, false);
 });
 
-test('243: an unreadable answer offers nothing rather than guessing', () => {
+test('243: an unreadable answer CHANGES NOTHING — it must not empty a standing offer', () => {
+  /*
+   * ⚠️ THIS TEST ASSERTED THE OPPOSITE UNTIL THE PRE-PUSH REVIEW, AND THE CODE AGREED WITH IT.
+   * `invitesOf` returned [] for BOTH "you have no invitations" and "I could not tell", so a recheck
+   * on a flaky connection — which is exactly when a join fails and a recheck happens — emptied a
+   * chooser somebody was reading and left them facing "Create my café" alone. 187 makes membership
+   * one café per person with no way to leave, so acting on that is IRREVERSIBLE.
+   *
+   * Same family as `_bootNoMember`: only a DEFINITE answer may move a standing verdict.
+   */
   const g = makeGate(true);
+  assert.strictEqual(g.setInvites(INV_TWO), true, 'a real list is a definite answer');
+  g.run('nomember');
+  assert.strictEqual(g.invites.hidden, false);
+
   [{ error: { message: 'boom' } }, { data: null, error: null }, { data: 'nonsense', error: null }, null]
     .forEach((res) => {
-      g.setInvites(res);
+      assert.strictEqual(g.setInvites(res), false, 'not a definite answer: ' + JSON.stringify(res));
       g.run('nomember');
-      assert.strictEqual(g.invites.hidden, true);
-      assert.deepStrictEqual(g.heldInvites(), []);
+      assert.strictEqual(g.invites.hidden, false, 'the offer must survive an unreadable recheck');
+      assert.strictEqual(g.heldInvites().length, 2, 'and survive intact');
     });
+});
+
+test('243: a DEFINITE empty answer does clear the offer', () => {
+  /* The other half, and the reason the third value is `null` rather than "always keep": an
+     invitation genuinely cancelled while somebody looked at it must stop being offered, or the
+     button they press cannot work. */
+  const g = makeGate(true);
+  g.setInvites(INV_TWO);
+  g.run('nomember');
+  assert.strictEqual(g.invites.hidden, false);
+
+  assert.strictEqual(g.setInvites({ data: [], error: null }), true, 'zero rows IS an answer');
+  g.run('nomember');
+  assert.strictEqual(g.invites.hidden, true, 'a cancelled invitation stops being offered');
+  assert.deepStrictEqual(g.heldInvites(), []);
 });
 
 test('243: a row with no id is DROPPED, never drawn as a button that cannot work', () => {

@@ -923,11 +923,21 @@ function renderInviteChoices(){
    and the offer must stop being made. */
 async function joinInvite(id, btn){
   if(!id || !SUPA) return;
-  if(btn) btn.disabled=true;
+  if(_joining) return;                                     // a second tap must not race the first
+  /* ⚠️ EVERY ROW, NOT JUST THE ONE TAPPED. Disabling only `btn` leaves the OTHER cafés pressable
+     while the first claim is in flight, and two concurrent claims from one account are refused by
+     187's one-membership-per-user constraint — as a raw Postgres error, through `errText`, on the
+     screen whose whole job is to be legible. Nothing is corrupted either way; what is at stake is
+     whether the loser gets a sentence or a constraint name. */
+  var lock=inviteButtons();
+  _joining=true;
+  lock.forEach(function(b){ b.disabled=true; });
   gateErr('');
   var res=await Promise.resolve(SUPA.rpc('claim_business_invite', {p_invite:id}))
     .then(function(r){ return r; }, function(e){ return {error:e}; });
-  if(btn) btn.disabled=false;
+  _joining=false;
+  lock.forEach(function(b){ b.disabled=false; });
+  void btn;
   if(claimState(res)==='joined'){
     /* Same reasoning as the boot claim: re-run the whole sync rather than patch the tenant in
        place, because every read this app holds was fetched as a member of nothing. */
@@ -939,7 +949,10 @@ async function joinInvite(id, btn){
   gateErr(res && res.error
     ? 'Could not join: '+errText(res.error)
     : 'That invitation is no longer available. It may have been cancelled or already used.');
-  _pendingInvites=invitesOf(await Promise.resolve(SUPA.rpc('my_pending_invites'))
+  /* Only a DEFINITE answer may replace what is on screen. If this recheck is unreadable too — the
+     likeliest case, since the same connection just failed the join — the offer stays exactly as it
+     was and the error line above is the whole of what changed. */
+  applyPendingInvites(await Promise.resolve(SUPA.rpc('my_pending_invites'))
     .then(function(r){ return r; }, function(e){ return {error:e}; }));
   renderInviteChoices();
 }
@@ -1145,18 +1158,26 @@ function claimState(res){
    It now refuses instead, which turns "joined the wrong café" into "joined nothing" unless somebody
    asks the only person who knows. `my_pending_invites()` is that question's data.
 
-   ⚠️ NOT THE THREE-ANSWER SHAPE, DELIBERATELY, and it is worth saying why rather than looking like
-   an oversight. `tenantGateState` and `roleState` guard a STANDING VERDICT that an unreadable
-   answer must not overwrite. This is a list rendered on a screen that is already up: there is no
-   prior verdict to protect, and the only question is what to draw. An error, an absent function
-   (an older project), or a shape we do not recognise all yield [] — and [] paints exactly the
-   screen 185 already painted, from which creating a café still works. Fail-safe by construction,
-   because the fallback is the behaviour that shipped before this batch.
+   ⚠️ THREE ANSWERS, AND A FIRST CUT OF THIS FUNCTION HAD TWO — caught by the pre-push review, and
+   it was this project's worst recorded defect reappearing in a new variable.
+   The first version returned `[]` for BOTH "the server says you have no invitations" and "I could
+   not tell", with a comment arguing that was fail-safe because [] paints 209's screen. That is true
+   the FIRST time it runs and false on a RECHECK, which is exactly what `_bootNoMember` already
+   records: `joinInvite` re-fetches after a refused join, and `bootstrapSync` re-fetches on every
+   `online` blip — so one flaky request while somebody is reading two café names would have emptied
+   the chooser and left them facing "Create my café" alone.
+   ⚠️ AND THAT IS NOT A COSMETIC LOSS. 187 makes membership one café per person and there is no way
+   to leave, so somebody who concludes the invitation never arrived and creates their own café has
+   done something IRREVERSIBLE. The stakes are what make the third value mandatory rather than
+   tidy: "could not tell" must leave the standing offer exactly as it is.
+
+   So: `null` means could-not-tell and changes nothing; an ARRAY is a definite answer, including a
+   definite empty one, which does clear the offer. `applyPendingInvites` is the only writer.
 
    Rows are the server's, so every field is treated as untrusted text: the renderer escapes, and a
    row without an id is dropped rather than drawn as a button that cannot work. */
 function invitesOf(res){
-  if(!res || res.error || !Array.isArray(res.data)) return [];
+  if(!res || res.error || !Array.isArray(res.data)) return null;   // an error is not an answer
   return res.data.filter(function(r){ return r && typeof r.invite_id==='string' && r.invite_id; })
     .map(function(r){
       return { id:r.invite_id,
@@ -1168,6 +1189,24 @@ function invitesOf(res){
    is re-entered on every re-sync that reaches the non-member screen, and it must repaint the same
    offer rather than an empty one — the same reason the café form is "shown, never reset". */
 var _pendingInvites=[];
+/* In-flight latch for the join, so a second tap cannot start a second claim. Same shape as the
+   Try again button's `_bootRetrying` two states up. */
+var _joining=false;
+/* The rows currently on screen. Read fresh rather than captured, because the list is repainted
+   whenever the gate re-enters the non-member state. */
+function inviteButtons(){
+  var list=document.getElementById('bgInviteList');
+  return list ? Array.prototype.slice.call(list.querySelectorAll('[data-invite]')) : [];
+}
+/* THE ONLY WRITER, so the rule above cannot be applied in one place and forgotten in the other —
+   there are two call sites and they are 600 lines apart. Returns whether the answer was definite,
+   for the tests and for nobody else. */
+function applyPendingInvites(res){
+  var got=invitesOf(res);
+  if(got===null) return false;                             // could not tell: keep what is on screen
+  _pendingInvites=got;
+  return true;
+}
 
 /* ⚠️ RE-ENTRANCY, AND IT IS THE ONLY THING STANDING BETWEEN THIS AND AN INFINITE BOOT LOOP.
    A successful claim re-runs `bootstrapSync`, and that run reaches this same branch if the tenant
@@ -1541,7 +1580,7 @@ async function bootstrapSync(){
            café — and none at all on every ordinary one, which is why it is not in the boot batch
            above. An unreadable answer yields [] and the screen says exactly what it said before
            this batch: fail-safe, because creating a café still works from there. */
-        _pendingInvites=invitesOf(await softCall(function(){ return SUPA.rpc('my_pending_invites'); }));
+        applyPendingInvites(await softCall(function(){ return SUPA.rpc('my_pending_invites'); }));
       }
       setSync('none');                                     // 185: nothing failed — see setSync
       if(_u){ bootReady('nomember', nonMemberMessage(_u.email||'')); return; }
