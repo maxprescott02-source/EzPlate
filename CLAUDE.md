@@ -391,7 +391,17 @@ A caller checking only for an error would believe it had written.
   **Legacy, read by nothing.**
 - `menu_items.menu_id → menus.id` - ON DELETE SET NULL.
 
-So `doDeleteMenu`'s dishes-before-menu ordering guards nothing; its comment claiming an FK violation is **wrong**, and it is not precedent for anything.
+`doDeleteMenu`'s comment claiming an FK violation was **wrong** and is corrected at the site (batch 254).
+
+⚠️ **BUT THIS SECTION THEN DREW THE WRONG CONCLUSION FROM ITS OWN CORRECT OBSERVATION, AND SAID SO FOR MONTHS: "the dishes-before-menu ordering guards nothing".** It guards something, and calling `plate_id` "the app's only FK hazard" is true only if a hazard has to be an ERROR.
+
+**`ON DELETE SET NULL` IS MORE DANGEROUS THAN `NO ACTION`, NOT LESS, AND IT READS AS THE MILD ONE.**
+- `NO ACTION` (`menu_items.plate_id`): delete the plate with a dish still referencing it and Postgres **raises 23503**. Loud, immediate, and the write did not happen.
+- `SET NULL` (`menu_items.menu_id`): delete the menus row with a dish delete still in flight and Postgres **helpfully detaches the dish for you**. If that dish's own delete then fails, the row **survives, attached to no menu, on no screen, with nothing raised anywhere** — this file's own "a row that saved without error and is invisible". An error would have been the good outcome.
+
+So the ordering is load-bearing in BOTH paths; only the failure mode differs, and the quiet one needs the sequencing more because nothing will ever tell you it was needed. Both are sequenced and rolled back as of 254; measured on production that day, 90 `menu_items` rows and **0 orphaned**, so this was latent rather than damage already done.
+
+**The transferable half is not about foreign keys: a referential action that "handles" your mistake has converted an error into a silent state change, and the milder-sounding clause is the one to sequence against.** Reach for the same question wherever a database, a framework or an API says it will clean up after you — `ON DELETE CASCADE`, an upsert that inserts what it cannot find, a retry that swallows a 4xx.
 
 The two tables are nonetheless **CIRCULAR**, which constrains any restore: `menu_items.plate_id` errors if plates go first, while `plates.menu_id` cannot be inserted before the dishes exist.
 **Any delete-and-reinsert of both tables must delete dishes first and insert plates with `menu_id` omitted** - which is what `plateToRow` already does, so the restore is correct by existing design rather than by luck.

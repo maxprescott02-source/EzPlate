@@ -33,11 +33,19 @@ function makeHarness(opts) {
     pendingDish: [],                           // resolvers for the in-flight dish deletes
     failDish: opts.failDish || [],
     failPlate: !!opts.failPlate,
+    failMenuRec: !!opts.failMenuRec,           // 254: the menus-row delete, the menu path's second write
+    rejectMenuRec: !!opts.rejectMenuRec,       // 254: and its REJECTION arm — see the tests at the end
+    /* 254, from the pre-push review: the menu being deleted is ALWAYS the current one in the shipped
+       app — `deleteCurrentMenu` is doDeleteMenu's only caller and it passes `currentMenuId`. So the
+       default here is the realistic case, not a neutral one. */
+    currentMenuId: opts.currentMenuId || (opts.menusList && opts.menusList[0] && opts.menusList[0].id) || null,
     rejectDish: opts.rejectDish || [],
     rejectPlate: !!opts.rejectPlate,
     holdDishes: !!opts.holdDishes,
     toasts: [],
+    dashRepaints: 0,                           // 254: see repaintDashboardIfVisible below
     changes: [],                               // v114: change-log kinds actually written
+    changeDetails: [],                         // 254: and the objects themselves
     savedPlates: opts.savedPlates,
     customMenu: opts.customMenu,
     menusList: opts.menusList || [{ id: 'MENU_ORIGINAL', name: 'Original' }],
@@ -48,7 +56,7 @@ function makeHarness(opts) {
   const factory = new Function('S', `
     "use strict";
     var savedPlates=S.savedPlates, customMenu=S.customMenu, menusList=S.menusList, loadedPlateId=S.loadedPlateId;
-    var MENU=[], menuById={}, delChoiceId=null;
+    var MENU=[], menuById={}, delChoiceId=null, currentMenuId=S.currentMenuId;
     function rebuildMenu(){ MENU=customMenu.slice(); menuById={}; MENU.forEach(function(m){menuById[m.id]=m;}); }
     function toast(m){ S.toasts.push(m); }
     function askConfirm(t,msg,label,fn){ S.confirmFn=fn; }
@@ -63,7 +71,7 @@ function makeHarness(opts) {
        this is the only file that can exercise every failure shape. */
     function computeAvgFoodCost(){ return 30; }
     function logHistory(){}   // v115: path 11 logs a trend point in the success branch — stubbed silent here because these tests compare S.log EXACTLY; the point that lands is owned by tests/history-paths.test.js
-    function logChange(kind,o){ S.changes.push(kind); return o; }
+    function logChange(kind,o){ S.changes.push(kind); S.changeDetails.push(o); return o; }   // 254: the entry's CONTENT, not just its kind
     function logChangeIfSaved(w,kind,o){
       return Promise.resolve(w).then(function(r){ if(!r||r.error) return null; return logChange(kind,o); }, function(){ return null; });
     }
@@ -75,6 +83,16 @@ function makeHarness(opts) {
       if(!S.holdDishes) return Promise.resolve(res);
       return new Promise(function(resolve){ S.pendingDish.push(function(){ resolve(res); }); });
     }
+    /* 254 - the menu path's own deciding write. Held pending like the dish deletes so "the menus row
+       has not been deleted yet" is an observable fact rather than a guess about timing. */
+    function dbDeleteMenuRecord(id){
+      S.log.push('menurec:'+id);
+      if(S.rejectMenuRec) return Promise.reject(new Error('connection reset'));
+      return Promise.resolve(S.failMenuRec?{error:{message:'menu delete failed'}}:{error:null});
+    }
+    function setCurrentMenuId(v){ currentMenuId=v; }
+    function updateMenuDelBtn(){}
+    function repaintDashboardIfVisible(){ S.dashRepaints++; }   // 254: counted - v60's liveness rule is a real property, not decoration
     function dbDeletePlate(id){
       S.log.push('plate:'+id);
       // 180: rejectPlate drives the belt-and-braces REJECTION handler. pushWrite always resolves, so
@@ -100,12 +118,27 @@ function makeHarness(opts) {
     ${extractFn(SRC, 'ownerOnly')}
     ${extractFn(SRC, 'deletePlate')}
     ${extractFn(SRC, 'doDeleteEverything')}
+    /* 254 - the MENU delete path. Same shape as the plate path above and extracted for the same
+       reason: what changed is WHEN the second write is issued, so a stub would be deciding the very
+       thing under test. */
+    ${extractFn(SRC, 'fallbackMenuId')}
+    ${extractFn(SRC, 'dbDeleteMenuAfterDishes')}
+    ${extractFn(SRC, 'rollbackMenuDelete')}
+    ${extractFn(SRC, 'doDeleteMenu')}
     rebuildMenu();
     return {
       deletePlate: function(id){ deletePlate(id); if(S.confirmFn) S.confirmFn(); },
       doDeleteEverything: function(dishId){ delChoiceId=dishId; doDeleteEverything(); },
       sequence: function(dishIds, plateId){ return dbDeletePlateAfterDishes(dishIds, plateId); },   // 180: the status object itself
-      state: function(){ return { savedPlates:savedPlates, customMenu:customMenu, loadedPlateId:loadedPlateId }; }
+      doDeleteMenu: function(id, name){ return doDeleteMenu(id, name); },                            // 254
+      menuSequence: function(dishIds, menuId){ return dbDeleteMenuAfterDishes(dishIds, menuId); },   // 254: the status object itself
+      state: function(){ return { savedPlates:savedPlates, customMenu:customMenu, loadedPlateId:loadedPlateId,
+                                  menusList:menusList, currentMenuId:currentMenuId }; },
+      /* 254: what the SCREEN is showing. rebuildMenu is what turns customMenu into the rendered MENU,
+         so a rollback that restores the arrays and forgets to repaint leaves the user looking at a
+         menu the server still holds - state correct, screen lying. Without this the repaint was a
+         gate survivor: every assertion above reads the arrays, which a missing repaint does not touch. */
+      menuView: function(){ return MENU.map(function(m){ return m.id; }); }
     };
   `);
   return { S, api: factory(S) };
@@ -309,4 +342,245 @@ test('180: a plate with no dishes goes straight to the plate delete', async () =
   const { S, api } = makeHarness(twoDishOnePlate());
   assert.deepEqual(await api.sequence([], 'SP1'), { dishesOk: true, failedDishIds: [], plateOk: true });
   assert.deepEqual(S.log, ['plate:SP1']);
+});
+
+/* =============================================================================================
+ * 254 — THE MENU DELETE PATH, which until this batch had the defect v112 fixed for plates.
+ *
+ * `doDeleteMenu` fired one `removeMenuItem` per dish and then the menus-row delete, awaiting none of
+ * them. The dispatch order was already dishes-first, which is exactly why this needed the harness
+ * above rather than an order-recording test: CLAUDE.md's rule is that dispatching in the right order
+ * is NOT sequencing, and a test that records call ORDER passes against the broken code.
+ *
+ * ⚠️ AND THE HAZARD IS NOT THE PLATE PATH'S. `menu_items.plate_id -> plates.id` is NO ACTION, so the
+ * plate case fails LOUDLY with 23503. `menu_items.menu_id -> menus.id` is ON DELETE SET NULL (checked
+ * against production: confdeltype 'n'), so the menu case fails SILENTLY — delete the menus row while a
+ * dish delete is in flight and Postgres sets that dish's menu_id to NULL for you. If the dish's own
+ * delete then fails, the row survives attached to no menu, on no screen, with no error raised.
+ * Measured on production while writing this: 90 menu_items rows, 0 orphaned. Latent, not yet bitten.
+ * ========================================================================================== */
+
+const twoDishOneMenu = () => ({
+  savedPlates: [{ id: 'SP1', name: 'Fish & Chips', lines: [] }, { id: 'SP2', name: 'Pie', lines: [] }],
+  customMenu: [
+    { id: 'D1', name: 'F&C', price: 18, menuId: 'MW', plateId: 'SP1', custom: true },
+    { id: 'D2', name: 'Pie', price: 14, menuId: 'MW', plateId: 'SP2', custom: true },
+    { id: 'D3', name: 'F&C', price: 18, menuId: 'MENU_ORIGINAL', plateId: 'SP1', custom: true },
+  ],
+  menusList: [{ id: 'MENU_ORIGINAL', name: 'Original' }, { id: 'MW', name: 'Winter' }],
+});
+
+test('254: doDeleteMenu does NOT issue the menus-row delete until every dish delete has resolved', async () => {
+  const { S, api } = makeHarness(Object.assign(twoDishOneMenu(), { holdDishes: true }));
+  api.doDeleteMenu('MW', 'Winter');
+  await flush();
+  assert.deepEqual(S.log, ['dish:D1', 'dish:D2'], 'both dish deletes are in flight');
+  assert.ok(!S.log.some(c => c.startsWith('menurec:')),
+    'the MENUS row delete has not been issued — this is the whole fix, and it is what stops SET NULL orphaning a dish');
+  S.pendingDish.forEach(fn => fn());
+  await flush();
+  assert.deepEqual(S.log, ['dish:D1', 'dish:D2', 'menurec:MW'], 'only once the dishes are gone does the menu go');
+});
+
+test('254: a dish delete that FAILS means the menus row is never deleted at all', async () => {
+  const { S, api } = makeHarness(Object.assign(twoDishOneMenu(), { failDish: ['D2'] }));
+  await api.doDeleteMenu('MW', 'Winter');
+  assert.ok(!S.log.some(c => c.startsWith('menurec:')),
+    'deleting the menu here is what would set the surviving dish menu_id to NULL — so it is not deleted');
+  const st = api.state();
+  assert.ok(st.menusList.some(m => m.id === 'MW'), 'the menu is back');
+  assert.ok(st.customMenu.some(d => d.id === 'D2'), 'the dish whose delete FAILED is back');
+  assert.ok(api.menuView().includes('D2'),
+    'and the SCREEN was repainted to show it — restoring the array without redrawing leaves the user looking at a menu that is still there');
+  assert.ok(!st.customMenu.some(d => d.id === 'D1'),
+    'the dish whose delete SUCCEEDED is NOT resurrected — a delete that landed is never undone because a sibling failed');
+  assert.deepEqual(S.changes, [], 'and nothing is written to the append-only change log');
+});
+
+test('254: a failed dish delete says so, and names how many plates did come off', async () => {
+  const { S, api } = makeHarness(Object.assign(twoDishOneMenu(), { failDish: ['D2'] }));
+  await api.doDeleteMenu('MW', 'Winter');
+  const last = S.toasts[S.toasts.length - 1];
+  assert.match(last, /has NOT been deleted/, 'the menu survived and the words say so');
+  assert.match(last, /1 plate did come off it/, 'and the one that DID go is named rather than glossed');
+});
+
+test('254: a failed MENUS-row delete puts the menu back, and does not resurrect its dishes', async () => {
+  const { S, api } = makeHarness(Object.assign(twoDishOneMenu(), { failMenuRec: true }));
+  await api.doDeleteMenu('MW', 'Winter');
+  assert.deepEqual(S.log, ['dish:D1', 'dish:D2', 'menurec:MW'], 'the dishes went first and did land');
+  const st = api.state();
+  assert.ok(st.menusList.some(m => m.id === 'MW'), 'the menu is back, because the server still holds it');
+  assert.ok(!st.customMenu.some(d => d.id === 'D1' || d.id === 'D2'),
+    'its dishes stay deleted — the server kept those deletes, so putting them back would be the lie');
+  assert.ok(st.customMenu.some(d => d.id === 'D3'), 'the other menu is untouched throughout');
+  assert.match(S.toasts[S.toasts.length - 1], /is empty now/, 'and the wording says which half failed');
+  assert.deepEqual(S.changes, [], 'no menu_deleted entry for a menu that is still there');
+});
+
+test('254: the rolled-back menu returns to its ORIGINAL position, not the end of the list', async () => {
+  const st0 = twoDishOneMenu();
+  st0.menusList = [{ id: 'MW', name: 'Winter' }, { id: 'MENU_ORIGINAL', name: 'Original' }, { id: 'MS', name: 'Summer' }];
+  const { api } = makeHarness(Object.assign(st0, { failMenuRec: true }));
+  await api.doDeleteMenu('MW', 'Winter');
+  assert.deepEqual(api.state().menusList.map(m => m.id), ['MW', 'MENU_ORIGINAL', 'MS'],
+    'menusList is the order of the menu selector, so a rollback that reorders it is a second silent change on top of the failure');
+});
+
+test('254: the happy path writes ONE menu_deleted, and only after both writes landed', async () => {
+  const { S, api } = makeHarness(Object.assign(twoDishOneMenu(), { holdDishes: true }));
+  api.doDeleteMenu('MW', 'Winter');
+  await flush();
+  assert.deepEqual(S.changes, [], 'nothing is logged while the writes are still in flight');
+  S.pendingDish.forEach(fn => fn());
+  await flush(); await flush();
+  assert.deepEqual(S.changes, ['menu_deleted'], 'one decision, one entry');
+  assert.ok(!api.state().menusList.some(m => m.id === 'MW'), 'and the menu stays gone');
+});
+
+test('254: a menu with NO dishes still sequences, and still deletes', async () => {
+  const st0 = twoDishOneMenu();
+  st0.customMenu = [{ id: 'D3', name: 'F&C', price: 18, menuId: 'MENU_ORIGINAL', plateId: 'SP1', custom: true }];
+  const { S, api } = makeHarness(st0);
+  await api.doDeleteMenu('MW', 'Winter');
+  assert.deepEqual(S.log, ['menurec:MW'], 'no dish deletes to wait for, so the menu delete goes straight out');
+  assert.deepEqual(S.changes, ['menu_deleted']);
+});
+
+/* ---- 254: the REJECTION arms, which the mutation gate found unpinned ----
+   `pushWrite` RESOLVES with `{error}` rather than rejecting, so nothing in the app reaches these
+   handlers today — which is exactly why they were unasserted, and exactly the trap roster 184(a)
+   records: a promise has two settle paths, and a test that only takes the common one has pinned half
+   a contract. In this codebase the uncommon path is the one that fires when the café has no signal.
+   The plate path's own rejection arms are pinned two tests above for the same reason (180). */
+
+test('254: a dish delete that REJECTS is a failure, not a success — the menu is not deleted', async () => {
+  const { S, api } = makeHarness(Object.assign(twoDishOneMenu(), { rejectDish: ['D2'] }));
+  await api.doDeleteMenu('MW', 'Winter');
+  assert.ok(!S.log.some(c => c.startsWith('menurec:')),
+    'a thrown request must count as a failed dish, or a lost connection silently detaches the surviving dish');
+  assert.ok(api.state().menusList.some(m => m.id === 'MW'), 'the menu is back');
+  assert.deepEqual(S.changes, [], 'and nothing is logged');
+});
+
+test('254: a menus-row delete that REJECTS rolls back, and does not resurrect the dishes', async () => {
+  const { S, api } = makeHarness(Object.assign(twoDishOneMenu(), { rejectMenuRec: true }));
+  await api.doDeleteMenu('MW', 'Winter');
+  const st = api.state();
+  assert.ok(st.menusList.some(m => m.id === 'MW'), 'a thrown menus-row delete is a FAILED delete, so the menu comes back');
+  assert.ok(!st.customMenu.some(d => d.id === 'D1' || d.id === 'D2'),
+    'its dishes stay gone — those deletes did land, and the rejection arm must not claim otherwise');
+  /* The rejection arm reports dishesOk:TRUE, and that is the half a status object gets wrong most
+     easily: the dishes DID succeed, only the menus row threw. Saying otherwise sends the user the
+     other toast — "it has NOT been deleted, 2 plates did come off it" — which is false in both
+     clauses. Asserting the words is what pins the field, because nothing else reads it. */
+  assert.match(S.toasts[S.toasts.length - 1], /is empty now/,
+    'the dishes landed, so the words must say the MENU failed rather than the whole delete');
+  assert.deepEqual(S.changes, [], 'no menu_deleted for a menu that is still on the server');
+});
+
+/* ---- 254: the status object itself, mirroring 180's block above ----
+   The object is the CONTRACT between the sequencer and its caller, and two of its three fields are
+   unreadable from the caller on any given path — `doDeleteMenu`'s `r.dishesOk && r.menuOk`
+   short-circuits, and `rollbackMenuDelete` reads only `dishesOk`. So a field can be wrong forever
+   without any behavioural test noticing, which is precisely what the mutation gate reported. These
+   assert the whole object, exactly as 180 does for the plate twin. */
+
+test('254: the whole status object — everything landed', async () => {
+  const { api } = makeHarness(twoDishOneMenu());
+  assert.deepEqual(await api.menuSequence(['D1', 'D2'], 'MW'),
+    { dishesOk: true, failedDishIds: [], menuOk: true });
+});
+
+test('254: the whole status object — a failed dish names itself, and menuOk is FALSE because the menu was never touched', async () => {
+  const { S, api } = makeHarness(Object.assign(twoDishOneMenu(), { failDish: ['D2'] }));
+  assert.deepEqual(await api.menuSequence(['D1', 'D2'], 'MW'),
+    { dishesOk: false, failedDishIds: ['D2'], menuOk: false });
+  assert.ok(!S.log.some(c => c.startsWith('menurec:')),
+    'menuOk:false is a statement about a delete that was never ISSUED, not about one that failed');
+});
+
+test('254: the whole status object — the dishes went and the menus row did not', async () => {
+  const { api } = makeHarness(Object.assign(twoDishOneMenu(), { failMenuRec: true }));
+  assert.deepEqual(await api.menuSequence(['D1', 'D2'], 'MW'),
+    { dishesOk: true, failedDishIds: [], menuOk: false });
+});
+
+test('254: the whole status object — no dishes to wait for', async () => {
+  const { api } = makeHarness(twoDishOneMenu());
+  assert.deepEqual(await api.menuSequence([], 'MW'), { dishesOk: true, failedDishIds: [], menuOk: true });
+});
+
+/* ---- 254, FROM THE PRE-PUSH REVIEW: which menu is SELECTED afterwards ----
+   `wasCurrent` was captured, restored on rollback, and asserted by nothing. The review confirmed the
+   gap mechanically: inverting the guard to `if(!wasCurrent)`, and deleting the line outright, both
+   left all 49 tests in this file and plates-independence green.
+   ⚠️ AND IT IS THE COMMON PATH, NOT AN EDGE CASE, which is what makes the gap worth more than the
+   line it covers. `deleteCurrentMenu` is doDeleteMenu's only caller and it always passes
+   `currentMenuId`, so `wasCurrent` is TRUE on every real invocation — this is the whole mechanism by
+   which the menu selector recovers after a failed delete, and a user watching it is the only thing
+   that would ever have noticed. */
+
+test('254: deleting the CURRENT menu moves the selection off it', async () => {
+  const { api } = makeHarness(Object.assign(twoDishOneMenu(), { currentMenuId: 'MW' }));
+  await api.doDeleteMenu('MW', 'Winter');
+  assert.strictEqual(api.state().currentMenuId, 'MENU_ORIGINAL',
+    'the deleted menu cannot stay selected — fallbackMenuId picks the survivor');
+});
+
+test('254: a rolled-back delete puts the SELECTION back, not just the menu', async () => {
+  const { api } = makeHarness(Object.assign(twoDishOneMenu(), { currentMenuId: 'MW', failMenuRec: true }));
+  await api.doDeleteMenu('MW', 'Winter');
+  const st = api.state();
+  assert.ok(st.menusList.some(m => m.id === 'MW'), 'the menu is back');
+  assert.strictEqual(st.currentMenuId, 'MW',
+    'and it is selected again — restoring the row while leaving the selector on another menu is a second silent change on top of the failure');
+});
+
+test('254: a rollback does NOT move the selection when a DIFFERENT menu was being deleted', async () => {
+  // The other side of the guard. Without this, `if(!wasCurrent)` passes the test above and is wrong.
+  const { api } = makeHarness(Object.assign(twoDishOneMenu(), { currentMenuId: 'MENU_ORIGINAL', failMenuRec: true }));
+  await api.doDeleteMenu('MW', 'Winter');
+  assert.strictEqual(api.state().currentMenuId, 'MENU_ORIGINAL',
+    'the user was not looking at the failed menu, so a rollback must not drag them to it');
+});
+
+/* ---- 254: what the successful path actually SHOWS ----
+   Added after the mutation gate reported six survivors in `doDeleteMenu`, every one of them in the
+   presentation half. The behavioural tests above all read the STATE ARRAYS, and a gutted repaint does
+   not touch those — MENU simply keeps whatever the harness seeded, so `menuView` agreed with the
+   assertion for the wrong reason. Reading the rendered view after a SUCCESS is what separates them. */
+
+test('254: a successful delete repaints, so the deleted menu is off the screen and not merely out of the array', async () => {
+  const { S, api } = makeHarness(Object.assign(twoDishOneMenu(), { currentMenuId: 'MW' }));
+  const before = S.dashRepaints;
+  await api.doDeleteMenu('MW', 'Winter');
+  assert.deepEqual(api.menuView(), ['D3'], 'the two dishes on the deleted menu are gone from the RENDERED menu');
+  assert.ok(S.dashRepaints > before,
+    'and the dashboard was repainted — v60 item 1a: liveness is not gated on anything, so it must fire whether or not the writes land');
+});
+
+test('254: the success toast names how many plates came off, and pluralises them', async () => {
+  const { S, api } = makeHarness(Object.assign(twoDishOneMenu(), { currentMenuId: 'MW' }));
+  await api.doDeleteMenu('MW', 'Winter');
+  assert.match(S.toasts[S.toasts.length - 1], /“Winter” deleted — 2 plates came off it, still in your library/,
+    'the plates are not deleted, and the words have to say so or a user reads a menu delete as a plate delete');
+});
+
+test('254: a menu with ONE plate says "1 plate", not "1 plates"', async () => {
+  const st = twoDishOneMenu();
+  st.customMenu = st.customMenu.filter(d => d.id !== 'D2');
+  const { S, api } = makeHarness(Object.assign(st, { currentMenuId: 'MW' }));
+  await api.doDeleteMenu('MW', 'Winter');
+  assert.match(S.toasts[S.toasts.length - 1], /1 plate came off it/);
+});
+
+test('254: the change-log entry carries the menu NAME, and null rather than a falsy name', async () => {
+  const { S, api } = makeHarness(Object.assign(twoDishOneMenu(), { currentMenuId: 'MW' }));
+  await api.doDeleteMenu('MW', 'Winter');
+  assert.deepEqual(S.changeDetails[S.changeDetails.length - 1].detail, { name: 'Winter', dishes: 2 });
+  const b = makeHarness(Object.assign(twoDishOneMenu(), { currentMenuId: 'MW' }));
+  await b.api.doDeleteMenu('MW', '');
+  assert.strictEqual(b.S.changeDetails[b.S.changeDetails.length - 1].detail.name, null,
+    'an unnamed menu logs null, not an empty string — the column is nullable and the log is read back by rowToChange');
 });

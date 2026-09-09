@@ -19,7 +19,7 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
-const { loadApp, extractFn, extractVar } = require('./_extractfn');
+const { loadApp, extractFn, extractVar, noComments } = require('./_extractfn');
 
 const SRC = loadApp();
 
@@ -136,7 +136,11 @@ function harness(opts) {
       'analyze', 'dishRatios', 'avgFoodCostForScope', 'computeAvgFoodCost',
       'saveKitchenIngredients', 'saveCurrentPlate', 'upsertCustomMenu',
       'submitAddDish', 'submitMenuItem', 'saveMenuEdit', 'resolveEditCat', 'setDishSellPrice',
-      'forgetMenuItems', 'removeMenuItem', 'mmRemove', 'doDeleteMenuOnly', 'doDeleteMenu',
+      'forgetMenuItems', 'removeMenuItem', 'mmRemove', 'doDeleteMenuOnly',
+      // 254: doDeleteMenu now sequences its dish deletes ahead of the menus row. Both new functions are
+      // EXTRACTED, not stubbed — the whole point of the change is WHEN the menu delete is issued, and a
+      // stub would decide that for itself (CLAUDE.md: a stub is written from the same belief as the code).
+      'dbDeleteMenuAfterDishes', 'rollbackMenuDelete', 'doDeleteMenu',
       // 188: deletePlate and doDeleteEverything open with a role guard now. EXTRACTED, not stubbed.
       'isOwner', 'ownerOnly',
       'dbDeletePlateAfterDishes', 'rollbackPlateDelete', 'deletePlate', 'doDeleteEverything',
@@ -579,15 +583,33 @@ test('CENSUS: every kind used at a call site is one the app declares', () => {
   }
 });
 
-test('CENSUS: removeMenuItem still has exactly the three callers the log accounts for', () => {
-  // The log is written by this function's CALLERS, because doDeleteMenu's N calls are ONE decision.
-  // A fourth caller would silently log nothing, so it must break this test and name itself.
+/* ⚠️ 254 — THIS CENSUS SEARCHES CODE, NOT PROSE, AND IT HAD TO LEARN THAT THE HARD WAY.
+   It used to grep the raw source. When 254 removed `removeMenuItem` from `doDeleteMenu`, the census
+   stayed GREEN: the commit's own comment quoted the deleted line to explain what had gone, so the
+   regex matched the tombstone. **The test passed on the explanation of its own violation** — CLAUDE.md
+   roster 183(a), which says an assertion over a source file searches the prose written by the same
+   person, in the same hour, saying the same words.
+   Everything below now runs against `noComments(...)`, which is shared with the other census that had
+   already learned this. */
+test('CENSUS: removeMenuItem has exactly the callers the log accounts for', () => {
+  // The log is written by this function's CALLERS, because a delete path's N calls are ONE decision.
+  // A new caller would silently log nothing, so it must break this test and name itself.
+  const CODE = noComments(SRC, 'block', 'line');
+  const body = (n) => noComments(extractFn(SRC, n), 'block', 'line');
   const callers = ['mmRemove', 'doDeleteMenuOnly', 'doDeleteMenu']
-    .filter((n) => /removeMenuItem\(/.test(extractFn(SRC, n)));
-  assert.deepStrictEqual(callers, ['mmRemove', 'doDeleteMenuOnly', 'doDeleteMenu']);
+    .filter((n) => /removeMenuItem\(/.test(body(n)));
+  /* 254: doDeleteMenu is NO LONGER one of them, and that is the change rather than a regression.
+     It used to call removeMenuItem once per dish — forget-and-delete in a single unawaited burst.
+     It now forgets locally with `forgetMenuItems` and hands the SERVER deletes to
+     `dbDeleteMenuAfterDishes`, so the menus row is not deleted until the dishes have resolved.
+     The log accounting is unchanged: doDeleteMenu still writes exactly one `menu_deleted`, and the
+     test below pins that it is written only when the whole sequence succeeded. */
+  assert.deepStrictEqual(callers, ['mmRemove', 'doDeleteMenuOnly']);
+  assert.ok(/dbDeleteMenuAfterDishes\(/.test(body('doDeleteMenu')),
+    'doDeleteMenu must route its dish deletes through the sequencer, or they are unawaited again');
   // Count CALLS, not the declaration — `function removeMenuItem(` matches a naive search too.
-  const total = (SRC.match(/(?<!function\s)\bremoveMenuItem\(/g) || []).length;
-  assert.strictEqual(total, 3, 'removeMenuItem gained a caller — decide whether it is one decision or many, then update this');
+  const total = (CODE.match(/(?<!function\s)\bremoveMenuItem\(/g) || []).length;
+  assert.strictEqual(total, 2, 'removeMenuItem gained or lost a caller — decide whether it is one decision or many, then update this');
 });
 
 /* A source census of "the logChange sits after a success check" was written here first and DELETED.

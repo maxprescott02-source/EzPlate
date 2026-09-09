@@ -194,12 +194,16 @@ function makeDeleteHarness(opts) {
     var menusList=S.menusList, savedPlates=S.savedPlates, customMenu=S.customMenu, currentMenuId=S.currentMenuId;
     var MENU=[], menuById={};
     function rebuildMenu(){ MENU=customMenu.slice(); menuById={}; MENU.forEach(function(m){menuById[m.id]=m;}); }
-    function removeMenuItem(id){ customMenu=customMenu.filter(function(c){return c.id!==id;}); rebuildMenu(); }
     function saveMenus(){}
+    /* 254: the dish delete and the menus-row delete are separate server calls now, and doDeleteMenu
+       sequences them. Both are stubbed as SUCCEEDING here — this file is about which ROWS survive a
+       menu delete, not about failure handling, which tests/delete-sequencing.test.js owns. */
+    function dbDeleteMenu(id){ return Promise.resolve({error:null}); }
     function dbDeleteMenuRecord(){ return Promise.resolve({}); }   // v114: returns its write now
     function computeAvgFoodCost(){ return 30; }
-    function logChangeIfSaved(){ return Promise.resolve(null); }
+    function logChange(){ return null; }
     function logHistory(){}   // v115: path 12 logs a trend point; the point's shape is owned by tests/history-paths.test.js
+    function repaintDashboardIfVisible(){}
     function setCurrentMenuId(v){ currentMenuId=v; }
     function buildMenuSelector(){}
     function renderAnalysis(){}
@@ -210,14 +214,24 @@ function makeDeleteHarness(opts) {
     ${extractFn(SRC, 'dishOnMenu')}
     ${extractFn(SRC, 'plateIdOf')}
     ${extractFn(SRC, 'fallbackMenuId')}
+    /* 254: forgetMenuItems is EXTRACTED rather than the hand-rolled removeMenuItem stub that used to
+       stand here. That stub filtered customMenu itself, which is the copy-written-from-the-same-belief
+       shape CLAUDE.md records; the real function is what the app runs. */
+    ${extractFn(SRC, 'forgetMenuItems')}
+    ${extractFn(SRC, 'dbDeleteMenuAfterDishes')}
+    ${extractFn(SRC, 'rollbackMenuDelete')}
     ${extractFn(SRC, 'doDeleteMenu')}
     rebuildMenu();
-    return function(id,name){ doDeleteMenu(id,name); return { menusList: menusList, savedPlates: savedPlates, customMenu: customMenu, currentMenuId: currentMenuId }; };
+    return function(id,name){
+      return Promise.resolve(doDeleteMenu(id,name)).then(function(){
+        return { menusList: menusList, savedPlates: savedPlates, customMenu: customMenu, currentMenuId: currentMenuId };
+      });
+    };
   `);
   return factory(S);
 }
 
-test('v55: deleting a menu removes only that menu\'s dishes; the plate and its entries on other menus survive', () => {
+test('v55: deleting a menu removes only that menu\'s dishes; the plate and its entries on other menus survive', async () => {
   const run = makeDeleteHarness({
     menusList: [{ id: 'MENU_ORIGINAL', name: 'Original' }, { id: 'MW', name: 'Winter' }],
     customMenu: [
@@ -228,7 +242,7 @@ test('v55: deleting a menu removes only that menu\'s dishes; the plate and its e
     savedPlates: [{ id: 'SP1', name: 'Shared', lines: [] }, { id: 'SP2', name: 'Winter-only', lines: [] }],
     currentMenuId: 'MW',
   });
-  const { menusList, savedPlates, customMenu } = run('MW', 'Winter');
+  const { menusList, savedPlates, customMenu } = await run('MW', 'Winter');   // 254: settles when the SERVER has answered, not on the optimistic repaint
   assert.ok(!menusList.some(m => m.id === 'MW'), 'the menu is gone');
   assert.strictEqual(savedPlates.length, 2, 'NO plate is deleted');
   assert.ok(customMenu.some(d => d.id === 'D1'), 'the dish on the OTHER menu survives');
@@ -475,14 +489,14 @@ test('228: with no same-named plate the orphaning behaviour is unchanged — a n
   assert.deepStrictEqual(out.sp.lines, []);
 });
 
-test('v55: deleting the last menu is allowed; plates survive with no dishes', () => {
+test('v55: deleting the last menu is allowed; plates survive with no dishes', async () => {
   const run = makeDeleteHarness({
     menusList: [{ id: 'MW', name: 'Winter' }],
     customMenu: [{ id: 'D1', menuId: 'MW', plateId: 'SP1', custom: true }],
     savedPlates: [{ id: 'SP1', name: 'Plate', lines: [] }],
     currentMenuId: 'MW',
   });
-  const { menusList, savedPlates, customMenu } = run('MW', 'Winter');
+  const { menusList, savedPlates, customMenu } = await run('MW', 'Winter');
   assert.strictEqual(menusList.length, 0, 'the last menu can be deleted');
   assert.strictEqual(savedPlates.length, 1, 'the plate survives, now unpublished');
   assert.strictEqual(customMenu.length, 0, 'its dish is gone');

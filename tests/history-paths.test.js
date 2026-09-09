@@ -122,7 +122,10 @@ function harness(opts) {
       'dishRatios', 'avgFoodCostForScope', 'computeAvgFoodCost',
       'ptMs', 'logHistory', 'logHistoryPoint', 'logMenuHistory', 'logAllMenuPrices', 'logMenuPrice', 'repaintDashboardIfVisible',
       'saveKitchenIngredients',
-      'forgetMenuItems', 'removeMenuItem', 'mmRemove', 'doDeleteMenuOnly', 'doDeleteMenu',
+      'forgetMenuItems', 'removeMenuItem', 'mmRemove', 'doDeleteMenuOnly',
+      // 254: the menus-row delete is not issued until the dish deletes resolve. Extracted, not stubbed
+      // - the change IS the timing, and a stub would decide the timing for itself.
+      'dbDeleteMenuAfterDishes', 'rollbackMenuDelete', 'doDeleteMenu',
       // 188: isOwner/ownerOnly are dependencies of deletePlate and doDeleteEverything now — EXTRACTED,
       // not stubbed, because a hand-rolled `return true` here would pass against a guard that was
       // silently inverted. businessRole defaults to 'owner', which is the role these paths assume.
