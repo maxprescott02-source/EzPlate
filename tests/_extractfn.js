@@ -117,4 +117,26 @@ function extractFn(src, name, opts) {
   throw new Error(`extractFn: unbalanced braces for ${name}`);
 }
 
-module.exports = { loadApp, extractFn, extractVar, sliceBetween, APP_PATH };
+/* Strip comments before a source census searches the text. `styles` is any of 'block', 'line', 'html'.
+ *
+ * ⚠️ THIS IS NOT TIDINESS, IT IS THE ONLY THING THAT MAKES A SOURCE GREP MEAN ANYTHING. CLAUDE.md's
+ * roster records it twice: an assertion over a function body, a source file or a diff is searching
+ * PROSE as well as CODE, and the prose is usually written by the same person, in the same hour, saying
+ * the same words. A tombstone comment explaining that a call was REMOVED contains the call.
+ *
+ * Measured instance, batch 254: `doDeleteMenu` stopped calling `removeMenuItem`, and the census
+ * asserting its three callers stayed GREEN — because the commit's own comment quoted the deleted line
+ * (`affected.forEach(function(c){ removeMenuItem(c.id); })`) to explain what had gone. The test passed
+ * on the explanation of its own violation.
+ *
+ * Lives here rather than in a test file because there were two copies before this one and the second
+ * was written without knowing about the first. `tests/inv-upload.test.js` had the original and its
+ * comment already stated this reasoning; it now imports this. */
+function noComments(src, ...styles) {
+  return styles.reduce((acc, kind) => acc.replace(
+    kind === 'block' ? /\/\*[\s\S]*?\*\//g
+      : kind === 'line' ? /(^|[^:])\/\/.*$/gm
+        : /<!--[\s\S]*?-->/g, kind === 'line' ? '$1' : ''), src);
+}
+
+module.exports = { loadApp, extractFn, extractVar, sliceBetween, noComments, APP_PATH };

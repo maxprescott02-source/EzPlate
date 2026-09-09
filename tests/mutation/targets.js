@@ -481,6 +481,16 @@ const targets = [
      (attempted, not kept, the defect restored exactly) survived every test in the batch. Extracting
      it was the fix for that, and listing it is what keeps the fix honest. */
   { fn: 'importKeptCount', tests: ['import-summary.test.js'] },
+  /* 254 - the menu delete's sequencing, and the merge that stops a re-sync deleting cost history.
+     `dbDeleteMenuAfterDishes` is the menu twin of `dbDeletePlateAfterDishes`, and the reason it is
+     listed separately from its sibling is that its failure mode is the opposite one: the plate FK is
+     NO ACTION and fails LOUDLY with 23503, while `menu_items.menu_id` is ON DELETE SET NULL, so
+     deleting the menus row early does not error - it silently detaches a dish that is still there.
+     `mergeSeries` is now the ONE merge both history shapes call, so a mutation of it is a mutation of
+     `mergeMenuHistory` too; that is the point of extracting it and it is why one entry covers both. */
+  { fn: 'dbDeleteMenuAfterDishes', tests: ['delete-sequencing.test.js'] },
+  { fn: 'rollbackMenuDelete', tests: ['delete-sequencing.test.js'] },
+  { fn: 'mergeSeries', tests: ['dash-scope.test.js'] },
   /* 253's pre-push review — whether an import owes a trend point. Both of this batch's majors were
      decisions buried inside `applyInvoice` where nothing could run them, and both were wrong; this
      is the second one extracted. Its `relinked` arm is the whole reason it exists. */

@@ -18,7 +18,7 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
-const { loadApp, extractFn, extractVar } = require('./_extractfn');
+const { loadApp, extractFn, extractVar, noComments } = require('./_extractfn');
 
 const SRC = loadApp();
 
@@ -308,6 +308,7 @@ test('bootstrap merge keeps local-only points and de-dupes on timestamp', () => 
   const merge = new Function(`
     "use strict";
     ${extractFn(SRC, 'ptMs')}
+    ${extractFn(SRC, 'mergeSeries')}
     ${extractFn(SRC, 'mergeMenuHistory')}
     return mergeMenuHistory;
   `)();
@@ -328,6 +329,7 @@ test('bootstrap merge keeps a whole series the server has never seen', () => {
   const merge = new Function(`
     "use strict";
     ${extractFn(SRC, 'ptMs')}
+    ${extractFn(SRC, 'mergeSeries')}
     ${extractFn(SRC, 'mergeMenuHistory')}
     return mergeMenuHistory;
   `)();
@@ -340,10 +342,84 @@ test('bootstrap merge does not mutate the arrays it was given', () => {
   const merge = new Function(`
     "use strict";
     ${extractFn(SRC, 'ptMs')}
+    ${extractFn(SRC, 'mergeSeries')}
     ${extractFn(SRC, 'mergeMenuHistory')}
     return mergeMenuHistory;
   `)();
   const server = { M1: [{ t: 1000, v: 30 }] };
   merge(server, { M1: [{ t: 2000, v: 31 }] });
   assert.strictEqual(server.M1.length, 1, 'the caller\'s server array is untouched');
+});
+
+/* =============================================================================================
+ * 254 — THE ALL-MENUS SERIES MERGES TOO, and until this batch it was the one that did not.
+ *
+ * `bootstrapSync` did `priceHistory=_all`, a wholesale replace, while both siblings merged. The
+ * comment at the site said so and deferred it, and it said the point "exists only in localStorage",
+ * which is the misleading half rather than the deferral: `priceHistory` is written to localStorage by
+ * nothing. So the window is not "until the next reload", it is until the next bootstrapSync — and the
+ * `online` listener re-runs that, so the sequence is log a point with no signal, signal returns, the
+ * re-sync silently wipes it, inside one session with the app open.
+ *
+ * These run the REAL `mergeSeries` — the same function `mergeMenuHistory` now calls, which is the
+ * point of extracting it rather than writing a second one for the flat shape.
+ * ========================================================================================== */
+const mergeSeriesFn = () => new Function(`
+  "use strict";
+  ${extractFn(SRC, 'ptMs')}
+  ${extractFn(SRC, 'mergeSeries')}
+  return mergeSeries;
+`)();
+
+test('254: a local-only all-menus point survives the re-sync that used to delete it', () => {
+  const merge = mergeSeriesFn();
+  const server = [{ t: '2026-09-01T00:00:00.000Z', v: 30 }, { t: '2026-09-03T00:00:00.000Z', v: 32 }];
+  const local = server.concat([{ t: '2026-09-02T00:00:00.000Z', v: 31 }]);   // the offline point
+  const out = merge(server, local);
+  assert.deepStrictEqual(out.map(p => p.v), [30, 31, 32],
+    'the point the server never saw is kept, and lands in time order rather than on the end');
+});
+
+test('254: the server wins on an identical timestamp, so a re-sync cannot double a point', () => {
+  const merge = mergeSeriesFn();
+  const out = merge([{ t: '2026-09-01T00:00:00.000Z', v: 30 }],
+                    [{ t: '2026-09-01T00:00:00.000Z', v: 99 }]);
+  assert.strictEqual(out.length, 1, 'one moment, one point');
+  assert.strictEqual(out[0].v, 30, 'and it is the server copy — the same precedence mergeMenuHistory has always had');
+});
+
+test('254: a point logged offline as a STRING matches the same moment returned as a NUMBER', () => {
+  // ptMs exists because a point's `t` is an ISO string when this device logged it and a number when it
+  // came back from Supabase. If the merge compared raw `t` the same moment would be two points.
+  const merge = mergeSeriesFn();
+  const ms = Date.parse('2026-09-01T00:00:00.000Z');
+  const out = merge([{ t: ms, v: 30 }], [{ t: '2026-09-01T00:00:00.000Z', v: 30 }]);
+  assert.strictEqual(out.length, 1, 'the same instant in two spellings is ONE point');
+});
+
+test('254: merging does not mutate either array it was handed', () => {
+  const merge = mergeSeriesFn();
+  const server = [{ t: '2026-09-03T00:00:00.000Z', v: 32 }];
+  const local = [{ t: '2026-09-01T00:00:00.000Z', v: 30 }];
+  merge(server, local);
+  assert.deepStrictEqual(server.map(p => p.v), [32], 'the server array is untouched');
+  assert.deepStrictEqual(local.map(p => p.v), [30], 'and so is the local one');
+});
+
+test('254: an empty server read does not wipe local points', () => {
+  const merge = mergeSeriesFn();
+  const out = merge([], [{ t: '2026-09-01T00:00:00.000Z', v: 30 }]);
+  assert.deepStrictEqual(out.map(p => p.v), [30],
+    'a successful-but-empty read and an RLS-blocked read are indistinguishable over PostgREST — so an empty one must not destroy cost history');
+});
+
+/* ⚠️ THE HONEST LIMIT OF THE TEST BELOW, stated because a source census is the weakest thing in this
+   repo's toolkit (CLAUDE.md's roster is largely about them). The five tests above run the real merge
+   and prove what it DOES. They cannot prove bootstrapSync CALLS it — that function is ~300 lines with
+   a dozen live dependencies and is not extractable. This pins the coupling only, and it searches
+   `noComments(...)` so the paragraph above explaining the old `priceHistory=_all` cannot satisfy it. */
+test('254: bootstrapSync merges the all-menus series rather than replacing it', () => {
+  const boot = noComments(extractFn(SRC, 'bootstrapSync'), 'block', 'line');
+  assert.match(boot, /priceHistory\s*=\s*mergeSeries\(/, 'the all-menus series is merged at boot');
+  assert.doesNotMatch(boot, /priceHistory\s*=\s*_all\b/, 'and the wholesale replace is gone, not merely joined');
 });

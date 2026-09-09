@@ -88,10 +88,18 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 ⚠️ **`menu_items` is the third such table and is DELIBERATE** — 187 decided staff may unpublish a dish, and it says so in the migration. It is not part of this.
 **Why it needs him:** what staff may do is his decision — 187 was his. The migration, if the answer is no, is 187's exact idiom with 250 as the worked example.
 
-## next  90 · Item 21's remaining halves: a delete sequence and a boot-time replace  **[B — the completion message shipped in batch 253]**
+## blocked  90 · A refused invoice row should be left unticked with its own error  **[B — everything else in this item has shipped]**
 
 **Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 90.
-✅ **The completion message shipped in batch 253 (`ezplate-v208`)** — the invoice summary waits for its writes and says how many landed. **What is left is two small ones and a UX question**: a refused row left unticked with its own error needs the dialog to stay open through the writes, which is a decision rather than a defect. Read the full item.
+
+**Blocked on: MAX, one sentence — after applying an invoice, would you rather have your screen back straight away, or wait on the invoice list while it saves so any row the server refused stays on screen with its own error?**
+
+✅ **The other three parts have shipped.** The completion message in 253 (`ezplate-v208`); the menu delete's sequencing and the boot-time history merge in 254 (`ezplate-v209`).
+
+⚠️ **THE COST OF THIS WAS OVERSTATED BY 253 AND THE CORRECTED FIGURE IS WHAT MAKES IT A REAL QUESTION.** That batch wrote, at the site and in its handover, that holding the dialog open would mean *"dozens of round trips on café mobile data"*. **Measured against the code rather than reasoned: the app ALREADY waits for those writes** — `applyInvoice` closes the dialog, then awaits `importKeptCount(priceWrites)` before it says anything — and the writes are dispatched in parallel, so the wait is the slowest of N, not N in sequence, and it is bounded at 15s either way. **So the choice does not add waiting. It only decides whether the user is blocked during a wait that already happens**, and buys per-row attribution in exchange.
+**A recommendation, since one is owed:** keep the current behaviour unless Max wants the per-row detail. `CLAUDE.md` says an occasional user *"would rather be told a thing did not save than discover it next week"*, and 253 already tells them — a count, honestly, without blocking. The per-row version is better only if he intends to ACT on a refused row there and then.
+
+⚠️ Related and still unbuilt whichever way this goes: the shortfall line covers the **price-update branch only**. A product CREATED by an import, and a pack taught during one, are written by other branches and collected nowhere, so a failure there is invisible to that line. Raised by 253's pre-push review; say so on screen or collect them too.
 ⚠️ **SPLIT OUT OF 21 BY BATCH 247, which shipped 21's history half as `ezplate-v204`.** 21 grouped four instances under one mechanism and only one of them shared it in substance: the history gating was fifteen call sites and a dedup interaction, the invoice completion message needs a COUNT of what landed rather than a boolean, the menu delete is a sequencing change, and the boot-time replace is a merge decision. **Each needs its own repro; none falls out of the others**, and 21's old `Do after: 20` reason was falsified by 246 before either could be used.
 
 

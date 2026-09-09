@@ -39,7 +39,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
-const { loadApp, extractFn } = require('./_extractfn');
+const { loadApp, extractFn, noComments } = require('./_extractfn');
 
 const SRC = loadApp();
 const HTML = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
@@ -50,10 +50,8 @@ const CSS = fs.readFileSync(path.join(__dirname, '..', 'css', 'style.css'), 'utf
    both still appear in prose explaining why they are gone. A raw-text grep would fail on the
    tombstone and, worse, would PASS if someone deleted the tombstone and left the code. Stripping
    comments also means a comment can never satisfy one of these tests by accident. */
-const noComments = (s, ...styles) => styles.reduce((acc, kind) => acc.replace(
-  kind === 'block' ? /\/\*[\s\S]*?\*\//g
-    : kind === 'line' ? /(^|[^:])\/\/.*$/gm
-      : /<!--[\s\S]*?-->/g, kind === 'line' ? '$1' : ''), s);
+/* 254: moved to tests/_extractfn.js — a second copy of it had already been written elsewhere.
+   The reasoning above is unchanged and is now stated at its new home. */
 const CSS_CODE = noComments(CSS, 'block');
 const HTML_CODE = noComments(HTML, 'html');
 const SRC_CODE = noComments(SRC, 'block', 'line');

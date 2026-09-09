@@ -1390,7 +1390,9 @@ function applyRoleUi(){
        `king_wiz_skips`, the two AI toggles, `last_invoice_import`;
      * a HISTORY SERIES is MERGED rather than replaced, because `pushWrite` has no queue and a
        point logged with no signal exists only in memory — `changeLog`, `menuHistory`,
-       `menuPriceLog`; and `supplierMem` keeps local entries over an empty read for v107's reason;
+       `menuPriceLog`, and since 254 `priceHistory`, which was the one exception and is named here
+       because this list is where a reader checks whether the set is complete; and `supplierMem`
+       keeps local entries over an empty read for v107's reason;
      * a THREE-VALUED ANSWER moves the standing verdict only when it is definite — `businessRole`,
        whose own note is at the bottom of this function.
 
@@ -1715,13 +1717,19 @@ async function bootstrapSync(){
       // admitting NaN — see rowToPoint. Two passes so each series states which rows it wants.
       var _all=rowsToSeries(_h.data.filter(function(r){ return !r.menu_id; }), 'avg_food_cost_pct', null);
       var _bym=rowsToSeries(_h.data.filter(function(r){ return !!r.menu_id; }), 'avg_food_cost_pct', 'menu_id');
-      priceHistory=_all;
-      // v89: MERGE, don't replace. pushWrite still drops writes silently when fully offline (a known gap,
-      // CLAUDE.md Data-write rules), so a point logged on a café phone with no signal exists only in
-      // localStorage. Replacing wholesale would delete it on the next sync — cost history Max can never
-      // get back. Server points win on identical timestamps; local-only points survive. (CodeRabbit, v89.)
-      // NOTE: the all-menus priceHistory above still replaces wholesale and has the same gap — untouched
-      // here deliberately, it predates this batch and everything reads it. Flagged in the handover.
+      /* 254 — THE ALL-MENUS SERIES MERGES NOW TOO, WHICH IS WHAT THE NOTE BELOW USED TO DEFER.
+         v89: MERGE, don't replace. pushWrite still drops writes silently when fully offline (a known
+         gap, CLAUDE.md Data-write rules), so a point logged on a café phone with no signal exists only
+         in MEMORY. Replacing wholesale would delete it on the next sync — cost history Max can never
+         get back. Server points win on identical timestamps; local-only points survive. (CodeRabbit, v89.)
+         ⚠️ THE OLD NOTE HERE SAID "only in localStorage" AND THAT WAS THE MISLEADING HALF, not the
+         deferral: `priceHistory` is never written to localStorage by anything (grep it — the writers are
+         boot, `logHistory` and the backup), so the window is not "until the next reload", it is until
+         the next `bootstrapSync`. THAT IS NARROWER AND MORE REACHABLE, not less: the `online` listener
+         re-runs bootstrapSync, so the sequence is log a point with no signal → signal returns →
+         the re-sync wipes it, inside one session, with the app open. `js/app.js`'s own boot-time list of
+         what survives a re-read already says "exists only in memory" and already omitted this series. */
+      priceHistory=mergeSeries(_all, priceHistory);
       if(menuHistSupported){ menuHistory=mergeMenuHistory(_bym, menuHistory); }
     }
     // v90: the sell-price log. Same MERGE rather than replace, for the same reason as above.
@@ -4217,15 +4225,23 @@ var menuHistory = {};
    and tests can run the real thing. Server points win on an identical timestamp; a local point the
    server has never seen is KEPT, because pushWrite drops writes silently when fully offline (CLAUDE.md,
    Data-write rules) and replacing wholesale would delete cost history Max cannot get back. */
+/* 254 — ONE merge, called by BOTH shapes, because until this batch only one of them merged at all.
+   `mergeSeries` is the whole rule for a single flat series and `mergeMenuHistory` is that rule applied
+   per key. It is EXTRACTED rather than copied for the reason CLAUDE.md records more than any other:
+   a second implementation is written from the same belief as the first and agrees with it right up to
+   the day it does not. The all-menus series and the per-menu series must not be able to disagree about
+   what "the server has never seen this point" means. */
+function mergeSeries(server, local){
+  var out=(server||[]).slice(), seen={};
+  out.forEach(function(p){ seen[ptMs(p)]=1; });
+  (local||[]).forEach(function(p){ if(!seen[ptMs(p)]) out.push(p); });
+  return out.sort(function(a,b){ return ptMs(a)-ptMs(b); });
+}
 function mergeMenuHistory(server, local){
-  var out={};
-  Object.keys(server||{}).forEach(function(id){ out[id]=(server[id]||[]).slice(); });
-  Object.keys(local||{}).forEach(function(id){
-    var arr=out[id]||(out[id]=[]), seen={};
-    arr.forEach(function(p){ seen[ptMs(p)]=1; });
-    (local[id]||[]).forEach(function(p){ if(!seen[ptMs(p)]) arr.push(p); });
-  });
-  Object.keys(out).forEach(function(id){ out[id].sort(function(a,b){ return ptMs(a)-ptMs(b); }); });
+  var out={}, ids={};
+  Object.keys(server||{}).forEach(function(id){ ids[id]=1; });
+  Object.keys(local||{}).forEach(function(id){ ids[id]=1; });
+  Object.keys(ids).forEach(function(id){ out[id]=mergeSeries((server||{})[id], (local||{})[id]); });
   return out;
 }
 /* Schema-can-lag guard (CLAUDE.md): the migration adding price_history.menu_id is applied by Max
@@ -8858,7 +8874,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v208';
+var APP_VERSION='v209';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -13880,29 +13896,126 @@ function onMenuSelectChange(){
 // v114: returns its write, for the same reason dbDeleteMenu and dbDeletePlate were given theirs in v112 —
 // a helper that swallows its promise cannot be sequenced or confirmed by any caller.
 function dbDeleteMenuRecord(id){ return pushWrite(function(){ return SUPA.from('menus').delete().eq('id',id); }, 'menu delete'); }
+/* 254 — THE MENU ROW IS NOT DELETED UNTIL EVERY DISH DELETE HAS RESOLVED, and if any of them failed it
+   is not deleted at all. Mirrors dbDeletePlateAfterDishes exactly; what differs is the REASON, and the
+   old reason written at doDeleteMenu was wrong in a way CLAUDE.md records by name.
+
+   ⚠️ IT IS NOT ABOUT A FOREIGN KEY. `menu_items.menu_id -> menus.id` is ON DELETE SET NULL — verified
+   against production, not read off a doc: `menu_items_menu_id_fkey ... ON DELETE SET NULL`, confdeltype
+   'n'. So deleting the menu first can never raise 23503, and the old comment claiming it could was
+   describing a guard that guarded nothing.
+   **The real hazard is the opposite of an error: SET NULL is what makes the failure SILENT.** Delete the
+   menus row while a dish delete is still in flight, and Postgres helpfully sets that dish's menu_id to
+   NULL. If the dish's own delete then fails, the row SURVIVES, attached to no menu, on no screen, with
+   no error raised anywhere — CLAUDE.md's "a row that saved without error and is invisible", which it
+   tells you to reach for before assuming a render bug.
+   Measured on production 10 Sep 2026 while writing this: 90 menu_items rows, **0 of them orphaned**. So
+   this is a latent hazard rather than damage already done, and it is worth saying which — the fix is
+   cheap either way, and overstating it would be the thing that makes the next reader distrust the note.
+
+   The dispatch order was already dishes-first, which is exactly the trap: CLAUDE.md's rule is that
+   dispatching in the right order is NOT sequencing, and a test recording call ORDER passes against the
+   broken code. What changes is that the menu delete is not ISSUED until the dishes have RESOLVED. */
+function dbDeleteMenuAfterDishes(dishIds, menuId){
+  var ids=dishIds||[];
+  var killMenu=function(){
+    return Promise.resolve(dbDeleteMenuRecord(menuId)).then(function(r){
+      return {dishesOk:true, failedDishIds:[], menuOk:!!(r && !r.error)};
+    }, function(){ return {dishesOk:true, failedDishIds:[], menuOk:false}; });
+  };
+  if(!ids.length) return killMenu();
+  return Promise.all(ids.map(function(id){
+    return Promise.resolve(dbDeleteMenu(id)).then(function(r){ return {id:id, ok:!!(r && !r.error)}; },
+                                                 function(){ return {id:id, ok:false}; });
+  })).then(function(res){
+    var failed=res.filter(function(x){ return !x.ok; }).map(function(x){ return x.id; });
+    if(failed.length) return {dishesOk:false, failedDishIds:failed, menuOk:false};   // the MENU is not touched
+    return killMenu();
+  });
+}
+/* 254 — put back exactly what the server still holds, and say which. Mirrors rollbackPlateDelete,
+   including the rule that a delete which SUCCEEDED is never resurrected because a sibling failed:
+   only the dishes in failedDishIds come back.
+   The menu goes back at its ORIGINAL INDEX rather than being appended — menusList is the order of the
+   menu selector, so a rollback that reorders the user's menus is a second, silent change on top of the
+   one that just failed. */
+function rollbackMenuDelete(menuRec, menuIdx, wasCurrent, dishes, r, repaint, name){
+  if(!r.dishesOk){
+    var back={}; r.failedDishIds.forEach(function(id){ back[id]=1; });
+    dishes.forEach(function(d){ if(back[d.id]) customMenu.push(d); });
+  }
+  if(menuRec){
+    /* `splice` already clamps an index past the end, so the `<= length` arm this line used to carry
+       was an equivalent mutant rather than a guard - the two branches computed the same list. The
+       `>= 0` half is NOT redundant: splice(-1, 0, x) inserts before the LAST element, which would
+       silently reorder the user's menus on the one path where nothing else has gone right. */
+    if(menuIdx>=0) menusList.splice(menuIdx, 0, menuRec);
+    else menusList.push(menuRec);
+    if(wasCurrent) setCurrentMenuId(menuRec.id);
+  }
+  repaint();
+  if(r.dishesOk){
+    toast('\u201c'+name+'\u201d is empty now, but the menu itself couldn\u2019t be deleted \u2014 it\u2019s still on your Menu tab.');
+    return;
+  }
+  var went=(dishes||[]).length-(r.failedDishIds||[]).length;        // some may genuinely have gone; saying so is the honest half
+  toast('Couldn\u2019t delete \u201c'+name+'\u201d \u2014 it has NOT been deleted.'
+    +(went?(' '+went+' plate'+(went===1?'':'s')+' did come off it.'):''));
+}
 // v54: delete a menu \u2014 its dishes (menu_items rows) are removed and their plates are UNLINKED (menu_id \u2192 null),
 // so every plate survives in the Plates library, just unpublished. No reassignment, no holding area. Dishes go
-// first, then the menu row (dishes already gone, so the menu_items.menu_id FK can never be violated).
+// first, then the menu row.
+// ⚠️ 254 CORRECTED THE REASON. It read "dishes already gone, so the menu_items.menu_id FK can never be
+// violated", and that FK cannot be violated in EITHER order: it is ON DELETE SET NULL (checked against
+// production, not read off a doc). CLAUDE.md has carried this comment as a known-wrong claim — "its comment
+// claiming an FK violation is wrong, and it is not precedent for anything". What the ordering actually buys
+// is written at dbDeleteMenuAfterDishes, and it is the opposite of an error: SET NULL is what makes the
+// failure SILENT.
 function doDeleteMenu(id, name){
   var affected=customMenu.filter(function(c){return dishOnMenu(c, id);});
+  var dishIds=affected.map(function(c){ return c.id; });
   var avgBefore=computeAvgFoodCost();                               // v114: before anything comes off the menu
-  affected.forEach(function(c){ removeMenuItem(c.id); });           // v55: remove only THIS menu's entries; plates (and any other menus they're on) survive
+  var menuIdx=menusList.findIndex(function(x){ return x.id===id; });
+  var menuRec=(menuIdx>=0)?menusList[menuIdx]:null;
+  var wasCurrent=(currentMenuId===id);
+  /* 254: the local forget is SPLIT from the server delete so the two can be sequenced. This was
+     `affected.forEach(function(c){ removeMenuItem(c.id); })`, which did both at once and awaited
+     neither. v55's rule is unchanged and `dishOnMenu` above is still what enforces it: only THIS
+     menu's entries go, and every plate survives in the library and on any other menu it is on. */
+  forgetMenuItems(dishIds);
   menusList=menusList.filter(function(x){return x.id!==id;});
-  /* v114: ONE entry for the whole menu, chained off the MENUS row delete rather than the dishes'.
-     That is the write that decides whether the menu is gone; the dish deletes are fired above without
-     being awaited, which is pre-existing behaviour this batch is not in scope to change (the FK
-     menu_items.menu_id -> menus.id is ON DELETE SET NULL, so unlike the plate case there is nothing to
-     sequence against). Flagged in the handover rather than fixed. */
-  /* 247: the write is captured rather than inlined, because TWO things now depend on whether the menu
-     row actually went — the change-log entry and the trend point below. Passing the same promise to
-     both is what stops them disagreeing about whether the delete happened. */
-  var menuWrite=dbDeleteMenuRecord(id);
-  logChangeIfSaved(menuWrite, 'menu_deleted', {menuIds:[id], avgBefore:avgBefore,
-    detail:{name:name||null, dishes:affected.length}});
   setCurrentMenuId(fallbackMenuId());
-  rebuildMenu(); buildMenuSelector(); renderAnalysis(); updateMenuDelBtn(); if(typeof renderPlatesTab==='function') renderPlatesTab();
-  logHistory(menuWrite);   /* 247 */   // v115 path 12: after rebuildMenu() \u2014 computeAvgFoodCost reads MENU, which is stale until then
-  toast('\u201c'+name+'\u201d deleted'+(affected.length?(' \u2014 '+affected.length+' plate'+(affected.length===1?'':'s')+' came off it, still in your library'):''));
+  /* 254: ONE repaint, defined once and handed to the rollback - the same shape rollbackPlateDelete
+     already uses. Two copies of this list would be two definitions of "what a menu delete redraws",
+     and the rollback's copy is the one nobody looks at. */
+  var repaint=function(){
+    rebuildMenu(); buildMenuSelector(); renderAnalysis(); updateMenuDelBtn();
+    if(typeof renderPlatesTab==='function') renderPlatesTab();
+  };
+  repaint();
+  /* v60 item 1a: LIVENESS IS NOT GATED ON ANYTHING. `logHistory(write)` did this repaint on its way
+     past; the trend POINT now waits for the outcome below, so the repaint has to be issued here, or
+     moving the point would silently take the repaint with it. */
+  repaintDashboardIfVisible();
+  /* 254: RETURNED, not fired and forgotten. CLAUDE.md's rule for the delete paths is that a helper
+     which swallows its promise cannot be sequenced by anyone — and the first thing that needed to
+     sequence against this one was its own test, which could otherwise only ever observe the
+     optimistic repaint and would pass against a delete that never reached the server. */
+  return dbDeleteMenuAfterDishes(dishIds, id).then(function(r){
+    if(r.dishesOk && r.menuOk){
+      /* v114: ONE entry for the whole menu. 247 gated it on the menus-row write, because that was the
+         write deciding whether the menu was gone; 254 gates it on the WHOLE sequence, which is the
+         same claim made stronger — the entry says the menu AND its dishes went, and now it is only
+         written when they did. logHistory() is unparameterised because we are already inside the
+         answer; gating it again would be asking a question we are holding. */
+      logChange('menu_deleted', {menuIds:[id], avgBefore:avgBefore,
+        detail:{name:name||null, dishes:affected.length}});
+      logHistory();   // v115 path 12: after rebuildMenu() — computeAvgFoodCost reads MENU, stale until then
+      toast('\u201c'+name+'\u201d deleted'+(affected.length?(' \u2014 '+affected.length+' plate'+(affected.length===1?'':'s')+' came off it, still in your library'):''));
+      return;
+    }
+    rollbackMenuDelete(menuRec, menuIdx, wasCurrent, affected, r, repaint, name);
+  });
 }
 // v55: single confirm. Deleting a menu removes only that menu's dishes; every plate stays in the Plates
 // library (and on any other menus it was published to). Any menu may be deleted (incl. the last).
