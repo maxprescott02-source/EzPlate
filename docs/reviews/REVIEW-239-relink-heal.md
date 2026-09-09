@@ -3,7 +3,7 @@
 Reviewed-commit: 5d3db183e81c6634c08b0f6c31e107c959c1a509
 
 **Agent:** the pre-push `code-review` agent, forced onto **Sonnet** (the batch ran on Opus), given the branch diff against `main` and nothing about the queue item.
-**Outcome:** one critical finding, confirmed and fixed on the branch in commit `TBD-fix` before push. Everything else came back clean.
+**Outcome:** one critical finding, confirmed and fixed on the branch before push (commit 693cac6). Everything else came back clean.
 
 ---
 
