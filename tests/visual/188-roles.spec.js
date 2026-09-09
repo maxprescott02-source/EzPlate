@@ -70,6 +70,17 @@ for (const size of SIZES) {
       await page.waitForTimeout(300);
       await expect(page.locator('#menuDelBtn')).toBeVisible();
 
+      /* 255: the PRODUCT delete, which changed sides in the same batch the plate delete did. Opened
+         through the Products screen's own row, so this measures the control the user actually meets
+         rather than the attribute applyRoleUi sets. */
+      await gotoTab(page, 'ingredients');
+      await page.waitForTimeout(300);
+      await page.locator('#ingList .ing-card').first().click();
+      await page.waitForTimeout(400);
+      await expect(page.locator('#ingDelete')).toBeVisible();
+      await page.locator('#ingCancel').click();
+      await page.waitForTimeout(200);
+
       await gotoTab(page, 'settings');
       await expect(page.locator('#setRestoreRow')).toBeVisible();
       await expect(page.locator('#setRestore')).toBeVisible();
@@ -84,14 +95,20 @@ for (const size of SIZES) {
       expect(errs).toEqual([]);
     });
 
-    test(`STAFF are offered none of the four, and still see the target @ ${size.name} ${theme}`, async ({ page }) => {
+    test(`STAFF are offered the plate delete and none of the rest, and still see the target @ ${size.name} ${theme}`, async ({ page }) => {
       const errs = await boot(page, { ...size, theme, role: 'staff' });
 
       await page.locator('.navbtn[data-tab="builder"]').click();
       await page.waitForTimeout(300);
       await page.locator('#plateList .plib-row').first().click();
       await page.waitForTimeout(500);
-      await expect(page.locator('#bldDelete')).toBeHidden();
+      /* ⚠️ 255 — THIS ASSERTION IS INVERTED, NOT DELETED, AND IT IS THE ONLY CHECK IN THE REPO THAT
+         WENT RED FOR THE RIGHT REASON. `npm test` and the mutation gate were both green on the
+         change; this spec is what proves the control actually moved on a real screen.
+         Max reversed his own 187 decision on 10 Sep 2026: staff may delete a plate. His reason is
+         the rule — the line is not how much damage a delete does, it is WHOSE work it destroys.
+         A plate belongs to whoever built it; a product is shared. */
+      await expect(page.locator('#bldDelete')).toBeVisible();
       /* Duplicate is the control BESIDE it and is untouched — staff create plates freely. Asserted
          so a future "hide the plate actions for staff" cannot quietly take it too. */
       await expect(page.locator('#bldDuplicate')).toBeVisible();
@@ -99,6 +116,17 @@ for (const size of SIZES) {
       await page.locator('.navbtn[data-tab="analysis"]').click();
       await page.waitForTimeout(300);
       await expect(page.locator('#menuDelBtn')).toBeHidden();
+
+      /* 255 — THE CONTROL THAT MOVED THE OTHER WAY, and the pair above/below is the whole decision
+         on one screen: staff may delete the PLATE they built and may not delete the PRODUCT it is
+         costed from, because a product is shared and reaches plates that are not theirs. */
+      await gotoTab(page, 'ingredients');
+      await page.waitForTimeout(300);
+      await page.locator('#ingList .ing-card').first().click();
+      await page.waitForTimeout(400);
+      await expect(page.locator('#ingDelete')).toBeHidden();
+      await page.locator('#ingCancel').click();
+      await page.waitForTimeout(200);
 
       await gotoTab(page, 'settings');
       /* ⚠️ THE ASSERTION THE CSS GUARD EXISTS FOR. `hidden` is set by applyRoleUi; whether the row
