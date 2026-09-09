@@ -26,7 +26,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
-const { loadApp, extractFn } = require('./_extractfn');
+const { loadApp, extractFn, noComments } = require('./_extractfn');
 
 const SRC = loadApp();
 const HTML = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
@@ -54,7 +54,8 @@ function mkNode(id) {
 function harness(opts) {
   opts = opts || {};
   const ids = ['bldDuplicate', 'bldDelete', 'menuDelBtn', 'setRestoreRow', 'setCogsInput',
-    'setCogsHelp', 'teamRole', 'teamOwner', 'delChoiceAll', 'delChoiceMsg'];
+    'setCogsHelp', 'teamRole', 'teamOwner', 'delChoiceAll', 'delChoiceMsg',
+    'ingDelete'];   // 255: the product delete, which moved ONTO this list as the plate delete moved off
   const D = {};
   ids.forEach((id) => { D[id] = mkNode(id); });
   (opts.omit || []).forEach((id) => { delete D[id]; });
@@ -184,7 +185,14 @@ test('the role rides the Promise.all that was already in flight — no extra rou
    2. THE FOUR CONTROLS — one per thing the server refuses
    --------------------------------------------------------------------------------------------- */
 
-test('delete plate: the builder button is not offered to staff', () => {
+/* ⚠️ 255 — THIS TEST IS INVERTED, NOT DELETED, AND THE INVERSION IS THE RECORD.
+   It asserted that staff are NOT offered the builder's Delete. Max reversed his own 187 decision on
+   10 Sep 2026: *"they can do plates but not products, since those can break other plates that arent
+   theres."* His reason is the whole rule and belongs where the next reader will meet it — the line
+   is not how much damage a delete does, it is WHOSE work it destroys. A plate belongs to whoever
+   built it; a product is shared, so deleting one reaches plates that are not yours.
+   The pre-existing half of the condition still holds and is still asserted below. */
+test('delete plate: the builder button is offered to STAFF TOO, since 255', () => {
   const owner = harness({ loadedPlateId: 'P1' });
   owner.api.applyRoleUi();
   assert.equal(owner.D.bldDelete.hidden, false, 'an owner with a saved plate loaded sees Delete');
@@ -192,7 +200,7 @@ test('delete plate: the builder button is not offered to staff', () => {
 
   const staff = harness({ loadedPlateId: 'P1', role: 'staff' });
   staff.api.applyRoleUi();
-  assert.equal(staff.D.bldDelete.hidden, true, 'staff may not delete a plate');
+  assert.equal(staff.D.bldDelete.hidden, false, 'staff may delete a plate now — this is the 187 reversal');
   assert.equal(staff.D.bldDuplicate.hidden, false, 'and Duplicate is STILL untouched');
 
   /* The pre-existing half of the condition survives: no plate loaded, no Delete button, whoever
@@ -201,6 +209,18 @@ test('delete plate: the builder button is not offered to staff', () => {
   const none = harness({ loadedPlateId: null });
   none.api.applyRoleUi();
   assert.equal(none.D.bldDelete.hidden, true, 'and an unsaved plate still has nothing to delete');
+});
+
+/* 255 — the product delete is the one control that CHANGED SIDES, so it is asserted on both. */
+test('delete product: the button is not offered to staff', () => {
+  const owner = harness();
+  owner.api.applyRoleUi();
+  assert.equal(owner.D.ingDelete.hidden, false, 'an owner sees Delete in the product edit modal');
+
+  const staff = harness({ role: 'staff' });
+  staff.api.applyRoleUi();
+  assert.equal(staff.D.ingDelete.hidden, true,
+    'staff may not delete a product — it is the row other people\'s plates are costed from');
 });
 
 test('delete menu: the Menu-tab button is not offered to staff', () => {
@@ -266,34 +286,37 @@ test('restore: the row is hidden for staff, and the CSS lets it actually hide', 
    3. THE SECOND DOOR TO A PLATE DELETE
    --------------------------------------------------------------------------------------------- */
 
-test('"Delete everything" is a plate delete ONLY when there is a plate — both halves', () => {
-  /* ⚠️ THIS IS THE DOOR THAT IS EASY TO MISS. The builder is not the only way to delete a plate;
-     the menu-item modal's "Delete everything" does it too. And it is not a blanket restriction,
-     because for a dish with NO plate the same button only removes the menu_items row — everyday
-     unpublishing, which 187 deliberately left staff able to do. */
+/* ⚠️ 255 — THIS TEST'S SUBJECT IS GONE, AND SAYING SO IS THE POINT.
+   It pinned a condition with two halves: hide "Delete everything" when the dish HAS a plate AND the
+   viewer is staff. Max reversed the role half on 10 Sep 2026, and the remaining half was never a
+   condition on this button at all — it was `!hasPlate || isOwner()`, so a plate-less dish showed the
+   button for everyone already. With the role gone, the button is shown in every case.
+   A first cut of this batch "tidied" that into `hidden = !hasPlate`, which reads better and newly
+   HID the button for a plate-less dish — a behaviour change nobody asked for, caught by the review.
+   So this now pins the thing that is true: the button is offered to every role, with or without a
+   plate, and the two roles get the SAME screen. */
+test('"Delete everything" is offered to every role, with or without a plate', () => {
   const linked = { D1: { id: 'D1', name: 'Fish', plate: { id: 'P1' } } };
   const loose = { D2: { id: 'D2', name: 'Soup', plate: null } };
 
-  const owner = harness({ menuById: linked });
-  owner.api.openDelChoice('D1', 'Fish');
-  assert.equal(owner.D.delChoiceAll.hidden, false, 'an owner is offered both');
-  assert.match(owner.D.delChoiceMsg.textContent, /or delete everything\?/);
+  for (const [label, role] of [['an owner', undefined], ['staff', 'staff']]) {
+    const withPlate = harness(role ? { menuById: linked, role } : { menuById: linked });
+    withPlate.api.openDelChoice('D1', 'Fish');
+    assert.equal(withPlate.D.delChoiceAll.hidden, false, `${label} is offered it on a dish WITH a plate`);
+    assert.match(withPlate.D.delChoiceMsg.textContent, /or delete everything\?/);
 
-  const staff = harness({ menuById: linked, role: 'staff' });
-  staff.api.openDelChoice('D1', 'Fish');
-  assert.equal(staff.D.delChoiceAll.hidden, true, 'staff are not offered the plate delete');
-  /* The wording follows the button. A modal asking "keep the plate, or delete everything?" above a
-     single button is a question with one answer. */
-  assert.ok(staff.D.delChoiceMsg.textContent.indexOf('delete everything') < 0,
-    'and the message stops asking a question it no longer offers');
-  assert.match(staff.D.delChoiceMsg.textContent, /only the caf. owner can delete a plate/);
+    const noPlate = harness(role ? { menuById: loose, role } : { menuById: loose });
+    noPlate.api.openDelChoice('D2', 'Soup');
+    assert.equal(noPlate.D.delChoiceAll.hidden, false, `${label} is offered it on a dish with NO plate too`);
+  }
 
-  const staffLoose = harness({ menuById: loose, role: 'staff' });
-  staffLoose.api.openDelChoice('D2', 'Soup');
-  assert.equal(staffLoose.D.delChoiceAll.hidden, false,
-    'with no plate to delete, staff keep the button — it only unpublishes the dish');
-  assert.match(staffLoose.D.delChoiceMsg.textContent, /or delete everything\?/);
+  /* The two roles must agree, which is the whole of the reversal: before 255 these differed. */
+  const o = harness({ menuById: linked }); o.api.openDelChoice('D1', 'Fish');
+  const st = harness({ menuById: linked, role: 'staff' }); st.api.openDelChoice('D1', 'Fish');
+  assert.equal(st.D.delChoiceAll.hidden, o.D.delChoiceAll.hidden, 'staff and owner see the same button');
+  assert.equal(st.D.delChoiceMsg.textContent, o.D.delChoiceMsg.textContent, 'and the same words');
 });
+
 
 /* ---------------------------------------------------------------------------------------------
    4. THE GUARD AT THE ACTION, NOT ONLY AT THE BUTTON
@@ -317,13 +340,33 @@ test('every action the server refuses is guarded at the FUNCTION, not only at it
      keyboard path or a call site added next month walks straight past a missing button. Each of
      these is one line at the top of the real function. */
   const guarded = [
-    ['deletePlate', /if\(!ownerOnly\('delete a plate'\)\) return;/],
     ['deleteCurrentMenu', /if\(!ownerOnly\('delete a menu'\)\) return;/],
-    ['doDeleteEverything', /if\(sp && !ownerOnly\('delete a plate'\)\)\{ closeDelChoice\(\); return; \}/],
+    // 255: the product delete. NOTE THE NAME — deleteIngredient deletes a PRODUCT (the naming
+    // inversion). This is the guard Max's answer actually asked for.
+    ['deleteIngredient', /if\(!ownerOnly\('delete a product'\)\) return;/],
   ];
   guarded.forEach(([name, re]) => {
-    assert.match(extractFn(SRC, name), re, `${name} must refuse a non-owner itself`);
+    assert.match(noComments(extractFn(SRC, name), 'block', 'line'), re,
+      `${name} must refuse a non-owner itself`);
   });
+  /* ⚠️ 255 — AND THE OTHER DIRECTION, WHICH IS THE HALF A CENSUS FORGETS: the two plate guards are
+     GONE and must stay gone. Dropping them from the list above would let them be silently restored,
+     and a restored guard is invisible — staff would simply find the button doing nothing again.
+     Searched over code with comments stripped, because this batch's own comments explain the removal
+     using the very words being searched for (CLAUDE.md 183(a)). */
+  [['deletePlate', /ownerOnly\('delete a plate'\)/],
+   ['doDeleteEverything', /ownerOnly\('delete a plate'\)/]].forEach(([name, re]) => {
+    assert.ok(!re.test(noComments(extractFn(SRC, name), 'block', 'line')),
+      `${name} must NOT refuse a non-owner — Max reversed that on 10 Sep 2026`);
+  });
+  /* ⚠️ THE TAUGHT-PACK REMOVAL IS DELIBERATELY UNGATED, and is asserted as such rather than left
+     out — an omission from a census reads as an oversight. The restriction was built and reverted:
+     `applyTidy` re-keys taught packs through the same delete with no role check anywhere in its
+     chain, so gating only this door produces a silent half-apply on a staff supplier rename.
+     tests/roles.test.js holds the server half of the same statement. */
+  const smem = jsCode(SRC).slice(jsCode(SRC).indexOf(".smem-del').addEventListener"));
+  assert.ok(!/ownerOnly\(/.test(smem.slice(0, 400)),
+    'removing a taught pack is NOT owner-gated — gating it alone half-applies a staff supplier rename');
   /* The restore is not a named function of its own — it is the file-picker pair — so it is pinned
      at both ends: the button that OPENS the picker and the change event that arrives afterwards,
      because a change can land after the row was hidden mid-flow. */
@@ -487,7 +530,7 @@ test('applyRoleUi is a no-op on a page missing every one of its elements', () =>
   /* A cached index.html from before this batch has none of the new ids. It must degrade to "the
      old screen, unrestricted" rather than throwing inside bootstrapSync's try — which would land
      on "couldn't load your data" for a database that answered perfectly. */
-  const { api } = harness({ omit: ['bldDuplicate', 'bldDelete', 'menuDelBtn', 'setRestoreRow',
+  const { api } = harness({ omit: ['bldDuplicate', 'bldDelete', 'menuDelBtn', 'setRestoreRow', 'ingDelete',
     'setCogsInput', 'setCogsHelp', 'teamRole'], role: 'staff' });
   assert.doesNotThrow(() => api.applyRoleUi());
 });

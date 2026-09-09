@@ -61,19 +61,47 @@ const MIG = code(MIGRATION);
 const MIR = code(MIRROR);
 const RESTORE = code(RESTORE_MIGRATION);   // 219: the newest definition, not 187's record of one
 
+/* ⚠️ 255 — 219's LESSON, APPLIED TO POLICIES, AND IT BIT EXACTLY WHERE 219's PARAGRAPH SAID IT WOULD.
+   The list below was read out of `20260814_roles_part1.sql` BY NAME. On 10 Sep 2026 Max reversed his
+   own 187 decision — staff may delete a plate again — so `20260910_staff_deletes.sql` DROPS
+   "plates owner-only delete" and creates two others. **187's file still creates the plates policy and
+   always will.** An assertion pinned to it would have gone on proving a restriction the database no
+   longer has: 219's defect with the sign flipped. There the file kept a guard the database had lost;
+   here it keeps one the database was deliberately relieved of. Both are the same mistake — a pin
+   against a NAMED migration is a pin against a name.
+   So every policy below is read from whichever migration LAST mentions it. */
+function newestPolicySource(policy) {
+  /* ⚠️ THE SELECTION IS MADE OVER `code(...)`, NOT RAW TEXT, and that was a review finding: the first
+     cut filtered on the raw file and only comment-stripped the winner. Roster 183(a) one level up —
+     the SELECTION step was searching prose, so a later migration whose only mention of a policy is a
+     `--` comment discussing it would be chosen as its newest source. This file's own header explains
+     that lesson for statements and the function underneath it did not apply it to files. */
+  const files = fs.readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql')).sort()
+    .filter((f) => code(fs.readFileSync(path.join(MIGRATIONS_DIR, f), 'utf8')).includes(`"${policy}"`));
+  assert.ok(files.length, `no migration mentions "${policy}" — the census names a policy nothing creates`);
+  return code(fs.readFileSync(path.join(MIGRATIONS_DIR, files[files.length - 1]), 'utf8'));
+}
+
+/* The census of what staff may NOT do. Every entry is in force as of the newest migration that
+   mentions it; `plates` is deliberately absent and has its own test below. */
 const RESTRICTED = [
-  { policy: 'plates owner-only delete', table: 'plates', cmd: 'delete' },
   { policy: 'menus owner-only delete', table: 'menus', cmd: 'delete' },
   { policy: 'app_settings owner-only target insert', table: 'app_settings', cmd: 'insert' },
   { policy: 'app_settings owner-only target update', table: 'app_settings', cmd: 'update' },
   { policy: 'app_settings owner-only target delete', table: 'app_settings', cmd: 'delete' },
+  // 250: the food-cost history, on both series.
+  { policy: 'price_history owner-only delete', table: 'price_history', cmd: 'delete' },
+  { policy: 'menu_price_history owner-only delete', table: 'menu_price_history', cmd: 'delete' },
+  // 255: products. Taught packs were in this list and came OUT — see the test below.
+  { policy: 'ingredients owner-only delete', table: 'ingredients', cmd: 'delete' },
 ];
+for (const r of RESTRICTED) r.src = newestPolicySource(r.policy);
 
 /* ── The one-word edits ───────────────────────────────────────────────────────────────────────── */
 
 test('every restriction is RESTRICTIVE — permissive would grant, and read the same', () => {
-  for (const { policy } of RESTRICTED) {
-    for (const [label, sql] of [['the migration', MIG], ['the mirror', MIR]]) {
+  for (const { policy, src } of RESTRICTED) {
+    for (const [label, sql] of [['its newest migration', src], ['the mirror', MIR]]) {
       const i = sql.indexOf(`create policy "${policy}"`);
       assert.ok(i > -1, `${label} does not create "${policy}"`);
       // the clause sits between the policy name and its `using`/`with check`
@@ -87,9 +115,9 @@ test('every restriction is RESTRICTIVE — permissive would grant, and read the 
 test('each restriction names the command it restricts, and only that one', () => {
   /* `for all` here would be a different bug in the same family: a restrictive policy over ALL
      commands would require ownership to READ, so staff would open the app to an empty café. */
-  for (const { policy, cmd } of RESTRICTED) {
-    const i = MIG.indexOf(`create policy "${policy}"`);
-    const head = MIG.slice(i, MIG.indexOf(';', i));
+  for (const { policy, cmd, src } of RESTRICTED) {
+    const i = src.indexOf(`create policy "${policy}"`);
+    const head = src.slice(i, src.indexOf(';', i));
     assert.match(head, new RegExp(`for ${cmd}\\b`), `"${policy}" must restrict ${cmd}`);
     assert.ok(!/for all\b/.test(head),
       `"${policy}" restricts every command — staff could not even READ, which is not the decision`);
@@ -99,9 +127,9 @@ test('each restriction names the command it restricts, and only that one', () =>
 test('the role is compared for equality with owner, never merely for existence', () => {
   /* `is not null` instead of `= 'owner'` is the third one-word inversion: it reads as a role check
      and admits every member of the café, which is exactly who it is meant to exclude. */
-  for (const { policy } of RESTRICTED) {
-    const i = MIG.indexOf(`create policy "${policy}"`);
-    const head = MIG.slice(i, MIG.indexOf(';', i));
+  for (const { policy, src } of RESTRICTED) {
+    const i = src.indexOf(`create policy "${policy}"`);
+    const head = src.slice(i, src.indexOf(';', i));
     assert.match(head, /current_business_role\(\)\) = 'owner'/,
       `"${policy}" must compare the role to 'owner'`);
     assert.ok(!/current_business_role\(\)\)? is not null/.test(head),
@@ -372,3 +400,74 @@ for (const name of ['price_history owner-only delete',
       'and it must say the SAME thing — a mirror that drifts is worse than one that is missing');
   });
 }
+
+/* =============================================================================================
+ * 255 — THE REVERSAL, PINNED FROM BOTH ENDS.
+ *
+ * Max reversed his own 187 decision on 10 Sep 2026: staff may delete a plate. That is a policy
+ * being REMOVED, and a removal is the hardest kind of change for a census to hold on to — the
+ * absence of a policy looks exactly like nobody having got round to writing one.
+ * So it is asserted as a DROP that is present and a CREATE that is not, in both the newest
+ * migration and the mirror. Re-adding the restriction fails here by name.
+ * ========================================================================================== */
+
+const STAFF_DELETES = code(fs.readFileSync(
+  path.join(MIGRATIONS_DIR, '20260910_staff_deletes.sql'), 'utf8'));
+const { loadApp, extractFn, noComments } = require('./_extractfn');
+const APP = loadApp();
+
+test('255: the plates owner-only delete is DROPPED, and not re-created anywhere', () => {
+  assert.match(STAFF_DELETES, /drop policy if exists "plates owner-only delete" on public\.plates;/,
+    'the migration must drop it explicitly — leaving it out would be indistinguishable from forgetting');
+  assert.ok(!/create policy "plates owner-only delete"/.test(STAFF_DELETES),
+    'and must not create it again in the same file');
+  assert.ok(!/create policy "plates owner-only delete"/.test(MIR),
+    'the MIRROR is the one that matters most: re-running 01-schema.sql is step 2 of the staging '
+    + 'procedure, so a restriction left in there would come back on every rebuild and staging would '
+    + 'rehearse a rule production does not have');
+  assert.match(MIR, /drop policy if exists "plates owner-only delete" on public\.plates;/,
+    'the mirror drops it, so a staging built from an older copy converges on the new rule');
+});
+
+/* ⚠️ 255 — TAUGHT PACKS ARE DELIBERATELY NOT RESTRICTED, and the absence needs a test precisely
+   BECAUSE it is a deliberate absence. Nothing else distinguishes "we decided not to" from "nobody
+   got round to it", and the next reader with Max's quoted reason in front of them will conclude the
+   second and add the policy — reintroducing a silent half-apply on every staff supplier rename.
+   This test is the note that cannot go stale. */
+test('255: taught packs are NOT owner-only, and the reason is a COST rather than a disagreement', () => {
+  assert.match(STAFF_DELETES, /drop policy if exists "supplier_phrases owner-only delete"/,
+    'the migration drops it explicitly, so a database that got the first cut converges');
+  assert.ok(!/create policy "supplier_phrases owner-only delete"/.test(STAFF_DELETES),
+    'and does not create it');
+  assert.ok(!/create policy "supplier_phrases owner-only delete"/.test(MIR),
+    'nor does the mirror — re-running 01-schema.sql must not put it back on every staging rebuild');
+  /* The coupling that makes this a decision rather than an oversight: `applyTidy` re-keys taught
+     packs through dbDeleteSupplierPhrase, and nothing in that chain checks the role. Restricting the
+     table without gating that flow is the half-apply. If a future batch gates the flow, this test is
+     what tells it the two changes belong together. */
+  const tidy = noComments(extractFn(APP, 'applyTidy'), 'block', 'line');
+  assert.match(tidy, /dbDeleteSupplierPhrase\(/,
+    'applyTidy still deletes taught packs — if this ever stops being true, the cost above is gone '
+    + 'and the restriction can be reconsidered');
+  assert.ok(!/ownerOnly\(/.test(tidy),
+    'and it is still ungated — restricting supplier_phrases while this is true is the half-apply');
+});
+
+test('255: the table that reaches OTHER people\'s plates is the one restricted', () => {
+  /* His reason, and the reason the split is where it is: a plate belongs to whoever built it, so
+     deleting one destroys your own work. A product is the row every plate's cost is computed from,
+     and a taught pack decides what every future import prices it at — both reach plates that are
+     not yours. That is the line, not "how much damage can this do". */
+  for (const t of ['ingredients']) {
+    const i = STAFF_DELETES.indexOf(`create policy "${t} owner-only delete"`);
+    assert.ok(i > -1, `${t} must gain an owner-only delete`);
+    const head = STAFF_DELETES.slice(i, STAFF_DELETES.indexOf(';', i));
+    assert.match(head, /\bas restrictive\b/, `${t}'s policy must RESTRICT, not grant`);
+    assert.match(head, /\bfor delete\b/, `${t}'s policy must name DELETE only`);
+    assert.ok(!/for all\b/.test(head), `${t} restricted over ALL commands would stop staff READING it`);
+  }
+  /* menus is NOT touched: he said plates. A batch reading "the owner-only deletes were relaxed"
+     and taking menus with it would be widening a decision he did not make. */
+  assert.ok(!/on public\.menus/.test(STAFF_DELETES),
+    'the menus restriction is untouched — he reversed plates, not every owner-only delete');
+});
