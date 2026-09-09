@@ -395,9 +395,20 @@ Every item here is something a person sees. Where Max deferred a row on 3 Sep (u
 
 **Test:** unit test on the list builder: with plates A (on menu) and B (not), B sorts first and A carries the label; `fresh-states.spec.js` asserts the button is hidden at zero menus.
 
-## next  55 · Recent changes colours a sell-price rise red and never says what changed  **[B, the colour language everywhere else is anchored to the target, so a red plus reads as bad news]**
+## ~~55 · Recent changes colours a sell-price rise red and never says what changed~~  **HALF SHIPPED, HALF DOES NOT REPRODUCE — batch 251, `ezplate-v207`**
 
-`recentChangeRows` (`js/app.js:3802`) publishes `delta = costAfter - costBefore` and the renderer colours by sign; a price rise Max made shows "+$5.00" red and a price cut green, the opposite of its effect on food cost (UX U4). **Unmeasured which field the row reads for a `dish_price` entry; grep `costBefore` in `logChange`'s writers first.** **What must be true:** colour by effect on food cost (a sell-price rise is green), or leave deltas neutral; add a one-word kind from `detail` ("Price", "Menu", "Category"), read from `detail` never `kind` alone (Tier 1). **Test:** `tests/change-log.test.js` gains a `dish_price` rise asserting the row's class and kind word.
+⚠️ **THE COLOUR CLAIM DOES NOT REPRODUCE, AND THE ITEM'S OWN INSTRUCTION IS WHAT PROVED IT.** It said to *"grep `costBefore` in `logChange`'s writers first"*, and that is exactly the check that falsifies it:
+- `recentChangeRows` requires **both** `costBefore` and `costAfter` to be finite numbers.
+- All three `dish_price` writers pass **neither, or only `costAfter`** — because a sell-price move changes no cost, which the code says at its own site: *"`dish_added`/`dish_price` carry only costAfter"*.
+
+**So a sell-price change can never appear in that card at all, and can never be coloured.** The colouring is correct for every entry that CAN render: a plate cost rise is red, which is the target-anchored reading `tests/dash-recent.test.js` already pinned. Nothing was changed to make the finding true.
+
+✅ **THE SECOND CLAUSE WAS REAL AND SHIPPED.** Every row is a plate cost movement and the card never said which kind. A row now carries one word — **read from `detail`, never from `kind` alone**, which is CLAUDE.md's Tier 1 rule as a live case: 249's orphan link writes `plate_edited` too, and only `detail.via` tells the two apart. The words are **"Ingredients"** and **"Line linked"**; a kind it cannot name renders nothing rather than a guess.
+
+⚠️ **TWO THINGS WORTH CARRYING FORWARD, both found rather than reasoned:**
+- **"Recipe" was the first draft's word and `tests/terminology.test.js` refused it** — "recipe" names nothing in this app. The guard did its job on a line written by someone who had read the rule.
+- **A third word, "New plate", was written and REMOVED as dead.** `saveCurrentPlate` picks `plate_created` with `_isNew=(_costBefore==null)`, so such an entry always lacks a costBefore and the filter always drops it. The branch could be called and could never return — **the same shape as this item's own false claim, one level down, found by the pre-push review.** The writer invariant that makes it unreachable is now pinned, because it belongs to a different function and properties change.
+
 
 ## next  56 · Dashboard polish: the tablet drops two of three headline figures, the scope button drops its % sign, two cards do not share a bottom edge, chart annotations collide and clip, and the chart does not re-measure on resize  **[B, the count of plates over target is the most actionable number on the screen and the tablet user never sees it]**
 
