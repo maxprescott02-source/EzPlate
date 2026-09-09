@@ -24,10 +24,22 @@
 
 Not batches. Each is a dashboard click, a SQL statement on production, or a decision that is his. None of them is queued below; the items that depend on them say so.
 
-- **Delete the `price_history` point written 2026-09-08 09:37 (value 354.4)**, and the `menu_price_history` rows for menu `MENUmtsh5o3t-1-9v3bvrqw`. It is the tallest point on the all-menus trend, the y-axis runs to 380%, and every real week since 24 Aug reads as a flat line. Nothing in the app can remove it (that is item 18's last requirement). Destructive on production, so his.
-- **Delete the ZZ-AUDIT objects** left by the 8 Sep passes: menu `MENUmtsh5o3t-1-9v3bvrqw` (one dish on it), plates `SPmtsgl835-3-whbuaxv4` and `SPmtsgln1j-5-ccgyrir0`, ingredient `K0164` (in the `kitchen_ingredients` `app_settings` blob), products `Umtsgis3j-1-6db8oyfi` and `Umtsgitwu-2-r0gi6433`, and the `ing_price_history` rows for the second product. Until they go, the Dashboard's "Needs attention" insights and biggest movers are about fake plates (UX audit U5).
+- **Delete the two bad history points.** ⚠️ **Re-measured 10 Sep 2026 and this bullet was stale in three ways** (AUDIT-v207 §2a.7): it points at *"item 18's last requirement"* and 18 is struck — the requirement is **item 89's**; it says nothing in the app can remove them, and **batch 250 shipped the server half** that makes an owner-only delete possible at all (it was previously deletable by any member on one series and by nobody on the other); and there are **two**, not one. Measured on production: `354.4` at `2026-09-08 09:37:12` on the all-menus series (`id 378`), and `30000` on the per-menu series for `MENUmtsh5o3t-1-9v3bvrqw` (`id 379`) — a menu that was itself an 8 Sep audit artefact, so that second point renders nowhere.
+  **Still destructive on production, so still his**, and item 89's client surface is what turns it from a SQL statement into a button.
+- **Delete the ZZ-AUDIT objects** left by the 8 Sep passes. ⚠️ **PARTLY DONE, and re-measured on production 10 Sep 2026 by AUDIT-v207's batch rather than assumed either way:**
+
+  | object | state |
+  |---|---|
+  | menu `MENUmtsh5o3t-1-9v3bvrqw` | **gone** |
+  | plates `SPmtsgl835-3-whbuaxv4`, `SPmtsgln1j-5-ccgyrir0` | **gone** |
+  | products `Umtsgis3j-1-6db8oyfi`, `Umtsgitwu-2-r0gi6433` | **still there** |
+  | `ing_price_history` rows for those products | **3 still there** |
+  | ingredient `K0164` in the `kitchen_ingredients` blob | **still there** |
+
+  **Both directions of this bullet had gone stale at once**, which is why it is measured rather than edited from a handover: `HANDOVER-245` concluded *"Tranche 0's cleanup took it"* from finding one plate gone, and that was true of the plates and false of everything else. **The Dashboard consequence (UX audit U5) is discharged** — the fake PLATES are what reached "Needs attention" and the biggest movers, and they are gone. What remains is two unused products, their price history, and a kitchen ingredient: clutter in the Products and Ingredients lists, not wrong numbers on the Dashboard.
+  ⚠️ **Do not confuse these with item 89's two bad history points** — different rows, different tables, different reason. And note the overlap with the six orphaned products below: `K0164` is a kitchen ingredient with a product, so it is not one of them.
 - **Create the staging test account.** A throwaway address, sign it up on `/?env=staging`, name a café. Credentials go into the local `.env` and Vercel's staging environment as `STAGING_TEST_EMAIL` / `STAGING_TEST_PASSWORD`, never into the repo. Two minutes; it unblocks items 27, 28, 29 and the 14 skipped screenshot tests.
-- **Add `.env` to `.gitignore`.** It is not there today and the repo is public. Before adding it, confirm no `.env` was ever committed: `git log --all --diff-filter=A -- .env` should print nothing. A coding agent can write the line; only he can act if the history check finds something.
+- ~~**Add `.env` to `.gitignore`.**~~ ✅ **DONE, batch 240**, with the `git log --all --diff-filter=A -- .env` history check run and recorded at the site — it printed nothing, so there was never anything for him to act on. **Struck 10 Sep 2026 by AUDIT-v207 §2a.3**, which found it still listed as outstanding: a "done-mark is not a strike" recurrence one batch after AUDIT-v197 named that exact shape and 240 wrote it into `CLAUDE.md`.
 - **Confirm the `CLAUDE.md` reversal on the parser region in writing.** He lifted "Never edit anything inside it" on 8 Sep (parser audit §8 and §10). The edit to `CLAUDE.md`'s Tier 1 section, to `docs/QUEUE.md`'s "Standing rules" line ("protected parser region untouched"), and to the two `docs/MAINTENANCE.md` entries that hinge on the rule (the batch 197 ratification question; the region hash pin) rides item 17 under standing authority, and it should quote his words. What replaces the rule is the corpus test, the mutation targets, and the `--products` run in every parser batch's handover.
 - **Supabase dashboard, two switches** (from batch 238 and `docs/MAINTENANCE.md`): Authentication → URL Configuration: Site URL `https://scoopyscosting.vercel.app`, Redirect URLs add `https://scoopyscosting.vercel.app/**` (production AND staging projects). Authentication → Policies: turn on leaked-password protection. Nothing in the repo can do either.
 
@@ -118,7 +130,8 @@ Four documents held three positions. `CLAUDE.md` Tier 1 says *"never edit anythi
 ⚠️ **THE THIRD REQUIREMENT WAS MET DIFFERENTLY AND DELIBERATELY.** This item asked for `saveCurrentPlate` to refuse a negative plate cost with a message. It does not, because with the walk's rule the total **cannot** be negative, so that guard could never fire — and this repo has already deleted one fallback for exactly that reason (`plateIdOf`, v112: *a fallback that cannot fire reads as a safety net and is not one*). The requirement is met structurally instead of by a message.
 
 ⚠️ **AND THE HEADLINE'S HARM WAS THE WRONG ONE, which the item's own body got right.** *"lowers every average it is in"* is false for a plate whose total goes negative: `dishRatios` excludes it at `d.cost>0`. The one that got through is the plate a negative line merely **drags down** — still positive, still averaged, understated by the amount of the bad line, reading healthier than the menu is. That is the case the tests are written about.
-⚠️ **The minus-$2.00 plate is GONE from production** — it was one of the 8 Sep ZZ-AUDIT objects, and Tranche 0's cleanup took it. Measured 9 Sep 2026: zero negative misc lines and zero negative `cost_per_base_unit` in 428 products. The defect was real and its artefact was not still there.
+⚠️ **The minus-$2.00 plate is GONE from production** — it was one of the 8 Sep ZZ-AUDIT objects. Measured 9 Sep 2026: zero negative misc lines and zero negative `cost_per_base_unit` in 428 products. The defect was real and its artefact was not still there.
+*(This said "Tranche 0's cleanup took it", inferred from that one plate being gone. Re-measured 10 Sep 2026: the cleanup is PARTIAL — the plates and the menu went, the products, their price history and `K0164` did not. The conclusion about this plate holds; the generalisation from it did not, which is the ordinary shape of a measurement quoted one step too far.)*
 
 ## ~~20 · A failed `menus` read is treated as a valid boot and mints a menu the server never had~~  **SHIPPED, batch 246, `ezplate-v203`**
 
@@ -145,7 +158,9 @@ The café's data was all there; the app hid the failure behind a working-looking
 `logHistory(write)` now waits, and **the repaint deliberately does not** — v60 item 1a says a data-changing event must always refresh a visible dashboard, so gating both would have made the header stale for a round trip on every edit. Twelve sites pass the write they already hold for `logChangeIfSaved` on the next line.
 ⚠️ **THE VALUE IS COMPUTED AFTER THE WRITE SETTLES, NOT BEFORE**, and that is not a detail: computing early and pushing late would let two rapid edits both pass the near-duplicate check before either landed, stippling the line with a pair of points where the synchronous version wrote one.
 **The pattern was already in the file twice** — `logChangeIfSaved` for the change log, 224's `saveIngLog(write)` for `ing_price_history`, whose comment says outright it is *"the discipline logChangeIfSaved already applies to the change log, arriving on the series it was measuring against"*. This is the third and last series.
-⚠️ **THREE SITES ARE DELIBERATELY NOT GATED and each says why at its own site:** the two product-price paths and the invoice apply go through `setProducts`' CHUNKED write, whose verdict is a saved manifest rather than a single error — so `!r||r.error` is the wrong question there, because a partial success really did move the average. Those belong with the invoice work in item 90.
+⚠️ **THIS PARAGRAPH SAID *THREE* SITES WERE UNGATED ON A CHUNKED-MANIFEST ARGUMENT, AND IT WAS THE MISTAKE, NOT THE OUTCOME.** (Corrected 10 Sep 2026, AUDIT-v207 §2a.2.) That argument is true of the CATALOGUE IMPORTER, which passes hundreds of entries — and false at the two product-price paths, because **`setProduct` is the N=1 wrapper**: one entry, one chunk, one `pushWrite`, a complete binary verdict, nothing partial to lose. 247's own pre-push review caught it and **both are gated**, each carrying the correction at its own site.
+**`CLAUDE.md` records that exact justification as the first of the two instances behind its "a justification that CITES A PRECEDENT" rule** — so leaving it written here as shipped fact would have taught the next reader the thing the rule exists to stop, out of a struck item, which is what people consult.
+**ONE site is ungated and it is `applyInvoice`**: one call standing for dozens of writes with no single verdict. Its honest gate is a COUNT from the saved manifest, which is item 90's, together with the completion message that has the identical dependency.
 
 ⚠️ **WHY THIS WAS SPLIT RATHER THAN FINISHED.** Four instances, and only the first shares a mechanism with the others in name. The history gating is fifteen call sites and a dedup interaction; the invoice completion message needs a COUNT of what landed rather than a boolean; `doDeleteMenu`'s unawaited dish deletes are a delete-path sequencing change; and `priceHistory`'s wholesale replace at boot is a merge decision, not a gating one. Each carries a different risk and `skills/batch`'s own stop condition is to split when one PR cannot be reviewed as one thing.
 
@@ -326,6 +341,9 @@ Every item here is something a person sees. Where Max deferred a row on 3 Sep (u
 **Two names for one modal (U8):** the filter's door "✎ Manage list…" (`js/app.js:4549`) opens "Tidy lists" (`:8326`). One name in both places; where the door lives is item 61.
 
 **Test:** `tests/terminology.test.js` gains the verb table as data and asserts every `.mfoot .btn.primary` and every destructive control's text is in it; a new label outside the table fails by name.
+
+⚠️ **ONE NAMED SITE, ROUTED HERE BY BATCH 244 AND NEVER WRITTEN INTO THIS BODY UNTIL 10 SEP 2026** (AUDIT-v207 §2a.9). `dbSetSetting` passes the bare label `'setting'` to `pushWrite`, so a refused food-cost-target write toasts **"Couldn't save setting: permission denied for table app_settings"** — a Postgres message and a word that names nothing the user recognises. 244 decided it was this item's subject and said so in its handover; `CLAUDE.md` requires a note aimed at one future item to live **in that item's body, in the imperative, ending "answer it here, do not route it onward."**
+**So: answer it here. Do not route it onward.** The label is one argument at one call site and it is shared by the GST default, both AI toggles, the kitchen-ingredients blob, the wizard skips and the last-import date — so the fix is a per-key noun rather than a better word for "setting", and that is a decision this item is already making for every other verb.
 
 ## next  47 · One modal footer pattern: Delete left, Cancel and Save right, and the builder's two red verbs told apart  **[B, the same intent sits in three positions and two red-adjacent buttons on one screen mean different things]**
 
@@ -657,6 +675,27 @@ Two sibling series, written by the same function on the same event, with opposit
 ⚠️ **Settings → Data is the natural home** and it is where 239 and 249 put the other one-off repairs, so the three should look alike.
 ⚠️ **This DELETES production data, so running it is Max's** — the same standing rule as the restore's wipe. Building the surface is not.
 ⚠️ **PRODUCTION CARRIES TWO BAD POINTS, NOT ONE** (measured 10 Sep 2026): `354.4` on the all-menus series at `2026-09-08 09:37:12`, and `30000` on the per-menu series for `MENUmtsh5o3t-1-9v3bvrqw` — a menu that was itself an 8 Sep audit artefact, so that second point is orphaned and renders nowhere. The item named only the first.
+
+## blocked  91 · Staff may not delete a plate, and may delete every product that plate costs from  **[B — a decision nobody made, measured on production 10 Sep 2026]**
+
+**Raised by AUDIT-v207 §5, out of a question batch 250 handed off.** 250 closed the same shape on the two history series; this is what the rest of the schema looks like when you ask the same question of it.
+
+**Measured against `pg_policies` on production, not read off the schema file:**
+
+| rule | tables |
+|---|---|
+| owner-only DELETE | `plates`, `menus` (187) · `price_history`, `menu_price_history` (250) · `business_invites` (191) · `app_settings`, but **only** for `key='food_cost_target'` (187) |
+| no DELETE by anyone | `ing_price_history`, `menu_change_log` |
+| **any member, staff included** | **`ingredients`** · **`menu_items`** · **`supplier_phrases`** |
+
+⚠️ **ONE OF THOSE THREE IS DELIBERATE AND MUST STAY.** `20260814_roles_part1.sql` says so at its own site: *"Staff KEEP everything else, including deleting a `menu_items` row. That is unpublishing a dish from a menu, which is everyday editing."* So `menu_items` is decided, correct, and not part of this item.
+
+**What was never considered is `ingredients` and `supplier_phrases`.** 187's decision was framed as *"cannot delete plates or menus"*, and products did not come up. The result reads oddly when you say it out loud: **a staff member cannot delete a plate, and can delete every product that plate costs from** — which empties `lineProduct` for every line pointing at it and takes the plate's cost with it, by a different door. `supplier_phrases` is the parser's taught-pack memory, so deleting those quietly un-teaches the importer.
+
+**Blocked on: MAX. What staff may do is his decision** — 187 was his, and this is the same question about two more tables, not an oversight to fix under standing authority. **Two sentences settle it:** may staff delete a product? may staff delete a taught pack?
+**If the answer is no**, the migration is 187's exact idiom and 250 is the worked example: one `as restrictive for delete to public using (current_business_role() = 'owner')` per table, mirrored into `01-schema.sql`, pinned in `tests/roles.test.js` against whichever migration last defines it, and rehearsed as a signed-in staff member using staging's seeded staff row (`docs/STAGING.md`, batch 250's entry, records how without needing the blocked test account).
+**If the answer is yes**, say so in `20260814_roles_part1.sql`'s list of what staff keep, because the next person to look will ask again.
+⚠️ **`productRefs` is not a substitute and must not be mistaken for one.** It refuses a delete from the APP when an ingredient or plate line references the product; it is client-side and says nothing about what the server permits.
 
 
 # Dropped or merged

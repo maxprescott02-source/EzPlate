@@ -133,6 +133,13 @@ commit;
 --   RESTRICTIVE. Recorded rather than glossed, because "verified on production" and
 --   "the same SQL verified on staging" are different claims.
 --
+-- FINGERPRINT DIFF, 10 Sep 2026 (step 7 of docs/STAGING.md's procedure), run after both
+--   applications: **all seven values identical between staging and production**, with
+--   `policies_fp` reading `28:56c7b9e9d9d9482f5ca3a92b5081c594` on each — the three new policies
+--   landed the same way on both, and the mirror in `supabase/staging/01-schema.sql` is current.
+--   Recorded here because the procedure's last step is the one most often skipped once the
+--   migration itself is seen to work.
+--
 -- NO DATA WAS DELETED BY THIS MIGRATION. Production still carries both bad points
 --   (354.4 on the all-menus series, 30000 on a per-menu series). Removing them is
 --   Max's, from the app, once QUEUE item 89's surface ships.

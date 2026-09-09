@@ -299,6 +299,36 @@ Requirements: sort every bullet into (a) dead or superseded → delete with the 
 
 ## C — code hygiene and latent defects
 
+### `applyInvoice` is not a mutation target, and the request for it exists only in a struck item
+(Routed here 10 Sep 2026 by AUDIT-v207 §2a.8, which found it homeless.)
+
+Consolidated item 22 asked for the invoice writers to be added to `tests/mutation/targets.js`. Batch 248 declined — correctly, on the `gemApplyReadings` precedent that a target added without doing the work first produces a list of allowances reading as coverage — and routed it to *"`docs/MAINTENANCE.md`'s 'more functions on the gate' entry"*. **That entry names `saveCurrentPlate` and a magnitude check and does not mention it**, and `tests/mutation/targets.js`'s `pending` list is empty. So the request survived only in a struck item and a write-once handover, which is where things go to be forgotten.
+
+**What it needs is the `pending` mechanism this file already documents**: measure the survivor count first, write it into `pending` with the batch that measured it, promote when the coverage lands. `applyInvoice` is very large, so expect a lot; that is the reason to measure before listing, not a reason to skip it.
+⚠️ **Do it with item 90's invoice work, not before.** 90 changes what that function does at the end (a completion message gated on a saved manifest), so measuring survivors now would measure a function about to move.
+
+### Six products no INGREDIENT uses, and thirteen plate lines that still cost off them
+(Routed here 10 Sep 2026 by AUDIT-v207 §5, which found it in a handover Probe and nowhere else. **Rewritten the same day after the pre-push review caught the first version stating the opposite of the truth** — see the warning below, which is the more useful half of this entry.)
+
+**Measured on production 10 Sep 2026:** all six products are in the catalogue, **no kitchen ingredient points at any of them**, and **thirteen plate lines across nine real plates still cost off them directly**:
+
+| product | live bare-pid lines | plates |
+|---|---|---|
+| `P0004` Bacon Middle Rindless Gas Flushed (Qld) | 3 | 3 |
+| `CXmr8nx4z80` Eggs - Ctn 600g | 3 | 3 |
+| `P0214` Maple Syrup Flavoured | 3 | 3 |
+| `P0073` Cheese Fetta Danish | 2 | 2 |
+| `P0181` Ham Leg Sliced | 1 | 1 |
+| `P0184` Hash Browns Triangles Chunky | 1 | 1 |
+
+**Batch 249 shipped the picker that ASKS which ingredient each was meant to be — it does not apply anything on its own**, and the choice is Max's, one per product, in Settings → "Link older plate lines". Until he makes it, these are exactly the thirteen lines item 88 measured, unchanged.
+
+⚠️ **DO NOT DELETE THESE PRODUCTS.** Nine real plates — Bacon Bene, Ham Bene, Scoopy's Breakfast, Bacon & Egg Roll, three Pancakes variants, the Staff Meal and Feta Spinach & Mushroom Bene — would each silently lose a costed line. `productRefs` refuses such a delete from the APP, and it is client-side: it says nothing about a SQL statement.
+**Whether they should go at all is a question for AFTER the picker has been used**, not before, and it is Max's either way.
+
+⚠️ **THE FIRST VERSION OF THIS ENTRY SAID THE OPPOSITE, AND HOW IT GOT THERE IS WORTH MORE THAN THE ENTRY.** It stated that "after 249 no plate line" references them — sourced from `HANDOVER-249`'s Probe line, *"the six products themselves are still in the catalogue with nothing using them"*, which meant **no INGREDIENT uses them** and was true. Carried forward one step, "nothing uses them" became "nothing references them", and a true sentence about ingredients turned into a false one about plate lines that would have justified deleting six products nine plates depend on.
+**That is a measurement quoted one step too far — the same shape this batch corrected in the ZZ-AUDIT bullet, committed in the same diff, by the same author, in the batch whose entire subject was re-measuring stale claims.** Caught by the pre-push review, which queried production rather than reading the handover. **The rule it argues for is not new and is why this entry now leads with a table: if you are writing a fact about production into a file, measure it — especially when you are copying it from somewhere that measured something adjacent.**
+
 ### A refused optimistic edit is left in memory, so the next successful edit's history point includes it
 (Raised 9 Sep 2026 by batch 247's pre-push review, which stated it at medium confidence and was right to.)
 
@@ -949,7 +979,12 @@ Filed here per the tier test: none of these would stop, embarrass or hurt a payi
 
 **What is missing is the mechanism.** The only region check anywhere is `tests/extractfn.test.js:121`, which asserts the **anchors still slice** — not that the contents are unchanged. Every audit since v125 has compared the hash by hand, and v176 is the first time it moved. **The strongest invariant in `CLAUDE.md` is the only one with no test behind it**, and a silent crossing is indistinguishable from compliance — which is this repo's most-recorded shape, one level up from the code.
 
-Two things for Max, neither actionable without him: whether 197's edit is **ratified after the fact**, and whether the region gets a **hash pin in `npm test`**. The hash to pin, if he wants one, is the region between the two anchors as of `main` at `ezplate-v176`; compute it at the time rather than trusting a number written here, since this file cannot notice it going stale.
+Two things for Max, neither actionable without him: whether 197's edit is **ratified after the fact**, and whether the region gets a **hash pin in `npm test`**. The hash to pin, if he wants one, is the region between the two anchors as of `main`; compute it at the time rather than trusting a number written here, since this file cannot notice it going stale.
+
+⚠️ **THAT LAST INSTRUCTION PROVED ITSELF ON 10 SEP 2026, IN ONE STEP, AND IT IS WHY NO NUMBER IS WRITTEN ABOVE.** AUDIT-v207 recommended recording a specific md5 for the region and quoted one. **Batch 252 could not reproduce it** — four plausible slice variants against `tests/_extract.js`'s own `sliceBetween` semantics (exact, rstripped, rstrip-plus-newline, through the end marker) all disagreed with the quoted value while agreeing with each other on the line count. So it was computed, not recorded.
+**A bare hash in prose is an artefact nobody can falsify**, and the recommendation to write one down arrived from the one process whose value is that it checks things. That is this entry's own point, arriving from the direction it did not expect.
+**What AUDIT-v207 could add that v197 could not: the region has NOT MOVED since.** Verified by slicing it at batch 240 and at batch 251 and comparing — identical. So batch 197's edit remains the only one outstanding for ratification, and **the "has a hash ever been compared" disagreement between this file and AUDIT-v197 is settled: one has now, by this batch, and deliberately left unwritten.**
+**The pin in `npm test` is still Max's**, exactly as this entry has always said, and it is one of the two sentences that also settle item 17.
 
 ### Two handover threads reached NEITHER `QUEUE.md` NOR `MAINTENANCE.md`
 
