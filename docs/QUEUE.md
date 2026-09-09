@@ -86,12 +86,6 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 ⚠️ **SPLIT OUT OF 21 BY BATCH 247, which shipped 21's history half as `ezplate-v204`.** 21 grouped four instances under one mechanism and only one of them shared it in substance: the history gating was fifteen call sites and a dedup interaction, the invoice completion message needs a COUNT of what landed rather than a boolean, the menu delete is a sequencing change, and the boot-time replace is a merge decision. **Each needs its own repro; none falls out of the others**, and 21's old `Do after: 20` reason was falsified by 246 before either could be used.
 
 
-## next  88 · Thirteen plate lines cost off a product no ingredient uses, and only a person can say which ingredient they meant  **[B, item 16's measured harm, which its own remedy could not reach]**
-
-**Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 88 — raised by batch 239, with the six products and their nine plates measured on production on 9 Sep 2026.
-**The app already NAMES them**: the "Fix older plate lines" confirm lists every one, grouped by product, and Max can fix each by hand in the builder today. What is missing is the app ASKING — one choice per product, never a guess.
-⚠️ **Do not close this by name-matching a product to an ingredient**; `CLAUDE.md` records why (batch 223), and the failure mode has no symptom.
-
 ## next  89 · A `price_history` point cannot be deleted or corrected from the app  **[B, the 354.4 written by the 8 Sep typo is still on production]**
 
 **Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 89 — split out of 18 by batch 241, which shipped the bound that stops another one being written.

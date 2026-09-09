@@ -613,23 +613,22 @@ Blocked on: **Max's priority call.** From `docs/MAINTENANCE.md`'s "Displaced" se
 
 ---
 
-## next  88 · Thirteen plate lines cost off a product no ingredient uses, and only a person can say which ingredient they meant  **[B, the measured mis-costing item 16 named and could not fix: 13 lines across 9 plates on the live October menu, re-measured 9 Sep 2026]**
+## ~~88 · Thirteen plate lines cost off a product no ingredient uses~~  **SHIPPED, batch 249, `ezplate-v206`**
 
-**Raised by batch 239, which shipped item 16's heal and refused to guess these.** The heal moves a bare `{pid,qty}` line onto its ingredient wherever **exactly one** ingredient owns that product. It cannot for these, and the reason is not a bug: **no ingredient owns the product at all.** Six products, all still in the catalogue — the ingredient was repointed away from them at some point and these lines stayed behind:
+✅ **The app ASKS now.** Settings gains "Link older plate lines", offered only while there is something to ask about: one choice per PRODUCT (six questions, not thirteen), applied to every line pointing at it, through the heal's own write and rollback path. Re-measured before building — six products, 13 lines, 9 plates, every one with zero owning ingredients, exactly as this item said.
 
-| product | plates |
-|---|---|
-| Bacon Middle Rindless Gas Flushed (Qld) | Bacon & Egg Roll, Bacon Bene, Scoopy's Breakfast |
-| Eggs - Ctn 600g | Bacon Bene, Feta Spinach & Mushroom Bene, Ham Bene |
-| Maple Syrup Flavoured | Pancakes — Cookies & Cream, Plain, Rainbow |
-| Cheese Fetta Danish | Feta Spinach & Mushroom Bene, Scoopy's Staff Meal |
-| Ham Leg Sliced | Ham Bene |
-| Hash Browns Triangles Chunky | Scoopy's Breakfast |
+⚠️ **THE HEAL'S PROMISE DOES NOT TRANSFER, and that is most of the design.** 239 can say *"nothing costs a different amount afterwards"* because `barePidSameProduct` proves the ingredient it writes already points at the line's product. **Here no ingredient owns the product, so every candidate points at a different one and the cost moves by construction.** So the picker computes the delta and each row states what those plates would cost, in money, before anything is committed. A picker that borrowed the heal's sentence would have been lying.
 
-**This is item 16's own measured harm** — its "seven named dishes mis-cost, all on Ethen's Menu Oct 2026" is these lines, and its stated remedy did not reach them. **The app already NAMES them**: the "Fix older plate lines" confirm lists every one, grouped by product with its plates, and Max can fix each by hand in the builder today (swap the line for the ingredient).
+**Derived from `barePidPlan`, never re-walked**: the picker must offer exactly the lines the heal refused, and a second walk with its own copy of the three exclusions is the mirrored-copy defect.
 
-**What must be true when it is fixed:** the app ASKS rather than guesses — one choice per product, not per line ("which ingredient is this?"), applied to every line pointing at it, through the same write and rollback path the heal already uses. **Refusing is a legitimate answer and must stay one**; a plate line may genuinely be meant to cost off a product no ingredient owns.
-⚠️ **Do NOT heal these by name-matching the product to an ingredient.** `CLAUDE.md` records the shape (batch 223): a name matched inside a longer one blames the wrong product, and the failure mode has no symptom.
+**The change-log entry carries FIGURES**, unlike the heal's, which nulls every one because it moves no cost. This moves cost, so nulls would be an entry lying about a real movement — and it is a genuine intervention, so it belongs in Recent changes and on the since-line. It logs `plate_edited`, the kind `saveCurrentPlate` already writes for "this plate's lines changed and its cost moved". No new kind.
+
+**"Leave these alone" is a real answer and stays one**, as this item required.
+
+⚠️ **249 REVERSES 239's "Show" VERB, deliberately.** 239 kept the heal row visible after the fixable half was gone, as the standing report of the lines nothing could decide. This item is that they CAN be decided, so the report becomes the ask. Two rows describing the same thirteen lines, one able only to list them, is the clutter 239's own comment was avoiding. **Two tests pinned that decision and both were rewritten rather than deleted** — the property they protected (the lines stay findable in Settings) still holds, somewhere that can act on them.
+
+⚠️ **THE PRE-PUSH REVIEW FOUND A CRITICAL AND IT IS WORTH READING BEFORE TOUCHING ANY BATCHED `logChange`.** `logChange` defaults an omitted `avgAfter` to a LIVE `computeAvgFoodCost()`, evaluated when that plate's write SETTLES — after every plate in the batch has been mutated. With one `avgBefore` read before the loop, all N entries carried the whole batch's movement, and `trendMarkers` sums `drop` per calendar day, so a two-plate choice drew **twice** the real fall. The remedy is the invoice repoint loop's pattern, which exists for exactly this and says so at its site: measure the pair around each plate's OWN mutation so the entries compose in sequence.
+
 
 ## next  89 · A `price_history` point cannot be deleted or corrected from the app  **[B, the 354.4 written by the 8 Sep typo is still on production and nothing but SQL can remove it]**
 
