@@ -140,14 +140,19 @@ The measured instance: the builder's misc-cost field carried `min="0"`, `setMisc
 
 **The general shape, which is this file's oldest rule wearing a new costume: a declaration is not an enforcement.** `[hidden]` losing to an author `display` rule is the same sentence in CSS, and a `revoke … from public` that does not name `anon` is the same sentence in SQL. In all three the artefact states the rule correctly and something else decides.
 
-## The protected parser region
+## The parser region - THE PROTECTION IS LIFTED (Max, 10 Sep 2026: *"its lifted"*)
 
-The contiguous block in `js/app.js` between the exact strings `var INV_EXCLUDE=` and `function unitLabelFor(` is sliced by `tests/_extract.js` using those anchors.
-**Never edit anything inside it.** If a fix seems to require it, stop and tell Max - solve outside the region.
-The taught-pack path exists precisely so the parser needn't learn every notation.
+⚠️ **THIS SECTION SAID "NEVER EDIT ANYTHING INSIDE IT" AND NAMED FOUR NEVER-TOUCH FUNCTIONS. IT NO LONGER DOES.**
+Put to him as question 1 of `docs/decisions/2026-09-10.md` with both consequences written out, because reversing a decision he made himself is his alone and the record had been contradicting itself for two days across four documents.
+**The same sentence RATIFIES batch 197's edit inside the region**, which `docs/MAINTENANCE.md` had been asking about since 28 Aug 2026 through two audits - the question said so in as many words, and the answer was given against that wording.
 
-**Never touch** `resolveMatchedPrice`, `unitCatCategory`, `applySupplierMemory`, `packToUnitCost`.
-Reading them is fine.
+**So the region may be edited, and `resolveMatchedPrice`, `unitCatCategory`, `applySupplierMemory` and `packToUnitCost` may be changed.** The reason the prohibition existed - QUEUE item 17, the parser pricing by repetition and position, wrong on 36 of 41 real lines - is the work it was blocking.
+
+**What is NOT lifted, because it was never a decision of his and is not a rule at all:**
+
+- **The two anchors are LOAD-BEARING STRINGS.** `tests/_extract.js` slices the block with `sliceBetween(src, 'var INV_EXCLUDE=', 'function unitLabelFor(')`. Delete, rename or reorder either literal and the slice silently becomes something else - a different span, or an empty one - and every test built on it is then asserting about the wrong text while staying green. **Edit inside the anchors freely; do not disturb the anchors themselves without changing that file in the same commit.**
+- **The taught-pack path still exists so the parser needn't learn every notation.** That is a design fact, not a permission: a notation the user can teach is still cheaper than a parser rule, and lifting the protection does not make parsing the right answer to every line.
+- **These four functions are the ones this file has recorded defects in most often** - the exemption-scope trap at `resolveMatchedPrice` is a Tier 1 section of its own. They are now editable and they are still the code where a wrong change is hardest to see, because a mispriced line looks exactly like a correctly priced one. **Extract and pin before changing, per the roster.**
 
 ## The row boundary - the backup export is IN-MEMORY shape, not schema shape
 
