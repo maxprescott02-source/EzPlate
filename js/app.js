@@ -4056,7 +4056,14 @@ var changeLog = [];
 var changeLogSupported = true;
 /* The closed set of kinds. A typo in a call site must not quietly mint a twelfth category that the chart
    will never draw and nobody will notice is missing — changeEntry REFUSES an unknown kind outright. */
-var CHANGE_KINDS = ['plate_created','plate_edited','plate_deleted',
+/* 239: `plate_relinked` is the bare-pid heal (barePidPlan). It is the one kind that carries NO
+   figures at all and appears on NO screen — the heal rewrites a line's shape, never its product, so
+   every figure would be a number saying nothing moved. It is here because a bulk rewrite of plate
+   rows should leave a trace, and this table is the app's record of what MAX did.
+   ⚠️ An OLDER cached build restoring a newer backup drops these entries from its in-memory log,
+   because changeEntry refuses an unknown kind — true of any new kind, not of this one. The server
+   row survives; only that build's own export would be missing them. */
+var CHANGE_KINDS = ['plate_created','plate_edited','plate_deleted','plate_relinked',
                     'ingredient_repointed','ingredient_deleted',
                     'dish_added','dish_linked','dish_price','dish_moved','dish_removed','menu_deleted'];
 /* Client-generated, like every other id in this app (SP*, um*, MENU*, K*). That is what makes a restore
@@ -5231,8 +5238,16 @@ function openKingModal(kid){
   if(usedEl){
     if(isEdit){
       var used=(savedPlates||[]).filter(function(sp){ return (sp.lines||[]).some(function(l){ return l&&l.kid===kingEditId; }); }).length;
-      usedEl.textContent=used?('Used in '+used+' saved plate'+(used===1?'':'s')+' \u2014 changing the product updates all of them.')
-                             :'Not used in any saved plates yet.';
+      /* 239 (item 16): the count is the KID arm and the sentence now SAYS SO, which is the half of
+         the promise that was missing. "changing the product updates all of them" was true of the
+         plates this counts and false of every legacy bare-pid line pointing at the same product \u2014
+         44 of them on production \u2014 and nothing on any screen said which kind a line was. */
+      var legacy=barePidLinesFor(k?k.pid:null);
+      var txt=used?('Used in '+used+' saved plate'+(used===1?'':'s')+' \u2014 changing the product updates all of them.')
+                  :'Not used in any saved plates yet.';
+      if(legacy.lines) txt+=' '+legacy.lines+' older line'+(legacy.lines===1?'':'s')+' point'+(legacy.lines===1?'s':'')
+        +' straight at this product and won\u2019t follow \u2014 Settings, under Data, fixes that.';
+      usedEl.textContent=txt;
       usedEl.style.display='block';
     } else usedEl.style.display='none';
   }
@@ -5302,11 +5317,170 @@ function platesUsingKid(kid){ return (savedPlates||[]).filter(function(sp){ retu
    legacy bare-pid line resolves through byId directly (lineProduct), so a relink cannot heal it and
    counting it would make the sentence a lie for exactly those plates — the v124 review caught the
    first cut doing that. The both-sides law stays where it belongs: productRefs, where deleting a
-   PRODUCT really does break both paths. */
+   PRODUCT really does break both paths.
+   ⚠️ 239 (item 16) LEFT THIS ALONE DELIBERATELY, and the item allowed either arm of its own
+   disjunction ("counts both arms OR says which it counts"). This function is still exactly what a
+   relink heals, so widening it would make the SAME sentence false in the other direction — it would
+   promise a fix to plates a relink still cannot reach. The missing half was never the count; it was
+   that nothing anywhere ADMITTED to the other arm. barePidLinesFor is that admission, and the
+   ingredient modal now prints it beside this number. */
 function menuIdsForPlates(list){
   var seen={}, out=[];
   (list||[]).forEach(function(sp){ menusOfPlate(sp).forEach(function(o){ if(!seen[o.menuId]){ seen[o.menuId]=1; out.push(o.menuId); } }); });
   return out;
+}
+/* ===== 239 (queue item 16) — THE LEGACY BARE-PID HEAL =====
+   A plate line is either {kid,qty}, which resolves through the kitchen ingredient (lineProduct's
+   first arm), or legacy {pid,qty}, which resolves STRAIGHT through byId. A relink moves `k.pid` and
+   nothing else, so it reaches every kid line instantly and no bare-pid line ever. That is the whole
+   defect: the modal's "changing the product updates all of them" is true of ONE arm, and measured on
+   production on 8 Sep 2026 it was false for 44 lines across 11 plates.
+   ⚠️ THE HEAL IS A DATA MIGRATION, NOT A COSTING CHANGE, and that is what makes it safe: it rewrites
+   {pid:P} to {kid:K} only where K.pid IS ALREADY P, so lineProduct returns the same product on both
+   sides and every plate costs exactly what it costed a moment before. What changes is the FUTURE —
+   a later relink now reaches the line. Anything that moves a number is a different item.
+   PURE, and it decides nothing it cannot prove. A pid exactly ONE ingredient owns becomes that
+   ingredient's kid. A pid owned by NONE or by TWO is left alone and reported, because the only way to
+   heal those is to guess which ingredient a line meant — and a wrong guess is a silently wrong cost,
+   which is the one thing this app must never produce. */
+function barePidPlan(plates, kings){
+  var owners={};
+  (kings||[]).forEach(function(k){
+    if(!k || !k.id || !k.pid) return;
+    (owners[k.pid]=owners[k.pid]||[]).push(k.id);
+  });
+  var fix=[], orphan=[];
+  (plates||[]).forEach(function(sp){
+    if(!sp || !Array.isArray(sp.lines)) return;
+    var moves=[];
+    sp.lines.forEach(function(l,i){
+      /* the same three exclusions lineProduct makes, in the same order: a misc line carries no
+         reference at all (CLAUDE.md: not a dangling one), a kid line is already healed, and a line
+         with neither is broken in a way this cannot mend. */
+      if(!l || l.misc || l.kid || !l.pid) return;
+      var own=owners[l.pid]||[];
+      if(own.length===1) moves.push({i:i, kid:own[0]});
+      else orphan.push({plateId:sp.id||null, plate:sp.name||'', pid:l.pid, why:(own.length?'ambiguous':'none')});
+    });
+    if(moves.length) fix.push({plateId:sp.id||null, name:sp.name||'', moves:moves});
+  });
+  return {fix:fix, orphan:orphan};
+}
+function barePidFixCount(plan){
+  var n=0; ((plan&&plan.fix)||[]).forEach(function(f){ n+=(f.moves||[]).length; }); return n;
+}
+/* How many bare-pid lines point at ONE product — the number the ingredient modal has to admit to,
+   because these are exactly the lines a relink of that ingredient will not reach. */
+function barePidLinesFor(pid){
+  var lines=0, plates=0;
+  if(!pid) return {lines:0, plates:0};
+  (typeof savedPlates==='undefined'?[]:(savedPlates||[])).forEach(function(sp){
+    var n=0;
+    ((sp&&sp.lines)||[]).forEach(function(l){ if(l && !l.misc && !l.kid && l.pid===pid) n++; });
+    if(n){ lines+=n; plates++; }
+  });
+  return {lines:lines, plates:plates};
+}
+/* The confirm's whole text, PURE so it can be read without a browser. `products` is byId.
+   The left-alone half is grouped BY PRODUCT rather than listed per line: on the 8 Sep production
+   data that is 5 sentences instead of 13, and the product is what Max has to make a decision about. */
+function barePidHealMessage(plan, products){
+  var fixLines=barePidFixCount(plan), fixPlates=((plan&&plan.fix)||[]).length;
+  var s=function(n){ return n===1?'':'s'; };
+  var out=[];
+  if(fixLines){
+    out.push(fixLines+' line'+s(fixLines)+' in '+fixPlates+' plate'+s(fixPlates)+' will point at the ingredient '
+      +'instead of straight at the product, so changing that ingredient’s product reaches them too. '
+      +'Nothing costs a different amount afterwards.');
+  }
+  var groups={}, order=[];
+  ((plan&&plan.orphan)||[]).forEach(function(o){
+    if(!groups[o.pid]){ groups[o.pid]={why:o.why, plates:[], seen:{}}; order.push(o.pid); }
+    var g=groups[o.pid];
+    if(o.plate && !g.seen[o.plate]){ g.seen[o.plate]=1; g.plates.push(o.plate); }
+  });
+  if(order.length){
+    var n=((plan&&plan.orphan)||[]).length;
+    out.push(n+' line'+s(n)+' will be left alone — nothing here can tell which ingredient '+(n===1?'it':'they')+' meant:');
+    out.push(order.map(function(pid){
+      var p=(products||{})[pid], nm=p?(p.description||pid):('a product that is gone ('+pid+')');
+      var g=groups[pid];
+      return '• '+nm+(g.why==='ambiguous'?' — two ingredients use it':' — no ingredient uses it')
+        +(g.plates.length?': '+g.plates.join(', '):'');
+    }).join('\n'));
+    out.push('Open each plate and swap the line for an ingredient.');
+  }
+  return out.join('\n\n');
+}
+/* The write half. One dbPushPlate per touched plate, and one change-log entry per plate that the
+   server took — never one for the batch, because a plate whose write failed did not happen.
+   ⚠️ THE FIGURES ARE DELIBERATELY NULL. avgBefore/avgAfter drive the trend markers and the
+   "since you last acted" line; costBefore/costAfter drive Recent changes. The heal moves no cost at
+   all, so every one of them would be a number saying nothing moved — and a non-null avgAfter would
+   reset the since-line's clock, which is the same reason a RENAME does not log one (saveKingModal).
+   The entry exists as the audit trail for a bulk rewrite of plate rows, and it appears on no screen.
+   ⚠️ ROLLBACK IS WHY THIS DOES NOT CALL logChangeIfSaved: it must ALSO put the lines back, and a
+   second handler on the same promise would be a second copy of the `!r || r.error` success test —
+   which is the stub-that-agrees-with-the-code defect, one function apart. One handler, one verdict. */
+function healBarePidPlate(sp, before, moved, write){
+  return Promise.resolve(write).then(function(r){
+    if(!r || r.error){ sp.lines=before; return {ok:false, lines:0}; }
+    logChange('plate_relinked', {plateId:sp.id, menuIds:menuIdsForPlates([sp]), avgBefore:null, avgAfter:null,
+      detail:{name:sp.name||'', lines:moved}});
+    return {ok:true, lines:moved};
+  }, function(){ sp.lines=before; return {ok:false, lines:0}; });
+}
+function applyBarePidHeal(plan){
+  var jobs=[];
+  ((plan&&plan.fix)||[]).forEach(function(f){
+    var sp=(savedPlates||[]).find(function(s){ return s && s.id===f.plateId; });
+    if(!sp || !Array.isArray(sp.lines)) return;
+    var before=sp.lines, lines=sp.lines.slice(), moved=0;
+    (f.moves||[]).forEach(function(m){
+      var l=lines[m.i];
+      // re-checked against the array as it is NOW: the plan was made a confirm ago, and a line that
+      // has changed shape since is not the line the plan was about.
+      if(!l || l.misc || l.kid || !l.pid) return;
+      lines[m.i]={kid:m.kid, qty:l.qty}; moved++;
+    });
+    if(!moved) return;
+    sp.lines=lines;                                   // optimistic, exactly as every other write here
+    jobs.push(healBarePidPlate(sp, before, moved, dbPushPlate(sp)));
+  });
+  return Promise.all(jobs).then(function(res){
+    var okPlates=0, okLines=0, bad=0;
+    res.forEach(function(r){ if(r.ok){ okPlates++; okLines+=r.lines; } else bad++; });
+    if(okLines) rerenderCurrentTab();
+    if(okLines && !bad) toast('Fixed '+okLines+' line'+(okLines===1?'':'s')+' in '+okPlates+' plate'+(okPlates===1?'':'s'));
+    else if(okLines) toast('Fixed '+okLines+' line'+(okLines===1?'':'s')+' — '+bad+' plate'+(bad===1?'':'s')+' could not be saved');
+    else if(bad) toast('Nothing was saved — try again');
+    return {plates:okPlates, lines:okLines, failed:bad};
+  });
+}
+function runBarePidHeal(){
+  var plan=barePidPlan(savedPlates, kitchenIngredients), n=barePidFixCount(plan);
+  if(!n && !plan.orphan.length){ toast('No older plate lines to fix'); return; }
+  if(!n){ askConfirm('Nothing can be fixed automatically', barePidHealMessage(plan, byId), 'Close', null); return; }
+  askConfirm('Fix older plate lines?', barePidHealMessage(plan, byId), 'Fix '+n+' line'+(n===1?'':'s'), function(){ applyBarePidHeal(plan); });
+}
+/* The row is only offered while there is something to offer. No path in the app can MAKE a bare-pid
+   line — saveCurrentPlate writes {kid,qty} for every kid line and only preserves a bare one that was
+   already there — so once the heal has run this is permanently spent, and a permanent Settings row
+   for a one-off migration is clutter that outlives its reason. It comes back if a backup restores
+   older plates, because this recomputes on every Settings render.
+   `hidden` + the `.stg-row:not([hidden])` guard the CSS already carries at both breakpoints —
+   without it a single-class display rule beats the UA's [hidden] and the row stays visible. */
+function syncHealRow(){
+  var row=document.getElementById('setHealRow'); if(!row) return;
+  // no typeof guard on the two arrays: both are top-level `var`s assigned at parse, so a "what if
+  // they are undefined" branch here could never run, and a guard that cannot fire reads as a safety
+  // net without being one. barePidPlan already answers an empty or null list with an empty plan.
+  var plan=barePidPlan(savedPlates, kitchenIngredients), n=barePidFixCount(plan);
+  row.hidden=!(n || plan.orphan.length);
+  /* The verb follows the plan, because the row OUTLIVES the fixable half: once the heal has run,
+     what is left is the lines nothing can decide, and the row stays as the standing report of them.
+     A button still saying "Fix" there would promise something the next screen refuses to do. */
+  var b=document.getElementById('setHealLines'); if(b) b.textContent=n?'Fix':'Show';
 }
 function deleteKitchenIngredient(kid){
   var k=kById[kid]; if(!k) return;
@@ -7578,7 +7752,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v196';
+var APP_VERSION='v197';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -8310,6 +8484,7 @@ function renderSettingsTab(){
   var ai=document.getElementById('setAiInvoiceChk'); if(ai) ai.checked=aiInvoiceCheck;   // v81
   var as=document.getElementById('setAiSuggestChk'); if(as) as.checked=aiSuggestions;    // v81
   syncThemeSeg();                                                                       // v136
+  syncHealRow();                                                                        // 239: item 16's row shows only while it has work
 }
 /* 171 tombstone: `openSettings()` is DELETED. It was a one-line alias for showTab('settings'),
    kept while the header gear needed a handler to bind; the gear is gone and both surviving routes
@@ -8990,6 +9165,7 @@ function clearCacheAndRefresh(){
   on('setAccountOpen',function(){ showTab('account'); });
   on('setTidyOpen',function(){ openTidyManage('category'); });   // F9 (v148): opens OVER the Settings screen; closing it reveals the screen, so nothing has to be reopened
   on('setSmemOpen',openSmem);                                    // v71 item 5 moved remembered packs here
+  on('setHealLines',runBarePidHeal);                             // 239 (item 16): the legacy bare-pid heal
   on('tidyManageDone',closeTidyManage); on('tidyManageClose',closeTidyManage);
   var tmm=document.getElementById('tidyManageModal'); if(tmm) tmm.addEventListener('click',function(ev){ if(ev.target===tmm) closeTidyManage(); });
   on('tidyModalConfirm',applyTidy); on('tidyModalCancel',function(){ hide('tidyModal'); }); on('tidyModalClose',function(){ hide('tidyModal'); });

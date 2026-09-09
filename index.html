@@ -102,7 +102,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=196">
+<link rel="stylesheet" href="css/style.css?v=197">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -931,6 +931,18 @@
                 <p class="stg-help">Create or re-price products in bulk from a supplier&rsquo;s CSV export. Matches on product code, so importing a newer file updates prices rather than duplicating.</p>
               </div>
               <button class="btn stg-ctl" id="catImportBtn" type="button">Import</button>
+            </div>
+            <!-- 239 (item 16): HIDDEN unless there is something to fix — syncHealRow decides on every
+                 Settings render. No path in the app can create a bare-pid line, so this row is spent
+                 the moment the heal has run, and a permanent row for a one-off migration is clutter.
+                 `hidden` needs `.stg-row:not([hidden])` in the CSS at BOTH breakpoints (see the
+                 restore row below) or a single-class display rule beats the UA's [hidden] rule. -->
+            <div class="stg-row" id="setHealRow" hidden>
+              <div class="stg-text">
+                <span class="stg-lbl">Fix older plate lines</span>
+                <p class="stg-help">Some plate lines point straight at a product instead of at an ingredient, so changing that ingredient&rsquo;s product misses them. This points them at the ingredient. Nothing costs a different amount afterwards.</p>
+              </div>
+              <button class="btn stg-ctl" id="setHealLines" type="button">Fix</button>
             </div>
             <div class="stg-row">
               <div class="stg-text">
@@ -1767,7 +1779,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=196"></script>
+<script src="js/app.js?v=197"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —
