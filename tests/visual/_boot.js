@@ -112,10 +112,17 @@ async function installBoot(page, opts = {}) {
         .map((r) => ({ ...r, menu_id: null }))
         .concat(pts(ls('cafeDB_menuHistory', {}), 'avg_food_cost_pct', 'menu_id'))
         .sort((a, b) => (a.recorded_at < b.recorded_at ? -1 : 1));
+      /* 239: `kitchen_ingredients` is served here too, from `cafeDB_king`. It was the limit
+         v136-theme.spec.js states in its own header — "the kitchen_ingredients table is answered
+         with an error, so it cannot be seeded from here", which left the Ingredients screen and
+         every kid-line plate unreachable in a browser. It is an app_settings ROW, not a table, so
+         this is where it belongs; specs that seed nothing get no row and today's behaviour. */
       const settingRows = () => {
         const out = [];
         const cogs = localStorage.getItem('cafeDB_cogsPct');
         if (cogs != null) out.push({ key: 'food_cost_target', value: Number(cogs) });
+        const king = ls('cafeDB_king', null);
+        if (Array.isArray(king)) out.push({ key: 'kitchen_ingredients', value: king });
         return out;
       };
       const result = (table) => {

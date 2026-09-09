@@ -345,6 +345,18 @@ const targets = [
      quantity became a free ingredient, and nothing had ever asked that function a question. */
   { fn: 'costDetail', tests: ['plate-cost.test.js'] },
   { fn: 'lineCost', tests: ['plate-cost.test.js'] },
+  /* 239 (item 16) — the bare-pid heal, listed the hour it was written rather than after something
+     gets past it. lineProduct is the resolver the whole item is about and had never been a target;
+     barePidPlan decides which lines a BULK REWRITE of plate rows touches, and its `own.length===1`
+     is the entire safety argument — widen it and the heal starts guessing which ingredient a line
+     meant, which is a silently wrong cost. applyBarePidHeal owns the rollback. */
+  { fn: 'lineProduct', tests: ['plate-cost.test.js', 'bare-pid-heal.test.js'] },
+  { fn: 'barePidPlan', tests: ['bare-pid-heal.test.js'] },
+  { fn: 'barePidSameProduct', tests: ['bare-pid-heal.test.js'] },
+  { fn: 'barePidLinesFor', tests: ['bare-pid-heal.test.js'] },
+  { fn: 'applyBarePidHeal', tests: ['bare-pid-heal.test.js'] },
+  { fn: 'healBarePidPlate', tests: ['bare-pid-heal.test.js'] },
+  { fn: 'syncHealRow', tests: ['bare-pid-heal.test.js'] },
   { fn: 'plateFullyCosted', tests: ['plate-cost.test.js'] },
   { fn: 'analyze', tests: ['menu-margin.test.js', 'kpi-strip.test.js', 'dash-digin.test.js'] },
   /* 0c (batch 203). buildInvRows was measured at 12 survivors in 201 and held in `pending`; the

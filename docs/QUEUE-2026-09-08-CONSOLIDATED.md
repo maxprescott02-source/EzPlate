@@ -35,7 +35,11 @@ Not batches. Each is a dashboard click, a SQL statement on production, or a deci
 
 # A first: wrong numbers, then the multi-tenant gates
 
-## next  16 · Relinking an ingredient leaves every legacy bare-pid plate line on the old product  **[A, silent mis-costing on the live October menu, measured 8 Sep]**
+## ~~16 · Relinking an ingredient leaves every legacy bare-pid plate line on the old product~~  **SHIPPED, batch 239, `ezplate-v197`**
+
+✅ The heal is in Settings → Data ("Fix older plate lines"), hidden once there is nothing to fix. It rewrites `{pid:P}` to `{kid:K}` only where `K.pid` is ALREADY `P`, so no cost moves and a later relink reaches the line; one `dbPushPlate` and one `plate_relinked` change-log entry per plate the server took, rolled back per plate when it refuses. Rehearsed offline against a read-only snapshot of production: **31 lines across 11 plates fixable, 13 across 9 not, zero of 103 plate costs moved.**
+⚠️ **TWO PARTS OF THIS ITEM WERE WRONG AND ARE CORRECTED IN `docs/handovers/HANDOVER-239-relink-heal.md`:** the log entry cannot reach the Dashboard (Recent changes needs a cost delta and the heal has none, by construction), and `platesUsingKid` was deliberately NOT widened — the item allowed either arm of its own disjunction and the count is still exactly what a relink heals, with the other arm now named in the modal instead.
+⚠️ **THE 13 LINES IT REFUSES ARE THE MEASURED MIS-COSTING AND ARE STILL OPEN** — see item 88.
 
 **Mechanism.** A plate line is `{kid,qty}` (resolves through the kitchen ingredient to its current product) or legacy `{pid,qty}` (resolves straight to `byId`). `lineProduct` (`js/app.js:1610`) takes the `kid` arm when present and otherwise `byId[l.pid]`, so a relink that moves `k.pid` moves every kid line instantly and no bare-pid line ever. The three repoint sites write `k.pid` only: the Ingredients modal (`js/app.js:5269`), the invoice deferred repoint (`:12168`) and the guarded confirm (`:12213`). `platesUsingKid` (`:5299`) counts the kid arm only, so "Used in N plates" undercounts. The modal copy "changing the product updates all of them" (grep `updates all of them` in `js/app.js`) is true of one arm.
 
@@ -553,6 +557,24 @@ Business name and currency (currency has teeth: every money display hard-codes `
 Blocked on: **Max's priority call.** From `docs/MAINTENANCE.md`'s "Displaced" section, all seven are features he never queued: a write queue with Retry (the mock's error banner's Retry is honest only with this); "Synced N min ago" (needs a last-sync timestamp and a placement answer); Recent range on the builder's cost card (the stated data source does not exist; reconstruct from `ing_price_history` per line); command palette (⌘K); invoice import history (a table with RLS; replaces item 58's one-line sentence); photographing an invoice (OCR or a vision model; reopens the privacy gate); CSV export (never an import path). Put to him as a list; nothing here is started on a free slot.
 
 ---
+
+## next  88 · Thirteen plate lines cost off a product no ingredient uses, and only a person can say which ingredient they meant  **[B, the measured mis-costing item 16 named and could not fix: 13 lines across 9 plates on the live October menu, re-measured 9 Sep 2026]**
+
+**Raised by batch 239, which shipped item 16's heal and refused to guess these.** The heal moves a bare `{pid,qty}` line onto its ingredient wherever **exactly one** ingredient owns that product. It cannot for these, and the reason is not a bug: **no ingredient owns the product at all.** Six products, all still in the catalogue — the ingredient was repointed away from them at some point and these lines stayed behind:
+
+| product | plates |
+|---|---|
+| Bacon Middle Rindless Gas Flushed (Qld) | Bacon & Egg Roll, Bacon Bene, Scoopy's Breakfast |
+| Eggs - Ctn 600g | Bacon Bene, Feta Spinach & Mushroom Bene, Ham Bene |
+| Maple Syrup Flavoured | Pancakes — Cookies & Cream, Plain, Rainbow |
+| Cheese Fetta Danish | Feta Spinach & Mushroom Bene, Scoopy's Staff Meal |
+| Ham Leg Sliced | Ham Bene |
+| Hash Browns Triangles Chunky | Scoopy's Breakfast |
+
+**This is item 16's own measured harm** — its "seven named dishes mis-cost, all on Ethen's Menu Oct 2026" is these lines, and its stated remedy did not reach them. **The app already NAMES them**: the "Fix older plate lines" confirm lists every one, grouped by product with its plates, and Max can fix each by hand in the builder today (swap the line for the ingredient).
+
+**What must be true when it is fixed:** the app ASKS rather than guesses — one choice per product, not per line ("which ingredient is this?"), applied to every line pointing at it, through the same write and rollback path the heal already uses. **Refusing is a legitimate answer and must stay one**; a plate line may genuinely be meant to cost off a product no ingredient owns.
+⚠️ **Do NOT heal these by name-matching the product to an ingredient.** `CLAUDE.md` records the shape (batch 223): a name matched inside a longer one blames the wrong product, and the failure mode has no symptom.
 
 # Dropped or merged
 

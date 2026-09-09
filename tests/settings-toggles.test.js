@@ -368,9 +368,9 @@ test('F9: renderSettingsTab primes every control the modal used to prime on open
   const mk = () => ({ value: '', checked: false, textContent: '' });
   ['setCogsInput', 'setGstDefault', 'setVersion', 'setAiInvoiceChk', 'setAiSuggestChk']
     .forEach(id => { els[id] = mk(); });
-  let themeSynced = 0;
+  let themeSynced = 0, healSynced = 0;
   const run = new Function('els', 'state', `
-    const { cogsPct, gstDefault, APP_VERSION, aiInvoiceCheck, aiSuggestions, syncThemeSeg } = state;
+    const { cogsPct, gstDefault, APP_VERSION, aiInvoiceCheck, aiSuggestions, syncThemeSeg, syncHealRow } = state;
     const document = { getElementById: id => els[id] || null };
     ${extractFn(APP, 'renderSettingsTab')}
     renderSettingsTab();
@@ -379,6 +379,7 @@ test('F9: renderSettingsTab primes every control the modal used to prime on open
     cogsPct: 31, gstDefault: 'inc', APP_VERSION: 'v999',
     aiInvoiceCheck: true, aiSuggestions: true,
     syncThemeSeg: () => { themeSynced++; },
+    syncHealRow: () => { healSynced++; },
   });
   assert.equal(els.setCogsInput.value, 31, 'the target % comes from memory, not the markup default');
   assert.equal(els.setGstDefault.value, 'inc', 'the GST default comes from memory');
@@ -386,6 +387,10 @@ test('F9: renderSettingsTab primes every control the modal used to prime on open
   assert.equal(els.setAiInvoiceChk.checked, true, 'the AI invoice switch reflects the stored flag');
   assert.equal(els.setAiSuggestChk.checked, true, 'the AI suggestions switch reflects the stored flag');
   assert.equal(themeSynced, 1, 'the theme segment is synced too');
+  // 239: #setHealRow ships `hidden` and syncHealRow is the ONLY thing that ever unhides it, so a
+  // render that stopped calling it would leave item 16's fix permanently unreachable, with the
+  // markup present and nothing on screen — the same silent shape the whole test is about.
+  assert.equal(healSynced, 1, 'the older-plate-lines row is decided on every render');
 });
 
 /* …and that showTab is what calls it. Priming that exists but is never invoked is the same bug with
