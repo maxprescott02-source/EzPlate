@@ -364,6 +364,12 @@ const targets = [
      and had never been asked a question, which is 184's lesson: the mean the whole app reads was
      not a target. `kpiStripHtml` owns the over-target count the bound now steps around. */
   { fn: 'dishRatios', tests: ['food-cost-bound.test.js', 'dash-scope.test.js'] },
+  /* The three the pre-push review found. `dishesOverTarget` is the SECOND over-target counter and
+     the one an invoice import reads; `mcmpSparkSeries` had the chart's own unbounded-scale defect
+     in a 54px glyph. Neither had ever been a target, which is why the bound could miss them both
+     without a single test going red. */
+  { fn: 'dishesOverTarget', tests: ['food-cost-bound.test.js'] },
+  { fn: 'mcmpSparkSeries', tests: ['food-cost-bound.test.js'] },
   { fn: 'avgFoodCostForScope', tests: ['food-cost-bound.test.js', 'dash-scope.test.js'] },
   { fn: 'mispricedDishes', tests: ['food-cost-bound.test.js'] },
   { fn: 'mispricedHtml', tests: ['food-cost-bound.test.js'] },
@@ -435,6 +441,48 @@ const targets = [
  * removes is how a list like this rots into permission to ignore everything.
  */
 const allowedSurvivors = [
+  /* 241, the six on the two functions the PRE-PUSH REVIEW added to this list. Two families, and the
+     first is worth reading because it is a shape rather than an accident: `dishesOverTarget`'s own
+     guards are BACKED BY `analyze`, which refuses a zero price and a zero cost on its own. So the
+     mutants that let a zero past the guard reach a function that turns it away anyway, and nothing
+     observable changes. The guards are not redundant — they stop the work being done at all, and
+     `analyze` returning 'nomenu' is a different statement from "this plate was never a candidate" —
+     but they are, measured, unobservable through this function's return value.
+     The other four are exact-boundary ties of the kind this file already carries several of: at the
+     tie the two operators compute the same value, or the side it falls is arbitrary by construction.
+     Every one of them has both sides away from the tie asserted in food-cost-bound.test.js §7. */
+  {
+    key: "dishesOverTarget :: var over=0; MENU.forEach(function(m){ if(!(m.price>0)) return; var sp=plateForMenuItem(m); if(!sp) return; :: relational >>>= #0",
+    reason: 'Equivalent: at a price of exactly 0 the mutant lets the plate through, and analyze(cost, 0) returns '
+      + "state 'nomenu' on its own `!menuPrice || menuPrice<=0` guard, so it is not counted either way. Measured — "
+      + 'food-cost-bound.test.js asserts the zero-price plate is not over target, and it passes both ways.',
+  },
+  {
+    key: "dishesOverTarget :: var d=costDetail(sp.lines); if(d.miss || !(d.cost>0)) return; :: relational >>>= #0",
+    reason: 'The same equivalence at a cost of exactly 0: analyze(0, price) computes suggested=0 and returns '
+      + "'nomenu' from its own guard, so the mutant counts nothing extra.",
+  },
+  {
+    key: "mcmpSparkSeries :: if(mx-mn<0.2){ var mid=(mn+mx)/2; mn=mid-0.1; mx=mid+0.1; }        // a flat series draws centred, not glued to an edge :: relational <><= #0",
+    reason: 'Exact-boundary tie at a spread of precisely 0.2, where widening the window to 0.2 and leaving it at '
+      + '0.2 produce the same domain. Flat and clearly-not-flat are both asserted.',
+  },
+  {
+    key: "mcmpSparkSeries :: var v=(p.v>mx?mx:(p.v<mn?mn:p.v));                              // clamped, exactly as the chart's y() is :: relational >>>= #0",
+    reason: 'Provably equivalent, not merely untested: at v===mx the mutant clamps to mx and the original passes v '
+      + 'through, and v IS mx. There is no input that distinguishes them.',
+  },
+  {
+    key: "mcmpSparkSeries :: var v=(p.v>mx?mx:(p.v<mn?mn:p.v));                              // clamped, exactly as the chart's y() is :: relational <><= #0",
+    reason: 'The mirror of the entry above, on the lower clamp: at v===mn both yield mn.',
+  },
+  {
+    key: "mcmpSparkSeries :: var cls=(vs[vs.length-1]<=cogsPct+0.05)?'good':'bad'; :: relational <=>< #0",
+    reason: 'The display-epsilon tie again, on the sparkline colour — the same one already allowed on kpiStripHtml, '
+      + 'and it is the same 0.05 by design so the row and the strip cannot disagree on a rounding hair. Both sides '
+      + 'away from the tie are asserted (40 then 25 is good, 25 then 40 is bad, exactly 30 is good).',
+  },
+
   /* 241 — computeInsights' three, and TWO OF THEM WERE KILLED BEFORE THIS BATCH. That is the finding
      rather than a footnote: adding `if(cost/m.price*100 > FOOD_COST_SANE_MAX) return;` to this
      function made the price>0 guard above it unobservable at a price of exactly zero, because the

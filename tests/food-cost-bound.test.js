@@ -300,3 +300,194 @@ test('the over-target figure is only tinted when there IS one', () => {
     'zero over target is not bad news wearing a bad-news colour');
   assert.match(dash([{ qty: 350, price: 10 }], { cogs: 30 }).kpi('all'), /kpi-num bad/);
 });
+
+/* =============================================================================================
+ * 7. The three the pre-push review found — every one a place the bound did not reach
+ *
+ * The first cut bounded the four sites the item named plus the two measuring found, and missed
+ * three more. Two of them matter and one is a colour. They are grouped here rather than filed by
+ * subject because what they have in common IS the finding: a threshold is only as good as its least
+ * thorough application, and "I applied it where the item said" is not a census.
+ * ========================================================================================== */
+
+function overCounter(dishes) {
+  const byId = { P1: { id: 'P1', base_unit: 'g', cost_per_base_unit: 0.01 } };
+  const plates = dishes.map((d, i) => ({ id: 'S' + i, lines: [{ pid: 'P1', qty: d.qty }] }));
+  const MENU = dishes.map((d, i) => ({ id: 'D' + i, name: d.name || ('P' + i), plateId: 'S' + i, price: d.price }));
+  // eslint-disable-next-line no-new-func
+  return new Function('MENU', 'SP', 'BYID', `"use strict";
+    var MENU=MENU, savedPlates=SP, byId=BYID, kById={}, cogsPct=30;
+    function foodTarget(){ return 0.30; }
+    ${extractVar(SRC, 'FOOD_COST_SANE_MAX')}
+    ${extractFn(SRC, 'plateIdOf')}
+    ${extractFn(SRC, 'plateForMenuItem')}
+    ${extractFn(SRC, 'cpbu')}
+    ${extractFn(SRC, 'lineCost')}
+    ${extractFn(SRC, 'lineProduct')}
+    ${extractFn(SRC, 'costDetail')}
+    ${extractFn(SRC, 'analyze')}
+    ${extractFn(SRC, 'dishesOverTarget')}
+    return dishesOverTarget;`)(MENU, plates, byId);
+}
+
+test('THE SECOND over-target counter is bounded too — and it is the one an IMPORT reads', () => {
+  /* `dishesOverTarget` feeds showImportSummary's "N plates now over your target" toast, fired
+     straight after an invoice import — which is precisely how a bad cost arrives in this app. Of the
+     two counters, the first cut bounded the calm one and missed the one standing where the danger
+     comes from. Found by the pre-push review. */
+  const real = overCounter([{ qty: 350, price: 10 }]);
+  assert.equal(real(), 1, 'a genuinely over-target plate still counts');
+  const withTypo = overCounter([{ qty: 350, price: 10 }, { qty: 300, price: 0.01 }]);
+  assert.equal(withTypo(), 1, 'the typo does not become a second "plate over target" in the import toast');
+});
+
+test('the two over-target counters agree about the bound, whatever they do about the epsilon', () => {
+  // They differ on the display epsilon deliberately (the comment at kpiStripHtml says so). That
+  // exemption was about the epsilon and said nothing about the bound — an exemption is scoped to the
+  // claim that justified it, and reading it as covering both is what produced the gap above.
+  const dishes = [{ qty: 350, price: 10 }, { qty: 300, price: 0.01 }];
+  assert.equal(overCounter(dishes)(), 1);
+  const [, over] = cellsOf(dash(dishes).kpi('all'));
+  assert.match(over, />1<\/span>/, 'the strip says the same 1');
+});
+
+function sparkOf(values) {
+  // eslint-disable-next-line no-new-func
+  return new Function('VS', `"use strict";
+    var cogsPct=30;
+    ${extractFn(SRC, 'mcmpSparkSeries')}
+    return mcmpSparkSeries(VS.map(function(v,i){ return {t:i, v:v}; }));`)(values);
+}
+const yOf = (svg) => svg.match(/points="([^"]+)"/)[1].split(' ').map((p) => parseFloat(p.split(',')[1]));
+
+test('a sparkline does not flatten eleven good readings to draw one bad one', () => {
+  /* The identical defect the chart had, in a 54px glyph reading the same append-only series. The
+     By-menu rows sit beside the chart and CLAUDE.md's rule is that they match it — which has to be
+     true of the SCALE, not only of the colour. Found by the pre-push review. */
+  const spread = yOf(sparkOf([22, 26, 24, 28]));
+  const withBad = yOf(sparkOf([22, 26, 24, 354.4]));
+  const range = (ys) => Math.max.apply(null, ys) - Math.min.apply(null, ys);
+  assert.ok(range(spread) > 8, 'a normal series uses the height it has');
+  assert.ok(range(withBad.slice(0, 3)) > 8,
+    'and the three real readings keep it — unbounded, they collapsed into a flat line at the bottom');
+});
+
+test('...and the off-scale point is drawn at the top, not outside the box', () => {
+  const ys = yOf(sparkOf([22, 26, 24, 354.4]));
+  assert.ok(ys[3] >= 0 && ys[3] <= 16, 'inside the 16px viewBox');
+  assert.equal(ys[3], Math.min.apply(null, ys), 'and it is the topmost point, which is what "off the scale" looks like');
+});
+
+test('every reading over the cap: the sparkline still draws rather than dividing by zero', () => {
+  const ys = yOf(sparkOf([354.4, 400, 500]));
+  assert.ok(ys.every((y) => isFinite(y)), 'no NaN reaches the points attribute');
+});
+
+test('a mispriced plate keeps its row in the cost ranking and loses its LIGHT', () => {
+  /* Its cost is real — that is what the card ranks — but colour here is a reading against target,
+     and a plate the rest of the Dashboard excludes for having no honest position against target must
+     not wear a red dot saying it has one. The third review finding, and the smallest. */
+  // eslint-disable-next-line no-new-func
+  const dig = new Function('MENU', 'SP', 'BYID', `"use strict";
+    var MENU=MENU, savedPlates=SP, byId=BYID, kById={}, DASH_ALL='all', cogsPct=30;
+    function dishOnMenu(){ return true; }
+    function foodTarget(){ return 0.30; }
+    function fmt2(n){ return Number(n).toFixed(2); }
+    function dashScopeLabel(){ return ''; }
+    function ingPriceBand(){ return null; }
+    ${extractVar(SRC, 'FOOD_COST_SANE_MAX')}
+    ${extractFn(SRC, 'plateIdOf')}
+    ${extractFn(SRC, 'plateForMenuItem')}
+    ${extractFn(SRC, 'cpbu')}
+    ${extractFn(SRC, 'lineCost')}
+    ${extractFn(SRC, 'lineProduct')}
+    ${extractFn(SRC, 'costDetail')}
+    ${extractFn(SRC, 'analyze')}
+    ${extractFn(SRC, 'digData')}
+    return digData;`)(
+    [{ id: 'D0', name: 'Fish', plateId: 'S0', price: 12 }, { id: 'D1', name: 'Fritter', plateId: 'S1', price: 0.01 }],
+    [{ id: 'S0', name: 'Fish', lines: [{ pid: 'P1', qty: 300 }] }, { id: 'S1', name: 'Fritter', lines: [{ pid: 'P1', qty: 900 }] }],
+    { P1: { id: 'P1', base_unit: 'g', cost_per_base_unit: 0.01 } },
+  );
+  const byCost = dig('plate', 'all').rows;
+  const fritter = byCost.find((r) => r.name === 'Fritter');
+  assert.ok(fritter, 'it is still ranked — $9.00 of food is $9.00 of food');
+  assert.equal(fritter.light, null, 'and it carries no verdict colour');
+  assert.equal(byCost.find((r) => r.name === 'Fish').light, 'green', 'a real plate still gets its light');
+  // and the % card excludes it outright, because there the number IS the ranking
+  assert.deepStrictEqual(dig('foodcost', 'all').rows.map((r) => r.name), ['Fish']);
+});
+
+/* The edges on the two functions the review added to the gate. Both were listed for the first time
+   this batch, so every one of these is a question nobody had asked either of them. */
+
+test('dishesOverTarget: a plate with no price, no cost, or a partial cost is not "over target"', () => {
+  assert.equal(overCounter([{ qty: 350, price: 0 }])(), 0, 'a zero price is not a price');
+  assert.equal(overCounter([{ qty: 0, price: 10 }])(), 0, 'a zero cost is not a cost');
+  assert.equal(overCounter([{ qty: 350, price: 10 }, { qty: 0, price: 10 }])(), 1,
+    'and neither drags the real one out of the count');
+});
+
+test('dishesOverTarget: a partially-costed plate is excluded, not counted as healthy', () => {
+  // A line pointing at a product that is not in byId: costDetail reports miss>0 and a cost of 0 for
+  // it, so the plate's total is understated — which reads HEALTHIER than the plate is, the direction
+  // that never prompts anyone to look.
+  const byId = { P1: { id: 'P1', base_unit: 'g', cost_per_base_unit: 0.01 } };
+  // eslint-disable-next-line no-new-func
+  const f = new Function('MENU', 'SP', 'BYID', `"use strict";
+    var MENU=MENU, savedPlates=SP, byId=BYID, kById={}, cogsPct=30;
+    function foodTarget(){ return 0.30; }
+    ${extractVar(SRC, 'FOOD_COST_SANE_MAX')}
+    ${['plateIdOf', 'plateForMenuItem', 'cpbu', 'lineCost', 'lineProduct', 'costDetail', 'analyze', 'dishesOverTarget']
+      .map((n) => extractFn(SRC, n)).join('\n')}
+    return dishesOverTarget;`)(
+    [{ id: 'D0', name: 'Partial', plateId: 'S0', price: 10 }],
+    [{ id: 'S0', lines: [{ pid: 'P1', qty: 350 }, { pid: 'P_GONE', qty: 100 }] }],
+    byId,
+  );
+  assert.equal(f(), 0, 'its total is missing an ingredient, so it has no honest verdict at all');
+});
+
+test('dishesOverTarget: exactly at the bound still counts, a hair over does not', () => {
+  assert.equal(overCounter([{ qty: 300, price: 1 }])(), 1, '300% is a catastrophic margin, and it is real');
+  assert.equal(overCounter([{ qty: 301, price: 1 }])(), 0, 'past the bound it is a typo, not a margin');
+});
+
+test('a sparkline needs two points to be a line', () => {
+  assert.equal(sparkOf([]), '');
+  assert.equal(sparkOf([25]), '', 'one reading is a dot, and a dot is not a trend');
+  assert.ok(sparkOf([25, 26]).length > 0);
+});
+
+test('the cap boundary in the sparkline is the same one everywhere else: 100 is ON the scale', () => {
+  /* The distinction that matters, and it is not visible from the top of the line: if 100 counted as
+     off-scale, the basis would be [20] alone, the flat-series branch would widen it to a 0.2 window,
+     and the 20 would draw in the MIDDLE of the box with the 100 clamped above it. With 100 on the
+     scale the 20 is the minimum and sits at the bottom. So the reading to assert is the LOW point. */
+  const ys = yOf(sparkOf([20, 100]));
+  assert.ok(ys[0] > 12, 'the 20 sits at the bottom of the 16px box — it is the domain minimum');
+  assert.equal(Math.min.apply(null, ys), ys[1], 'and the 100 is the top');
+  const clampedRun = yOf(sparkOf([20, 100, 101]));
+  assert.equal(clampedRun[1], clampedRun[2], '101 clamps onto exactly where 100 sits — the cap is the ceiling');
+});
+
+test('a flat series draws centred rather than glued to an edge', () => {
+  const ys = yOf(sparkOf([25, 25, 25]));
+  assert.ok(ys.every((y) => Math.abs(y - ys[0]) < 1e-9), 'flat is flat');
+  assert.ok(ys[0] > 2 && ys[0] < 14, 'and it sits in the middle of the 16px box, not on a border');
+  const nearlyFlat = yOf(sparkOf([25, 25.1]));
+  assert.ok(Math.abs(nearlyFlat[0] - nearlyFlat[1]) < 14, 'a 0.1pt wobble is not a cliff');
+});
+
+test('a value BELOW the domain clamps too, not just above', () => {
+  // Reachable when every reading is over the cap: the basis becomes [CAP] and mn===mx===100, so a
+  // genuine 20 in the same window would otherwise plot above the top of the box.
+  const ys = yOf(sparkOf([354, 400, 20]));
+  assert.ok(ys.every((y) => y >= 0 && y <= 16), 'every point stays inside the viewBox');
+});
+
+test('the sparkline colour is anchored to TARGET, and the bound did not disturb it', () => {
+  assert.match(sparkOf([40, 25]), /mcmp-spark good/, 'the LATEST reading at or under target is green, however it got there');
+  assert.match(sparkOf([25, 40]), /mcmp-spark bad/);
+  assert.match(sparkOf([25, 30]), /mcmp-spark good/, 'exactly at the 30% target is good, on the display epsilon');
+});

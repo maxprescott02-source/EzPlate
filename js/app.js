@@ -4230,7 +4230,18 @@ function costRangeForLines(lines){                                   // dish cos
 function dishesOverTarget(){                                         // dishes whose food cost sits above the target (margin under target)
   var over=0; MENU.forEach(function(m){ if(!(m.price>0)) return; var sp=plateForMenuItem(m); if(!sp) return;
     // a partially-costed plate is excluded, not counted as healthy — see avgFoodCostForScope
-    var d=costDetail(sp.lines); if(d.miss || !(d.cost>0)) return; var a=analyze(d.cost, m.price); if(a.state==='under') over++; });
+    var d=costDetail(sp.lines); if(d.miss || !(d.cost>0)) return;
+    /* 241 (item 18), added by the pre-push review: THE SAME BOUND, because this is the SECOND
+       over-target counter and it is the one an INVOICE IMPORT reads. `showImportSummary` toasts
+       "⚠ N plates now over your 30% target" straight after an import, which is precisely how a bad
+       cost arrives in this app — so of the two counters, the one the first cut bounded is the calm
+       one and the one it missed is the one standing where the danger comes from.
+       ⚠️ THE COMMENT AT kpiStripHtml SAYS THIS FUNCTION IS "left alone on purpose", AND THAT IS
+       STILL TRUE OF WHAT IT MEANT: the two differ on the display EPSILON, deliberately. It said
+       nothing about the bound, and a reader (this one) took "left alone" as covering both. An
+       exemption is scoped to the claim that justified it — CLAUDE.md's own rule, one guard over. */
+    if(d.cost/m.price*100 > FOOD_COST_SANE_MAX) return;
+    var a=analyze(d.cost, m.price); if(a.state==='under') over++; });
   return over;
 }
 function dbPushHistory(iso, v){ pushWrite(function(){ return SUPA.from('price_history').insert(pointToRow(iso, v, 'avg_food_cost_pct')); }, 'price history'); }
@@ -6331,7 +6342,14 @@ function digData(kind, scope){
       var d=costDetail(sp.lines); if(d.miss || !(d.cost>0)) return;   // 222: an understated plate cost is not a plate cost
       var c=d.cost;
       seen[sp.id]=1;
-      rows.push({name:sp.name||m.name||'Plate', val:c, disp:fmt2(c), light:(m.price>0?analyze(c, m.price).light:null)});
+      /* 241 (item 18), third finding of the pre-push review: the ROW stays — this card ranks by
+         absolute cost, and a mispriced plate's COST is real; it is the price that is wrong — but the
+         LIGHT goes. Colour in this app is a reading against target (CLAUDE.md Tier 1), and a plate
+         the rest of the Dashboard excludes for having no honest position against target must not
+         wear a red dot here saying it has one. `light:null` is the same value an unpriced plate
+         already gets on this card, so no renderer changes. */
+      var mp=(m.price>0 && c/m.price*100 > FOOD_COST_SANE_MAX);
+      rows.push({name:sp.name||m.name||'Plate', val:c, disp:fmt2(c), light:((m.price>0 && !mp)?analyze(c, m.price).light:null)});
     });
     rows.sort(function(a,b){ return b.val-a.val || String(a.name).localeCompare(String(b.name)); });
     return {title:'Highest cost per plate', sub:dashScopeLabel(isAll?DASH_ALL:scope), rows:rows};
@@ -7453,11 +7471,24 @@ function mcmpSparkSeries(h){
   h=h||[];
   if(h.length<2) return '';
   var pts=h.slice(-12), vs=pts.map(function(p){return p.v;});
-  var mn=Math.min.apply(null,vs), mx=Math.max.apply(null,vs);
+  /* 241 (item 18), added by the pre-push review: THE SAME SCALE RULE AS THE CHART ABOVE, and for the
+     same measured reason — one stored reading of 354.4 among readings of 20-35 flattens every other
+     point into a straight line at the bottom. These 54px glyphs sit in the By-menu rows reading the
+     same append-only series the chart does, so "the sparklines match the chart" (CLAUDE.md, on the
+     colour rule) has to be true of the SCALE as well or the two disagree about the same data.
+     ⚠️ NO CAPTION HERE, unlike the chart, and that is not an oversight: a sparkline carries shape and
+     nothing else — the row states the figure itself, right beside it, unclipped. What clamping buys
+     is that eleven good readings stay readable; what it costs is that one bad one draws at the top
+     rather than off the page, which is the more honest of the two pictures a 54px line can give. */
+  var SPARK_CAP=100;
+  var inr=vs.filter(function(v){ return v<=SPARK_CAP; });
+  var basis=inr.length?inr:[SPARK_CAP];
+  var mn=Math.min.apply(null,basis), mx=Math.max.apply(null,basis);
   if(mx-mn<0.2){ var mid=(mn+mx)/2; mn=mid-0.1; mx=mid+0.1; }        // a flat series draws centred, not glued to an edge
   var W=54,H=16,P=2;
   var xy=pts.map(function(p,i){
-    return (P+(W-2*P)*(i/(pts.length-1))).toFixed(1)+','+(P+(H-2*P)*(1-(p.v-mn)/(mx-mn))).toFixed(1);
+    var v=(p.v>mx?mx:(p.v<mn?mn:p.v));                              // clamped, exactly as the chart's y() is
+    return (P+(W-2*P)*(i/(pts.length-1))).toFixed(1)+','+(P+(H-2*P)*(1-(v-mn)/(mx-mn))).toFixed(1);
   }).join(' ');
   // v115: colour anchored to TARGET, matching the chart above (was direction: fell = good). A menu
   // whose latest average sits at or under target is green however it got there — otherwise the
