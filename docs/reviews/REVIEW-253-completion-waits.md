@@ -54,3 +54,37 @@ The verdict is bounded, and **`null` is that third value**: "no answer yet", ren
 ⚠️ **And a cost this batch measured on the way past: testing a timeout makes the mutation gate pay for it.** Every mutant of `importKeptCount` that breaks the race waits out the test's own timeout. At 5000ms the full gate went **240s → 588s**; at 400ms a broken-bound mutant costs **0.49s instead of 5.12s**. The bound under test is 20ms, so 400ms is twenty times the headroom it needs. **Bound the test as well as the code**, or a guard against hanging becomes a reason the guard against untested code hangs.
 
 **Verification after all three:** `npm test` 2073 pass · `npm run smoke` pass · full mutation gate 1281 mutants, 1233 killed, 48 survived all with written allowances. Each fix hand-mutated and confirmed red **by exit code, not by the tally** — a broken bound surfaces as a TIMEOUT, and `node --test` reports those as `fail 0`.
+
+---
+
+# Second review — the CI fix, commit `1cadd56`
+
+Reviewed-commit: 1cadd56
+
+**Agent:** `code-review`, run on Sonnet again. Given the commit and the workflow, and **not** the reason for it.
+
+**Why a second review at all:** the commit changes `.github/workflows/test.yml`, and `CLAUDE.md` makes the review mandatory whenever a diff changes **what runs** — CI workflows named explicitly. The precedent is a diff of nothing but YAML and Markdown whose review caught a job silently pointed at the live production database, which a code-versus-docs rule would have shipped.
+
+**No findings.** Recorded here in full, because a review that found nothing and a review that never ran are otherwise the same silence.
+
+> ## Verdict
+>
+> The change is correct and safe. What I checked:
+>
+> - **Mechanism claim verified against code, not just trusted**: `apt-get update` is genuinely embedded in playwright-core's bundled dependency-installer (`node_modules/playwright-core/lib/coreBundle.js` contains the literal string), so the claim that `install --with-deps` and `install-deps` both shell out to `apt-get update` is true, not asserted on faith.
+> - **Placement is correct**: the new step runs after `npm ci` (which does not touch apt — no postinstall scripts in `package.json`, and `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` blocks Playwright's own postinstall pull) and before both of the only two steps in the job that invoke `apt-get update` (`Install Chromium + system deps` on cache-miss, `Install system deps only (cache hit)` on cache-hit). Since it's unconditional, it correctly precedes whichever of those two mutually-exclusive branches actually runs.
+> - **Idempotence/absence handling**: `rm -f` is genuinely a no-op if the path is missing, so a future runner-image change that drops the Google Chrome apt source doesn't break the job — matches what the comment claims.
+> - **Scope check — other jobs/files**: `unit` and `smoke` (jsdom) do no apt work at all, and grepping the whole repo (excluding `node_modules`) finds `.github/workflows/test.yml` is the only file that touches apt in any form. There is no second workflow file and no parallel exposure this change should have addressed but didn't.
+> - **`tests/ci-workflow.test.js`**: every assertion in it locates steps by name-regex or tests specific `if:`/`needs:` wiring; nothing asserts a step count, order-by-position, or anything else this addition could perturb. Correctly, nothing needed updating there.
+> - **YAML validity**: parses cleanly (`yaml.safe_load`), indentation matches sibling steps exactly (6-space `- name:`, 8-space `run:`).
+> - **Required-checks claim** ("Playwright is NOT a required check here") matches `CLAUDE.md`'s own record of branch-protection state (`unit tests` and `smoke (jsdom)` required; Playwright not).
+>
+> Nothing found wrong. Minor, non-blocking observation: the step is unconditional (runs even on a cache-hit branch that will run either way), costing a trivial few seconds every run rather than being gated — but that's exactly what makes its correctness independent of the cache-hit branch, so it's a reasonable trade, not a defect.
+>
+> File reviewed: `.github/workflows/test.yml` (lines 259–343, the `playwright` job), cross-checked against `tests/ci-workflow.test.js` and `package.json`.
+
+## What was done about it
+
+**Nothing to fix.** The unconditional-step observation is accepted with its own reasoning, which is the reviewer's: gating it on the cache-hit branch would couple the fix to the thing it is protecting, and the whole point is that both branches run `apt-get update`.
+
+**One thing it did that I had not:** it confirmed the mechanism by finding `apt-get update` inside playwright-core's bundle rather than accepting my comment's account of it, and it swept the repo for other apt exposure and found none. I had reasoned the first from the failure log and had not checked the second at all — **the comment I wrote stated a mechanism I had inferred, and a reviewer verified it; those are not the same act**, which is this repo's own recorded rule about citations arriving in a workflow file.
