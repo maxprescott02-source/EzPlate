@@ -307,14 +307,27 @@ Consolidated item 22 asked for the invoice writers to be added to `tests/mutatio
 **What it needs is the `pending` mechanism this file already documents**: measure the survivor count first, write it into `pending` with the batch that measured it, promote when the coverage lands. `applyInvoice` is very large, so expect a lot; that is the reason to measure before listing, not a reason to skip it.
 ⚠️ **Do it with item 90's invoice work, not before.** 90 changes what that function does at the end (a completion message gated on a saved manifest), so measuring survivors now would measure a function about to move.
 
-### 249 left six products in the catalogue that no ingredient and no plate line uses
-(Routed here 10 Sep 2026 by AUDIT-v207 §5, which found it in a handover Probe and nowhere else.)
+### Six products no INGREDIENT uses, and thirteen plate lines that still cost off them
+(Routed here 10 Sep 2026 by AUDIT-v207 §5, which found it in a handover Probe and nowhere else. **Rewritten the same day after the pre-push review caught the first version stating the opposite of the truth** — see the warning below, which is the more useful half of this entry.)
 
-Batch 249's picker linked the thirteen stranded plate lines onto ingredients. **The six products those lines used to point at are still in the catalogue, and now genuinely nothing references them** — no ingredient, and after 249 no plate line either. `HANDOVER-249` says *"whether they should be deleted is Max's and is not this item's"*, and then routed it nowhere: not to `docs/QUEUE.md`, not to the backlog, not here.
+**Measured on production 10 Sep 2026:** all six products are in the catalogue, **no kitchen ingredient points at any of them**, and **thirteen plate lines across nine real plates still cost off them directly**:
 
-They are: **Bacon Middle Rindless Gas Flushed (Qld)** (`P0004`), **Eggs - Ctn 600g** (`CXmr8nx4z80`), **Maple Syrup Flavoured** (`P0214`), **Cheese Fetta Danish** (`P0073`), **Ham Leg Sliced** (`P0181`), **Hash Browns Triangles Chunky** (`P0184`).
+| product | live bare-pid lines | plates |
+|---|---|---|
+| `P0004` Bacon Middle Rindless Gas Flushed (Qld) | 3 | 3 |
+| `CXmr8nx4z80` Eggs - Ctn 600g | 3 | 3 |
+| `P0214` Maple Syrup Flavoured | 3 | 3 |
+| `P0073` Cheese Fetta Danish | 2 | 2 |
+| `P0181` Ham Leg Sliced | 1 | 1 |
+| `P0184` Hash Browns Triangles Chunky | 1 | 1 |
 
-**It is C and it may simply be the answer.** A product nothing uses is not wrong — it is a catalogue entry for something the café buys and does not currently cost with, which is a normal state, and `productRefs` already refuses to delete one that is referenced. **Do not bulk-delete them**; if it is ever worth doing, it is one question to Max with the six named, and the app already has the guard that makes it safe.
+**Batch 249 shipped the picker that ASKS which ingredient each was meant to be — it does not apply anything on its own**, and the choice is Max's, one per product, in Settings → "Link older plate lines". Until he makes it, these are exactly the thirteen lines item 88 measured, unchanged.
+
+⚠️ **DO NOT DELETE THESE PRODUCTS.** Nine real plates — Bacon Bene, Ham Bene, Scoopy's Breakfast, Bacon & Egg Roll, three Pancakes variants, the Staff Meal and Feta Spinach & Mushroom Bene — would each silently lose a costed line. `productRefs` refuses such a delete from the APP, and it is client-side: it says nothing about a SQL statement.
+**Whether they should go at all is a question for AFTER the picker has been used**, not before, and it is Max's either way.
+
+⚠️ **THE FIRST VERSION OF THIS ENTRY SAID THE OPPOSITE, AND HOW IT GOT THERE IS WORTH MORE THAN THE ENTRY.** It stated that "after 249 no plate line" references them — sourced from `HANDOVER-249`'s Probe line, *"the six products themselves are still in the catalogue with nothing using them"*, which meant **no INGREDIENT uses them** and was true. Carried forward one step, "nothing uses them" became "nothing references them", and a true sentence about ingredients turned into a false one about plate lines that would have justified deleting six products nine plates depend on.
+**That is a measurement quoted one step too far — the same shape this batch corrected in the ZZ-AUDIT bullet, committed in the same diff, by the same author, in the batch whose entire subject was re-measuring stale claims.** Caught by the pre-push review, which queried production rather than reading the handover. **The rule it argues for is not new and is why this entry now leads with a table: if you are writing a fact about production into a file, measure it — especially when you are copying it from somewhere that measured something adjacent.**
 
 ### A refused optimistic edit is left in memory, so the next successful edit's history point includes it
 (Raised 9 Sep 2026 by batch 247's pre-push review, which stated it at medium confidence and was right to.)

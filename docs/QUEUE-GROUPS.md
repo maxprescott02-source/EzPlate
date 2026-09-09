@@ -88,7 +88,7 @@ Each names the context a batch loads once. Items are referenced by their consoli
 
 **Context:** `avgFoodCostForScope`, `logHistory`, `logAllMenuPrices`, `costDetail`, `costFromLines`, `lineProduct`, `setMiscCost`, `saveCurrentPlate`, `setProducts`, `recentChangeRows`, `setCogs`, `trendChart`; the five deliberately-separate history series and the target-anchored colour rule.
 
-**Items:** ~~16~~ (239) · ~~18~~ (241) · ~~19~~ (245) · ~~20~~ (246) · ~~21~~ (247, SPLIT → **90**) · ~~22~~ (248) · ~~23~~ (241) · ~~55~~ (251) · ~~88~~ (249) · ~~rider 25~~ (248) · **90** (open) · riders 69, 76, 77, 81 (open)
+**Items:** ~~16~~ (239) · ~~18~~ (241, SPLIT → **89**) · ~~19~~ (245) · ~~20~~ (246) · ~~21~~ (247, SPLIT → **90**) · ~~22~~ (248) · ~~23~~ (241) · ~~55~~ (251) · ~~88~~ (249) · ~~rider 25~~ (248) · **89** (open, server half shipped 250) · **90** (open) · riders 69, 76, 77, 81 (open)
 
 ⚠️ **G1 IS ALL BUT FINISHED, AND THIS LINE READ AS EIGHT OPEN ITEMS UNTIL 10 SEP 2026** (AUDIT-v207 §2a.4). Every one of the eight shipped across batches 241-251 and none of them came back here to say so — **including 247, which SPLIT item 21 and raised item 90, and routed it in neither this file nor `docs/QUEUE.md`'s group list.**
 **That is the rule three lines below being broken by the very next batch that raised an item.** The rule is right; what it lacks is anything that enforces it, and the refill rule reads this file to decide which group is current — so an under-counting group is the one failure that actually costs something.
@@ -125,8 +125,13 @@ Each names the context a batch loads once. Items are referenced by their consoli
 **Context:** the bootstrap fatal-read list, the three-valued-guard family, RLS and `as restrictive`, `create or replace` ancestry, PostgREST-as-the-client verification.
 *(This named `ensureDefaultMenu` and its call-site gate until 10 Sep 2026. Batch 246 DELETED both — the `menus` read is fatal now, so there is no branch left to gate. AUDIT-v207 §2a.6.)*
 
-**Items:** 38, 39, 40, 41, 42, 73 · `docs/QUEUE.md`'s 13, 14, 15 by reference
+**Items:** 38, 39, ~~40~~ (243), 41, 42, 73, **91** · `docs/QUEUE.md`'s ~~13~~ (242), ~~14~~ (243), ~~15~~ (244) by reference
 *(20 was here until 9 Sep 2026 and moved to G1; the reason is at G1.)*
+
+⚠️ **91 WAS ADDED HERE ON 10 SEP 2026 BY THE PRE-PUSH REVIEW OF THE BATCH THAT RAISED IT — which had just spent a paragraph fixing G1 for the identical omission on item 90, in the same commit.** Batch 252 wrote *"a batch that raises an item routes it in BOTH files, or the group it belongs to silently under-counts"*, added 91 to `docs/QUEUE.md` and the consolidated file, and did not add it here.
+**FOUR instances — 88 (AUDIT-v197), 89 (241), 90 (247), 91 (252)** — and the last was committed by the batch diagnosing the third. **89 was found by the check rather than by a reader**: it was split out of 18 by batch 241 and had been unrouted for eleven days, through two audits, while its group read as finished.
+**The rule is right, restating it did not work, and it is mechanised now.** `tests/queue-routing.test.js` asserts every `docs/QUEUE.md` item numbered 16 or above appears in an `**Items:**` line here. It failed on the first clean run, which is how 89 surfaced.
+It belongs in G3 on context: it is `as restrictive for delete`, one migration, mirrored and pinned exactly as 250's was.
 
 **Ordering:** 40 and 42 ride 14's migration; 73 can ride the same one if the column route is chosen; 25 rides 15 but belongs to G1's context. 38 and 41 must both land before 2b.
 
