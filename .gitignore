@@ -7,3 +7,12 @@ tests/visual/__shots__/
 .agents/
 .claude/skills/
 skills-lock.json
+
+# 240 (AUDIT-v197). THE REPOSITORY IS PUBLIC and a leaked key cannot be un-leaked - scanning bots
+# archive public repos within minutes and a fork survives the repo going private again. Checked
+# before adding this rather than after: `git log --all --diff-filter=A -- .env` is EMPTY, so nothing
+# is being hidden retroactively and no history rewrite is owed. API keys live in Vercel env vars and
+# this line exists so the one careless `.env` never gets the chance.
+.env
+.env.*
+!.env.example

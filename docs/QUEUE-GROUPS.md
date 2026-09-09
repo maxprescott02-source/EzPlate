@@ -30,7 +30,7 @@
 
 **How the 20-item cap is satisfied: `docs/QUEUE.md` holds the CURRENT GROUP's items, not the backlog.**
 
-- the consolidated file is the backlog — all 72, permanently;
+- the consolidated file is the backlog — permanently, and **what is OPEN is the unstruck items, which is a grep and never a count written here** (it was 72 on 8 Sep, 73 by 9 Sep, and the number is not this file's to maintain);
 - this file is the promotion order;
 - `docs/QUEUE.md` is the working set, refilled from the next group when it drains.
 
@@ -88,7 +88,9 @@ Each names the context a batch loads once. Items are referenced by their consoli
 
 **Context:** `avgFoodCostForScope`, `logHistory`, `logAllMenuPrices`, `costDetail`, `costFromLines`, `lineProduct`, `setMiscCost`, `saveCurrentPlate`, `setProducts`, `recentChangeRows`, `setCogs`, `trendChart`; the five deliberately-separate history series and the target-anchored colour rule.
 
-**Items:** 16, 18, **20**, 21, 22, 23, 19, 55 · rider 25 (rides 15) · riders 69, 76, 77, 81
+**Items:** ~~16~~ (shipped, 239), 18, **20**, 21, 22, 23, 19, 55, **88** · rider 25 (rides 15) · riders 69, 76, 77, 81
+
+⚠️ **88 was added here on 9 Sep 2026 by AUDIT-v197's finding C4, which is this file's own failure mode arriving quickly.** Batch 239 raised it, put it in the consolidated file and promoted it into the working set — and never told the routing file, whose whole job is *which items load the same context*. It belongs in G1: it is the thirteen bare-pid lines 16's heal refused, so it reads `lineProduct`, `barePidPlan` and the builder's line shapes, which is this group's context exactly. **The general rule, since nothing enforces it: a batch that raises an item routes it in BOTH files, or the group it belongs to silently under-counts.**
 
 ⚠️ **20 MOVED HERE FROM G3 ON 9 Sep 2026, at promotion, against its own context.** Its natural home is the boot group. But **21 is `Do after: 20`** — 20's fictional menu is the deterministic repro trigger for 21's dish path — so with 20 left in G3, **21 would sit in the queue unworkable for several groups**, and the refill rule would keep reading G1 as the current group because 21 was unstruck. **One small item crossing a context boundary is cheaper than a stranded item and a muddied group.** This is the file's own instruction being followed rather than overridden: *if an item loads different context than this file says, move it and say so.*
 
@@ -96,7 +98,9 @@ Each names the context a batch loads once. Items are referenced by their consoli
 
 **Internal order (from the items' own `Do after:` lines):** 16 → 22 · 18 → 23 · 20 → 21. **Promoted to `docs/QUEUE.md` on 9 Sep 2026 in that order**, interleaved with 13, 14 and 15, which keep their existing positions.
 
-**Stops for Max:** 16's heal rewrites production `plates` rows. Rehearse on staging; his go on the day.
+~~**Stops for Max:** 16's heal rewrites production `plates` rows. Rehearse on staging; his go on the day.~~
+✅ **16 SHIPPED in batch 239 / `ezplate-v197`, and it was deliberately NOT rehearsed on staging** — which is the correction rather than a deviation. The heal is a client-side bulk rewrite, so none of `docs/STAGING.md`'s seven steps reaches it, and staging's invented data cannot answer the question that matters (*does this change a number on Scoopy's real plates?*). It was rehearsed by pulling the real rows READ-ONLY through the MCP and running the real extracted functions over them in Node: 103 plates, 31 lines rewritten, **zero costs moved**. **`CLAUDE.md`'s Migrations section now carries that as the rule**, and it is the stronger of the two — so this line is struck rather than re-pointed. **The half that still stands:** running the heal on production is Max pressing the button, and the app asks him first.
+**Stops for Max, live:** 18's Tranche 0 half (deleting the bad history point) and 88's answer to *which ingredient did this line mean*.
 
 ### G2 · The invoice parser — `js/app.js` INV region, `tests/`, `spike/`
 
@@ -108,7 +112,8 @@ Each names the context a batch loads once. Items are referenced by their consoli
 
 **Why its own batch:** 17 is fourteen sub-defects with a patch, a corpus test and eight new mutation targets. It is a batch, not an item. 26 and 37 are its immediate neighbours and should be decided in the same frame.
 
-**Also in this batch:** add `spike/` to `.vercelignore`. It is untracked today, and the moment it is committed it is served from the production origin.
+~~**Also in this batch:** add `spike/` to `.vercelignore`. It is untracked today, and the moment it is committed it is served from the production origin.~~
+✅ **BOTH HALVES WERE FALSE when AUDIT-v197 checked them, 9 Sep 2026.** `spike/` is TRACKED and `.vercelignore:33` already lists it, with a comment dated the commit that first tracked it. **The wasted work is not the cost worth naming — the wrong conclusion is.** A batch reading this would believe the production origin is currently serving the spike directory and go hunting a leak that does not exist.
 
 ### G3 · Boot, tenancy, grants — `bootstrapSync`, `supabase/migrations/`, `api/`
 

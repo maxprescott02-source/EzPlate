@@ -12,8 +12,8 @@ Worked top to bottom by `/batch`. Position is priority. Max adds problems, not b
 *(The one exception this file has ever carried — the mutation-testing gate, which Max put here himself on 13 Aug 2026 over that rule — shipped in batch 180 and its item is deleted. It was never precedent: only he can override this line, and he did it once, in writing, with the count that justified it.)*
 
 ⚠️ **THIS FILE IS NOT THE WHOLE BACKLOG AS OF 8 SEP 2026, AND `/batch` READING ONLY THIS FILE WILL MISS MOST OF THE OPEN WORK.**
-`docs/QUEUE-2026-09-08-CONSOLIDATED.md` holds **72 further items** consolidated from every audit, `docs/MAINTENANCE.md` and the margin-monitor spec, numbered from 16 so they continue this file. `docs/QUEUE-GROUPS.md` groups them by the context a batch must load and states the order.
-**They are NOT all in this file because 72 items cannot be, and the cap does not need raising:** this file is the **WORKING SET**, refilled one group at a time from the backlog, and `skills/batch` does the refill when nothing unblocked is left. **G1 was promoted on 9 Sep 2026.** So what `/batch` works is whatever stands here now — read it, do not count it from this sentence.
+`docs/QUEUE-2026-09-08-CONSOLIDATED.md` holds **the rest of the backlog** consolidated from every audit, `docs/MAINTENANCE.md` and the margin-monitor spec, numbered from 16 so they continue this file. **How many are OPEN is a grep for unstruck items and is deliberately not written down anywhere** — it was 72 on 8 Sep, 73 by 9 Sep, and a number in prose is the one thing in this system nothing can keep true. `docs/QUEUE-GROUPS.md` groups them by the context a batch must load and states the order.
+**They are NOT all in this file because the backlog cannot be, and the cap does not need raising:** this file is the **WORKING SET**, refilled one group at a time from the backlog, and `skills/batch` does the refill when nothing unblocked is left. **G1 was promoted on 9 Sep 2026.** So what `/batch` works is whatever stands here now — read it, do not count it from this sentence.
 A promoted item is **referenced, not copied**: read the full item in the consolidated file under the number it names.
 
 ---
@@ -55,11 +55,18 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
-## next  project-audit — the counter fired at a gap of 11  **[above every unblocked item, per `skills/batch` step 10]**
+## blocked  17 · The invoice parser prices by repetition and position, and is wrong on every Supplier B line  **[A, 36 of 41 real lines silently wrong, measured 8 Sep against six real invoices]**
 
-The newest report is `docs/audits/AUDIT-v186.md`; batch 239 shipped `ezplate-v197`. The rule is a gap of 10 or more, and nothing about it is a judgement call.
-**Run the `project-audit` agent, then FILE its report yourself** to `docs/audits/AUDIT-v197.md` — it is read-only and hands the report back, so an unfiled report leaves the counter unmoved and the next audit never gets queued.
-Its findings do NOT become queue items by default: each one takes the tier test in this file's header, and the default is `docs/MAINTENANCE.md`.
+**Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 17. **Promoted here on 9 Sep 2026 by batch 240 ALREADY BLOCKED, which is the point of promoting it** — it is the largest open defect in the backlog and it was invisible to `/batch` while sitting in a group nobody had reached.
+
+**Blocked on: MAX, ONE SENTENCE — does the parser-region protection stand or is it lifted?**
+
+`CLAUDE.md` Tier 1 says *"never edit anything inside it"* and names four never-touch functions. `docs/QUEUE-2026-09-08-CONSOLIDATED.md`'s owner-override block says the protection **is lifted** and attributes that to him on 8 Sep. That file's own Tranche 0 lists *getting the reversal in writing* as still outstanding. `docs/QUEUE-GROUPS.md` blocks the whole G2 group on it. **Four documents, three positions, and no decision file.**
+
+⚠️ **AND THE REGION HAS ALREADY BEEN EDITED ONCE, in batch 197** — `docs/MAINTENANCE.md` has been asking whether that edit is ratified since 28 Aug 2026, through two audits. **His sentence ratifies it or it does not, in the same breath.**
+
+**Why this could not be taken under standing authority:** reversing a decision he made himself is his alone, and the only evidence of the reversal is a batch's summary of a chat — *chat cannot see this repo* is this project's oldest rule about exactly that class of claim.
+**If the answer is YES**, `CLAUDE.md` Tier 1 and this file's standing-rules line get edited under standing authority, batch 197 is ratified, and G2 can be promoted. **If NO**, this stays blocked and the parser fix needs a design that works from outside the region — which is a different item, not this one.
 
 ---
 
