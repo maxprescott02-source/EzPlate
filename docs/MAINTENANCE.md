@@ -978,7 +978,16 @@ Max chose option A of `docs/decisions/2026-08-28.html` — change one title, wri
 
 **It is copy, so it needs Max**, and it is a one-line change plus the CTA already reading as a verb. The rule's own comment says at its site not to read this title as evidence against the rule.
 
-### `claim_business_invite()` and `business_team()` are callable by `anon`, and both files say otherwise
+### ~~`claim_business_invite()` and `business_team()` are callable by `anon`, and both files say otherwise~~ — **DONE, batch 243 (`ezplate-v200`), applied to STAGING **and PRODUCTION**, 9 Sep 2026**
+
+✅ **Closed by `supabase/migrations/20260909_invite_choice.sql`**, which was already replacing `claim_business_invite` for QUEUE item 14 — exactly the "genuinely cheap for whichever batch next writes a migration" case this entry predicted, taken the way it asked.
+**Measured, not read.** `pg_proc.proacl` on staging before: both carried `anon=X`. After: neither does, and all three RPCs answer **HTTP 401** to an anon caller over PostgREST — the GRANT refusing, where the entry's own point was that the BODY had been doing the refusing all along.
+⚠️ **`my_pending_invites()` was born into the same trap and closed in the same file** — a new function in `public` gets `anon=X` from the default privilege before any grant in your file runs, so it needed the same explicit revoke rather than merely being left out of the grant.
+⚠️ **`invite_pending(text)` keeps its anon grant**, as this entry insisted, and `tests/invites.test.js` now asserts that it is NOT revoked so a later tidy cannot sweep it up.
+⚠️ **The test that pins this is an ORDERING, not a presence check**, because "newest definer" is the wrong resolver for a grant: `business_team` is defined by `20260814_invitations.sql` and revoked by `20260909`, so the two facts live in different files. The assertion is that the newest revoke is **not older than** the newest definition — because `create or replace` re-runs the default privilege and hands `anon` EXECUTE straight back.
+
+**The original entry is kept below, unstruck in its body, because its reasoning is what a future reader needs** — the mechanism, the six the linter names, and which four must never be swept up with these two.
+
 
 Found by batch 218 while rehearsing `create_business` on staging, then confirmed on production out of `pg_proc.proacl`. **Neither is a hole and neither is urgent** — both refuse the caller they should, `claim_business_invite()` returning `null` and `business_team()` returning `[]` for a tenant that resolves to nothing since 186. What is wrong is the *stated* mechanism.
 

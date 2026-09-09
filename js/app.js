@@ -706,6 +706,7 @@ function bootGate(state, msg){
   var su=document.getElementById('bgSignUpForm'), dn=document.getElementById('bgDone');
   var ai=document.getElementById('bgAltIn'), au=document.getElementById('bgAltUp');
   var cf=document.getElementById('bgCafeForm'), cn=document.getElementById('bgCafeNote');
+  var iv=document.getElementById('bgInvites');             // 243: the invitation chooser
   /* ⚠️ 209 — READ HERE, BEFORE `hideForms` CAN RUN, AND THE FIRST CUT DID NOT. It asked
      `if(cf && cf.hidden)` inside the 'nomember' branch, five lines BELOW that branch's own
      `hideForms()` call — which had already set `cf.hidden=true`. The guard was therefore true on
@@ -723,6 +724,10 @@ function bootGate(state, msg){
     if(f) f.hidden=true; if(su) su.hidden=true;
     if(ai) ai.hidden=true; if(au) au.hidden=true;
     if(cf) cf.hidden=true; if(cn) cn.hidden=true;
+    /* 243 — and the fourth one. The 209 note above says adding the café form meant adding two lines
+       here and nothing else; this is that mechanism collecting its second payment. A state that
+       forgets to hide one of these leaves a stale offer sitting over an error screen. */
+    if(iv) iv.hidden=true;
     if(dn){ dn.hidden=true; dn.textContent=''; }
   };
   if(state==='loading'){
@@ -776,6 +781,18 @@ function bootGate(state, msg){
     g.hidden=false; g.classList.remove('is-error'); g.classList.remove('is-nomember'); g.classList.add('is-signin');
     _bootRetrying=false; _bootNoMember=true;
     if(r) r.hidden=true; if(o) o.hidden=true; if(bd) bd.hidden=false;
+    /* ⚠️ 243 — THE NON-MEMBER SCREEN'S OWN BLOCKS, TAKEN DOWN HERE, AND IT IS NOT `hideForms()`.
+       nomember -> signin is reachable: a session that expires or a `getSession` that fails while
+       that screen is up flips `sessionUser` to null and this branch paints instead. Until this
+       batch the café form and its warning stayed VISIBLE above the sign-in form — a "Create my
+       café" button offered to somebody being asked who they are, which the server would refuse for
+       having no session. Pre-existing since 209; this batch would have made it a third stale block.
+       ⚠️ AND `hideForms()` IS THE WRONG TOOL, which is why this is three lines and not one: it also
+       hides `bgSignUpForm` and `bgDone`, and the guard four lines below exists precisely to protect
+       a half-typed sign-up and the "check your email" line from being torn down by a re-sync. Using
+       it here would fix a stale offer by reintroducing the defect 192 wrote that guard for. Only
+       the blocks that belong to the OTHER screen come down. */
+    if(cf) cf.hidden=true; if(cn) cn.hidden=true; if(iv) iv.hidden=true;
     /* ⚠️ 192 — THE SIGN-UP SIDE OF THIS SCREEN IS NOT REPAINTED, and it is the same rule as the one
        below rather than a new one. `bootReady('signin')` runs again on every re-sync that gets this
        far — an `online` blip, a pull-to-refresh — and the sign-up form and its "check your email"
@@ -820,6 +837,14 @@ function bootGate(state, msg){
        The form itself is UNHIDDEN unconditionally — `hideForms()` just hid it — and only the two
        things that disturb a person mid-sentence are conditional. `cfWasUp` is read at the top of
        this function rather than here; see the note there for what that cost the first time. */
+    /* 243 — THE INVITATIONS, ABOVE THE CREATE FORM, and only when there are any. `_pendingInvites`
+       is [] on every path that has not asked, including an unreadable answer, so this renders
+       nothing and the screen is byte-for-byte 209's. That is the fail-safe: the fallback for "we
+       could not tell" is the behaviour that shipped before this batch.
+       Repainted on every entry rather than once, unlike the café field two lines below — there is
+       nothing here a person can be halfway through typing, and an invitation cancelled between two
+       re-syncs must stop being offered. */
+    renderInviteChoices();
     if(cf) cf.hidden=false;
     if(cn) cn.hidden=false;
     if(!cfWasUp){
@@ -854,6 +879,82 @@ function bootGate(state, msg){
     if(_bootRetrying) return;                               // a second tap must not race a second boot
     _bootRetrying=true; bootGate('loading','Trying again…'); bootstrapSync();
   }; }
+}
+/* ---- 243: the invitation chooser's paint and its one action ---------------------------------
+   Split out of `bootGate`'s 'nomember' branch rather than inlined, because that branch is already
+   the longest in the function and this is the only part of it with a loop and a network call.
+
+   ⚠️ EVERY FIELD HERE CAME OFF THE WIRE, so it is escaped. The café name is typed by whoever owns
+   the café that sent the invitation — a different person from the one reading this screen — which
+   makes it the one string in this app supplied by one user and rendered to another. `esc` is the
+   app's own, per the v113/141 roster entries about hand-rolled copies. */
+function renderInviteChoices(){
+  var box=document.getElementById('bgInvites');
+  var note=document.getElementById('bgInvitesNote');
+  var list=document.getElementById('bgInviteList');
+  if(!box || !list) return;
+  var inv=_pendingInvites||[];
+  if(!inv.length){ box.hidden=true; list.innerHTML=''; return; }
+  /* The copy names the SITUATION rather than the count, except where the count is the situation.
+     One invitation reaching this screen means the claim did not settle — an unreadable answer — and
+     "join it" is still the right offer. Two or more is the defect this batch exists for, and the
+     sentence has to say why nothing happened automatically, or the screen looks broken. */
+  if(note) note.textContent = inv.length>1
+    ? 'More than one café has invited this address. Choose which one to join — you can only join one.'
+    : 'A café has invited this address.';
+  list.innerHTML = inv.map(function(v){
+    return '<button type="button" class="btn primary" data-invite="'+esc(v.id)+'">'
+         + esc(v.name)
+         + (v.role ? '<span class="bg-invite-role">Join as '+esc(v.role)+'</span>' : '')
+         + '</button>';
+  }).join('');
+  Array.prototype.forEach.call(list.querySelectorAll('[data-invite]'), function(b){
+    b.onclick=function(){ joinInvite(b.getAttribute('data-invite'), b); };
+  });
+  box.hidden=false;
+}
+/* The one action. Named, so the server claims THAT invitation rather than guessing — which is the
+   whole point of the migration this pairs with.
+   ⚠️ A REFUSAL IS SILENT UNLESS IT IS SAID. The server returns null for every refusal it makes
+   (the invitation was cancelled, already accepted, or belongs to another address), and null is what
+   an unreadable answer looks like too. Both leave the person on this screen with a button they just
+   pressed and nothing changed — the exact shape 185 exists to end — so the error line says so and
+   the list is re-fetched, because "cancelled while you were looking at it" is the likeliest cause
+   and the offer must stop being made. */
+async function joinInvite(id, btn){
+  if(!id || !SUPA) return;
+  if(_joining) return;                                     // a second tap must not race the first
+  /* ⚠️ EVERY ROW, NOT JUST THE ONE TAPPED. Disabling only `btn` leaves the OTHER cafés pressable
+     while the first claim is in flight, and two concurrent claims from one account are refused by
+     187's one-membership-per-user constraint — as a raw Postgres error, through `errText`, on the
+     screen whose whole job is to be legible. Nothing is corrupted either way; what is at stake is
+     whether the loser gets a sentence or a constraint name. */
+  var lock=inviteButtons();
+  _joining=true;
+  lock.forEach(function(b){ b.disabled=true; });
+  gateErr('');
+  var res=await Promise.resolve(SUPA.rpc('claim_business_invite', {p_invite:id}))
+    .then(function(r){ return r; }, function(e){ return {error:e}; });
+  _joining=false;
+  lock.forEach(function(b){ b.disabled=false; });
+  void btn;
+  if(claimState(res)==='joined'){
+    /* Same reasoning as the boot claim: re-run the whole sync rather than patch the tenant in
+       place, because every read this app holds was fetched as a member of nothing. */
+    _pendingInvites=[];
+    bootGate('loading','Joining…');
+    bootstrapSync();
+    return;
+  }
+  gateErr(res && res.error
+    ? 'Could not join: '+errText(res.error)
+    : 'That invitation is no longer available. It may have been cancelled or already used.');
+  /* Only a DEFINITE answer may replace what is on screen. If this recheck is unreadable too — the
+     likeliest case, since the same connection just failed the join — the offer stays exactly as it
+     was and the error line above is the whole of what changed. */
+  applyPendingInvites(await Promise.resolve(SUPA.rpc('my_pending_invites'))
+    .then(function(r){ return r; }, function(e){ return {error:e}; }));
+  renderInviteChoices();
 }
 function bootReady(state, msg){ window.__ezReady=true; bootGate(state, msg); }
 
@@ -1047,6 +1148,64 @@ function claimState(res){
      any truthy non-string would have triggered the re-sync. Same shape as `tenantGateState`, where
      undefined is deliberately not null. Caught by its own test, not by reading. */
   return (typeof res.data==='string' && res.data) ? 'joined' : 'unknown';
+}
+
+/* ---- 243: WHO HAS INVITED ME, and why the claim can no longer answer on its own ---------------
+   `claim_business_invite` used to take `limit 1` over `order by created_at` when an address held
+   more than one pending invitation. That is a guess, it is silent, and it decides the person's ROLE
+   as well as their café — measured on staging: the older invitation carried `owner`, so the old
+   function made a staff invitee an OWNER of a café that had not asked for them.
+   It now refuses instead, which turns "joined the wrong café" into "joined nothing" unless somebody
+   asks the only person who knows. `my_pending_invites()` is that question's data.
+
+   ⚠️ THREE ANSWERS, AND A FIRST CUT OF THIS FUNCTION HAD TWO — caught by the pre-push review, and
+   it was this project's worst recorded defect reappearing in a new variable.
+   The first version returned `[]` for BOTH "the server says you have no invitations" and "I could
+   not tell", with a comment arguing that was fail-safe because [] paints 209's screen. That is true
+   the FIRST time it runs and false on a RECHECK, which is exactly what `_bootNoMember` already
+   records: `joinInvite` re-fetches after a refused join, and `bootstrapSync` re-fetches on every
+   `online` blip — so one flaky request while somebody is reading two café names would have emptied
+   the chooser and left them facing "Create my café" alone.
+   ⚠️ AND THAT IS NOT A COSMETIC LOSS. 187 makes membership one café per person and there is no way
+   to leave, so somebody who concludes the invitation never arrived and creates their own café has
+   done something IRREVERSIBLE. The stakes are what make the third value mandatory rather than
+   tidy: "could not tell" must leave the standing offer exactly as it is.
+
+   So: `null` means could-not-tell and changes nothing; an ARRAY is a definite answer, including a
+   definite empty one, which does clear the offer. `applyPendingInvites` is the only writer.
+
+   Rows are the server's, so every field is treated as untrusted text: the renderer escapes, and a
+   row without an id is dropped rather than drawn as a button that cannot work. */
+function invitesOf(res){
+  if(!res || res.error || !Array.isArray(res.data)) return null;   // an error is not an answer
+  return res.data.filter(function(r){ return r && typeof r.invite_id==='string' && r.invite_id; })
+    .map(function(r){
+      return { id:r.invite_id,
+               name:(typeof r.business_name==='string' && r.business_name) ? r.business_name : 'A café',
+               role:(r.role==='owner'||r.role==='staff') ? r.role : '' };
+    });
+}
+/* The list the gate is currently offering. Module state rather than an argument because `bootGate`
+   is re-entered on every re-sync that reaches the non-member screen, and it must repaint the same
+   offer rather than an empty one — the same reason the café form is "shown, never reset". */
+var _pendingInvites=[];
+/* In-flight latch for the join, so a second tap cannot start a second claim. Same shape as the
+   Try again button's `_bootRetrying` two states up. */
+var _joining=false;
+/* The rows currently on screen. Read fresh rather than captured, because the list is repainted
+   whenever the gate re-enters the non-member state. */
+function inviteButtons(){
+  var list=document.getElementById('bgInviteList');
+  return list ? Array.prototype.slice.call(list.querySelectorAll('[data-invite]')) : [];
+}
+/* THE ONLY WRITER, so the rule above cannot be applied in one place and forgotten in the other —
+   there are two call sites and they are 600 lines apart. Returns whether the answer was definite,
+   for the tests and for nobody else. */
+function applyPendingInvites(res){
+  var got=invitesOf(res);
+  if(got===null) return false;                             // could not tell: keep what is on screen
+  _pendingInvites=got;
+  return true;
 }
 
 /* ⚠️ RE-ENTRANCY, AND IT IS THE ONLY THING STANDING BETWEEN THIS AND AN INFINITE BOOT LOOP.
@@ -1409,7 +1568,19 @@ async function bootstrapSync(){
         }
         /* 'none' and 'unknown' both fall through to the screen that was going to be painted
            anyway. Neither is worth a message of its own: "there was no invitation for you" is
-           what 185's copy already says, in words that also tell them what to do about it. */
+           what 185's copy already says, in words that also tell them what to do about it.
+
+           ⚠️ 243 — 'none' NO LONGER MEANS "nobody invited you". Since 20260909_invite_choice.sql
+           the claim REFUSES rather than guessing when one address holds more than one pending
+           invitation, so a null answer now covers two opposite situations: nobody invited this
+           person, or several cafés did and only they can say which. The server cannot decide it and
+           must not; asking is the whole fix.
+           So the list is fetched HERE, on the path that is already about to paint a gate, and
+           nowhere else. It costs one round trip on the rarest boot in the app — an account with no
+           café — and none at all on every ordinary one, which is why it is not in the boot batch
+           above. An unreadable answer yields [] and the screen says exactly what it said before
+           this batch: fail-safe, because creating a café still works from there. */
+        applyPendingInvites(await softCall(function(){ return SUPA.rpc('my_pending_invites'); }));
       }
       setSync('none');                                     // 185: nothing failed — see setSync
       if(_u){ bootReady('nomember', nonMemberMessage(_u.email||'')); return; }
@@ -8108,7 +8279,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v199';
+var APP_VERSION='v200';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI

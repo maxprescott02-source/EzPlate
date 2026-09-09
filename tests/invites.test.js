@@ -36,6 +36,29 @@ const path = require('path');
 const MIGRATION_FILE = '20260814_invitations.sql';
 const MIGRATIONS_DIR = path.join(__dirname, '..', 'supabase', 'migrations');
 const MIGRATION = fs.readFileSync(path.join(MIGRATIONS_DIR, MIGRATION_FILE), 'utf8');
+
+/* ⚠️ 243 — A MIGRATION FILE IS A HISTORICAL RECORD, SO A TEST PINNED TO ONE BY NAME PINS WHAT WAS
+   TRUE ON THE DAY IT RAN. That is roster entry 219 verbatim, and this file walked into it: every
+   assertion about `claim_business_invite` read `20260814_invitations.sql` at a hardcoded path.
+   When 243 replaced that function, the old file kept its old definition — as it must, migrations
+   are never edited — so the test titled "claim_business_invite takes NO argument, that is the whole
+   of its security" stayed GREEN while asserting against dead code. Found by the pre-push review, in
+   the batch whose own migration header cites 219 as the reason for listing the directory.
+
+   So the FUNCTION assertions resolve their source the way `tests/semantic-keys.test.js` already
+   does: by listing the directory and taking whichever migration defines it LAST. The POLICY
+   assertions keep reading `20260814_invitations.sql`, because nothing has redefined those policies
+   — and that is a fact this helper re-checks rather than a claim anyone has to remember. */
+function newestDefining(fnName) {
+  const re = new RegExp(`create or replace function public\\.${fnName}\\(`);
+  const hits = fs.readdirSync(MIGRATIONS_DIR)
+    .filter((f) => f.endsWith('.sql'))
+    .sort()
+    .filter((f) => re.test(fs.readFileSync(path.join(MIGRATIONS_DIR, f), 'utf8')));
+  assert.ok(hits.length, `no migration defines public.${fnName} — the name changed, or the grep did`);
+  return { file: hits[hits.length - 1],
+           sql: fs.readFileSync(path.join(MIGRATIONS_DIR, hits[hits.length - 1]), 'utf8') };
+}
 const MIRROR = fs.readFileSync(
   path.join(__dirname, '..', 'supabase', 'staging', '01-schema.sql'), 'utf8');
 
@@ -279,18 +302,62 @@ test('who SENT an invitation is stamped by the server, and a DEFAULT alone would
 
 /* ── 3. THE FUNCTIONS ─────────────────────────────────────────────────────────────────────────── */
 
-test('claim_business_invite takes NO argument — that is the whole of its security', () => {
-  /* It is SECURITY DEFINER and inserts into `business_members`, a table no client may write. What
-     stops it being aimed at somebody else is that there is nothing to aim: the address comes from
-     `auth.uid()`. A `p_email` parameter would leave every other assertion in this file green. */
-  for (const [label, sql] of BOTH) {
-    assert.match(sql, /create or replace function public\.claim_business_invite\(\)/,
-      `${label}'s claim function takes a parameter — it can now be pointed at another person's invitation`);
-  }
-  const body = fnBlock(MIG, 'claim_business_invite');
+test('the claim can be POINTED but never AIMED — its argument cannot reach another address', () => {
+  /*
+   * ⚠️ THIS TEST USED TO ASSERT THE OPPOSITE, AND IT WAS RIGHT UNTIL 243.
+   * It read: "claim_business_invite takes NO argument — that is the whole of its security", and
+   * that was true while the function had no parameter: there was nothing to aim. 243 gave it
+   * `p_invite uuid default null`, because with two pending invitations to one address the old
+   * function guessed — silently, and it chose the person's ROLE as well as their café.
+   *
+   * ⚠️ AND THE TEST DID NOT NOTICE, WHICH IS THE PART WORTH RECORDING. It read
+   * `20260814_invitations.sql` at a hardcoded path, and a migration is a HISTORICAL RECORD: that
+   * file still contains the 0-arg definition and always will. So the assertion stayed green while
+   * the deployed function had a parameter. Roster 219, in the one file whose docstring names this
+   * exact property as "the whole of its security". It now resolves the newest definition by
+   * listing the directory.
+   *
+   * THE SECURITY PROPERTY IS NOW DIFFERENT AND HAS TO BE STATED, not deleted: the argument selects
+   * WHICH of the caller's own invitations to take, and can never reach one addressed to anybody
+   * else, because the lookup is `and i.email = em` with `em` read from the caller's own confirmed
+   * `auth.users` row. Drop that one clause and the parameter becomes exactly the escalation the old
+   * title feared.
+   */
+  const newest = newestDefining('claim_business_invite');
+  const body = fnBlock(code(newest.sql), 'claim_business_invite');
+
   assert.match(body, /uid uuid := auth\.uid\(\)/, 'the caller is auth.uid(), never an argument');
   assert.match(body, /from auth\.users u\s+where u\.id = uid/,
     'the address is read from the caller\'s own auth.users row');
+  assert.match(body, /and u\.email_confirmed_at is not null/,
+    'and only a CONFIRMED address, or an invitation is claimable by anyone who can type it');
+
+  /* The named branch. `i.id = p_invite` alone would be the hole; `and i.email = em` is what makes
+     the argument a choice among the caller's own invitations rather than a pointer at anyone's. */
+  const named = body.slice(body.indexOf('i.id = p_invite'));
+  assert.ok(named, 'the function must have a branch that reads the argument');
+  assert.match(named, /i\.id = p_invite\s+and i\.email = em\s+and i\.accepted_at is null/,
+    'a named claim must be scoped to the caller\'s own address AND still pending');
+
+  /* And the blind branch must still be scoped to `em` too, so removing the argument does not
+     quietly widen the other path. */
+  assert.match(body, /where i\.email = em\s+and i\.accepted_at is null/,
+    'the unnamed path is scoped to the same address');
+});
+
+test('243: the claim REFUSES two candidates rather than picking one', () => {
+  /* The defect this batch exists for. The old body ended `order by i.created_at, i.id limit 1`,
+     which is a guess wearing an ordering. The new one reads up to TWO under one lock and returns
+     null the moment it sees a second — so what is counted is what is locked, with no window
+     between them for a third invitation to make the count stale. */
+  const newest = newestDefining('claim_business_invite');
+  const body = fnBlock(code(newest.sql), 'claim_business_invite');
+  assert.match(body, /limit 2\s+for update/,
+    'the ambiguity probe and the row pick must be ONE locking statement');
+  assert.match(body, /if n > 1 then\s+return null;/,
+    'a second candidate must refuse, not be ordered away');
+  assert.ok(!/order by i\.created_at, i\.id\s+limit 1\s+for update/.test(body),
+    'the old limit-1-over-an-ordering guess must not come back');
 });
 
 test('the claim refuses on an UNCONFIRMED address, a SECOND café, and no session', () => {
@@ -376,20 +443,70 @@ test('business_team is owner-only AND tenant-scoped — both, not either', () =>
 });
 
 test('the grants match what each function is FOR', () => {
-  /* `invite_pending` is asked by a signed-OUT visitor at the sign-up form, so anon must have it.
-     The other two act on `auth.uid()`, which anon does not have — granting them to anon would add
-     a callable surface that can only ever answer null. */
+  /* `invite_pending` is asked by a signed-OUT visitor at the sign-up form, so anon must have it. */
   for (const [label, sql] of BOTH) {
     assert.match(sql, /grant execute on function public\.invite_pending\(text\) to anon, authenticated, service_role/,
       `${label}: the sign-up gate is asked before anyone is signed in`);
-    for (const name of ['claim_business_invite()', 'business_team()']) {
-      const i = sql.indexOf(`grant execute on function public.${name} to`);
-      assert.ok(i > 0, `${label} does not grant ${name}`);
+  }
+});
+
+test('243: the anon grant is REVOKED BY NAME, not merely left out of the grant', () => {
+  /*
+   * ⚠️ THE ASSERTION THIS REPLACES WAS TRUE ABOUT THE FILE AND FALSE ABOUT THE DATABASE, which is
+   * this repo's oldest rule arriving in SQL: a check that finds nothing has only proved something
+   * about WHAT IT LOOKED FOR. It asserted that the word `anon` was ABSENT from each grant statement
+   * and that a `revoke ... from public` was present. Both were true; neither said anything about
+   * whether `anon` held EXECUTE.
+   *
+   * It does not, because Supabase ships `alter default privileges in schema public grant execute on
+   * functions to anon, authenticated, service_role`. Every function in `public` is BORN with
+   * `anon=X`, and `revoke ... from public` revokes the PUBLIC pseudo-role, which is a different
+   * thing from the real role `anon`. You cannot decline a privilege you were never the one to give.
+   *
+   * MEASURED on staging out of `pg_proc.proacl` before 243 ran: both functions carried `anon=X`.
+   * After: all three answer HTTP 401 to an anon caller — the GRANT refusing, where before it was
+   * the body returning null. So the assertion is now the REVOKE, by name.
+   */
+  /* ⚠️ "NEWEST DEFINER" IS THE WRONG RESOLVER FOR A GRANT, and getting that wrong is the trap
+     itself. `business_team` is DEFINED by 20260814 and had its anon grant REVOKED by 20260909,
+     which does not redefine it — so the two facts live in different files, and looking only where
+     the function is defined finds no revoke and reports a hole that is not there.
+     The property that actually matters is an ORDERING, because `create or replace` re-runs the
+     default privilege and puts `anon` straight back: THE NEWEST REVOKE MUST NOT BE OLDER THAN THE
+     NEWEST DEFINITION. Same file counts only if the revoke comes after the create. */
+  for (const [fn, sig] of [['claim_business_invite', 'claim_business_invite(uuid)'],
+    ['my_pending_invites', 'my_pending_invites()'], ['business_team', 'business_team()']]) {
+    const def = newestDefining(fn);
+    const revRe = new RegExp(`revoke execute on function public\\.${sig.replace(/[()]/g, '\\$&')} from anon`);
+    const revFiles = fs.readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql')).sort()
+      .filter((f) => revRe.test(code(fs.readFileSync(path.join(MIGRATIONS_DIR, f), 'utf8'))));
+    assert.ok(revFiles.length,
+      `no migration revokes EXECUTE on ${sig} from anon — omitting anon from the GRANT does nothing, `
+      + 'because Supabase default privileges grant it before your file runs');
+    const rev = revFiles[revFiles.length - 1];
+
+    assert.ok(rev >= def.file,
+      `${sig} is defined by ${def.file} but last revoked from anon in ${rev}, which is OLDER — `
+      + 'a create or replace re-runs the default privilege and hands anon EXECUTE straight back');
+    if (rev === def.file) {
+      const sql = code(def.sql);
+      assert.ok(sql.search(revRe) > sql.indexOf(`create or replace function public.${fn}(`),
+        `${rev}: the revoke of ${sig} must FOLLOW its create, or it runs against the old ACL`);
+    }
+
+    const sql = code(def.sql);
+    const i = sql.indexOf(`grant  execute on function public.${sig} to`);
+    if (i > 0) {
       const stmt = sql.slice(i, sql.indexOf(';', i));
-      assert.ok(!/\banon\b/.test(stmt), `${label}: ${name} must not be granted to anon`);
+      assert.ok(!/\banon\b/.test(stmt), `${sig} must not be granted to anon`);
       assert.match(stmt, /\bauthenticated\b/);
     }
   }
+
+  /* And the one that KEEPS anon, deliberately — the app's only intentionally unauthenticated
+     endpoint. A batch tidying the three above must not sweep this one up with them. */
+  assert.ok(!/revoke execute on function public\.invite_pending\(text\) from anon/.test(MIG),
+    'invite_pending is asked before anyone is signed in — its anon grant is deliberate');
 });
 
 /* ── 4. THE MIRROR ────────────────────────────────────────────────────────────────────────────── */
@@ -401,13 +518,19 @@ test('the mirror\'s four function bodies are BYTE-IDENTICAL to the migration\'s'
      idempotent) turn that detector red for a reason that is not drift. Nothing else can notice,
      because the deployed function on both projects comes from the migration rather than from the
      mirror. This is the check 183 had to invent after two days of exactly that. */
-  for (const name of ['stamp_invite', 'invite_pending', 'claim_business_invite', 'business_team']) {
-    const mig = fnBlock(MIGRATION, name);
+  /* ⚠️ 243 — AGAINST WHICHEVER MIGRATION DEFINES EACH FUNCTION LAST, not against a file named here.
+     This loop compared every body to `20260814_invitations.sql`, so the day a function was replaced
+     it compared two stale artefacts to each other and said they agreed. `my_pending_invites` is in
+     the list because a mirror missing it entirely would otherwise pass unnoticed. */
+  for (const name of ['stamp_invite', 'invite_pending', 'claim_business_invite',
+    'my_pending_invites', 'business_team']) {
+    const newest = newestDefining(name);
+    const mig = fnBlock(newest.sql, name);
     const mir = fnBlock(MIRROR, name);
-    assert.ok(mig, `the migration must define ${name}`);
-    assert.ok(mir, `the mirror must carry ${name}`);
+    assert.ok(mig, `${newest.file} must define ${name}`);
+    assert.ok(mir, `the mirror must carry ${name} — re-run 01-schema.sql after a migration`);
     assert.equal(mir, mig,
-      `${name} differs between the mirror and the migration — copy the whole block, never hand-edit a line`);
+      `${name} differs between the mirror and ${newest.file} — copy the whole block, never hand-edit a line`);
   }
 });
 

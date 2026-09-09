@@ -3623,6 +3623,17 @@ html{scrollbar-gutter:stable}
 #bootGate .acct-in{flex:0 0 auto}
 #bootGate .acct-form .btn{width:100%}
 #bootGate .acct-err{margin:0;width:100%;text-align:left}
+/* 243 — the invitation chooser's rows. One café per line, full width, same column as every other
+   control on this screen. The buttons inherit `#bootGate .acct-form .btn{width:100%}` above.
+   ⚠️ `:not([hidden])` even though the JS hides the PARENT rather than this element: it carries an
+   author `display`, and this app's standing idiom is that such a rule gets the guard by default
+   rather than on recall, because author origin beats the UA's `[hidden]` before specificity is
+   compared. The day something hides this div, the rule is already correct. */
+#bootGate .bg-invites:not([hidden]){display:flex;flex-direction:column;gap:var(--sp-2);width:100%}
+/* The café's name is the thing being chosen, so it leads; the role is the consequence and follows
+   it quietly. Two lines in one button rather than two controls, because the whole row is the tap
+   target and a person choosing between cafés is choosing a name. */
+#bootGate .bg-invite-role{display:block;font-size:var(--fs-sm);font-weight:400;color:var(--text2);margin-top:2px}
 /* 192 — the two alt links (sign-in <-> sign-up) and the "check your email" line.
    ⚠️ NEITHER CARRIES A `display` RULE, and that is checked rather than incidental: both are <p>,
    both are toggled with `hidden` by bootGate and gateMode, and a `display` rule here would beat the

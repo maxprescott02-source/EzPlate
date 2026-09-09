@@ -48,7 +48,7 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 ⚠️ **READ THIS BEFORE PLANNING OFF ANY OF THE FOUR ITEMS BELOW. ITS TOP-RANKED FINDING, THE ONLY ONE IT CALLED A RELEASE BLOCKER, WAS FALSE.** It claimed `js/app.js` on `main` contains bare English prose at lines 7290 and 11586 and therefore does not parse. `git show origin/main:js/app.js | node --check` **parses clean** at `a56055e`; both citations are continuation lines inside `/* … */` block comments. **The reviewer read the repository in network slices and lost the comment context** — which is exactly the condition that produced its most confident, most precisely cited and most urgent claim.
 
 **So every line citation in these four items is a POINTER TO CHECK, not a fact**, and the queue header's own rule applies with unusual force: *an item that names a behaviour without naming its sites is an item whose list is already wrong.* **Each item below states which of its claims is measured and which is not.**
-**Item 12 RAN in batch 236 and its finding was TRUE, reproduced exactly as written** (`ezplate-v194`); item 14 was verified against the SQL. **13 RAN in batch 242 and its finding was TRUE** (`ezplate-v199`). 15 is still an unmeasured claim.
+**Item 12 RAN in batch 236 and its finding was TRUE** (`ezplate-v194`). **13 RAN in batch 242 and its finding was TRUE** (`ezplate-v199`). **14 RAN in batch 243 and its finding was TRUE, confirmed against the SQL before and reproduced on staging** (`ezplate-v200`). **15 is the only one left, and it is still an unmeasured claim.**
 ⚠️ **13 was TRUE IN SUBSTANCE AND SHORT BY A FACTOR OF SIX, which is the third of these to be so and is now the pattern rather than the exception.** It described "two findings, merged because they are one mechanism at one site"; there were **twelve** stores surviving a café move, across three different application patterns and about six hundred lines, and the twelfth was found by the pre-push review after the fix's own header claimed to have counted them all. **So read the remaining item's enumeration as a starting point and grep it**, exactly as the header rule above says — the audit is reliable about the neighbourhood and not about the size.
 ⚠️ **And running 12 produced 12b, which is a defect the audit never saw and which is WORSE than the one it reported** — the pre-push review of the fix found it. That is the argument for taking these items seriously even where the citations are wrong: the audit was pointing at a real neighbourhood.
 
@@ -79,34 +79,6 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ⚠️ **Every line number in these items is a POINTER TO GREP, not a fact** — the consolidated file says so of itself, and the blind audit above is why. **Step one of each is the repro**, and "it does not reproduce" deletes the item and says so in the handover.
 
-
-## next  14 · An account with two pending invitations joins the OLDEST café, not the intended one  **[A — multi-tenant correctness, and it also decides their role]**
-
-✅ **CONFIRMED against the SQL, 5 Sep 2026. The only item here that is not a claim.** `supabase/migrations/20260814_invitations.sql:495-540` — and that is still the newest definition, checked by listing the directory rather than trusting this line.
-
-`claim_business_invite()` **takes no arguments at all.** It resolves the caller's confirmed email, then:
-
-```sql
-select i.* into inv
-  from public.business_invites i
- where i.email = em
-   and i.accepted_at is null
- order by i.created_at, i.id
- limit 1
-   for update;
-```
-
-and inserts `business_members` with **`inv.role`** from whichever invitation that picked.
-
-**The failure:** café A invites `alice@` on Monday, café B invites the same address on Tuesday. Alice follows B's path intending to join B. The client calls the argumentless RPC **automatically at boot**, so she is never asked. She becomes an **A** member, with **A's role**, and the one-business-per-user constraint then blocks the membership she actually wanted. No error is raised anywhere.
-
-**Claimed client site:** `js/app.js:1095-1117`.
-
-**What is NOT wrong, and the reviewer checked:** there is no replay turning an accepted invitation into a second membership, and no path where the client chooses a more privileged role during the claim. **The stored role is what SQL inserts. The defect is selection of the wrong valid invitation, not role injection.** Do not widen this item into a rewrite of the invitation flow.
-
-**What must be true when it is fixed:** the claim names which invitation it is claiming, and an ambiguous case is either resolved by that identifier or refused rather than guessed. **Two pending invitations to one confirmed email is the regression test**, and no existing invitation test exercises it, which is why this survived a suite that covers confirmed-email, replay, role and RLS behaviour.
-
-⚠️ **`claim_business_invite()` also carries the `revoke … from public` gap that does not revoke `anon`** — already filed in `MAINTENANCE.md` under its own entry, still reasoned-not-run. **A batch touching this function should close both in one migration**, and must find the newest definition by listing the directory: `grep -l 'create or replace function public.claim_business_invite' supabase/migrations/*.sql | sort | tail -1`. Copying forward from the wrong ancestor is how 219 deleted 187's owner-only guard.
 
 ## next  15 · A transient role-lookup failure lets staff move the live costing target, with no rollback  **[B — a wrong price on screen, and the server is not the problem]**
 

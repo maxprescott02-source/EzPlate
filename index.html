@@ -102,7 +102,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=199">
+<link rel="stylesheet" href="css/style.css?v=200">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -249,6 +249,25 @@
          not assumed: without it an author `display:flex` beats the UA's `[hidden]` on ORIGIN.
          `autocomplete="organization"` because that is what this field IS, and the person filling it
          in has typed their café's name into a dozen other forms this month. -->
+    <!-- 243 — THE INVITATIONS THIS ADDRESS HOLDS, and it sits ABOVE the café form on purpose.
+         `claim_business_invite` used to take `limit 1` when one address held two pending
+         invitations, silently joining the older café and taking that invitation's ROLE with it.
+         It now refuses rather than guessing, which is only half a fix: refusing without asking
+         turns "joined the wrong café" into "joined nothing". This is the asking.
+         ⚠️ POSITION IS THE DECISION. Somebody who has been invited almost never wants to create a
+         café — 187 makes membership one café per person and there is no "leave", so creating one
+         here permanently forecloses the invitation they were sent. The warning under the café form
+         has said exactly that since 209, as advice the reader had to act on themselves ("ask them
+         to invite this exact address, then reload"). Putting the real path above the form is that
+         advice becoming a button.
+         ⚠️ It is `.acct-form`, so it inherits `#bootGate .acct-form[hidden]{display:none}`. That
+         guard is load-bearing here for the same reason its three siblings record: `.acct-form` sets
+         an author `display:flex`, and author origin beats the UA's `[hidden]` before specificity is
+         even compared. Checked, not assumed. -->
+    <div class="acct-form" id="bgInvites" hidden>
+      <p class="bg-note" id="bgInvitesNote"></p>
+      <div class="bg-invites" id="bgInviteList"></div>
+    </div>
     <form class="acct-form" id="bgCafeForm" hidden autocomplete="on">
       <input class="acct-in" id="bgCafeName" type="text" name="organization" placeholder="Your café’s name" aria-label="Your café’s name" autocomplete="organization" maxlength="60" required>
       <button class="btn primary" id="bgCafeBtn" type="submit">Create my café</button>
@@ -1779,7 +1798,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=199"></script>
+<script src="js/app.js?v=200"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —
