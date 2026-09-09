@@ -299,6 +299,16 @@ Requirements: sort every bullet into (a) dead or superseded → delete with the 
 
 ## C — code hygiene and latent defects
 
+### The `type="number"` inputs nothing has asked a question of
+(Raised 9 Sep 2026 by batch 245, which fixed the one that was measured and counted the surface rather than guessing at it.)
+
+QUEUE item 19 was a misc-cost field carrying `min="0"` while `setMiscCost` had no sign guard, so a typed `-2` reached the plate and saved. **The attribute is not a guard for any field this app reads on `oninput`/`change` rather than through native form submission**, and the browser agrees: `validity.rangeUnderflow` was TRUE on that keystroke and nothing asked.
+
+**Measured, 9 Sep 2026:** `index.html` and `js/app.js` carry **15** `type="number"` inputs between them; **14 declare `min="0"`** and one declares `min="1" max="99"`. **Four are known to be guarded** — `setQty` clamps, `commitPrice` refuses `v<0`, the food-cost target's handler re-checks `v>=1&&v<=99`, and `setMiscCost` now clamps. **The other eleven have not been looked at.** The list deliberately is not written out here: `grep -n 'type="number"' index.html js/app.js` is the live one, and a copy in this file would rot the way every enumeration in this project has — including the two numbers in this paragraph, which are a record of one measurement on one day and not a live count.
+
+**It is C because it is UNMEASURED, not because it is small.** Three of the eleven are on the invoice review (`invPrice`, `invPackQty`, and the price cell at the row level), where a negative would be a wrong unit cost rather than a cosmetic slip — the same grade as the item that produced this entry. **Step one is the repro, one field at a time, and any that reproduces is a B and belongs in `docs/QUEUE.md`, not here.** Do not "fix" the eleven on sight: `costDetail` already refuses a negative line by either route since 245, so several of these may be harmless in a way that a blanket clamp would hide rather than prove.
+⚠️ **And the invoice ones sit next to the protected parser region and next to consolidated items 17 and 26** (negative and $0.00 invoice lines), which are deciding what a negative line MEANS. Whatever they decide is the answer for those fields; do not settle it here first.
+
 ### The bottom stack's OTHER pair: a toast covers the builder's Save button, with no install banner involved
 (Measured 2 Sep 2026 by batch 226, which fixed the toast-vs-install-banner pair and measured this one on the way past.)
 

@@ -29,6 +29,16 @@ const PRODUCTS = [
   { id: 2, description: 'Potato',     base_unit: 'g', cost_per_base_unit: 0.01 },
   { id: 3, description: 'Lemon',      base_unit: 'ea', cost_per_base_unit: 0.40 },
   { id: 4, description: 'Uncosted',   base_unit: 'g', cost_per_base_unit: null },   // exists, has no price
+  /* 245: a product priced BELOW zero. Nothing on production carries one today (measured: 0 of 428),
+     and nothing in the app can create one either — `packToUnitCost` and `commitPrice` both refuse a
+     negative price. It is here because a restore, a backup file or an import is not the app, and
+     because the walk is the one place that can be made to answer the same way whatever the source. */
+  { id: 5, description: 'Credit note', base_unit: 'g', cost_per_base_unit: -0.02 },
+  /* 245: and a product priced at exactly ZERO, which is the boundary the negative rule is drawn at
+     and is NOT hypothetical — production carries one (measured: 1 of 428). Without it, widening
+     `lc<0` to `lc<=0` reads as equivalent, and it is not: it would count a real free line as
+     missing and drop its whole plate out of every average. */
+  { id: 6, description: 'Free garnish', base_unit: 'g', cost_per_base_unit: 0 },
 ];
 
 function harness() {
@@ -42,7 +52,7 @@ function harness() {
     ${extractFn(APP, 'lineProduct')}
     ${extractFn(APP, 'costDetail')}
     ${extractFn(APP, 'costFromLines')}
-    return { costFromLines:costFromLines, costDetail:costDetail };
+    return { costFromLines:costFromLines, costDetail:costDetail, lineCost:lineCost };
   `)({ PRODUCTS });
 }
 const H = harness();
@@ -64,6 +74,62 @@ test('0c: all three line shapes cost together — kid, pid and misc', () => {
     { misc: true, label: 'Packaging', cost: 0.5 },  // 0.50 flat
   ];
   assert.equal(costFromLines(lines), 10.5);
+});
+
+test('245: a NEGATIVE line is not costable, by either route, and is counted as missing', () => {
+  /* QUEUE item 19. `setMiscCost` clamps at the input now, so a negative cannot be TYPED — but a
+     restore, a backup or a row saved before that clamp is not the input, and this walk is what every
+     average, every verdict and the builder's total are computed from.
+     ⚠️ THE DIRECTION IS THE POINT, and it is the same one the miss rule three tests down is about:
+     adding a negative makes the total too LOW, which makes the food-cost ratio read HEALTHIER than
+     the menu is. That is the direction nobody looks, and it is why a bad line is dropped along with
+     its plate rather than quietly summed. */
+  assert.deepEqual(costDetail([{ misc: true, label: 'Credit', cost: -2 }]), { cost: 0, miss: 1 },
+    'a negative misc line is missing, not a discount');
+  assert.deepEqual(costDetail([{ misc: true, label: 'Credit', cost: '-2' }]), { cost: 0, miss: 1 },
+    'a negative numeric STRING too — that is the shape a restore hands back');
+  assert.deepEqual(costDetail([{ misc: true, label: 'Free', cost: 0 }]), { cost: 0, miss: 0 },
+    'ZERO is still a legitimate misc cost and is left alone — the boundary is below zero, not at it');
+  assert.deepEqual(costDetail([{ pid: 5, qty: 100 }]), { cost: 0, miss: 1 },
+    'a negative PRODUCT cost is the same claim by the other route');
+
+  /* ⚠️ AND THE REFUSAL IS INSIDE `lineCost`, NOT IN THE WALK, which is the whole of the pre-push
+     review's finding on this batch. `null` from `lineCost` means "cannot be priced", and FOUR
+     readers act on it — this walk, the builder's cost cell, that cell's repaint, and the supplier
+     exposure sum. A condition written only in the walk left the other three showing a real-looking
+     `$-2.00` on a line the total beside it excluded: the screen contradicting itself, which is worse
+     than either answer on its own. Asserted at the source so the three cannot drift from it. */
+  assert.strictEqual(H.lineCost({ base_unit: 'g', cost_per_base_unit: -0.02 }, 100), null,
+    'a negative unit cost is unpriceable AT lineCost — every reader of null gets the same answer');
+  assert.strictEqual(H.lineCost({ base_unit: 'g', cost_per_base_unit: 0 }, 100), 0,
+    'and zero is priceable, so a free ingredient still renders as $0.00 rather than "no cost"');
+
+  /* ⚠️ THE BOUNDARY IS BELOW ZERO ON BOTH ROUTES, and this half is what stops the rule being drawn
+     one value too wide. A free line is a real answer — production carries a product at $0.00 — and
+     counting it as missing would take its whole plate out of every average, which is the same harm
+     as the bug, arrived at from the other side. */
+  assert.deepEqual(costDetail([{ pid: 6, qty: 100 }]), { cost: 0, miss: 0 },
+    'a product costing exactly zero is COSTED at zero, not counted as missing');
+  assert.deepEqual(costDetail([{ pid: 1, qty: 100 }, { pid: 6, qty: 50 }]), { cost: 8, miss: 0 },
+    'and it rides along in a real plate without flagging it');
+  /* ⚠️ AND A ZERO QUANTITY IS THE OTHER ANSWER, which is not an inconsistency and is worth the line
+     because it looks like one. `lineCost` returns null for `qty` not greater than zero, so a zero
+     quantity is UNCOSTABLE where a zero unit cost is COSTED — because "none of this ingredient" is
+     an unfinished line, while "this ingredient is free" is a finished one. `setQty` clamping a typed
+     negative to 0 therefore lands on the conservative answer too: the line is flagged, not costed
+     at nothing. Measured here rather than assumed — the first draft of this test asserted the
+     opposite and went red. */
+  assert.deepEqual(costDetail([{ pid: 1, qty: 0 }]), { cost: 0, miss: 1 },
+    'a zero QUANTITY is uncostable, unlike a zero unit cost');
+
+  /* The measured harm, and it is not the one the item's headline names. A plate whose TOTAL goes
+     negative is already excluded from the average by `dishRatios`' `d.cost>0`. The one that got
+     through is the plate a negative line merely DRAGS DOWN — still positive, still averaged, and
+     understated by exactly the amount of the bad line. */
+  const dragged = costDetail([{ pid: 1, qty: 100 }, { misc: true, label: 'Credit', cost: -2 }]);
+  assert.deepEqual(dragged, { cost: 8, miss: 1 },
+    'the $8 of real ingredients is intact and the plate is flagged — it used to cost $6.00 and pass as clean');
+  assert.notEqual(dragged.miss, 0, 'and `miss` is what keeps it out of every average');
 });
 
 test('0c: a MISC line rides at its fixed cost, and a junk one is skipped rather than poisoning the sum', () => {

@@ -108,11 +108,17 @@ Four documents held three positions. `CLAUDE.md` Tier 1 says *"never edit anythi
 
 *(By reference: **13** and **14**, both A, stay next in `docs/QUEUE.md`'s order and are worked as written there. 14 is the only confirmed one. Item 40 rides 14's migration. Then **15**, B, as written; item 25 rides the same file.)*
 
-## next  19 · A misc cost accepts a negative number and the plate saves at a negative cost  **[B, a plate at minus $2.00 persisted to production on 8 Sep and lowers every average it is in]**
+## ~~19 · A misc cost accepts a negative number and the plate saves at a negative cost~~  **SHIPPED, batch 245, `ezplate-v202`**
 
-**Mechanism.** `setMiscCost` (`js/app.js:1777`) is `parseFloat(v)||0` with no sign guard; the input at `:1767` carries `min="0"` which the browser does not enforce on typed values; `saveCurrentPlate` (`:3139`) writes whatever `plate` holds; `avgFoodCostForScope` (`:4226`) includes any `d.cost>0` plate, so a plate whose total is negative is excluded there but a plate whose misc line merely drags it down is not. Quantity is already clamped to 0 (keep that).
+✅ **Reproduced in Chromium before it was fixed** — the item was right about the mechanism and this is what it looked like: typing `-2` put a $0.92 plate at **$-1.08** in the builder, saved it there, and left *"plate cost $-1.08"* in the Plates library.
+⚠️ **The field already carried `min="0"` and the browser already knew** — `validity.rangeUnderflow` was TRUE on that keystroke. `min` constrains the spinner and native form validation; this field is in no form and is read on `oninput`, so nothing ever asked. That half is now a `CLAUDE.md` Tier 1 rule, and the other **eleven** un-checked `min="0"` inputs are counted and filed in `docs/MAINTENANCE.md` rather than fixed on sight.
 
-**What must be true:** a misc cost is `>= 0`, or is explicitly a credit and rendered as one; `saveCurrentPlate` refuses a negative plate cost with a message; nothing in the averages consumes a negative line. **Test:** `tests/plate-draft-save.test.js` gains the negative-misc case (extract the real function; the mutation target already exists for the draft contract).
+**Two guards, because the input is not the only way in.** `setMiscCost` clamps at zero, the way `setQty` one screen up already did — it was the one unguarded number of three on that screen. And `costDetail` counts a NEGATIVE line as MISSING by either route, which is what keeps it out of every average, out of `plateFullyCosted` and flagged in the builder; a clamp cannot reach a line that arrived from a restore or a backup file.
+
+⚠️ **THE THIRD REQUIREMENT WAS MET DIFFERENTLY AND DELIBERATELY.** This item asked for `saveCurrentPlate` to refuse a negative plate cost with a message. It does not, because with the walk's rule the total **cannot** be negative, so that guard could never fire — and this repo has already deleted one fallback for exactly that reason (`plateIdOf`, v112: *a fallback that cannot fire reads as a safety net and is not one*). The requirement is met structurally instead of by a message.
+
+⚠️ **AND THE HEADLINE'S HARM WAS THE WRONG ONE, which the item's own body got right.** *"lowers every average it is in"* is false for a plate whose total goes negative: `dishRatios` excludes it at `d.cost>0`. The one that got through is the plate a negative line merely **drags down** — still positive, still averaged, understated by the amount of the bad line, reading healthier than the menu is. That is the case the tests are written about.
+⚠️ **The minus-$2.00 plate is GONE from production** — it was one of the 8 Sep ZZ-AUDIT objects, and Tranche 0's cleanup took it. Measured 9 Sep 2026: zero negative misc lines and zero negative `cost_per_base_unit` in 428 products. The defect was real and its artefact was not still there.
 
 ## next  20 · A failed `menus` read is treated as a valid boot and mints a menu the server never had  **[B, unmeasured; presents as "my dishes disappeared", then as a failed publish]**
 

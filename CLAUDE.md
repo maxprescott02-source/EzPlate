@@ -125,6 +125,21 @@ So a blank field passes an `isFinite` guard and fabricates a `$0.00` observation
 **Guard with `typeof x === 'number'` first, then `isFinite`.** The null check is separate from the finite check on purpose - do not merge them.
 `tests/price-log-paths.test.js` pins it.
 
+## `min`, `max` and `required` ARE INERT on every input this app reads, and they read exactly like the check
+
+(Batch 245, 9 Sep 2026, QUEUE item 19. Measured in Chromium, not reasoned: the browser had already decided the value was out of range and nothing asked it.)
+
+**An HTML validation attribute only does something at native form submission or on a `checkValidity()`/`:invalid` that somebody wrote.** This app submits no form — every field is read by a handler on `oninput` or `change` — so `min="0"` on a number input constrains the **spinner arrows** and nothing else. Type a negative, or paste one, and the handler is called with it.
+
+The measured instance: the builder's misc-cost field carried `min="0"`, `setMiscCost` was `parseFloat(v)||0` with no sign guard, and a typed `-2` put a $0.92 plate at **$-1.08** — in the builder, in the save, and in the Plates library. On that keystroke `input.validity.rangeUnderflow` was **true**. The browser knew. The attribute was not wrong and it was not enforcement.
+
+**The tell: a numeric input whose handler reads `this.value` directly.** The attribute is the first thing a reader's eye lands on, it states the exact rule, and it makes the missing guard look like a duplicate rather than an absence — which is why this survived next to two siblings on the same screen that both guard (`setQty` clamps, `commitPrice` refuses `v<0`).
+
+**Keep the attribute and add the guard; do not choose.** The attribute is what makes the spinner behave and what a paste into a real form would be checked against; the handler is what actually holds. Deleting either while keeping the other is how this happened.
+⚠️ **And the count is not the reassuring part.** `grep -n 'type="number"' index.html js/app.js` returns fifteen, fourteen of them declaring `min="0"`, and **four have been checked**. The rest are filed in `docs/MAINTENANCE.md` with the instruction to reproduce one at a time rather than clamp them all on sight — a blanket clamp would hide which of them was ever reachable, and three of them sit next to the invoice items that are still deciding what a negative line MEANS.
+
+**The general shape, which is this file's oldest rule wearing a new costume: a declaration is not an enforcement.** `[hidden]` losing to an author `display` rule is the same sentence in CSS, and a `revoke … from public` that does not name `anon` is the same sentence in SQL. In all three the artefact states the rule correctly and something else decides.
+
 ## The protected parser region
 
 The contiguous block in `js/app.js` between the exact strings `var INV_EXCLUDE=` and `function unitLabelFor(` is sliced by `tests/_extract.js` using those anchors.

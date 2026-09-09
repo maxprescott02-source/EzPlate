@@ -80,10 +80,6 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 ⚠️ **Every line number in these items is a POINTER TO GREP, not a fact** — the consolidated file says so of itself, and the blind audit above is why. **Step one of each is the repro**, and "it does not reproduce" deletes the item and says so in the handover.
 *(G1's only [B — wrong number] item, 15, shipped in batch 244; what is left of the group is below. The two headings were folded into one when it went, because a section with a title and no items reads as work nobody has got to.)*
 
-## next  19 · A misc cost accepts a negative number and the plate saves at a negative cost  **[B, a plate at minus $2.00 persisted to production on 8 Sep]**
-
-**Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 19.
-
 ## next  20 · A failed `menus` read is treated as a valid boot and mints a menu the server never had  **[B, unmeasured; presents as "my dishes disappeared", then as a failed publish]**
 
 **Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 20.
