@@ -80,19 +80,13 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 ⚠️ **Every line number in these items is a POINTER TO GREP, not a fact** — the consolidated file says so of itself, and the blind audit above is why. **Step one of each is the repro**, and "it does not reproduce" deletes the item and says so in the handover.
 *(G1's only [B — wrong number] item, 15, shipped in batch 244; what is left of the group is below. The two headings were folded into one when it went, because a section with a title and no items reads as work nobody has got to.)*
 
-## next  project-audit — the counter reached 10 (v197 → v207)
+## blocked  91 · Staff may not delete a plate, and may delete every product that plate costs from  **[B, measured on production]**
 
-**Queued by batch 251 under `skills/batch` step 10**, which is the whole mechanism: the newest report is `docs/audits/AUDIT-v197.md`, `sw.js` now ships `ezplate-v207`, and a gap of 10 or more puts this above every unblocked item. Nothing to remember and no calendar — the version increments once per shipping batch, so it already is the counter.
+**Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 91 — raised by AUDIT-v207 out of a question batch 250 handed off, and measured against `pg_policies` rather than the schema file.
 
-**Run the `project-audit` agent, then FILE THE REPORT YOURSELF** to `docs/audits/AUDIT-v<version at the time>.md`. The agent is read-only and hands the report back rather than saving it, and **an unfiled report leaves the counter unchanged, so the next audit is never queued.** That has happened before.
-
-⚠️ **Ten batches have shipped since v197 and they are unusually dense in things an audit should check**, so this one has more to bite on than most:
-- **244-251 each ship a `CLAUDE.md` claim or a struck record**, including three new Tier 1 sections (the action-vs-value rule, the inert-`min`/`max` rule, and the cite-a-precedent rule). Every one is a documented claim to verify against the code, which is what this agent is for.
-- **Batch 250 changed the DATABASE** (owner-only delete on both history series, applied to staging and production) and is the first migration in this stretch. `docs/STAGING.md`'s fingerprint diff between the two projects has not been re-run since.
-- **Four items were SPLIT or partly falsified** — 21 into 90, 89 into a shipped server half and a pending surface, 55 half-shipped and half not reproducing, 88's remedy differing from what it asked. Those are exactly the records that rot.
-- **`docs/QUEUE.md` is down to six items and two are unblocked**, so the refill rule in `skills/batch` fires soon: read `docs/QUEUE-GROUPS.md`, promote the first group with unstruck items. The audit should say whether that grouping still describes the backlog.
-
-**Do not let it add queue items** — `docs/QUEUE.md`'s header says the agent reports and a finding defaults to C in `docs/MAINTENANCE.md` unless it passes the tier test.
+**Blocked on: MAX, two sentences.** May staff delete a **product**? May staff delete a **taught pack** (`supplier_phrases`)? Both are deletable by any member today, through the same permissive `FOR ALL` policy that made `price_history` a hole until 250.
+⚠️ **`menu_items` is the third such table and is DELIBERATE** — 187 decided staff may unpublish a dish, and it says so in the migration. It is not part of this.
+**Why it needs him:** what staff may do is his decision — 187 was his. The migration, if the answer is no, is 187's exact idiom with 250 as the worked example.
 
 ## next  90 · The other three halves of item 21: a completion message, a delete sequence, and a boot-time replace  **[B, unmeasured]**
 

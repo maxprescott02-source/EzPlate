@@ -278,7 +278,15 @@ after:   42501  "permission denied for function …"        HTTP 401   ← the G
 
 **The remedy is one line, and it must name the role and follow the function:** `revoke execute on function public.f(args) from anon;`. Placed **above** the `create or replace` it runs against the old ACL and the fresh default grant lands afterwards, putting `anon` straight back.
 
-⚠️ **`claim_business_invite()` and `business_team()` carry the identical gap** — both written the same way, both refused by their bodies, neither a hole. They are filed in `docs/MAINTENANCE.md` rather than fixed on sight, because a migration should not quietly re-grant functions the item does not own. **Check `proacl`, never the file**, when you want to know who can call something.
+⚠️ **THIS PARAGRAPH NAMED `claim_business_invite()` AND `business_team()` AS CARRYING THE SAME GAP UNTIL 10 SEP 2026, AND BATCH 243 HAD CLOSED BOTH ON 9 SEP** — by-name revokes in `20260909_invite_choice.sql`, mirrored in `01-schema.sql`, with `docs/MAINTENANCE.md` and consolidated item 40 both struck the same day. 243's handover says *"Into CLAUDE.md: Nothing."* **So the one file loaded into every message of every batch stated an open security gap that was shut, and pointed at a maintenance entry that was already closed.** Found by AUDIT-v207.
+**Measured against `proacl` on PRODUCTION, 10 Sep 2026** — which is what the next sentence tells you to do, and the reason this correction is a measurement rather than a re-read of the migration:
+
+| holds `anon` EXECUTE | does not |
+|---|---|
+| `current_business_id`, `current_business_role`, `invite_pending`, `restore_backup`, `set_default_business_id`, `set_member_role`, `stamp_invite` | `business_team`, `claim_business_invite`, `create_business`, `my_pending_invites` |
+
+**`invite_pending` is deliberate** — the one intentionally unauthenticated endpoint, asserted as such by 243. **`set_default_business_id` and `stamp_invite` are trigger functions.** The two worth knowing about are **`restore_backup` and `set_member_role`**: both are refused by their own bodies, so neither is a hole, and both are the same *callable-and-raising* shape `create_business` was — which is precisely the shape that made this whole section necessary, because it looks identical from every screen.
+**They are not fixed on sight**, because a migration should not quietly re-grant or re-revoke functions its item does not own. **Check `proacl`, never the file**, when you want to know who can call something — and note that this paragraph was wrong for a day and a half in the direction that costs most: it named two functions that were safe and none of the ones that were not.
 
 **The transferable rule is this file's oldest one arriving in SQL: a check that finds nothing has only proved something about WHAT IT LOOKED FOR.** `tests/cafe-create.test.js` asserted that the word `anon` was ABSENT from the grant statement and that a `revoke … from public` was PRESENT. Both true; both about the file's text; neither about whether `anon` holds EXECUTE. That is roster entry 190 — a denylist assertion is weaker than an equality one — reaching a language where the privilege can arrive from outside the file entirely. **Assert the revoke BY NAME.**
 

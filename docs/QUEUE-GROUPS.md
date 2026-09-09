@@ -88,7 +88,10 @@ Each names the context a batch loads once. Items are referenced by their consoli
 
 **Context:** `avgFoodCostForScope`, `logHistory`, `logAllMenuPrices`, `costDetail`, `costFromLines`, `lineProduct`, `setMiscCost`, `saveCurrentPlate`, `setProducts`, `recentChangeRows`, `setCogs`, `trendChart`; the five deliberately-separate history series and the target-anchored colour rule.
 
-**Items:** ~~16~~ (shipped, 239), 18, **20**, 21, 22, 23, 19, 55, **88** · rider 25 (rides 15) · riders 69, 76, 77, 81
+**Items:** ~~16~~ (239) · ~~18~~ (241) · ~~19~~ (245) · ~~20~~ (246) · ~~21~~ (247, SPLIT → **90**) · ~~22~~ (248) · ~~23~~ (241) · ~~55~~ (251) · ~~88~~ (249) · ~~rider 25~~ (248) · **90** (open) · riders 69, 76, 77, 81 (open)
+
+⚠️ **G1 IS ALL BUT FINISHED, AND THIS LINE READ AS EIGHT OPEN ITEMS UNTIL 10 SEP 2026** (AUDIT-v207 §2a.4). Every one of the eight shipped across batches 241-251 and none of them came back here to say so — **including 247, which SPLIT item 21 and raised item 90, and routed it in neither this file nor `docs/QUEUE.md`'s group list.**
+**That is the rule three lines below being broken by the very next batch that raised an item.** The rule is right; what it lacks is anything that enforces it, and the refill rule reads this file to decide which group is current — so an under-counting group is the one failure that actually costs something.
 
 ⚠️ **88 was added here on 9 Sep 2026 by AUDIT-v197's finding C4, which is this file's own failure mode arriving quickly.** Batch 239 raised it, put it in the consolidated file and promoted it into the working set — and never told the routing file, whose whole job is *which items load the same context*. It belongs in G1: it is the thirteen bare-pid lines 16's heal refused, so it reads `lineProduct`, `barePidPlan` and the builder's line shapes, which is this group's context exactly. **The general rule, since nothing enforces it: a batch that raises an item routes it in BOTH files, or the group it belongs to silently under-counts.**
 
@@ -100,7 +103,9 @@ Each names the context a batch loads once. Items are referenced by their consoli
 
 ~~**Stops for Max:** 16's heal rewrites production `plates` rows. Rehearse on staging; his go on the day.~~
 ✅ **16 SHIPPED in batch 239 / `ezplate-v197`, and it was deliberately NOT rehearsed on staging** — which is the correction rather than a deviation. The heal is a client-side bulk rewrite, so none of `docs/STAGING.md`'s seven steps reaches it, and staging's invented data cannot answer the question that matters (*does this change a number on Scoopy's real plates?*). It was rehearsed by pulling the real rows READ-ONLY through the MCP and running the real extracted functions over them in Node: 103 plates, 31 lines rewritten, **zero costs moved**. **`CLAUDE.md`'s Migrations section now carries that as the rule**, and it is the stronger of the two — so this line is struck rather than re-pointed. **The half that still stands:** running the heal on production is Max pressing the button, and the app asks him first.
-**Stops for Max, live:** 18's Tranche 0 half (deleting the bad history point) and 88's answer to *which ingredient did this line mean*.
+~~**Stops for Max, live:** 18's Tranche 0 half (deleting the bad history point) and 88's answer to *which ingredient did this line mean*.~~
+⚠️ **BOTH WERE STALE BY 10 SEP 2026** (AUDIT-v207 §2a.5). **88's is discharged** — batch 249 shipped the surface that asks him, so the answer is a click rather than a stop. **18's has MOVED and GROWN**: 18 is struck and the deletion is item 89's, batch 250 shipped the server half that makes it possible at all, and the count is **two** bad points rather than one (`354.4` all-menus, `30000` on an orphaned per-menu series).
+**Stops for Max, live:** **89's** two history points, once its client surface ships — deleting production data, so his every time.
 
 ### G2 · The invoice parser — `js/app.js` INV region, `tests/`, `spike/`
 
@@ -117,7 +122,8 @@ Each names the context a batch loads once. Items are referenced by their consoli
 
 ### G3 · Boot, tenancy, grants — `bootstrapSync`, `supabase/migrations/`, `api/`
 
-**Context:** the bootstrap fatal-read list, `ensureDefaultMenu` and its call-site gate, the three-valued-guard family, RLS and `as restrictive`, `create or replace` ancestry, PostgREST-as-the-client verification.
+**Context:** the bootstrap fatal-read list, the three-valued-guard family, RLS and `as restrictive`, `create or replace` ancestry, PostgREST-as-the-client verification.
+*(This named `ensureDefaultMenu` and its call-site gate until 10 Sep 2026. Batch 246 DELETED both — the `menus` read is fatal now, so there is no branch left to gate. AUDIT-v207 §2a.6.)*
 
 **Items:** 38, 39, 40, 41, 42, 73 · `docs/QUEUE.md`'s 13, 14, 15 by reference
 *(20 was here until 9 Sep 2026 and moved to G1; the reason is at G1.)*

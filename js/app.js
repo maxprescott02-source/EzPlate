@@ -4698,7 +4698,21 @@ function changeEntry(kind, o){
 /* Record one intervention. `avgBefore` must be captured by the caller BEFORE it mutates anything;
    `avgAfter` defaults to the figure as it stands now, which is why this is called after the repaint.
    Both may legitimately be null — an unpublished plate moves no average at all, and saying so honestly
-   beats inventing a zero. Returns the entry, or null when nothing was recorded. */
+   beats inventing a zero. Returns the entry, or null when nothing was recorded.
+
+   ⚠️ THE DEFAULT ON THE NEXT LINE IS A LANDMINE FOR ANY CALLER THAT LOGS MORE THAN ONE ENTRY, and
+   this warning is HERE rather than only at the call sites because here is where the next author
+   writing one will be standing. (AUDIT-v207 §S-E: the hazard was explained at two call sites and at
+   neither this definition nor `trendMarkers`, which is the wrong end.)
+   `avgAfter` is resolved LIVE, when this function runs. A caller that mutates N things and then logs
+   N entries — a batch — has already made every change by the time the first `logChange` fires, so
+   every entry gets the SAME whole-batch movement rather than its own share. `trendMarkers` then sums
+   `drop` per calendar day, so the chart draws N times the real fall.
+   Measured: 249 linked two plates in one choice and the day's marker doubled. Caught by the pre-push
+   review, not by any test — nothing in the suite reads the markers.
+   **The remedy is the invoice repoint loop's, and it says so at its own site: measure the pair around
+   each item's OWN mutation and pass BOTH explicitly, so the entries compose in sequence.** If you are
+   about to call this in a loop, that is the pattern; leaving `avgAfter` out is what makes it late. */
 function logChange(kind, o){
   o=o||{};
   if(o.avgAfter===undefined) o.avgAfter=computeAvgFoodCost();
@@ -6702,6 +6716,11 @@ function trendMarkers(pts){
        show, until some future point arrived (typically next session). An entry newer than all data
        is "now": mkX clamps it to the line's right end. */
     if(e.t<t0) return;
+    /* ⚠️ THIS SUMS, which is what makes `logChange`'s live `avgAfter` default dangerous in a batch:
+       N entries each carrying the whole batch's movement draw N times the real fall here. See the
+       note at `logChange`. Summing is right — a day can hold several real interventions — so the
+       fix belongs at the writer, and this comment exists so a reader arriving from the chart is
+       sent there rather than concluding the aggregation is wrong. */
     var d=new Date(e.t), key=d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate();
     if(!days[key]){ days[key]={t:e.t, drop:0, count:0}; out.push(days[key]); }
     if(e.t>days[key].t) days[key].t=e.t;

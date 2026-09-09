@@ -75,6 +75,20 @@ Drives the installed Chromium against the app from `file://`, over the specs in 
 Because it is outside `npm test`, nothing it depends on fails loudly.
 That is why `addProduct` is dead in the app and deliberately kept - the `fresh-states` specs have no other handle on the pid-line shape, and deleting it would fail silently.
 
+⚠️ **COMMIT FIRST, RUN SECOND. A RUN WHOSE SUBJECT MOVED UNDER IT IS WORTH NOTHING AND LOOKS EXACTLY LIKE A GOOD ONE.**
+This run takes ~9 minutes, so the temptation is to background it and keep working. **Do not edit `js/app.js`, `index.html`, `css/style.css` or `tests/` while it is running** - it reads them off disk as it goes, so a mid-run edit means half the specs ran against one version and half against another, and the result describes neither.
+**It happened twice in three batches, and the second time was after the first had been written up** (246 and 248, AUDIT-v207 §3.2). The measured signature of the bad run:
+
+```
+47 minutes   against a normal 8.6
+466 passed   where 474 was expected
+exit code 0, no failures reported
+```
+
+**Nothing about that says "invalid".** A shorter test list reads as a smaller suite, and the exit code is the one CI trusts. The only reason it was caught is that the previous run's number was known - so **note the pass count you expect before you start**, and treat a drop with no red as a discarded run rather than a mystery to investigate.
+The discipline is one line: **commit, then run.** If findings come back from a review while a run is in flight, stop the run rather than editing under it - a re-run costs nine minutes and a wrong green costs whatever it lets through.
+*(This is the same family as the mutation harness's "assert that the mutation changed the file" and "read the exit code, not the tally" - a harness that reports on something other than what you think you measured.)*
+
 ### 5. The mutation gate - would the suite NOTICE a break?
 
 ```

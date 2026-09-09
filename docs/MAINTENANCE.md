@@ -299,6 +299,23 @@ Requirements: sort every bullet into (a) dead or superseded → delete with the 
 
 ## C — code hygiene and latent defects
 
+### `applyInvoice` is not a mutation target, and the request for it exists only in a struck item
+(Routed here 10 Sep 2026 by AUDIT-v207 §2a.8, which found it homeless.)
+
+Consolidated item 22 asked for the invoice writers to be added to `tests/mutation/targets.js`. Batch 248 declined — correctly, on the `gemApplyReadings` precedent that a target added without doing the work first produces a list of allowances reading as coverage — and routed it to *"`docs/MAINTENANCE.md`'s 'more functions on the gate' entry"*. **That entry names `saveCurrentPlate` and a magnitude check and does not mention it**, and `tests/mutation/targets.js`'s `pending` list is empty. So the request survived only in a struck item and a write-once handover, which is where things go to be forgotten.
+
+**What it needs is the `pending` mechanism this file already documents**: measure the survivor count first, write it into `pending` with the batch that measured it, promote when the coverage lands. `applyInvoice` is very large, so expect a lot; that is the reason to measure before listing, not a reason to skip it.
+⚠️ **Do it with item 90's invoice work, not before.** 90 changes what that function does at the end (a completion message gated on a saved manifest), so measuring survivors now would measure a function about to move.
+
+### 249 left six products in the catalogue that no ingredient and no plate line uses
+(Routed here 10 Sep 2026 by AUDIT-v207 §5, which found it in a handover Probe and nowhere else.)
+
+Batch 249's picker linked the thirteen stranded plate lines onto ingredients. **The six products those lines used to point at are still in the catalogue, and now genuinely nothing references them** — no ingredient, and after 249 no plate line either. `HANDOVER-249` says *"whether they should be deleted is Max's and is not this item's"*, and then routed it nowhere: not to `docs/QUEUE.md`, not to the backlog, not here.
+
+They are: **Bacon Middle Rindless Gas Flushed (Qld)** (`P0004`), **Eggs - Ctn 600g** (`CXmr8nx4z80`), **Maple Syrup Flavoured** (`P0214`), **Cheese Fetta Danish** (`P0073`), **Ham Leg Sliced** (`P0181`), **Hash Browns Triangles Chunky** (`P0184`).
+
+**It is C and it may simply be the answer.** A product nothing uses is not wrong — it is a catalogue entry for something the café buys and does not currently cost with, which is a normal state, and `productRefs` already refuses to delete one that is referenced. **Do not bulk-delete them**; if it is ever worth doing, it is one question to Max with the six named, and the app already has the guard that makes it safe.
+
 ### A refused optimistic edit is left in memory, so the next successful edit's history point includes it
 (Raised 9 Sep 2026 by batch 247's pre-push review, which stated it at medium confidence and was right to.)
 
@@ -949,7 +966,12 @@ Filed here per the tier test: none of these would stop, embarrass or hurt a payi
 
 **What is missing is the mechanism.** The only region check anywhere is `tests/extractfn.test.js:121`, which asserts the **anchors still slice** — not that the contents are unchanged. Every audit since v125 has compared the hash by hand, and v176 is the first time it moved. **The strongest invariant in `CLAUDE.md` is the only one with no test behind it**, and a silent crossing is indistinguishable from compliance — which is this repo's most-recorded shape, one level up from the code.
 
-Two things for Max, neither actionable without him: whether 197's edit is **ratified after the fact**, and whether the region gets a **hash pin in `npm test`**. The hash to pin, if he wants one, is the region between the two anchors as of `main` at `ezplate-v176`; compute it at the time rather than trusting a number written here, since this file cannot notice it going stale.
+Two things for Max, neither actionable without him: whether 197's edit is **ratified after the fact**, and whether the region gets a **hash pin in `npm test`**. The hash to pin, if he wants one, is the region between the two anchors as of `main`; compute it at the time rather than trusting a number written here, since this file cannot notice it going stale.
+
+⚠️ **THAT LAST INSTRUCTION PROVED ITSELF ON 10 SEP 2026, IN ONE STEP, AND IT IS WHY NO NUMBER IS WRITTEN ABOVE.** AUDIT-v207 recommended recording a specific md5 for the region and quoted one. **Batch 252 could not reproduce it** — four plausible slice variants against `tests/_extract.js`'s own `sliceBetween` semantics (exact, rstripped, rstrip-plus-newline, through the end marker) all disagreed with the quoted value while agreeing with each other on the line count. So it was computed, not recorded.
+**A bare hash in prose is an artefact nobody can falsify**, and the recommendation to write one down arrived from the one process whose value is that it checks things. That is this entry's own point, arriving from the direction it did not expect.
+**What AUDIT-v207 could add that v197 could not: the region has NOT MOVED since.** Verified by slicing it at batch 240 and at batch 251 and comparing — identical. So batch 197's edit remains the only one outstanding for ratification, and **the "has a hash ever been compared" disagreement between this file and AUDIT-v197 is settled: one has now, by this batch, and deliberately left unwritten.**
+**The pin in `npm test` is still Max's**, exactly as this entry has always said, and it is one of the two sentences that also settle item 17.
 
 ### Two handover threads reached NEITHER `QUEUE.md` NOR `MAINTENANCE.md`
 
