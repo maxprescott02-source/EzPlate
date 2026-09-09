@@ -53,10 +53,13 @@ function contrast(fg, bg) {
    v98-grid.spec.js seeds: so the checks "must not pass vacuously on an absent region".
 
    TWO HONEST LIMITS, so nobody reads more coverage into this than it has:
-   - The **Ingredients** tab (`pantry`) still sweeps an EMPTY STATE. `_boot.js` answers the
-     kitchen_ingredients table with an error, so it cannot be seeded from here. That is not
-     worthless — the empty state is one of the five states §4 requires — but the populated
-     Ingredients grammar (drift badges, broken-link warnings) is NOT swept.
+   - The **Ingredients** tab (`pantry`) still sweeps an EMPTY STATE, because this fixture seeds no
+     kitchen ingredients. The limit is real; the REASON stated here was wrong and is corrected
+     rather than deleted, because the wrong reason is what made it read as unfixable: it said
+     "_boot.js answers the kitchen_ingredients TABLE with an error", and there is no such table —
+     it is an `app_settings` row, which the shim simply did not serve. Since 239 it does, from
+     `cafeDB_king`, so seeding this fixture would now populate the screen. The populated
+     Ingredients grammar (drift badges, broken-link warnings) is still NOT swept here.
    - Plate lines are all `{misc:true}`, so the kid/pid line grammar is not exercised either.
    Both belong to F3/F7, which rebuild those screens and should extend this fixture. */
 const seed = `
