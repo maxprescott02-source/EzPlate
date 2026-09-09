@@ -88,9 +88,10 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 ⚠️ **`menu_items` is the third such table and is DELIBERATE** — 187 decided staff may unpublish a dish, and it says so in the migration. It is not part of this.
 **Why it needs him:** what staff may do is his decision — 187 was his. The migration, if the answer is no, is 187's exact idiom with 250 as the worked example.
 
-## next  90 · The other three halves of item 21: a completion message, a delete sequence, and a boot-time replace  **[B, unmeasured]**
+## next  90 · Item 21's remaining halves: a delete sequence and a boot-time replace  **[B — the completion message shipped in batch 253]**
 
 **Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 90.
+✅ **The completion message shipped in batch 253 (`ezplate-v208`)** — the invoice summary waits for its writes and says how many landed. **What is left is two small ones and a UX question**: a refused row left unticked with its own error needs the dialog to stay open through the writes, which is a decision rather than a defect. Read the full item.
 ⚠️ **SPLIT OUT OF 21 BY BATCH 247, which shipped 21's history half as `ezplate-v204`.** 21 grouped four instances under one mechanism and only one of them shared it in substance: the history gating was fifteen call sites and a dedup interaction, the invoice completion message needs a COUNT of what landed rather than a boolean, the menu delete is a sequencing change, and the boot-time replace is a merge decision. **Each needs its own repro; none falls out of the others**, and 21's old `Do after: 20` reason was falsified by 246 before either could be used.
 
 

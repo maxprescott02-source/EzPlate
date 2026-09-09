@@ -46,7 +46,8 @@ const DEPS = ['unitCatCategory', 'unitToBaseFields', 'kingRepointGuard', 'invPri
 
 /* Run one review row through the REAL loop. Everything the loop reaches for is stubbed at the
    boundary — DOM, writers, id mint — and nothing that makes a DECISION is stubbed. */
-function runRow({ product, row, typedPrice, typedQty, typedUnit, supplier, ticked }) {
+function runRow(opts) {
+  const { product, row, typedPrice, typedQty, typedUnit, supplier, ticked } = opts;
   const calls = { setProduct: [], remembered: [], synced: [] };
   const fakeTr = {
     dataset: { i: '0' },
@@ -72,6 +73,10 @@ function runRow({ product, row, typedPrice, typedQty, typedUnit, supplier, ticke
     var calls = CTX.calls, byId = CTX.byId, invRows = CTX.invRows;
     var invSupplier = CTX.supplier, supplierMem = {}, specs = {};
     var n = 0, added = 0, learned = [], priceChanges = [], kingsMade = 0, kingRepoints = [], rebased = [];
+    /* 253: the loop now COLLECTS each price write so the completion message can count what the
+       server kept rather than what the screen attempted. Declared here because the slice under test
+       is the loop body, not the function around it. */
+    var priceWrites = [];
     var kitchenIngredients = [];
     function cpbu(p){ return p.cost_per_base_unit; }
     function uid(pfx){ return pfx + '1'; }
@@ -81,15 +86,24 @@ function runRow({ product, row, typedPrice, typedQty, typedUnit, supplier, ticke
     function normalizePhrase(s){ return String(s||'').toLowerCase().trim(); }
     function packPriceOf(){ return CTX.packPrice; }
     function invGstAdjust(v){ return v; }
-    function setProduct(id, patch){ calls.setProduct.push({ id:id, patch:patch }); }
+    /* 253: returns a resolved write carrying the saved manifest, which is setProducts' real shape.
+       A stub returning undefined would let the collection look fine while the thing the completion
+       message reads was never there. CTX.savedIds decides which ids the server kept.
+       (No backticks in this block - it is inside a template literal. Fourth time; see the note in
+       docs/MAINTENANCE.md for why that is still not a rule.) */
+    function setProduct(id, patch){
+      calls.setProduct.push({ id:id, patch:patch });
+      var keep = CTX.savedIds === undefined ? [id] : CTX.savedIds;
+      return Promise.resolve({ data:[], error:null, saved:keep });
+    }
     function rememberSupplierPhrase(sup, phrase, q, u){ calls.remembered.push({ q:q, u:u }); }
     function syncMemoryToProduct(pid, q, u){ calls.synced.push({ pid:pid, q:q, u:u }); }
     ${DEPS}
     var loop = ${sliceRowLoop()};
-    return function(tr){ loop(tr); return { n:n, added:added, rebased:rebased, priceChanges:priceChanges }; };`);
+    return function(tr){ loop(tr); return { n:n, added:added, rebased:rebased, priceChanges:priceChanges, priceWrites:priceWrites }; };`);
 
   const out = factory({ calls, byId, invRows: [row], supplier: supplier || 'Bidfood',
-                        packPrice: 12 })(fakeTr);
+                        packPrice: 12, savedIds: opts.savedIds })(fakeTr);
   return { ...out, calls };
 }
 
@@ -154,4 +168,52 @@ test('0b: an UNTICKED re-basing row is skipped by the tick check, not named by t
   assert.deepEqual(r.rebased, [], 'a row nobody ticked is not a refusal — it was never requested');
   assert.deepEqual(r.calls.setProduct, [], 'and of course nothing is written');
   assert.equal(r.n, 0);
+});
+
+
+/* =============================================================================================
+ * 253 / QUEUE item 90 — the completion message counts what the SERVER kept.
+ *
+ * Until this batch the summary fired synchronously off `n`, the count of rows the UI attempted, so
+ * an import whose product upserts were all refused still said "Invoice imported · 36 prices".
+ * `pushWrite` toasted each failure underneath it — so the user was told twice, once truthfully and
+ * once not, which is a false completion rather than silent loss.
+ *
+ * `setProducts` resolves with a `saved` manifest, and these pin that the loop now KEEPS it. The
+ * summary's own arithmetic is asserted separately below, because the two are different questions:
+ * whether the verdict is collected, and whether the sentence reads it.
+ * ========================================================================================== */
+
+test('253: an applied row keeps its write, and the manifest names the product', async () => {
+  /* The same shape as the BASELINE case above — a row in the product's own category, which applies
+     in full. Reusing it means this test measures the manifest and not the rebase guard. */
+  const row = { ...flourRow(), unit: 'kg', taughtUnit: 'kg' };
+  const r = runRow({ product: FLOUR, row, typedPrice: '1.20', typedQty: '10', typedUnit: 'kg' });
+  assert.strictEqual(r.n, 1, 'precondition: the row applied');
+  assert.strictEqual(r.priceWrites.length, 1, 'and its write was collected, not discarded');
+  assert.strictEqual(r.priceWrites[0].pid, 'P1');
+  const saved = await r.priceWrites[0].write;
+  assert.deepStrictEqual(saved.saved, ['P1'], 'the manifest is what the completion message counts');
+});
+
+test('253: a REFUSED write is collected too, and reports itself as not kept', async () => {
+  /* The case the item asks for: writes that reject after Apply. The row still applied optimistically
+     — that is the app's standing pattern and is not what changed — but the verdict now exists, so
+     the sentence that claims success can wait for it. */
+  const row = { ...flourRow(), unit: 'kg', taughtUnit: 'kg' };
+  const r = runRow({ product: FLOUR, row, typedPrice: '1.20', typedQty: '10', typedUnit: 'kg', savedIds: [] });
+  assert.strictEqual(r.n, 1, 'the screen still counts it as applied — the repaint stays optimistic');
+  assert.strictEqual(r.priceWrites.length, 1);
+  const saved = await r.priceWrites[0].write;
+  assert.deepStrictEqual(saved.saved, [], 'and the server kept nothing, which the summary must say');
+});
+
+test('253: an UNAPPLIED row collects no write, so it cannot be counted either way', () => {
+  /* The counterweight. If every row collected a write regardless, `kept` would be measured against
+     a denominator that includes rows nobody applied — which reads as a partial failure on an import
+     that did exactly what it was told. */
+  const row = { ...flourRow(), unit: 'kg', taughtUnit: 'kg' };
+  const r = runRow({ product: FLOUR, row, typedPrice: '1.20', typedQty: '10', typedUnit: 'kg', ticked: false });
+  assert.strictEqual(r.n, 0);
+  assert.deepStrictEqual(r.priceWrites, [], 'nothing applied, nothing to have a verdict about');
 });

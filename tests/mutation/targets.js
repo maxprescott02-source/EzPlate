@@ -474,6 +474,17 @@ const targets = [
      $-1.08 and saved it there. Listed for 184's reason: `setQty` and `commitPrice` guard, this one
      did not, and nothing had ever asked the question of any of the three at this level. */
   { fn: 'setMiscCost', tests: ['misc-cost-sign.test.js'] },
+  /* 253 — how many of an invoice's prices the SERVER kept, which is the whole of item 90's first
+     instance: it is what turns "Invoice imported · 36 prices" from a claim about the screen into a
+     report of what landed. Listed the moment it existed, because the gate had already proved the
+     point while the logic was still inline in `applyInvoice` — flipping the tally to `oks.length`
+     (attempted, not kept, the defect restored exactly) survived every test in the batch. Extracting
+     it was the fix for that, and listing it is what keeps the fix honest. */
+  { fn: 'importKeptCount', tests: ['import-summary.test.js'] },
+  /* 253's pre-push review — whether an import owes a trend point. Both of this batch's majors were
+     decisions buried inside `applyInvoice` where nothing could run them, and both were wrong; this
+     is the second one extracted. Its `relinked` arm is the whole reason it exists. */
+  { fn: 'importMovedCost', tests: ['import-summary.test.js'] },
   /* 249 — the choice a person makes about a plate line the heal refused, and the arithmetic that
      tells them what it costs. `barePidPlan` is already a target through the heal; these two are its
      readers and neither had ever been asked the question. `orphanChoiceDelta` is the one that

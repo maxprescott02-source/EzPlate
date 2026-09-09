@@ -4510,6 +4510,54 @@ function confirmPrices(write, entries, priced, seq){
    dbPushIngredients attaches one on every exit it has, so its absence means the promise never
    reached that function at all — the rejection arm, which is not evidence of a save. */
 function writeSaved(r){ return (r && Array.isArray(r.saved)) ? r.saved : []; }
+/* ⚠️ 253 — HOW MANY OF AN IMPORT'S PRICES THE SERVER ACTUALLY KEPT. QUEUE item 90.
+   Extracted rather than left inline in `applyInvoice`, and that is not tidiness: the count is the
+   whole of the fix — it is what turns "Invoice imported · 36 prices" from a claim about what the
+   screen did into a report of what the server took — and inside a 500-line function nothing can run
+   it. The mutation gate proved the point before this existed: flipping the tally from
+   `oks.filter(Boolean).length` to `oks.length` (attempted, not kept, which is the defect restored
+   exactly) survived every test in the batch.
+   A row counts only if the manifest NAMES ITS OWN PRODUCT. `writeSaved` returns the ids the server
+   confirmed, so `indexOf(pid)>=0` is the question — a truthy result object is not, because a
+   chunked write can resolve without error while a chunk inside it saved nothing.
+   A rejected promise counts as not kept: that is the offline arm, and `pushWrite` has already said
+   so in its own toast. */
+/* ⚠️ 253 — DID THIS IMPORT MOVE ANY COST, and therefore does it owe a trend point? Extracted for
+   the reason `importKeptCount` beside it was: it is a decision buried in a 500-line function, and
+   the first cut got it wrong in a way every test in the batch missed.
+   `relinked` IS PART OF IT, and leaving it out reintroduced exactly what v114 was written to fix.
+   A repoint inside an import moves the cost of every plate using that ingredient — and it takes the
+   `addNew` branch, so it increments `added` and `relinked` and NEVER touches `priceWrites`. Gating
+   on the price manifest alone meant a single-line invoice that only repointed logged no point at
+   all, on the one path `tests/history-paths.test.js`'s own header records as having been missed
+   once already. Found by 253's pre-push review.
+   `kept===null` is the bounded-wait arm and logs NOTHING on its own: an unanswered write is not a
+   movement, and a point is a claim that one happened. A repoint alongside it still counts, because
+   that one is applied in memory and its own write is gated separately.
+   `added` is deliberately NOT here: a product created by an import is used by no plate yet, so no
+   cost moves — the same reasoning the kitchen-word comment above gives for not logging a creation. */
+function importMovedCost(kept, relinked){ return !!(kept || relinked); }
+var IMPORT_VERDICT_MS=15000;
+function importKeptCount(writes){
+  var settled=Promise.all((writes||[]).map(function(w){
+    return Promise.resolve(w && w.write).then(function(r){ return writeSaved(r).indexOf(w.pid)>=0; },
+                                              function(){ return false; });
+  })).then(function(oks){ return oks.filter(Boolean).length; });
+  /* ⚠️ A PROMISE THAT NEVER SETTLES IS A THIRD OUTCOME, and this function is the one place in the
+     import that can be held by it. (`CLAUDE.md` roster 195; found here by 253's pre-push review.)
+     `pushWrite` always settles — GIVEN that the fetch underneath it does. `createClient` is built
+     with no timeout, and this file already records that gap elsewhere. So one stalled request on
+     café mobile data would hold `Promise.all` open forever, and the caller waits on this before it
+     says ANYTHING: the completion card would never appear at all.
+     **That is a worse failure than the one this batch fixed**, by this project's own rule that the
+     user would rather be told a thing did not save than discover it next week — the old code was
+     wrong and always spoke; unbounded, the new code would be right and silent.
+     So the verdict is BOUNDED. `null` means "no answer yet", which the caller renders as its own
+     sentence rather than as a count — because "0 of 36 saved" and "we do not know yet" are different
+     claims and only one of them is true here. The writes are not cancelled and `pushWrite` will
+     still toast each real failure whenever it arrives. */
+  return Promise.race([settled, new Promise(function(res){ setTimeout(function(){ res(null); }, IMPORT_VERDICT_MS); })]);
+}
 /* Undo a batch the server never got. logIngPrice writes in TWO places — the in-memory series and the
    pending queue — so gating the queue alone would leave the session showing a movement that was
    refused: ingLastMovePct (the Ingredients drift chip) and ingPriceBand read the series, not the
@@ -8810,7 +8858,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v207';
+var APP_VERSION='v208';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -13340,6 +13388,7 @@ function applyInvoice(){
   });
   if(!ok){ toast('Fix the highlighted new item before confirming'); return; }
   var n=0, added=0, learned=[]; var priceChanges=[]; var overBefore=dishesOverTarget(); var kingsMade=0; var kingRepoints=[];
+  var priceWrites=[];   // 253: {pid, write} per applied price — the manifest the completion message reads
   var rebased=[];                                                 // 0b: rows refused because applying them would re-base their product
   document.querySelectorAll('#invReview tbody tr.inv-data').forEach(function(tr){
     var i=parseInt(tr.dataset.i,10), r=invRows[i]; var appr=tr.querySelector('.invAppr');
@@ -13376,7 +13425,10 @@ function applyInvoice(){
       var priceUnit=invPriceUnit(r, p);                            // 0b: extracted, because invUnitRebase must ask about the unit this line WRITES and not a copy of it
       var ub2=unitToBaseFields(priceUnit);                         // the unit beside the input is the one and only unit written
       var oldC=cpbu(p); var newC=up/ub2.div;
-      setProduct(pid,{cost_per_base_unit:newC, base_unit:ub2.base_unit, cost_basis:ub2.cost_basis}); n++;   // v109: setProduct writes the price point (and flushes it) — one writer, every path
+      /* 253: the write is COLLECTED, not discarded. `setProducts` resolves with a `saved` manifest —
+         which ids the server actually kept — and until this batch every one of those verdicts was
+         dropped on the floor, so "Invoice imported · 36 prices" counted what was ATTEMPTED. */
+      priceWrites.push({pid:pid, write:setProduct(pid,{cost_per_base_unit:newC, base_unit:ub2.base_unit, cost_basis:ub2.cost_basis})}); n++;   // v109: setProduct writes the price point (and flushes it) — one writer, every path
       if(oldC!=null && Math.abs(newC-oldC)>Math.abs(oldC)*0.005){ priceChanges.push({name:p.description||r.name, oldC:oldC, newC:newC, unit:ub2.base_unit, dir:(newC>oldC?1:-1), pctAbs:Math.abs((newC-oldC)/oldC)*100}); }
     }
     // ITEM 1 (v38) ROOT CAUSE: the product-pack write lived INSIDE this supplier-memory block, so it was gated on normSupplier(invSupplier). A pack belongs to the PRODUCT — 105 slices in a bag is 105 slices whoever invoiced it — but invSupplierDetect returns '' by design when it can't read the letterhead ("no guess"), which made the whole block skip and silently dropped the teach, while the price write above (ungated) still saved. That is why the old price survived as $0.200/unit but the pack vanished. The pack write is now unconditional; supplier memory keeps its own gate, which it genuinely needs because it is keyed supplier+phrase.
@@ -13453,7 +13505,10 @@ function applyInvoice(){
   if(n||added){
     var iso=new Date().toISOString(); try{localStorage.setItem('cafeDB_lastImport',iso);}catch(e){}
     var setWrite=dbSetSetting('last_invoice_import',iso);
-    logHistory();
+    /* 253: `logHistory()` MOVED from here to the completion block below, where the price writes have
+       settled. It fired unconditionally here, so an import the server refused entirely still put a
+       point on the food-cost trend — which is 247's whole subject, on the one path 247 could not
+       reach because it had no verdict to gate on. It has one now. */
     /* ⚠️ 248 — THE IMPORT LEAVES A RECORD, AND IT CARRIES NO AVERAGE ON PURPOSE. QUEUE item 22.
        Measured 8 Sep: `menu_change_log` held ZERO invoice events while the Invoices screen printed
        "Prices last updated 29/08/2026", so the app's only memory of an import was one date in
@@ -13497,7 +13552,33 @@ function applyInvoice(){
   if(rebased.length){                                             // 0b: a refusal the user chose has to be said out loud, or it is the silence this item exists to remove
     toast(rebased.length+' line'+(rebased.length===1?'':'s')+' not applied \u2014 '+(rebased.length===1?('\u201c'+rebased[0]+'\u201d is'):'they are')+' priced in a different unit from the product');
   }
-  if(n||added){ showImportSummary(priceChanges, added, overBefore, overAfter, {made:kingsMade, relinked:relinked}); }
+  /* ⚠️ 253 — THE COMPLETION MESSAGE WAITS FOR THE WRITES, AND THE DIALOG DOES NOT. QUEUE item 90.
+     Until this batch the summary fired synchronously off `n`, which counts rows the UI ATTEMPTED —
+     so an import whose product upserts were all refused still said "Invoice imported · 36 prices".
+     `pushWrite` toasted each failure underneath it, so it was a false completion rather than silent
+     loss; the user was told twice, once truthfully and once not.
+     **This is the app's own delete-sequencing rule and nothing more: the optimistic repaint stays,
+     the WORDING waits for the server.** The dialog still closes immediately — holding it open for
+     dozens of round trips on café mobile data would be worse than the bug — and the summary arrives
+     when the answer does, which is the honest moment for a sentence that claims something landed.
+     **`setProducts` resolves with a `saved` manifest** (`writeSaved`), so the count is what the
+     server kept rather than a boolean: a partial import says so instead of claiming all or nothing,
+     which is the shape 247 and 248 both deferred to this item for exactly this reason.
+     ⚠️ WHAT IS DELIBERATELY NOT DONE HERE, and item 90 keeps it: leaving a REFUSED ROW unticked with
+     its own error. That needs the review still on screen, so it is a decision about whether the
+     dialog stays open through the writes — a UX question, not a defect, and one this batch has no
+     mandate to answer. */
+  if(n||added){
+    importKeptCount(priceWrites).then(function(kept){
+      /* `kept===null` is the bounded-wait arm: the writes have not answered inside
+         IMPORT_VERDICT_MS. Neither a count nor a claim of success is honest there. */
+      /* The trend point moves with the same verdict. 247 left `logHistory()` ungated on this path
+         and said why at its site — one call standing for dozens of writes with no single answer —
+         and named this item as where the manifest would settle it. It has. */
+      if(importMovedCost(kept, relinked)) logHistory();
+      showImportSummary(priceChanges, added, overBefore, overAfter, {made:kingsMade, relinked:relinked}, kept, n);
+    });
+  }
   else if(!guarded.length && !rebased.length) toast('No changes to save');
   if(guarded.length) confirmGuardedRepoints(guarded);
 }
@@ -13534,7 +13615,12 @@ function confirmGuardedRepoints(list){
       toast(done+' ingredient'+(done===1?'':'s')+' re-linked');
     });
 }
-function showImportSummary(changes, added, overBefore, overAfter, kings){   // corner toast: glance, don't study
+/* 253: `kept` and `attempted` are the last two arguments and are OPTIONAL, so the four existing
+   tests that call this with five arguments still describe what they were written to describe.
+   They are what turns "Invoice imported" from a claim into a report: the summary now fires after the
+   product writes settle, and `kept` is how many the server actually took (`writeSaved`'s manifest),
+   not how many rows the screen ticked. */
+function showImportSummary(changes, added, overBefore, overAfter, kings, kept, attempted){   // corner toast: glance, don't study
   var stack=document.getElementById('cornerToasts');
   if(!stack){ stack=document.createElement('div'); stack.id='cornerToasts'; document.body.appendChild(stack); }
   var ups=changes.filter(function(c){return c.dir>0;}).length, downs=changes.length-((changes.filter(function(c){return c.dir>0;})).length);
@@ -13546,6 +13632,27 @@ function showImportSummary(changes, added, overBefore, overAfter, kings){   // c
   if(kings && kings.made) bits.push(kings.made+' ingredient'+(kings.made===1?'':'s')+' created');
   if(kings && kings.relinked) bits.push(kings.relinked+' re-linked');
   var newlyOver=overAfter-overBefore;
+  /* ⚠️ 253 — WHEN THE SERVER KEPT FEWER THAN THE SCREEN APPLIED, SAY SO IN THE HEADLINE, not in a
+     second toast underneath. `pushWrite` has already said what went wrong for each one; what it
+     cannot say is how much of the import survived, and a card headed "Invoice imported" over a
+     partial result is the false completion this item is about.
+     `kept===undefined` is the old five-argument call and prints exactly what it always did. */
+  /* ⚠️ THREE STATES, NOT TWO, and the middle one is why `kept` may be null. A number below
+     `attempted` is a measured shortfall; `null` is "the writes have not answered inside the bounded
+     wait", which is neither success nor failure and must not be printed as a count — "0 of 36 saved"
+     would be a claim nobody has established. The five-argument call passes neither and prints what
+     it always did. (253's pre-push review: the bounded wait exists because an unbounded one could
+     leave this card unrendered forever.)
+     ⚠️ AND THE WORD IS "WRITES", NOT "PRICES", because the headline above already says "N prices"
+     counting something else — `priceChanges`, the rows that MOVED by more than half a percent —
+     while these count every price the import sent, re-confirmations included. Two true numbers on
+     one card, both called prices, would read as contradicting each other. */
+  var partial = '';
+  if(kept===null && typeof attempted==='number' && attempted>0){
+    partial='<div class="ct-margin is-muted">'+attempted+' price write'+(attempted===1?'':'s')+' still saving \u2014 you\u2019ll be told if any fail</div>';
+  } else if(typeof kept==='number' && typeof attempted==='number' && kept<attempted){
+    partial='<div class="ct-margin is-warn">\u26a0 '+kept+' of '+attempted+' price write'+(attempted===1?'':'s')+' saved \u2014 the rest did not reach the server</div>';
+  }
   var margin = newlyOver>0 ? '<div class="ct-margin is-warn">\u26a0 '+newlyOver+' plate'+(newlyOver===1?'':'s')+' now over '+cogsPct+'% target</div>'
              : (overAfter>0 ? '<div class="ct-margin is-muted">'+overAfter+' still over '+cogsPct+'% target</div>' : '');
   var top=changes.slice().sort(function(a,b){return b.pctAbs-a.pctAbs;})[0];   // ONE biggest mover, not three
@@ -13555,7 +13662,7 @@ function showImportSummary(changes, added, overBefore, overAfter, kings){   // c
   var el=document.createElement('div'); el.className='corner-toast';
   el.innerHTML='<button class="is-x" type="button" aria-label="Dismiss">\u00d7</button>'
     +'<div class="ct-head">Invoice imported'+(bits.length?(' \u00b7 '+bits.join(' \u00b7 ')):'')+'</div>'
-    +margin+mover;
+    +partial+margin+mover;
   stack.appendChild(el);                                             // stacks cleanly; fixed overlay shifts no page content
   requestAnimationFrame(function(){ el.classList.add('show'); });
   var kill=function(){ el.classList.remove('show'); setTimeout(function(){ el.remove(); }, 250); };
