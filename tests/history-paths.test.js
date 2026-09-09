@@ -70,6 +70,13 @@ function harness(opts) {
     function dbDeletePlate(id){ S.writes.push('delplate:'+id); return res('plate'); }
     function dbDeleteMenuRecord(id){ S.writes.push('delmenurec:'+id); return res('menurec'); }
     function dbSetSetting(k,v){ S.writes.push('setting:'+k); return res('setting'); }
+    /* 247 (from the pre-push review): the PRODUCT write. setProduct is setProducts' N=1 wrapper, so
+       its result is one pushWrite's - a complete binary verdict, not the catalogue importer's saved
+       manifest. Stubbed at that boundary rather than running setProducts, because what is under test
+       is whether logHistory waits for it, not what setProducts does with it.
+       (No backticks in this block: it is inside a template literal, as the note at uid() says.) */
+    var plate=${JSON.stringify(opts.plate || [])};
+    function setProduct(id, patch){ S.writes.push('product:'+id); Object.assign(byId[id]||{}, patch); return res('product'); }
     function dbPushChange(e){ return res('changelog'); }
     function dbPushHistory(iso, v){ S.histPushes.push(v); }
     function dbPushMenuHistory(){} function dbPushMenuPrice(){}
@@ -113,13 +120,14 @@ function harness(opts) {
       'lineProduct', 'lineCost', 'costDetail', 'costFromLines', 'plateIdOf', 'plateForMenuItem', 'dishesOfPlate', 'menusOfPlate',
       'platesUsingKid', 'menuIdsForPlates', 'fallbackMenuId',
       'dishRatios', 'avgFoodCostForScope', 'computeAvgFoodCost',
-      'ptMs', 'logHistory', 'logMenuHistory', 'logAllMenuPrices', 'logMenuPrice', 'repaintDashboardIfVisible',
+      'ptMs', 'logHistory', 'logHistoryPoint', 'logMenuHistory', 'logAllMenuPrices', 'logMenuPrice', 'repaintDashboardIfVisible',
       'saveKitchenIngredients',
       'forgetMenuItems', 'removeMenuItem', 'mmRemove', 'doDeleteMenuOnly', 'doDeleteMenu',
       // 188: isOwner/ownerOnly are dependencies of deletePlate and doDeleteEverything now — EXTRACTED,
       // not stubbed, because a hand-rolled `return true` here would pass against a guard that was
       // silently inverted. businessRole defaults to 'owner', which is the role these paths assume.
       'isOwner', 'ownerOnly',
+      'commitPrice',   // 247: the builder's per-unit price edit — one of the two sites the review found still ungated
       'dbDeletePlateAfterDishes', 'rollbackPlateDelete', 'deletePlate', 'doDeleteEverything',
       'confirmGuardedRepoints', 'kingRepointGuard',
       'deleteKitchenIngredient', 'saveKingModal',
@@ -141,6 +149,7 @@ function harness(opts) {
       confirmGuardedRepoints:function(l){ confirmGuardedRepoints(l); if(S.confirmFn) S.confirmFn(); },
       deleteKitchenIngredient:function(kid){ deleteKitchenIngredient(kid); if(S.confirmFn) S.confirmFn(); },
       saveKingModal:function(){ saveKingModal(); if(S.confirmFn) S.confirmFn(); },
+      commitPrice:commitPrice,
     };
   `);
   return { S, api: factory(S) };
@@ -189,6 +198,110 @@ test('path 2: a pure rename logs NOTHING — display-only, no cost can move', as
   api.saveKingModal();
   await flush();
   assert.deepStrictEqual(api.priceHistory(), [], 'a rename must not stipple the line with flat points');
+});
+
+/* =============================================================================================
+ * 247 / QUEUE item 21 — THE POINT WAITS FOR THE WRITE.
+ *
+ * Everything above pins WHICH paths log and WHAT VALUE lands. None of it could fail if the point were
+ * pushed for a mutation the server refused, because every write in this harness succeeds by default —
+ * which is the weakness the blind audit named, and it is the same shape as `menu-default.test.js`
+ * being an "expensive green test" in the batch before this one.
+ *
+ * The harm is specific and it is not a crash: `pushWrite` toasts the failure, memory keeps the new
+ * value, and the next boot reads the OLD value back from the server and leaves the point behind — a
+ * reading of a state that never existed, in `price_history`, the table QUEUE item 89 exists because
+ * nothing in the app can correct.
+ *
+ * ⚠️ THE REPAINT IS DELIBERATELY NOT GATED and these tests must not accidentally forbid it. v60 item
+ * 1a says a data-changing event always refreshes a visible dashboard; only the POINT waits. So every
+ * assertion here is about `priceHistory` and `histPushes`, never about whether a render ran.
+ * ========================================================================================== */
+
+test('247: a repoint whose write is REFUSED logs no point (path 2)', async () => {
+  const { api } = harness(Object.assign(threeDishes(), {
+    kingEditId: 'K1', kingChosenPid: 'P2', fields: { king_name: 'Chips' },
+    fail: { setting: true },
+  }));
+  api.saveKingModal();
+  await flush();
+  assert.deepStrictEqual(api.priceHistory(), [],
+    'the repoint did not land, so the average did not move — a point here says it did');
+});
+
+test('247: an ingredient delete whose write is REFUSED logs no point (path 5)', async () => {
+  const { api, S } = harness(Object.assign(threeDishes(), { fail: { setting: true } }));
+  api.deleteKitchenIngredient('K1');
+  if (S.confirmFn) S.confirmFn();
+  await flush();
+  assert.deepStrictEqual(api.priceHistory(), [], 'a refused delete leaves the line alone');
+});
+
+test('247: a dish removal whose write is REFUSED logs no point (path 10)', async () => {
+  const { api } = harness(Object.assign(threeDishes(), { fail: { menu: true } }));
+  api.mmRemove('D3');
+  await flush();
+  assert.deepStrictEqual(api.priceHistory(), [],
+    'the dish is still on the menu as far as the server knows, so the average did not move');
+});
+
+test('247: a menu delete whose write is REFUSED logs no point (path 12)', async () => {
+  const { api } = harness(Object.assign(threeDishes(), { fail: { menurec: true } }));
+  api.doDeleteMenu('MW');
+  await flush();
+  assert.deepStrictEqual(api.priceHistory(), [], 'the menu is still there, so its dishes are still averaged in');
+});
+
+test('247: and the SAME paths still log when the write lands — the gate is not a blanket refusal', async () => {
+  /* The counterweight, and it is the half that would catch a gate wired to the wrong promise or to a
+     value that is never truthy. Each of these is the success twin of a test above; if the gate were
+     simply "never log", all four would be green and all four would be wrong. */
+  const a = harness(Object.assign(threeDishes(), { kingEditId: 'K1', kingChosenPid: 'P2', fields: { king_name: 'Chips' } }));
+  a.api.saveKingModal(); await flush();
+  assert.strictEqual(a.api.priceHistory().length, 1, 'path 2 still logs on success');
+
+  const b = harness(threeDishes());
+  b.api.mmRemove('D3'); await flush();
+  assert.strictEqual(b.api.priceHistory().length, 1, 'path 10 still logs on success');
+
+  const c = harness(threeDishes());
+  c.api.doDeleteMenu('MW'); await flush();
+  assert.strictEqual(c.api.priceHistory().length, 1, 'path 12 still logs on success');
+});
+
+test('247: a REFUSED write pushes nothing to the server either', async () => {
+  /* `priceHistory` is memory; `histPushes` is what reached dbPushHistory. A gate that kept the point
+     out of the array but still pushed it would leave the defect exactly where it was — the row that
+     survives a reload is the server's, not memory's. */
+  const { api, S } = harness(Object.assign(threeDishes(), { fail: { menu: true } }));
+  api.mmRemove('D3');
+  await flush();
+  assert.deepStrictEqual(S.histPushes, [], 'no row for a mutation the server refused');
+});
+
+test('247 (review): the builder price edit gates on the PRODUCT write too', async () => {
+  /* Found by 247's own pre-push review, which is the reason this test exists rather than the four
+     above it. The first cut of the batch left this site and `saveIngEdit` ungated, with a comment
+     arguing that `setProducts` returns a chunked write whose verdict is a manifest rather than a
+     single error. **That is true of the catalogue importer and false here:** `setProduct` is the
+     N=1 wrapper, so `dbPushIngredients` builds one chunk, issues one `pushWrite`, and `.error` is a
+     complete binary verdict. A justification that is wrong is worse than no justification, because
+     it argues — and this one shipped inside the batch whose whole subject is the gate. */
+  const { api, S } = harness(Object.assign(threeDishes(), {
+    plate: [{ uid: 1, pid: 'P1', qty: 100 }],
+    fail: { product: true },
+  }));
+  api.commitPrice(1, '8');
+  await flush();
+  assert.deepStrictEqual(api.priceHistory(), [], 'a refused price edit must not move the trend line');
+  assert.deepStrictEqual(S.histPushes, [], 'and must not push a row for it');
+});
+
+test('247 (review): …and still logs when that write lands', async () => {
+  const { api } = harness(Object.assign(threeDishes(), { plate: [{ uid: 1, pid: 'P1', qty: 100 }] }));
+  api.commitPrice(1, '8');
+  await flush();
+  assert.strictEqual(api.priceHistory().length, 1, 'the gate is not a blanket refusal here either');
 });
 
 /* =============================================================================================
