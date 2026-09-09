@@ -102,7 +102,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=205">
+<link rel="stylesheet" href="css/style.css?v=206">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -963,6 +963,22 @@
               </div>
               <button class="btn stg-ctl" id="setHealLines" type="button">Fix</button>
             </div>
+            <!-- 249 (QUEUE item 88): the lines the heal above REFUSES. It moves a bare line onto its
+                 ingredient only where exactly one ingredient owns that product; these have none, so
+                 no rule can tell which ingredient was meant and only a person can. Hidden the same
+                 way and for the same reason as the heal row above — including the
+                 `.stg-row:not([hidden])` CSS both breakpoints need, or a single-class display rule
+                 beats the UA's [hidden].
+                 ⚠️ The help text does NOT borrow the heal's "nothing costs a different amount"
+                 promise, because here it is false by construction: every ingredient points at a
+                 different product, so choosing one re-costs every line. The picker shows what. -->
+            <div class="stg-row" id="setOrphanRow" hidden>
+              <div class="stg-text">
+                <span class="stg-lbl">Link older plate lines</span>
+                <p class="stg-help">Some plate lines cost off a product that no ingredient uses any more, so nothing can tell which ingredient they meant. Pick one per product and we&rsquo;ll show what each plate costs before you commit.</p>
+              </div>
+              <button class="btn stg-ctl" id="setLinkOrphans" type="button">Link</button>
+            </div>
             <div class="stg-row">
               <div class="stg-text">
                 <span class="stg-lbl">Export backup</span>
@@ -1534,6 +1550,27 @@
   </div>
 </div>
 
+<!-- 249 (QUEUE item 88): "which ingredient did you mean?", one product at a time.
+     Modelled on #plateHealModal directly above and reusing the same `.ad-list`/`.ad-item` family —
+     same job (the app surfacing a choice instead of making it), same row shape, no second CSS family
+     to keep in step. That sharing is recorded in docs/QUEUE.md's design-law list.
+     The footer offers "Leave these alone" as a real answer, for the same reason the picker above
+     offers "Start a new plate": a plate line may genuinely be meant to cost off a product no
+     ingredient owns, and refusing must not require pressing Cancel. -->
+<div class="modal-overlay" id="orphanLinkModal" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="orphanLinkTitle">
+    <div class="mhead"><h3 id="orphanLinkTitle">Which ingredient is this?</h3><button class="x" id="orphanLinkClose" type="button" aria-label="Close">&times;</button></div>
+    <div class="mbody">
+      <p id="orphanLinkMsg" class="confirm-msg"></p>
+      <div id="orphanLinkList" class="ad-list" role="group" aria-labelledby="orphanLinkTitle"></div>
+    </div>
+    <div class="mfoot">
+      <button class="btn ghost" id="orphanLinkCancel" type="button">Cancel</button>
+      <button class="btn" id="orphanLinkSkip" type="button">Leave these alone</button>
+    </div>
+  </div>
+</div>
+
 <!-- Edit ingredient modal -->
 <div class="modal-overlay" id="ingModal" aria-hidden="true">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ingModalTitle">
@@ -1798,7 +1835,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=205"></script>
+<script src="js/app.js?v=206"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —

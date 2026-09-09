@@ -531,37 +531,200 @@ test('an unused ingredient with bare lines still gets the warning — the two ha
     'singular, and the "not used" half is the one that is most misleading on its own');
 });
 
+/* 249: the harness now serves BOTH Settings rows, because syncHealRow decides both. `orphanHidden`
+   is the second half of the contract these tests pin — see the rewritten case below. */
 function healRow(opts) {
-  const S = { hidden: null, label: null };
+  const S = { hidden: null, label: null, orphanHidden: null };
   // eslint-disable-next-line no-new-func
   return new Function('S', `"use strict";
     var savedPlates=${JSON.stringify(opts.savedPlates)};
     var kitchenIngredients=${JSON.stringify(opts.kings)};
-    var row={hidden:false}, btn={textContent:'Fix'};
-    var document={ getElementById:function(id){ return id==='setHealRow'?row:(id==='setHealLines'?btn:null); } };
+    var row={hidden:false}, btn={textContent:'Fix'}, orow={hidden:false};
+    var document={ getElementById:function(id){
+      if(id==='setHealRow') return row;
+      if(id==='setHealLines') return btn;
+      if(id==='setOrphanRow') return orow;
+      return null; } };
     ${extractFn(SRC, 'barePidPlan')}
     ${extractFn(SRC, 'barePidFixCount')}
+    ${extractFn(SRC, 'orphanPidGroups')}
     ${extractFn(SRC, 'syncHealRow')}
     syncHealRow();
-    S.hidden=row.hidden; S.label=btn.textContent;
+    S.hidden=row.hidden; S.label=btn.textContent; S.orphanHidden=orow.hidden;
     return S;`)(S);
 }
 
-test('the Settings row is hidden when there is nothing to fix and nothing to report', () => {
+test('BOTH Settings rows are hidden when there is nothing to fix and nothing to report', () => {
   const s = healRow({ kings: [{ id: 'K1', name: 'Chips', pid: 'P1' }], savedPlates: [{ id: 'A', lines: [{ kid: 'K1', qty: 1 }] }] });
   assert.equal(s.hidden, true, 'a permanent row for a one-off migration is clutter that outlives its reason');
+  assert.equal(s.orphanHidden, true, 'and so is a row for a question nobody has been asked');
 });
 
-test('the row shows, and says "Fix", while there is something it can fix', () => {
+test('the heal row shows, and says "Fix", while there is something it can fix', () => {
   const s = healRow({ kings: [{ id: 'K1', name: 'Chips', pid: 'P1' }], savedPlates: [{ id: 'A', lines: [{ pid: 'P1', qty: 1 }] }] });
   assert.equal(s.hidden, false);
   assert.equal(s.label, 'Fix');
+  assert.equal(s.orphanHidden, true, 'a line the heal CAN fix is not a question for a person');
 });
 
-test('with only un-decidable lines left the row STAYS as their report, and the verb stops promising', () => {
+/* ⚠️ REWRITTEN BY 249, WHICH DELIBERATELY REVERSES WHAT 239 DECIDED HERE — and the property this
+   test existed to protect is kept, which is why it is rewritten rather than deleted.
+   239 left the heal row visible after the fixable half was gone, with its button reading "Show",
+   so that "the lines nothing can decide still have to be findable". QUEUE item 88 is that those
+   lines CAN be decided, by a person, so the report became an ask — and the ask is a second row.
+   The lines are still findable. They are findable somewhere that can act on them. */
+test('249: with only un-decidable lines left, the ASK row is what shows — and the heal row stands down', () => {
   const s = healRow({ kings: [], savedPlates: [{ id: 'A', lines: [{ pid: 'P_GONE', qty: 1 }] }] });
-  assert.equal(s.hidden, false, 'the 13 lines nothing can decide still have to be findable');
-  assert.equal(s.label, 'Show', 'a button saying "Fix" would promise what the next screen refuses to do');
+  assert.equal(s.orphanHidden, false, 'the lines nothing can decide still have to be findable');
+  assert.equal(s.hidden, true, 'but not by two rows describing the same lines, one of which can only list them');
+  assert.equal(s.label, 'Fix', 'and the surviving verb cannot drift, because it now has only one meaning');
+});
+
+/* =============================================================================================
+ * 249 / QUEUE item 88 — the lines the heal REFUSES, and the choice only a person can make.
+ *
+ * Measured on production 9 Sep 2026: 13 bare-pid lines across 9 plates and six products, every one
+ * with ZERO owning ingredients — 239's heal took every single-owner line and correctly refused these.
+ *
+ * ⚠️ THE HEAL'S PROMISE DOES NOT TRANSFER, and that is what these tests are mostly about. The heal
+ * can say "nothing costs a different amount afterwards" because `barePidSameProduct` proves the
+ * ingredient it writes already points at the line's product. Here no ingredient owns the product, so
+ * every candidate points at a DIFFERENT one and the cost moves by construction. A picker that
+ * borrowed the heal's sentence would be lying, so the delta is computed and shown.
+ * ========================================================================================== */
+
+function groupsOf(savedPlates, kings) {
+  // eslint-disable-next-line no-new-func
+  return new Function('P', 'K', `"use strict";
+    ${extractFn(SRC, 'barePidPlan')}
+    ${extractFn(SRC, 'orphanPidGroups')}
+    return orphanPidGroups(P, K);`)(savedPlates, kings);
+}
+
+function deltaOf(pid, kid, savedPlates, kids, products) {
+  // eslint-disable-next-line no-new-func
+  return new Function('PID', 'KID', 'P', 'K', 'B', `"use strict";
+    var byId=B;
+    ${extractFn(SRC, 'cpbu')}
+    ${extractFn(SRC, 'lineCost')}
+    ${extractFn(SRC, 'orphanChoiceDelta')}
+    return orphanChoiceDelta(PID, KID, P, K, B);`)(pid, kid, savedPlates, kids, products);
+}
+
+test('249: the groups are the heal\'s own refusals, grouped BY PRODUCT', () => {
+  /* Derived from barePidPlan rather than re-walked, so the picker can never offer a line the heal
+     would have fixed, nor miss one it refused. Two products, three lines, three plates — the shape
+     production has six of. */
+  const kings = [{ id: 'K1', name: 'Chips', pid: 'P1' }];
+  const plates = [
+    { id: 'A', name: 'Bacon Bene', lines: [{ pid: 'P_GONE', qty: 50 }, { pid: 'P_EGG', qty: 2 }] },
+    { id: 'B', name: 'Scoopy\'s Breakfast', lines: [{ pid: 'P_GONE', qty: 30 }] },
+    { id: 'C', name: 'Healed', lines: [{ pid: 'P1', qty: 10 }] },   // one owner — the heal takes this
+  ];
+  const g = groupsOf(plates, kings);
+  assert.strictEqual(g.length, 2, 'two products to ask about, not three lines and not the healable one');
+  const gone = g.find((x) => x.pid === 'P_GONE');
+  assert.strictEqual(gone.lines, 2, 'both lines pointing at it');
+  assert.strictEqual(gone.plates.length, 2, 'across both plates');
+  assert.deepStrictEqual(gone.plates.map((p) => p.name).sort(), ['Bacon Bene', "Scoopy's Breakfast"]);
+  assert.strictEqual(gone.why, 'none', 'no ingredient uses it — the production case');
+  assert.ok(!g.some((x) => x.pid === 'P1'), 'a line the heal can fix is never offered as a question');
+});
+
+test('249: a product TWO ingredients own is a question too, and a different one', () => {
+  const kings = [{ id: 'K1', name: 'Chips', pid: 'P1' }, { id: 'K2', name: 'Fries', pid: 'P1' }];
+  const plates = [{ id: 'A', name: 'Fish', lines: [{ pid: 'P1', qty: 10 }] }];
+  const g = groupsOf(plates, kings);
+  assert.strictEqual(g.length, 1);
+  assert.strictEqual(g[0].why, 'ambiguous', 'the app will not choose between two owners');
+});
+
+test('249: the delta is what those plates cost before and after — the promise the heal cannot make', () => {
+  const products = {
+    P_GONE: { id: 'P_GONE', base_unit: 'g', cost_per_base_unit: 0.01 },   // 50g = $0.50
+    P_NEW: { id: 'P_NEW', base_unit: 'g', cost_per_base_unit: 0.03 },     // 50g = $1.50
+  };
+  const kids = { K9: { id: 'K9', name: 'Bacon', pid: 'P_NEW' } };
+  const plates = [{ id: 'A', name: 'Bene', lines: [{ pid: 'P_GONE', qty: 50 }] }];
+  const d = deltaOf('P_GONE', 'K9', plates, kids, products);
+  assert.strictEqual(d.plates.length, 1);
+  assert.strictEqual(Math.round(d.before * 100) / 100, 0.5);
+  assert.strictEqual(Math.round(d.after * 100) / 100, 1.5);
+  assert.notStrictEqual(d.before, d.after, 'the whole reason this picker cannot borrow the heal\'s sentence');
+});
+
+test('249: two ingredients on ONE product come out at zero — the same arithmetic, no branch', () => {
+  /* The ambiguous case states the OPPOSITE cost promise, and it is not a special case in the code:
+     both owners resolve to the same product, so the delta is zero on its own. */
+  const products = { P1: { id: 'P1', base_unit: 'g', cost_per_base_unit: 0.01 } };
+  const kids = { K1: { id: 'K1', name: 'Chips', pid: 'P1' }, K2: { id: 'K2', name: 'Fries', pid: 'P1' } };
+  const plates = [{ id: 'A', name: 'Fish', lines: [{ pid: 'P1', qty: 100 }] }];
+  const d = deltaOf('P1', 'K2', plates, kids, products);
+  assert.strictEqual(d.before, d.after, 'either ingredient costs the same, and the copy says so');
+});
+
+test('249: a line the app cannot cost EITHER WAY is reported as unknown, never as a number', () => {
+  /* A confident figure over an uncostable line is the one thing this app must never print, and it
+     is the same rule `plateCostText` follows in the picker one modal along. */
+  const products = {
+    P_GONE: { id: 'P_GONE', base_unit: 'g', cost_per_base_unit: 0.01 },
+    P_NOPRICE: { id: 'P_NOPRICE', base_unit: 'g', cost_per_base_unit: null },
+  };
+  const kids = { K9: { id: 'K9', name: 'Mystery', pid: 'P_NOPRICE' } };
+  const plates = [{ id: 'A', name: 'Bene', lines: [{ pid: 'P_GONE', qty: 50 }] }];
+  const d = deltaOf('P_GONE', 'K9', plates, kids, products);
+  assert.strictEqual(d.unknown, 1, 'the line is counted as uncostable…');
+  assert.strictEqual(d.after, 0, '…and contributes no invented figure to the after total');
+});
+
+test('249: the shapes these two defend against — every guard exercised, not just written', () => {
+  /* Added because the mutation gate reported seven survivors on the two functions above: their
+     defensive guards were all UNEXERCISED, which is the difference between a guard that works and a
+     guard that has never been asked. Each line below is one of those mutants.
+     `costFromLines` and friends step over the same three shapes (a misc line carries no reference,
+     a kid line is already healed, a line with neither is broken differently) — so a fixture that
+     omits them is not a simpler fixture, it is one that never reaches the code. */
+  const products = { P_GONE: { id: 'P_GONE', base_unit: 'g', cost_per_base_unit: 0.01 },
+                     P_NEW: { id: 'P_NEW', base_unit: 'g', cost_per_base_unit: 0.02 } };
+  const kids = { K9: { id: 'K9', name: 'Bacon', pid: 'P_NEW' } };
+  const messy = [
+    null,                                                        // a null plate
+    { id: 'X', name: 'No lines array', lines: 'nope' },           // lines not an array
+    { id: 'Y', name: 'Mixed', lines: [
+      null,                                                      // a null line
+      { misc: true, label: 'Box', cost: 1 },                     // a misc line — no reference at all
+      { kid: 'K9', qty: 5 },                                     // already healed
+      { pid: 'P_OTHER', qty: 9 },                                // a different product
+      { pid: 'P_GONE', qty: 100 },                               // the only one that counts
+    ] },
+  ];
+  const d = deltaOf('P_GONE', 'K9', messy, kids, products);
+  assert.deepStrictEqual(d.plates.map((p) => p.id), ['Y'], 'only the plate holding a line on this product');
+  assert.strictEqual(d.plates[0].name, 'Mixed',
+    'and it carries the plate NAME — the picker prints it, so a delta that loses it names nothing');
+  assert.strictEqual(d.plates[0].lines, 1, 'and only the ONE line — the other four are stepped over');
+  assert.strictEqual(Math.round(d.before * 100) / 100, 1, '100g at $0.01');
+  assert.strictEqual(Math.round(d.after * 100) / 100, 2, '100g at $0.02');
+
+  /* The grouping side: a plate with NO id still has its lines counted, and is not recorded as a
+     plate the user can be sent to — `barePidPlan` emits `plateId:null` for it. */
+  const g = groupsOf([{ name: 'Nameless', lines: [{ pid: 'P_GONE', qty: 1 }] },
+                      { id: 'Z', name: 'Named', lines: [{ pid: 'P_GONE', qty: 1 }] }], []);
+  assert.strictEqual(g.length, 1);
+  assert.strictEqual(g[0].lines, 2, 'both lines are counted, id or no id');
+  assert.deepStrictEqual(g[0].plates.map((p) => p.id), ['Z'], 'only the plate that can actually be opened');
+});
+
+test('249: a plate with no line on this product is not in the delta at all', () => {
+  const products = { P_GONE: { id: 'P_GONE', base_unit: 'g', cost_per_base_unit: 0.01 },
+                     P_NEW: { id: 'P_NEW', base_unit: 'g', cost_per_base_unit: 0.02 } };
+  const kids = { K9: { id: 'K9', name: 'Bacon', pid: 'P_NEW' } };
+  const plates = [
+    { id: 'A', name: 'Bene', lines: [{ pid: 'P_GONE', qty: 50 }] },
+    { id: 'B', name: 'Unrelated', lines: [{ kid: 'K9', qty: 10 }, { misc: true, cost: 1 }] },
+  ];
+  const d = deltaOf('P_GONE', 'K9', plates, kids, products);
+  assert.deepStrictEqual(d.plates.map((p) => p.id), ['A'], 'only the plates the choice actually touches');
 });
 
 /* =============================================================================================

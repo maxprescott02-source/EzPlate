@@ -6051,6 +6051,62 @@ function barePidPlan(plates, kings){
   });
   return {fix:fix, orphan:orphan};
 }
+/* ⚠️ 249 — THE LINES THE HEAL REFUSES, GROUPED SO A PERSON CAN ANSWER FOR THEM. QUEUE item 88.
+   `barePidPlan` above moves a bare `{pid,qty}` line onto its ingredient wherever EXACTLY ONE
+   ingredient owns that product, and it collects everything else in `orphan`. That refusal is correct
+   and it is not a fix: measured on production 9 Sep 2026, **13 lines across 9 plates, six products,
+   every one of them with ZERO owning ingredients** — the ingredient was repointed away at some point
+   and the lines stayed behind. The app already NAMED them in the heal's confirm and then told the
+   user to open each plate by hand.
+   ⚠️ DERIVED FROM `barePidPlan` RATHER THAN RE-WALKING THE PLATES, and that is the point: the picker
+   must offer exactly the lines the heal refused, and a second walk with its own copy of the three
+   exclusions is the mirrored-copy defect this file records twenty-two times. One walk, two readers.
+   BY PRODUCT, never by line — item 88's own requirement. Six questions, not thirteen, and a product
+   is what a person can actually answer about. */
+function orphanPidGroups(plates, kings){
+  var plan=barePidPlan(plates, kings);
+  var g={}, order=[];
+  ((plan&&plan.orphan)||[]).forEach(function(o){
+    if(!o || !o.pid) return;
+    if(!g[o.pid]){ g[o.pid]={pid:o.pid, why:o.why, lines:0, plates:[], _seen:{}}; order.push(o.pid); }
+    var e=g[o.pid];
+    e.lines++;
+    if(o.plateId && !e._seen[o.plateId]){ e._seen[o.plateId]=1; e.plates.push({id:o.plateId, name:o.plate||''}); }
+  });
+  return order.map(function(pid){ var e=g[pid]; delete e._seen; return e; });
+}
+/* ⚠️ WHAT CHOOSING WOULD COST, AND WHY THIS FUNCTION HAS TO EXIST AT ALL.
+   The heal's promise is "nothing costs a different amount afterwards", and it can make it because of
+   `barePidSameProduct`: the ingredient it writes already points at the product the line already
+   points at. **For these lines that invariant CANNOT hold** — no ingredient owns the product, so any
+   ingredient the user picks points at a DIFFERENT product and every affected line re-costs.
+   So the picker may not borrow the heal's sentence. It has to show the movement, per plate, before
+   the choice is committed. Returns null for a line the app cannot cost either side of, because a
+   confident figure over an uncostable line is the one thing this app must never print.
+   The `ambiguous` case is the exception and is handled by the same arithmetic rather than by a
+   branch: two ingredients owning ONE product both resolve to that product, so the delta comes out
+   zero and the copy that reads it says so. Nothing has to know which case it is. */
+function orphanChoiceDelta(pid, kid, plates, kids, products){
+  var k=(kids||{})[kid];
+  var from=(products||{})[pid], to=k?(products||{})[k.pid]:null;
+  var out={plates:[], before:0, after:0, unknown:0};
+  (plates||[]).forEach(function(sp){
+    if(!sp || !Array.isArray(sp.lines)) return;
+    var b=0, a=0, n=0, bad=0;
+    sp.lines.forEach(function(l){
+      if(!l || l.misc || l.kid || l.pid!==pid) return;
+      n++;
+      var lb=lineCost(from, l.qty), la=lineCost(to, l.qty);
+      if(lb==null || la==null){ bad++; return; }
+      b+=lb; a+=la;
+    });
+    if(!n) return;
+    if(bad){ out.unknown+=bad; }
+    out.plates.push({id:sp.id||null, name:sp.name||'', lines:n, before:b, after:a, unknown:bad});
+    out.before+=b; out.after+=a;
+  });
+  return out;
+}
 function barePidFixCount(plan){
   var n=0; ((plan&&plan.fix)||[]).forEach(function(f){ n+=(f.moves||[]).length; }); return n;
 }
@@ -6168,6 +6224,78 @@ function applyBarePidHeal(plan){
     return {plates:okPlates, lines:okLines, failed:bad};
   });
 }
+/* ⚠️ 249 — THE WRITE, AND IT IS THE HEAL'S PATH WITH ONE DELIBERATE DIFFERENCE: THE FIGURES.
+   `healBarePidPlate` writes `plate_relinked` with every figure null, because the heal moves no cost
+   and a number saying nothing moved is noise — its own comment says so. **This moves cost by
+   construction**, so null figures here would be a change-log entry lying about a real movement, and
+   the Recent-changes card and the since-line are exactly where a person should see it. It is also a
+   genuine intervention: Max chose an ingredient. So it logs `plate_edited` WITH figures, which is
+   the kind `saveCurrentPlate` already writes for "this plate's lines changed and its cost moved".
+   No new kind: the event is a plate edit, and inventing one would be recording which door it came
+   through rather than what happened.
+   Rollback per plate, one handler, one verdict — the same reason `healBarePidPlate` does not call
+   `logChangeIfSaved`: a second handler on the same promise is a second copy of the success test. */
+function linkOrphanPlate(sp, before, moved, costBefore, costAfter, avgBefore, avgAfter, write){
+  return Promise.resolve(write).then(function(r){
+    if(!r || r.error){ sp.lines=before; return {ok:false, lines:0}; }
+    /* ⚠️ BOTH AVERAGES ARE PASSED, and `avgAfter` especially. `logChange` defaults an omitted
+       `avgAfter` to a LIVE `computeAvgFoodCost()` — evaluated when this promise settles, which is
+       after EVERY plate in the batch has already been mutated. The first cut omitted it, so all N
+       entries carried the same whole-batch movement, and `trendMarkers` sums `drop` per calendar
+       day: the chart showed N times the real fall. Found by the pre-push review. */
+    logChange('plate_edited', {plateId:sp.id, menuIds:menuIdsForPlates([sp]),
+      avgBefore:avgBefore, avgAfter:avgAfter, costBefore:costBefore, costAfter:costAfter,
+      detail:{name:sp.name||'', lines:moved, via:'orphan-link'}});
+    return {ok:true, lines:moved};
+  }, function(){ sp.lines=before; return {ok:false, lines:0}; });
+}
+/* One product, one answer, applied to EVERY line pointing at it — item 88's requirement, and the
+   reason the picker asks per product rather than per line.
+   ⚠️ RE-CHECKED AT THE WRITE, exactly as the heal is and for the same measured reason: the plan was
+   made when the modal opened and `bootstrapSync` replaces `savedPlates` and `kitchenIngredients` in
+   between whenever the `online` listener fires. A line that has changed shape, or stopped pointing
+   at this product, is not the line the choice was about.
+   The condition is the MIRROR of the heal's: it re-proves the line still points at THIS product and
+   that the chosen ingredient still exists — never that they agree, because here they must not. */
+function applyOrphanChoice(pid, kid){
+  var k=(kById||{})[kid];
+  if(!pid || !k) return Promise.resolve({plates:0, lines:0, failed:0});
+  var jobs=[];
+  (savedPlates||[]).forEach(function(sp){
+    if(!sp || !Array.isArray(sp.lines)) return;
+    var before=sp.lines, lines=sp.lines.slice(), moved=0;
+    var cb=costFromLines(before);
+    lines.forEach(function(l,i){
+      if(!l || l.misc || l.kid || l.pid!==pid) return;
+      lines[i]={kid:kid, qty:l.qty}; moved++;
+    });
+    if(!moved) return;
+    /* ⚠️ THE PAIR IS MEASURED AROUND THIS PLATE'S OWN MUTATION, which is the invoice repoint loop's
+       pattern and its comment says why: "the entries compose in sequence rather than each claiming
+       the whole batch's movement". `computeAvgFoodCost` is live, so before must be read before the
+       assignment and after immediately following it — one line either side, in the loop, per plate.
+       The first cut read ONE average before the loop and let `logChange` default the other, which
+       gave every entry the whole batch's drop and made the day's trend marker N times too big. */
+    var avgBefore=computeAvgFoodCost();
+    sp.lines=lines;                                   // optimistic, exactly as every other write here
+    jobs.push(linkOrphanPlate(sp, before, moved, cb, costFromLines(lines), avgBefore, computeAvgFoodCost(), dbPushPlate(sp)));
+  });
+  /* No early return on an empty batch, deliberately: `applyBarePidHeal` has none either, and its
+     comment is the reason — "never silence: pressing a button and being told nothing is how a user
+     concludes it worked". An empty batch is exactly the re-sync race this function guards for, and
+     it is the case a person most needs told about. (Pre-push review, 249.) */
+  return Promise.all(jobs).then(function(res){
+    var okPlates=0, okLines=0, bad=0;
+    res.forEach(function(r){ if(r.ok){ okPlates++; okLines+=r.lines; } else bad++; });
+    rerenderCurrentTab();
+    if(okLines) logHistory();                          // 247: the cost really moved, and these writes landed
+    if(okLines && !bad) toast('Linked '+okLines+' line'+(okLines===1?'':'s')+' in '+okPlates+' plate'+(okPlates===1?'':'s'));
+    else if(okLines) toast('Linked '+okLines+' line'+(okLines===1?'':'s')+' \u2014 '+bad+' plate'+(bad===1?'':'s')+' could not be saved');
+    else if(bad) toast('Nothing was saved \u2014 try again');
+    else toast('Nothing to change \u2014 those plate lines have already moved');
+    return {plates:okPlates, lines:okLines, failed:bad};
+  });
+}
 function runBarePidHeal(){
   var plan=barePidPlan(savedPlates, kitchenIngredients), n=barePidFixCount(plan);
   if(!n && !plan.orphan.length){ toast('No older plate lines to fix'); return; }
@@ -6182,16 +6310,100 @@ function runBarePidHeal(){
    `hidden` + the `.stg-row:not([hidden])` guard the CSS already carries at both breakpoints —
    without it a single-class display rule beats the UA's [hidden] and the row stays visible. */
 function syncHealRow(){
-  var row=document.getElementById('setHealRow'); if(!row) return;
+  var row=document.getElementById('setHealRow');
   // no typeof guard on the two arrays: both are top-level `var`s assigned at parse, so a "what if
   // they are undefined" branch here could never run, and a guard that cannot fire reads as a safety
   // net without being one. barePidPlan already answers an empty or null list with an empty plan.
   var plan=barePidPlan(savedPlates, kitchenIngredients), n=barePidFixCount(plan);
-  row.hidden=!(n || plan.orphan.length);
-  /* The verb follows the plan, because the row OUTLIVES the fixable half: once the heal has run,
-     what is left is the lines nothing can decide, and the row stays as the standing report of them.
-     A button still saying "Fix" there would promise something the next screen refuses to do. */
-  var b=document.getElementById('setHealLines'); if(b) b.textContent=n?'Fix':'Show';
+  /* ⚠️ 249 REVERSES 239's "Show" VERB, DELIBERATELY, AND THE REASON IS THIS ITEM'S WHOLE POINT.
+     239 kept this row visible after the fixable half was gone, with the button reading "Show",
+     because what remained was "the lines nothing can decide" and the row was their standing report.
+     QUEUE item 88 is that those lines CAN be decided — by a person — so the report becomes an ask,
+     and it is the row below that makes it. Two rows describing the same thirteen lines, one of them
+     only able to list them, is the clutter 239's own comment was trying to avoid.
+     So this row is now offered only while it has something to FIX, and its verb cannot drift. */
+  if(row) row.hidden=!n;
+  var b=document.getElementById('setHealLines'); if(b) b.textContent='Fix';
+  /* The lines the heal refuses, offered to the person who can answer for them. Same hidden
+     discipline and the same `.stg-row:not([hidden])` guard, which is generic in the CSS. */
+  var orow=document.getElementById('setOrphanRow');
+  if(orow) orow.hidden=!orphanPidGroups(savedPlates, kitchenIngredients).length;
+}
+/* ⚠️ 249 — THE PICKER. QUEUE item 88, and it is `openPlateHealPicker`'s principle one object along:
+   the app surfaces the choice rather than making it. One product at a time, because a product is
+   what a person can answer about and because item 88 asks for one choice per product, not per line.
+   ⚠️ DO NOT "HELP" BY NAME-MATCHING THE PRODUCT TO AN INGREDIENT. `CLAUDE.md` records why (batch
+   223): a name matched inside a longer one blames the wrong product, and that failure mode has no
+   symptom. Every row here is offered on equal terms and the user picks. */
+var _orphanQueue=[], _orphanPid=null;
+function orphanRowHtml(pid, k){
+  var d=orphanChoiceDelta(pid, k.id, savedPlates, kById, byId);
+  var p=byId[k.pid];
+  var meta;
+  if(d.unknown || !d.plates.length) meta='cost unknown \u2014 a line here cannot be costed either way';
+  else if(Math.abs(d.after-d.before)<0.005) meta='no change to what those plates cost';
+  else meta='those plates: '+money(d.before)+' \u2192 '+money(d.after);
+  return '<button type="button" class="ad-item" data-kid="'+esc(k.id)+'">'
+    + '<span class="ad-nm">'+esc(k.name||k.id)+'</span>'
+    + '<span class="ad-meta">'+esc(p?(p.description||k.pid):'no product linked')+' \u00b7 '+esc(meta)+'</span></button>';
+}
+function renderOrphanChoice(){
+  var g=_orphanQueue[0];
+  if(!g){ closeOrphanPicker(); return; }
+  _orphanPid=g.pid;
+  var p=byId[g.pid], nm=p?(p.description||g.pid):('a product that is gone ('+g.pid+')');
+  var s=function(n){ return n===1?'':'s'; };
+  var names=g.plates.map(function(x){ return x.name||'a plate'; }).join(', ');
+  var msg=document.getElementById('orphanLinkMsg');
+  if(msg){
+    /* The ambiguous case states the OPPOSITE cost promise, and it is the same sentence the heal makes
+       — two ingredients owning one product both resolve to that product, so nothing re-costs. It is
+       branched here rather than in the arithmetic: `orphanChoiceDelta` comes out zero on its own. */
+    msg.textContent=g.lines+' line'+s(g.lines)+' in '+g.plates.length+' plate'+s(g.plates.length)+' cost off \u201c'+nm+'\u201d'
+      +(names?' ('+names+')':'')+'. '
+      +(g.why==='ambiguous'
+        ? 'More than one ingredient uses that product, so the app will not choose between them. The ones that use it cost the same as each other; anything else below re-costs every line, and each row says what those plates would cost.'
+        : 'No ingredient uses that product any more, so nothing can tell which one was meant. Picking one re-costs every line \u2014 each row below says what those plates would cost.')
+      +(_orphanQueue.length>1 ? ' ('+_orphanQueue.length+' products to go.)' : '');
+  }
+  /* Only ingredients that HAVE a product: one without cannot cost a line, so offering it would swap a
+     line the app cannot cost for a line the app cannot cost. */
+  var list=document.getElementById('orphanLinkList');
+  var opts=(kitchenIngredients||[]).filter(function(k){ return k && k.id && k.pid && byId[k.pid]; })
+    .slice().sort(function(a,b){ return String(a.name||'').localeCompare(String(b.name||'')); });
+  if(list){
+    list.innerHTML=opts.length
+      ? opts.map(function(k){ return orphanRowHtml(g.pid, k); }).join('')
+      : '<p class="hint">You have no ingredients with a product linked yet, so there is nothing to point these at.</p>';
+  }
+  show('orphanLinkModal');
+}
+function openOrphanPicker(){
+  _orphanQueue=orphanPidGroups(savedPlates, kitchenIngredients);
+  if(!_orphanQueue.length){ toast('Nothing to link \u2014 every plate line points at an ingredient'); return; }
+  renderOrphanChoice();
+}
+function closeOrphanPicker(){ hide('orphanLinkModal'); _orphanQueue=[]; _orphanPid=null; }
+/* Choosing applies to every line pointing at THIS product and moves on to the next product. The
+   queue is re-derived after the write rather than shifted blindly: a refused write leaves its lines
+   exactly where they were, and they belong back in the queue. */
+function orphanChoose(kid){
+  var pid=_orphanPid;
+  if(!pid || !kid) return;
+  hide('orphanLinkModal');
+  return Promise.resolve(applyOrphanChoice(pid, kid)).then(function(){
+    var skipped={}; _orphanQueue.slice(1).forEach(function(g){ skipped[g.pid]=0; });
+    _orphanQueue=orphanPidGroups(savedPlates, kitchenIngredients).filter(function(g){ return g.pid in skipped || g.pid===pid; });
+    if(_orphanQueue.length) renderOrphanChoice(); else closeOrphanPicker();
+    syncHealRow();
+  });
+}
+/* "Leave these alone" is a real answer and must stay one — item 88 says so, and a plate line may
+   genuinely be meant to cost off a product no ingredient owns. It drops this product from the run
+   without writing anything; the Settings row still reports it next time. */
+function orphanSkip(){
+  _orphanQueue.shift();
+  if(_orphanQueue.length) renderOrphanChoice(); else { closeOrphanPicker(); toast('Left alone \u2014 the row in Settings still lists them'); }
 }
 function deleteKitchenIngredient(kid){
   var k=kById[kid]; if(!k) return;
@@ -8549,7 +8761,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v205';
+var APP_VERSION='v206';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -9984,6 +10196,18 @@ function clearCacheAndRefresh(){
   on('setTidyOpen',function(){ openTidyManage('category'); });   // F9 (v148): opens OVER the Settings screen; closing it reveals the screen, so nothing has to be reopened
   on('setSmemOpen',openSmem);                                    // v71 item 5 moved remembered packs here
   on('setHealLines',runBarePidHeal);                             // 239 (item 16): the legacy bare-pid heal
+  on('setLinkOrphans',openOrphanPicker);                         // 249 (item 88): the lines that heal refuses
+  on('orphanLinkClose',closeOrphanPicker); on('orphanLinkCancel',closeOrphanPicker);
+  on('orphanLinkSkip',orphanSkip);
+  /* Delegated off the list, like every other `.ad-item` picker: the rows are rebuilt for each
+     product, so a per-button listener would be re-bound on every render. */
+  (function(){
+    var l=document.getElementById('orphanLinkList');
+    if(l) l.addEventListener('click', function(e){
+      var b=e.target.closest ? e.target.closest('[data-kid]') : null;
+      if(b) orphanChoose(b.getAttribute('data-kid'));
+    });
+  })();
   on('tidyManageDone',closeTidyManage); on('tidyManageClose',closeTidyManage);
   var tmm=document.getElementById('tidyManageModal'); if(tmm) tmm.addEventListener('click',function(ev){ if(ev.target===tmm) closeTidyManage(); });
   on('tidyModalConfirm',applyTidy); on('tidyModalCancel',function(){ hide('tidyModal'); }); on('tidyModalClose',function(){ hide('tidyModal'); });
@@ -14086,7 +14310,7 @@ edCat=makeCatCombo('ed_cat','ed_catDrop','ed_catNew',edCatState);
 // used to carry (it is deliberately not backdrop-dismissable, because an accidental tap must not
 // throw away a plate in progress) is moot — a page has no backdrop. `plateActionsModal` left this
 // list with the chooser.
-['menuModal','invModal','confirmModal','editModal','delChoiceModal','manageMenusModal','plateHealModal'].forEach(function(id){var m=document.getElementById(id);if(m)m.addEventListener('mousedown',function(e){if(e.target===m)hide(id);});});
+['menuModal','invModal','confirmModal','editModal','delChoiceModal','manageMenusModal','plateHealModal','orphanLinkModal'].forEach(function(id){var m=document.getElementById(id);if(m)m.addEventListener('mousedown',function(e){if(e.target===m)hide(id);});});
 /* v137 (F1b): ONE Escape handler for every modal in the app, closing the TOP LAYER ONLY.
    It replaces a hard-coded list of 8 ids plus two single-modal listeners. See topOverlay() /
    closeTopOverlay() for why the layer is derived from the DOM rather than named.

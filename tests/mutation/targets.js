@@ -474,6 +474,14 @@ const targets = [
      $-1.08 and saved it there. Listed for 184's reason: `setQty` and `commitPrice` guard, this one
      did not, and nothing had ever asked the question of any of the three at this level. */
   { fn: 'setMiscCost', tests: ['misc-cost-sign.test.js'] },
+  /* 249 — the choice a person makes about a plate line the heal refused, and the arithmetic that
+     tells them what it costs. `barePidPlan` is already a target through the heal; these two are its
+     readers and neither had ever been asked the question. `orphanChoiceDelta` is the one that
+     matters: it is the ONLY thing standing between the user and a committed cost change they were
+     not shown, and its uncostable-line branch is the app's standing rule about never printing a
+     confident figure over a line it cannot cost. */
+  { fn: 'orphanPidGroups', tests: ['bare-pid-heal.test.js'] },
+  { fn: 'orphanChoiceDelta', tests: ['bare-pid-heal.test.js'] },
   /* 247 — the gate that decides whether a food-cost trend point describes a write that landed.
      Neither this nor `logChangeIfSaved` had ever been a target, which is 184's rule again: the two
      functions that decide what goes into the app's permanent record had never been asked the
@@ -1065,6 +1073,24 @@ const allowedSurvivors = [
       + 'counter cannot enter. The reachable half of this guard — a LATE answer for an OLDER write failing to '
       + 'overwrite a newer confirmed value — is killed by "two writes that both SUCCEED out of order leave the '
       + 'NEWER one confirmed", which is the defect the pre-push review measured and this line exists for.',
+  },
+  {
+    key: 'orphanPidGroups :: if(!o || !o.pid) return; :: logical ||>&& #0',
+    reason: '249. The guard defends against a value its own producer cannot make. `orphanPidGroups` builds its '
+      + 'list by calling `barePidPlan` itself — the argument is plates and kings, not the orphan array — and that '
+      + 'function only ever pushes well-formed `{plateId, plate, pid, why}` objects, never a null and never one '
+      + 'without a pid. So no input to this function can reach the mutated branch, and the `&&` form differs only '
+      + 'on a null entry, where it would throw rather than skip. Kept as written because the two readers of that '
+      + 'array are in different parts of the file and a future third producer is not this test\'s to assume.',
+  },
+  {
+    key: 'orphanChoiceDelta :: if(!l || l.misc || l.kid || l.pid!==pid) return; :: logical ||>&& #1',
+    reason: '249. Occurrence #1 is `l.misc || l.kid`, and collapsing it to `&&` changes nothing REACHABLE because '
+      + 'the third clause catches both shapes on its own: a misc line carries no `pid` and a kid line carries no '
+      + '`pid`, so `l.pid!==pid` is true for each and the line is skipped either way. The only input that could '
+      + 'tell them apart is a line that is BOTH misc and pointed at this product, which no writer in the app '
+      + 'produces — `saveCurrentPlate` writes a misc line as `{misc,label,cost}`. The other three occurrences of '
+      + 'this guard are killed by the malformed-shapes test.',
   },
   {
     key: 'samePrice :: function samePrice(a, b){ return a===b || Math.abs(a-b) < Math.abs(b)*1e-6; } :: relational <><= #0',
