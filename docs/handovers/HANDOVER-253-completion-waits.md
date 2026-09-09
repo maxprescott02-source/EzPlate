@@ -57,3 +57,17 @@ Bounding `createClient` itself. Finding 1's root cause is that no fetch in this 
 **The mutation gate got slower and it was my doing.** Testing a timeout makes every mutant of that function pay for it: at a 5000ms test timeout the full gate went **240s to 588s**, which on a CI job bounded at 20 minutes is not free. At 400ms - still twenty times the 20ms bound under test - a broken-bound mutant costs **0.49s instead of 5.12s**. **Bound the test as well as the code**, or a guard against hanging becomes the reason your guard against untested code hangs.
 
 **And the tally lied again, exactly as `CLAUDE.md` says it does.** Hand-mutating the bound made the never-settles test TIME OUT, and `node --test` printed `fail 0` while exiting 1. Every mutation check in this batch was read from `$?`.
+
+## Addendum — the browser job stopped booting, and it was not this batch
+
+Written after the merge, because it happened at the merge.
+
+**CI's `browser specs (Playwright)` failed twice, 16 minutes apart, in 17 and 19 seconds — at the dependency-install step, with no spec executed.** Not EzPlate: `dl.google.com` was serving a Chrome apt `Packages.gz` whose SHA256 (`bc1428ab…`) disagreed with the digest its own `Release` file declared (`233e56de…`). Reproduced 3 requests of 3 from a laptop, so it was a persistent break rather than a flake, and a rerun could not clear it.
+
+**Why it reached us at all:** Playwright downloads its own Chromium, but `install-deps` runs `apt-get update`, which refreshes **every** repo on the runner image — Google's among them, preinstalled, and installed from by nothing here. `apt-get update` fails as a whole when any one index is bad. So a third party we do not use could stop the browser suite booting. The job now drops that source list first; CI went from a 19-second setup death to a 13m30s passing run on the same tree.
+
+⚠️ **The reason this was worth a commit rather than a retry is the part that generalises.** Playwright is **not a required check**, so nothing forced the issue — and a permanently-red browser job is not a neutral state, it is a check that has stopped carrying information. The next batch reads a red X that means "Google's CDN" and a red X that means "you broke a screen" **identically**. That is this file's own oldest shape: an absent check looks exactly like a passing one, and a check that is always red looks exactly like a check you can ignore. Batch 214 shipped a hidden control through the gap between the hook and CI, which is the gap this job exists to cover.
+
+**The specs themselves were verified independently**, not inferred from the fix: a full local `npx playwright test` against the merged tree ran **478 passed, 14 skipped, 8.7m, exit 0** — the normal signature the `verify` skill records.
+
+**Reviewed**, because a CI workflow changes what runs and `CLAUDE.md` names that case explicitly. No findings — recorded in full in `docs/reviews/REVIEW-253-completion-waits.md` under its second heading. It verified the mechanism by finding `apt-get update` inside playwright-core's bundle rather than trusting my comment's account of it, and swept the repo for other apt exposure, finding none. **I had inferred the first from a log and had not checked the second at all** — which is this batch's own citation rule arriving in a YAML file: I stated a mechanism I had reasoned, and a second reader is what turned it into a checked one.
