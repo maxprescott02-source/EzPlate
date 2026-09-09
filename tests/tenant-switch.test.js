@@ -61,6 +61,11 @@ function boot(opts) {
     ${extractVar(SRC, 'COGS_PCT_DEFAULT')}
     ${extractVar(SRC, 'GST_DEFAULT_MODE')}
     var cogsPct = COGS_PCT_DEFAULT;
+    /* 244: the THIRTEENTH store, and it travels with cogsPct rather than beside it — it is the
+       value a refused target write rolls the screen back to, so a copy inherited from café A would
+       put A's confirmed target on B's screen the first time B's owner is refused. */
+    var cogsServer = COGS_PCT_DEFAULT;
+    ${extractFn(SRC, 'cogsRound')}
     var gstDefault = GST_DEFAULT_MODE;
     var aiInvoiceCheck = loadAiInvoiceCheck();
     var aiSuggestions = loadAiSuggestions();
@@ -111,7 +116,7 @@ function boot(opts) {
         var cogsRow = rows.filter(function(r){ return r.key === 'food_cost_target'; })[0];
         if (cogsRow && cogsRow.value != null) {
           var pv = parseFloat(cogsRow.value);
-          if (pv >= 1 && pv <= 99) cogsPct = pv;
+          if (pv >= 1 && pv <= 99) cogsPct = cogsServer = cogsRound(pv);
         }
         var gstRow = rows.filter(function(r){ return r.key === 'gst_default'; })[0];
         if (gstRow && (gstRow.value === 'inc' || gstRow.value === 'ex')) gstDefault = gstRow.value;
@@ -122,7 +127,7 @@ function boot(opts) {
       },
       seedA: function(){
         businessRole = 'owner';
-        cogsPct = 30; gstDefault = 'inc';
+        cogsPct = cogsServer = 30; gstDefault = 'inc';
         kitchenIngredients = [{ id:'k1', name:'A onions', pid:'pA' }]; rebuildKById();
         setKingWizSkips(['pA']);
         productsById = { pA: { id:'pA', description:'A flour' } }; rebuild();
@@ -138,7 +143,7 @@ function boot(opts) {
       },
       snap: function(){
         return {
-          cogsPct: cogsPct, gstDefault: gstDefault,
+          cogsPct: cogsPct, cogsServer: cogsServer, gstDefault: gstDefault,
           aiInvoiceCheck: aiInvoiceCheck, aiSuggestions: aiSuggestions,
           products: Object.keys(productsById).length, PRODUCTS: PRODUCTS.length, byId: Object.keys(byId).length,
           kitchen: kitchenIngredients.length, kById: Object.keys(kById).length,
@@ -203,6 +208,9 @@ test('the three-step boot: A, then no membership, then B — nothing of A surviv
   const inB = app.snap();
   assert.equal(inB.lastTenantId, B_ID);
   assert.equal(inB.cogsPct, 40, "B must price off the app default, not A's 30%");
+  /* 244: and the value a REFUSED write puts back must be B's too. Clearing cogsPct alone would look
+     right on arrival and then hand B's screen A's 30% the first time B's server said no. */
+  assert.equal(inB.cogsServer, 40, "A's confirmed target must not be what a refusal in B rolls back to");
   assert.equal(inB.gstDefault, 'ex', "A's inclusive-GST default must not read B's invoices");
   assert.equal(inB.supplierMem, 0, "A's taught packs must not match B's invoices");
   assert.equal(inB.kitchen, 0, "A's kitchen ingredients must not appear in B");

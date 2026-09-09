@@ -334,8 +334,16 @@ test('every action the server refuses is guarded at the FUNCTION, not only at it
   /* And the target's input listener, which readOnly already blocks for a human — this is for an
      event dispatched programmatically. Silent rather than toasting: the help line already explains
      it, and a toast per keystroke on an unusable field is noise. */
-  assert.match(jsCode(SRC), /ci\.addEventListener\('input',function\(\)\{ if\(!isOwner\(\)\) return;/,
-    "the target's input listener refuses before it reaches setCogs");
+  /* 244 split the one-line listener into a debounced one, so this is asserted on the BLOCK rather
+     than on a single line — and it is stronger for it: what matters is that the refusal comes
+     FIRST, before anything is parsed, applied or scheduled, not that it shares a line with the
+     opening brace. Moving the guard below the setCogs call now fails; it did not before. */
+  const code = jsCode(SRC);
+  const listener = code.slice(code.indexOf("ci.addEventListener('input'"));
+  const body = listener.slice(0, listener.indexOf('\n  });'));
+  assert.ok(body.indexOf('if(!isOwner()) return;') >= 0, "the target's input listener refuses a non-owner itself");
+  assert.ok(body.indexOf('if(!isOwner()) return;') < body.indexOf('setCogs('),
+    'and it refuses BEFORE it reaches setCogs');
 });
 
 /* ---------------------------------------------------------------------------------------------

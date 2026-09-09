@@ -458,6 +458,17 @@ const targets = [
   { fn: 'createBusinessState', tests: ['cafe-create.test.js'] },
   { fn: 'cafeNameProblem', tests: ['cafe-create.test.js'] },
   { fn: 'cafeNameClean', tests: ['cafe-create.test.js'] },
+  /* 244 — THE FOOD-COST TARGET, which is the one number every suggested price and every good/bad
+     colour in the app is divided by. It is here for 184's stated reason and not because anything
+     else is suspected: `setCogs` had never been a target, so the question had never been asked, and
+     what it was hiding was that a REFUSED write left the new number on screen — a $6 dish reading
+     $20 against a 30% the server had rejected. Both guards in the rollback are load-bearing and
+     both were confirmed red by hand before this was listed: which value it rolls back to (the last
+     CONFIRMED one, not the previous client one) and whether a superseded refusal may move the
+     screen at all. `cogsRound` is the precision the setter and the boot read now share; flipping
+     either clamp silently widens the range the server is asked to store. */
+  { fn: 'setCogs', tests: ['cogs-rollback.test.js'] },
+  { fn: 'cogsRound', tests: ['cogs-rollback.test.js'] },
 ];
 
 /*

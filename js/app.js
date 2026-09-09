@@ -1272,6 +1272,16 @@ function createBusinessState(res){
        either way. Guessing "staff" hides four controls from the person who OWNS the café, with
        nothing on screen to explain why. Guessing "owner" shows a control that then fails
        honestly, with the server's own words in a toast. So `unknown` reads as OWNER.
+       ⚠️ 244 — "FAILS HONESTLY" WAS A CLAIM ABOUT AUTHORISATION AND WAS BEING READ AS A CLAIM
+       ABOUT CONSEQUENCE, WHICH IS THE DIFFERENCE BETWEEN A REFUSED ACTION AND A WRONG NUMBER.
+       Three of the four controls it excuses are actions — delete a plate, delete a menu, restore a
+       backup — and for those it is exactly right: the server says no and nothing has happened.
+       The FOURTH is the food-cost target, which is not an action but a NUMBER, and setting it moved
+       `cogsPct` before the write was sent: a staff account whose role lookup transiently failed
+       could put the whole café's pricing on a target the server had rejected, with only a toast
+       against it. The toast was never the whole story. This paragraph is still the right default —
+       what makes it true is `setCogs` putting the number back, which is where the fix went, and
+       what this comment may not be read as saying is that a refusal costs nothing on screen.
    The three-value shape still earns its keep on the second reading: only a DEFINITE answer
    changes the standing role, so a re-sync whose role lookup alone fails leaves a known staff
    account staff rather than promoting it. Same law as `_bootNoMember`, opposite starting point.
@@ -1424,7 +1434,9 @@ function resetTenantState(){
   changeLog=[];
   priceHistory=[]; menuHistory={}; menuPriceLog={}; ingPriceLog={};
   supplierMem={};
-  cogsPct=COGS_PCT_DEFAULT;
+  /* 244: BOTH halves of the target, or the new café inherits the old one's confirmed value as the
+     thing a refused edit rolls back to — a number belonging to somebody else's café. */
+  cogsPct=cogsServer=COGS_PCT_DEFAULT;
   gstDefault=GST_DEFAULT_MODE;
   /* ⚠️ THE TWELFTH STORE, MISSED BY THE FIRST CUT OF THIS FUNCTION — whose own comment claimed to
      cover every one of them. Found by the pre-push review.
@@ -1713,7 +1725,12 @@ async function bootstrapSync(){
     var impRow=setRows.filter(function(r){return r.key==='last_invoice_import';})[0];
     if(impRow && impRow.value){ try{ localStorage.setItem('cafeDB_lastImport', impRow.value); }catch(e){} }
     var cogsRow=setRows.filter(function(r){return r.key==='food_cost_target';})[0];
-    if(cogsRow && cogsRow.value!=null){ var pv=parseFloat(cogsRow.value); if(pv>=1&&pv<=99){ cogsPct=pv; var ci2=document.getElementById('setCogsInput'); if(ci2)ci2.value=pv; } }   // v115: syncCogsRead gone with the .cogs-meta line
+    /* 244: `cogsServer` is set HERE and only here besides a confirmed write — this row IS what the
+       server holds, so it is the value a refused edit is put back to. The range guard stays outside
+       `cogsRound` on purpose: an out-of-range row is REJECTED (the default stands) rather than
+       clamped into a number nobody stored. Rounding is item 25's one precision, applied at both
+       entry points so a hand-written 32.55 cannot render two ways on one screen. */
+    if(cogsRow && cogsRow.value!=null){ var pv=parseFloat(cogsRow.value); if(pv>=1&&pv<=99){ cogsPct=cogsServer=cogsRound(pv); var ci2=document.getElementById('setCogsInput'); if(ci2)ci2.value=cogsPct; } }   // v115: syncCogsRead gone with the .cogs-meta line
     var gstRow=setRows.filter(function(r){return r.key==='gst_default';})[0];                    // ITEM 6 (v35): brand-new accounts have no row -> loadGstDefault's 'ex' stands, preserving current behaviour
     if(gstRow && (gstRow.value==='inc'||gstRow.value==='ex')){ setGstDefault(gstRow.value,false); var gi=document.getElementById('setGstDefault'); if(gi)gi.value=gstRow.value; }
     // v81: AI feature toggles round-trip across devices (no row -> the load*() default of ON stands, unchanged behaviour)
@@ -3248,15 +3265,64 @@ rebuildMenu();
    and the one that drifts is the one nobody looks at. */
 var COGS_PCT_DEFAULT = 40;
 var cogsPct = COGS_PCT_DEFAULT;                    // target food cost, as a percent (e.g. 40)
+/* 244 — THE LAST VALUE THE SERVER IS KNOWN TO HOLD, and it is a second variable rather than a
+   "previous value" captured at the call, because the two are not the same thing and the difference
+   is what makes the rollback correct under a second edit.
+   `#setCogsInput` writes on every keystroke, so typing "35" sends 3 and then 35. Rolling back to
+   "the value before THIS call" would put 3 on screen when the 35 was refused — a number the server
+   never held either. Rolling back to the last CONFIRMED value is right whichever order the two
+   settle in, which is the whole reason the guard below compares against this and not a closure. */
+var cogsServer = COGS_PCT_DEFAULT;
 function foodTarget(){ return cogsPct/100; }               // as a fraction for the maths
-function setCogs(pct, persist){
-  pct=Math.max(1,Math.min(99, Math.round(pct))); cogsPct=pct;
-  if(persist) dbSetSetting('food_cost_target', pct);       // shared across devices
+/* ONE PRECISION, IN ALL THREE PLACES (QUEUE item 25, riding this batch as its C).
+   This rounded to an INTEGER while `bootstrapSync` accepted any `parseFloat` in [1,99] and
+   `fmtTargetPct` renders one decimal — so a 32.5 stored by a restore was loadable and renderable
+   and NOT settable, and the first touch of the Settings field silently rewrote it to 33.
+   One decimal wins over integer because it is the only one of the two that changes nobody's stored
+   number: 32.5 stays 32.5, and the decimal branch `fmtTargetPct` already carries stops being
+   unreachable. Both ENTRY POINTS round through this, so `cogsPct` is never held at a precision the
+   ~10 sites that concatenate it raw would print differently from `fmtTargetPct`. */
+function cogsRound(pct){ return Math.max(1, Math.min(99, Math.round(Number(pct)*10)/10)); }
+/* The repaint, split out so the rollback below re-renders by the SAME path the change did rather
+   than by a second copy of the list — CLAUDE.md's oldest recorded defect is a stub that agrees with
+   the code whenever the code is wrong, and a hand-rolled "put it back" is exactly that shape. */
+function applyCogs(pct){
+  cogsPct=pct;
   var th=document.getElementById('aSuggestedTh'); if(th) th.textContent='Suggested at '+pct+'%';   // F5: the mock's §3.2 wording (R1)
   // v115: syncCogsRead (the Menu tab's read-only mirror) is gone with the .cogs-meta line — the
   // Suggested column header below follows the target via renderAnalysis instead
   renderAnalysis();
   try{ if(typeof updateDashNavBadge==='function') updateDashNavBadge(); }catch(e){}   // v133: the target is the one input that changes the badge's answer without changing any data (review finding — it went stale for days otherwise)
+}
+/* ⚠️ 244 — A REFUSED WRITE MUST TAKE THE NUMBER BACK WITH IT, and until this batch it did not.
+   `cogsPct` moved, every suggested price and every good/bad colour in the app recomputed off it,
+   and the write went out unawaited with its promise thrown away. When the server refused —
+   187's three owner-only policies on this one `app_settings` key, or simply no signal — the toast
+   said so and the SCREEN kept the new target. Measured: a $6 dish reads $20 against a rejected 30%
+   where the server still holds 40% and the honest answer is $15. That is a wrong number on a
+   costing screen, which is the one thing this app must never do, and a reload silently "fixes" it.
+   The authorisation was never the problem and the policies are not touched here.
+   RETURNS THE WRITE when it persists (CLAUDE.md: a helper that swallows its promise cannot be
+   sequenced by anyone); returns undefined for a local-only apply, which has nothing to settle. */
+function setCogs(pct, persist){
+  pct=cogsRound(pct);
+  applyCogs(pct);
+  if(!persist) return;
+  return Promise.resolve(dbSetSetting('food_cost_target', pct)).then(function(r){   // shared across devices
+    if(r && !r.error){ cogsServer=pct; return r; }
+    /* Only a refusal of what is CURRENTLY on screen may move it. A later keystroke has already
+       replaced this value, and its own write is in flight with its own answer — putting the older
+       number back would fight the user and could not be right in either settle order. */
+    if(cogsPct===pct){
+      applyCogs(cogsServer);
+      /* The field too, or it sits there stating a target nothing else in the app agrees with. Only
+         when it still shows the refused number: the persist is debounced at the handler precisely
+         so this cannot land on somebody mid-type, and the guard is the belt to that. */
+      var el=document.getElementById('setCogsInput');
+      if(el && parseFloat(el.value)===pct) el.value=cogsServer;
+    }
+    return r;
+  });
 }
 function fmt2(x){return '$'+Number(x).toFixed(2);}
 function analyze(cost, menuPrice){
@@ -8279,7 +8345,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v200';
+var APP_VERSION='v201';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -9644,7 +9710,22 @@ function clearCacheAndRefresh(){
      writes `food_cost_target`, which is the one app_settings key three restrictive policies
      refuse. Silent rather than toasting: the help line beside the field already says who can
      change it, and a toast per keystroke would be noise on a control that cannot be typed into. */
-  if(ci) ci.addEventListener('input',function(){ if(!isOwner()) return; var v=parseFloat(ci.value); if(v>=1&&v<=99){ setCogs(v,true); } });   // setCogs re-renders every consumer, the v133 nav badge included
+  /* ⚠️ 244 — THE PERSIST IS DEBOUNCED AND THE REPAINT IS NOT, and the split is what makes the
+     rollback safe rather than merely present. This fired `setCogs(v,true)` on EVERY keystroke, so
+     typing "35" sent 3 and then 35 as two writes: whichever of them the server happened to accept
+     was the café's target, and a rollback landing between the two would rewrite the field under
+     somebody's fingers and make the number unreachable by typing.
+     Now the figures still follow the field on every keystroke — that is the whole value of a live
+     target — and only the settled value is written, once, ~500ms after typing stops. `cogsPct` is
+     what gets persisted rather than `v`, so it is by construction the number on screen. */
+  var cogsSaveT=null;
+  if(ci) ci.addEventListener('input',function(){   // setCogs re-renders every consumer, the v133 nav badge included
+    if(!isOwner()) return;
+    var v=parseFloat(ci.value); if(!(v>=1&&v<=99)) return;
+    setCogs(v,false);
+    clearTimeout(cogsSaveT);
+    cogsSaveT=setTimeout(function(){ setCogs(cogsPct,true); }, 500);
+  });
   var gs=document.getElementById('setGstDefault');
   if(gs) gs.addEventListener('change',function(){ setGstDefault(gs.value,true); });
   // v81: AI feature toggles
