@@ -654,6 +654,43 @@ create policy "app_settings owner-only target delete" on public.app_settings
   as restrictive for delete to public
   using (key <> 'food_cost_target' or (select public.current_business_role()) = 'owner');
 
+-- ---------------------------------------------------------------------------
+-- 4b-ii. THE TWO FOOD-COST HISTORY SERIES — 20260910_history_delete.sql (250).
+--
+-- Mirrored here for the reason section 4b exists at all: re-running this file is
+-- step 2 of docs/STAGING.md's migration procedure and is described there as
+-- idempotent, so a policy that lives only in a migration would be SILENTLY LOST
+-- the next time staging is re-mirrored — and the thing lost here is a restriction,
+-- which fails open.
+--
+-- The two series arrived with opposite deletion rules, neither of them chosen:
+-- `price_history` carries one permissive `FOR ALL` tenant policy, and FOR ALL
+-- includes DELETE, so any member — staff included — could delete any point of the
+-- café's food-cost history. `menu_price_history` had only SELECT and INSERT
+-- policies, so nobody could delete at all, the owner included. Measured on
+-- production 10 Sep 2026; the migration's header carries the full reasoning.
+--
+-- `as restrictive` is the whole mechanism and is the word most often left out: a
+-- policy written without it is OR'd with the permissive tenant policy that already
+-- allows the delete, takes nothing away, and still lists under the right name.
+drop policy if exists "price_history owner-only delete" on public.price_history;
+create policy "price_history owner-only delete" on public.price_history
+  as restrictive for delete to public
+  using ((select public.current_business_role()) = 'owner');
+
+-- The permissive half FIRST and the restriction in the same transaction: split
+-- across two deploys, the permissive one alone would briefly hand STAFF the delete
+-- this section exists to withhold.
+drop policy if exists "menu_price_history tenant delete" on public.menu_price_history;
+create policy "menu_price_history tenant delete" on public.menu_price_history
+  for delete to anon, authenticated
+  using (business_id = (select public.current_business_id()));
+
+drop policy if exists "menu_price_history owner-only delete" on public.menu_price_history;
+create policy "menu_price_history owner-only delete" on public.menu_price_history
+  as restrictive for delete to public
+  using ((select public.current_business_role()) = 'owner');
+
 
 -- ---------------------------------------------------------------------------
 -- 4c. INVITATIONS — 20260814_invitations.sql (191).

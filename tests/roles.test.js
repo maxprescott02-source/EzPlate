@@ -282,3 +282,93 @@ test('the mirror adds the role column the way it adds business_id, not in the cr
   assert.ok(!/\brole\b/.test(create),
     'the column must not be declared inside the create table — an existing staging would never get it');
 });
+
+
+/* =============================================================================================
+ * 250 / QUEUE item 89's server half — THE TWO FOOD-COST HISTORY SERIES.
+ *
+ * ⚠️ THESE PIN A NEWLY-CLOSED HOLE, not a hypothetical. Measured on production 10 Sep 2026 before
+ * the migration ran: `price_history` carried ONE permissive `FOR ALL` tenant policy, and FOR ALL
+ * includes DELETE — so any member of the café, staff included, could delete any point of the
+ * food-cost history. Nothing in js/app.js does it, which is why it never showed up; "no client code
+ * does it" is not a gate. Its sibling `menu_price_history` had only SELECT and INSERT policies, so
+ * nobody could delete at all. Two series written by the same function on the same event, with
+ * opposite rules, neither of them chosen.
+ *
+ * ⚠️ READ FROM WHICHEVER MIGRATION LAST DEFINES EACH POLICY, never from a named file — roster 219,
+ * which is recorded at length above this section: a pin against a named migration is a pin against a
+ * name, and it stays green while the deployed object loses the guard.
+ *
+ * The BEHAVIOUR was measured rather than reasoned: on staging, as a signed-in staff member (the seed
+ * carries one), staff deleted 0 of 1 on each series and the owner then deleted 1 of 1 on each — and
+ * the harness was re-run with its assertion inverted to prove it could fail. That is in the
+ * migration's header, which is the only place it can live. What text can pin is the one dropped word
+ * that would undo it silently, which is what these are.
+ * ========================================================================================== */
+
+/** Every migration mentioning a policy name, oldest first — filenames are datestamped, so sorted. */
+function newestDefining(policyName) {
+  const dir = path.join(__dirname, '..', 'supabase', 'migrations');
+  const hits = fs.readdirSync(dir).filter((f) => f.endsWith('.sql')).sort()
+    .map((f) => ({ file: f, text: fs.readFileSync(path.join(dir, f), 'utf8') }))
+    .filter((m) => m.text.includes('create policy "' + policyName + '"'));
+  assert.ok(hits.length, 'no migration defines the policy "' + policyName + '"');
+  return hits[hits.length - 1];
+}
+
+/** The `create policy` statement for one name, up to its terminating semicolon. */
+function policyStmt(text, policyName) {
+  const i = text.indexOf('create policy "' + policyName + '"');
+  if (i < 0) return null;
+  const j = text.indexOf(';', i);
+  assert.ok(j > i, 'the policy statement must terminate');
+  return text.slice(i, j + 1);
+}
+
+for (const name of ['price_history owner-only delete', 'menu_price_history owner-only delete']) {
+  test(`250: "${name}" is RESTRICTIVE, or it grants instead of restricting`, () => {
+    const m = newestDefining(name);
+    const stmt = policyStmt(m.text, name);
+    assert.match(stmt, /as restrictive/,
+      `${m.file}: without the word this is OR'd with the permissive tenant policy and takes nothing away`);
+    assert.match(stmt, /for delete/, 'and it names the command — `for all` would make staff unable to READ');
+    assert.match(stmt, /to public/,
+      'a restriction that does not apply to everyone restricts nobody');
+    assert.match(stmt, /current_business_role\(\)\)? = 'owner'/,
+      'the condition is the role, and NULL — a caller with no membership — denies');
+  });
+}
+
+test('250: the owner CAN delete, because a restriction alone permits nothing', () => {
+  /* The half that is easy to leave out and impossible to notice: `menu_price_history` had no DELETE
+     policy at all, so adding only the owner-only RESTRICTIVE one would have left every delete
+     refused — including the owner's, which is the whole point of item 89's surface. It needs a
+     permissive policy too, and the pair must be in ONE migration for the reason the header gives:
+     split across two deploys, the permissive one alone briefly hands staff the delete. */
+  const m = newestDefining('menu_price_history tenant delete');
+  const stmt = policyStmt(m.text, 'menu_price_history tenant delete');
+  assert.doesNotMatch(stmt, /as restrictive/, 'this half GRANTS — it is the one that makes a delete possible');
+  assert.match(stmt, /for delete/);
+  assert.match(stmt, /business_id = \(select public\.current_business_id\(\)\)/,
+    'scoped to the tenant exactly as its SELECT sibling is');
+
+  const owner = newestDefining('menu_price_history owner-only delete');
+  assert.strictEqual(owner.file, m.file,
+    'both halves in ONE migration: apart, the permissive one alone is a window in which staff can delete');
+});
+
+for (const name of ['price_history owner-only delete',
+                    'menu_price_history tenant delete',
+                    'menu_price_history owner-only delete']) {
+  test(`250: the staging mirror carries "${name}"`, () => {
+    /* Re-running 01-schema.sql is step 2 of docs/STAGING.md's migration procedure and is described
+       there as idempotent. A policy that lives only in a migration is therefore SILENTLY LOST the
+       next time staging is re-mirrored — and what is lost here is a RESTRICTION, so it fails open.
+       `tests/semantic-keys.test.js` learned this about a function; it is equally true of a policy. */
+    const mirror = policyStmt(MIRROR, name);
+    assert.ok(mirror, `01-schema.sql must carry "${name}" or a re-mirror drops it`);
+    const migration = policyStmt(newestDefining(name).text, name);
+    assert.strictEqual(mirror.replace(/\s+/g, ' '), migration.replace(/\s+/g, ' '),
+      'and it must say the SAME thing — a mirror that drifts is worse than one that is missing');
+  });
+}

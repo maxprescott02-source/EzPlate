@@ -630,15 +630,23 @@ Blocked on: **Max's priority call.** From `docs/MAINTENANCE.md`'s "Displaced" se
 ⚠️ **THE PRE-PUSH REVIEW FOUND A CRITICAL AND IT IS WORTH READING BEFORE TOUCHING ANY BATCHED `logChange`.** `logChange` defaults an omitted `avgAfter` to a LIVE `computeAvgFoodCost()`, evaluated when that plate's write SETTLES — after every plate in the batch has been mutated. With one `avgBefore` read before the loop, all N entries carried the whole batch's movement, and `trendMarkers` sums `drop` per calendar day, so a two-plate choice drew **twice** the real fall. The remedy is the invoice repoint loop's pattern, which exists for exactly this and says so at its site: measure the pair around each plate's OWN mutation so the entries compose in sequence.
 
 
-## next  89 · A `price_history` point cannot be deleted or corrected from the app  **[B, the 354.4 written by the 8 Sep typo is still on production and nothing but SQL can remove it]**
+## next  89 · A `price_history` point cannot be deleted or corrected from the app  **[B — the SERVER half shipped in batch 250; what is left is the surface]**
 
 **Split out of item 18 by batch 241**, which shipped the bound that stops another one being written and deliberately did not build this. The two are different in kind: the bound is arithmetic, this is a destructive write surface.
 
-**The state today.** `logHistory` appends to `priceHistory` and `dbPushHistory`; `logAllMenuPrices` appends per-menu points. **Nothing in the app deletes either**, so a point written by a typo is permanent, and production carries one at 354.4. 241's axis cap means it no longer flattens the chart — the caption now says a reading is off the scale — but the point is still there, still in every backup, and still the answer to "what was our food cost that week".
+✅ **THE SERVER HALF SHIPPED, batch 250, `20260910_history_delete.sql`, applied to staging AND production 10 Sep 2026.** And it turned out to be a hole rather than a gap. Measured on production before it ran:
+- **`price_history` carried ONE permissive `FOR ALL` tenant policy, and FOR ALL includes DELETE — so any member of the café, STAFF INCLUDED, could delete any point of the food-cost history.** Nothing in `js/app.js` does it, which is why it never showed up; "no client code does it" is not a gate.
+- **`menu_price_history` had only SELECT and INSERT policies, so nobody could delete at all** — not staff, not the owner, not the app.
+Two sibling series, written by the same function on the same event, with opposite deletion rules and neither of them chosen. Both are now owner-only, and the owner can delete on both.
+**Verified as a signed-in STAFF member on staging** — the one role the guard exists for, which is the rehearsal gap batch 219 recorded — with the harness re-run inverted to prove it could fail. `tests/roles.test.js` pins the SQL against whichever migration LAST defines each policy, and pins the staging mirror too, because re-running `01-schema.sql` would otherwise silently drop a restriction.
 
-**What must be true when it is fixed:** an OWNER can delete or correct a single `price_history` / `menu_price_history` point from the app; the write goes through a `pushWrite` helper like every other (RLS already scopes it to the tenant, and 187's owner-only pattern is the precedent for the policy); the confirm names the point being removed by its date and value; and the deletion is itself recorded, because a history the user can silently edit is a different artefact from one they cannot.
-⚠️ **Settings → Data is the natural home** and it is where 239 put the other one-off repair, so the two should look alike.
+**WHAT IS LEFT: the client surface.** `logHistory` appends to `priceHistory`/`dbPushHistory` and `logAllMenuPrices` appends per-menu points; **nothing in the app deletes either**, so a point written by a typo is still permanent from the user's side.
+
+**What must be true when it is finished:** an owner can delete or correct a single `price_history` / `menu_price_history` point from the app; the write goes through a `pushWrite` helper like every other; the confirm names the point by its date and value; and the deletion is itself recorded, because a history the user can silently edit is a different artefact from one they cannot.
+⚠️ **Settings → Data is the natural home** and it is where 239 and 249 put the other one-off repairs, so the three should look alike.
 ⚠️ **This DELETES production data, so running it is Max's** — the same standing rule as the restore's wipe. Building the surface is not.
+⚠️ **PRODUCTION CARRIES TWO BAD POINTS, NOT ONE** (measured 10 Sep 2026): `354.4` on the all-menus series at `2026-09-08 09:37:12`, and `30000` on the per-menu series for `MENUmtsh5o3t-1-9v3bvrqw` — a menu that was itself an 8 Sep audit artefact, so that second point is orphaned and renders nowhere. The item named only the first.
+
 
 # Dropped or merged
 
