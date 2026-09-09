@@ -55,6 +55,12 @@ const targets = [
      `productsById={}` leaves PRODUCTS and byId still holding the previous café while the store they
      derive from reads empty. */
   { fn: 'resetTenantState', tests: ['tenant-switch.test.js'] },
+  /* 243 — the invitation chooser. `invitesOf` decides which server rows become a button somebody
+     can press, and `renderInviteChoices` decides what that button SAYS — the café name and the role
+     being accepted, which is what the old server function chose silently. Both were confirmed red
+     by hand (eight mutants, eight kills) before being listed. */
+  { fn: 'invitesOf', tests: ['boot-gate.test.js'] },
+  { fn: 'renderInviteChoices', tests: ['boot-gate.test.js'] },
   /* TWO files, and the second is not decoration: `smem-sync-guard.test.js` predates this batch and
      is where v107's keep-local-over-an-empty-read behaviour is pinned, against the real block that
      sequences the log, the pushes and the adopt. Listing only the new file would leave the older

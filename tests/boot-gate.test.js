@@ -35,6 +35,37 @@ function mkNode(id) {
   };
 }
 
+/* 243 — the one node in this file that is more than a bag of properties, because the renderer
+   WRITES markup to it and then reads the buttons back out to bind them.
+   ⚠️ TWO TRAPS, BOTH HIT WHILE WRITING IT, BOTH RECORDED BECAUSE THEY MAKE A TEST VACUOUS RATHER
+   THAN RED:
+     1. The buttons must be the SAME OBJECTS across calls. A `querySelectorAll` that rebuilds them
+        each time sends the renderer's `onclick` to a throwaway, so "is every row bound?" can never
+        pass — a real element persists between the write and the read, and that persistence is the
+        whole question. Roster 195: a fake DOM must not collapse two steps the real one keeps apart.
+     2. `Object.assign` COPIES A GETTER'S VALUE, NOT THE ACCESSOR. Defining `innerHTML` as a
+        get/set pair inside an object literal handed to `Object.assign` silently produced a plain
+        data property holding `''`, so the setter never ran, `_btns` stayed empty, and the repaint
+        test failed for a reason that had nothing to do with the app. Built with the accessor on the
+        object itself instead. */
+function mkInviteList() {
+  const node = mkNode('bgInviteList');
+  let html = '';
+  let btns = [];
+  Object.defineProperty(node, 'innerHTML', {
+    get() { return html; },
+    set(v) {
+      html = String(v);
+      btns = [...html.matchAll(/data-invite="([^"]*)"/g)].map((m) => ({
+        onclick: null, disabled: false,
+        getAttribute: (a) => (a === 'data-invite' ? m[1] : null),
+      }));
+    },
+  });
+  node.querySelectorAll = () => btns;
+  return node;
+}
+
 function makeGate(present, opts) {
   /* 186: the sign-in form and its error line are gate elements now, and they are REAL nodes here
      rather than absent ones — a stub DOM that omits them would let every `if(f)` guard pass
@@ -54,7 +85,26 @@ function makeGate(present, opts) {
            `bgCafeName` carries a focus() counter for `bgEmail`'s reason: the transition has to be
            OBSERVED, not merely survived. */
         bgCafeForm: mkNode('bgCafeForm'), bgCafeNote: mkNode('bgCafeNote'),
-        bgCafeName: Object.assign(mkNode('bgCafeName'), { focuses: 0, focus() { this.focuses++; } }) }
+        bgCafeName: Object.assign(mkNode('bgCafeName'), { focuses: 0, focus() { this.focuses++; } }),
+        /* ⚠️ 243 ADDED THESE THREE AS REAL NODES FOR THE REASON THE 209 NOTE ABOVE RECORDS: an
+           absent node makes every `if(el)` guard pass vacuously, so the chooser would be exercised
+           for "does not throw" and nothing else — which is how 209's café branch shipped a live
+           defect no test here could have caught.
+           `bgInviteList` needs `innerHTML` and `querySelectorAll` because the renderer writes
+           markup and then binds the buttons it wrote; a stub that accepted the write and returned
+           nothing to bind would hide a chooser that paints and cannot be clicked. It parses the
+           `data-invite` attributes back out of the HTML it was given, which is crude but is the
+           one property the binding depends on. */
+        bgInvites: mkNode('bgInvites'), bgInvitesNote: mkNode('bgInvitesNote'),
+        bgInviteList: mkInviteList(),
+        /* ⚠️ 243 ADDED THESE FOUR TOO, AND THEIR ABSENCE WAS THE SAME HOLE A THIRD TIME. `hideForms`
+           and the 'signin' branch both reach for `bgSignUpForm` and `bgDone`, and neither existed
+           here — so 192's guard, `if((su && !su.hidden) || (dn && !dn.hidden)) return;`, was reading
+           two nulls in every test in this file and could not fire. The one thing it protects (a
+           half-typed sign-up, and the "check your email" line, surviving a re-sync) was therefore
+           pinned by nothing at all. Found while adding a fix two lines above it. */
+        bgSignUpForm: mkNode('bgSignUpForm'), bgDone: mkNode('bgDone'),
+        bgAltIn: mkNode('bgAltIn'), bgAltUp: mkNode('bgAltUp') }
     : {};
   // `omit` models the real mixed-version case: a cached index.html without the newer elements.
   (opts && opts.omit || []).forEach((id) => { delete nodes[id]; });
@@ -89,14 +139,25 @@ function makeGate(present, opts) {
     ${extractFn(SRC, 'gateErr')}
     ${extractVar(SRC, '_authUrlErrShown')}
     ${extractFn(SRC, 'paintAuthUrlError')}
+    /* 243: the chooser the 'nomember' branch paints. Real, not stubbed — a stub would be written
+       from the same belief as the code, which is this repo's most recorded defect. */
+    ${extractFn(SRC, 'esc')}
+    ${extractFn(SRC, 'invitesOf')}
+    ${extractVar(SRC, '_pendingInvites')}
+    ${extractFn(SRC, 'renderInviteChoices')}
     ${extractFn(SRC, 'bootGate')}
     return { bootGate: bootGate, gateErr: gateErr, SIGNIN_MSG: SIGNIN_MSG,
-             shown: function(){ return _authUrlErrShown; } };
+             shown: function(){ return _authUrlErrShown; },
+             setInvites: function(rows){ _pendingInvites = invitesOf(rows); },
+             invites: function(){ return _pendingInvites; } };
   `)(nodes, calls, signOutResult);
   return { gate: nodes.bootGate, msg: nodes.bootGateMsg, retry: nodes.bootGateRetry,
            out: nodes.bootGateOut, form: nodes.bgSignForm, err: nodes.bgErr, email: nodes.bgEmail,
            brand: nodes.bootGateBrand,
            cafeForm: nodes.bgCafeForm, cafeNote: nodes.bgCafeNote, cafeName: nodes.bgCafeName,
+           signUp: nodes.bgSignUpForm, done: nodes.bgDone,
+           invites: nodes.bgInvites, invitesNote: nodes.bgInvitesNote, inviteList: nodes.bgInviteList,
+           setInvites: api.setInvites, heldInvites: api.invites,
            run: api.bootGate, gateErr: api.gateErr, SIGNIN_MSG: api.SIGNIN_MSG,
            urlErrShown: api.shown, calls };
 }
@@ -676,4 +737,238 @@ test('238: a cached index.html with no bgErr degrades to silence, not a throw', 
      element; this pins that paintAuthUrlError does not reach past it. */
   const g = makeGate(true, { urlErr: 'That link has already been used.', omit: ['bgErr'] });
   assert.doesNotThrow(() => { g.run('signin'); g.run('signin'); });
+});
+
+/* ============================================================================================
+ * 243 — THE INVITATION CHOOSER.
+ *
+ * `claim_business_invite` used to take `limit 1` over `order by created_at` when one address held
+ * two pending invitations, so it silently joined the OLDER café and took that invitation's ROLE.
+ * The migration makes it refuse instead. Refusing without asking would turn "joined the wrong café"
+ * into "joined nothing", so the non-member gate now offers the choice — and these pin that half.
+ *
+ * The functions are the real ones, brace-extracted, and the list node parses back the markup the
+ * renderer actually wrote, so a chooser that paints but binds nothing fails here.
+ * ========================================================================================== */
+
+const INV_TWO = { data: [
+  { invite_id: 'inv-a', business_id: 'biz-a', business_name: "Kelly's", role: 'owner' },
+  { invite_id: 'inv-b', business_id: 'biz-b', business_name: 'The Beach Shack', role: 'staff' },
+], error: null };
+
+test('243: two invitations are offered by NAME, with the role each one carries', () => {
+  const g = makeGate(true);
+  g.setInvites(INV_TWO);
+  g.run('nomember', 'This account isn’t part of a café yet.');
+
+  assert.strictEqual(g.invites.hidden, false, 'the chooser must be on screen');
+  assert.match(g.invitesNote.textContent, /More than one café has invited this address/);
+  /* The NAME is what a person chooses between, and the ROLE is the consequence they are agreeing
+     to. The old function decided both silently, so both have to be visible here. */
+  assert.match(g.inviteList.innerHTML, /Kelly&#39;s|Kelly's/, 'the café name is the choice');
+  assert.match(g.inviteList.innerHTML, /The Beach Shack/);
+  assert.match(g.inviteList.innerHTML, /Join as owner/);
+  assert.match(g.inviteList.innerHTML, /Join as staff/);
+  assert.match(g.inviteList.innerHTML, /data-invite="inv-a"/);
+  assert.match(g.inviteList.innerHTML, /data-invite="inv-b"/);
+});
+
+test('243: every offered row is BOUND, not just drawn', () => {
+  /* A chooser that paints and cannot be clicked is the same silence 185 exists to end, and it is
+     invisible to an assertion that only reads the markup. */
+  const g = makeGate(true);
+  g.setInvites(INV_TWO);
+  g.run('nomember');
+  const bound = g.inviteList.querySelectorAll('[data-invite]');
+  assert.strictEqual(bound.length, 2);
+  bound.forEach((b) => assert.strictEqual(typeof b.onclick, 'function', 'each row must act'));
+});
+
+test('243: the café name comes off the wire and is ESCAPED', () => {
+  /* The one string in this app written by one user and rendered to another: the café's name is
+     typed by whoever sent the invitation, and read by whoever is deciding whether to accept it. */
+  const g = makeGate(true);
+  g.setInvites({ data: [{ invite_id: 'x', business_name: '<img src=x onerror=alert(1)>', role: 'staff' }], error: null });
+  g.run('nomember');
+  assert.ok(!/<img/.test(g.inviteList.innerHTML), 'no raw tag may reach the gate');
+  assert.match(g.inviteList.innerHTML, /&lt;img/);
+});
+
+test('243: with NO invitations the screen is byte-for-byte the one 209 shipped', () => {
+  /* The fail-safe, and the property that makes the extra round trip safe to add: [] is what an
+     error, an older project and a genuine "nobody invited you" all produce. */
+  const g = makeGate(true);
+  g.run('nomember', 'This account isn’t part of a café yet.');
+  assert.strictEqual(g.invites.hidden, true, 'nothing offered means nothing shown');
+  assert.strictEqual(g.cafeForm.hidden, false, 'and creating a café is still the way forward');
+  assert.strictEqual(g.out.hidden, false);
+});
+
+test('243: an unreadable answer offers nothing rather than guessing', () => {
+  const g = makeGate(true);
+  [{ error: { message: 'boom' } }, { data: null, error: null }, { data: 'nonsense', error: null }, null]
+    .forEach((res) => {
+      g.setInvites(res);
+      g.run('nomember');
+      assert.strictEqual(g.invites.hidden, true);
+      assert.deepStrictEqual(g.heldInvites(), []);
+    });
+});
+
+test('243: a row with no id is DROPPED, never drawn as a button that cannot work', () => {
+  const g = makeGate(true);
+  g.setInvites({ data: [
+    { invite_id: '', business_name: 'Broken' },
+    { business_name: 'Also broken' },
+    { invite_id: 'ok', business_name: 'Real' },
+  ], error: null });
+  g.run('nomember');
+  assert.strictEqual(g.heldInvites().length, 1, 'only the row that can be claimed survives');
+  assert.ok(!/Broken/.test(g.inviteList.innerHTML));
+  assert.match(g.inviteList.innerHTML, /Real/);
+});
+
+test('243: a nameless café still gets a usable label, whatever shape the blank arrives in', () => {
+  /* ⚠️ `null` ALONE DOES NOT PIN THIS, which the mutation gate caught. The guard is
+     `typeof x === 'string' && x`, and flipping it to `||` still yields the fallback for null — so a
+     test using only null passes against the broken guard. The cases that separate them are the
+     EMPTY STRING (a café row saved with a blank name) and a NON-STRING, both of which the `||`
+     version would render verbatim: an empty button, or a number, neither of which is a choice. */
+  [null, undefined, '', 0, 7, {}].forEach((name) => {
+    const g = makeGate(true);
+    g.setInvites({ data: [{ invite_id: 'i1', business_name: name, role: 'staff' }], error: null });
+    g.run('nomember');
+    assert.match(g.inviteList.innerHTML, /A café/, 'a blank button is not a choice: ' + JSON.stringify(name));
+    assert.match(g.inviteList.innerHTML, /data-invite="i1"/, 'and it is still claimable');
+  });
+});
+
+test('243: ONE invitation still reaching this screen is offered, with different copy', () => {
+  /* The claim takes a lone invitation automatically, so arriving here with one means it did not
+     settle — an unreadable answer. Offering it is still right; calling it "more than one" is not. */
+  const g = makeGate(true);
+  g.setInvites({ data: [{ invite_id: 'i1', business_name: 'Solo', role: 'staff' }], error: null });
+  g.run('nomember');
+  assert.strictEqual(g.invites.hidden, false);
+  assert.match(g.invitesNote.textContent, /A café has invited this address/);
+  assert.ok(!/More than one/.test(g.invitesNote.textContent));
+});
+
+test('243: hideForms covers the fourth block — an error must not sit under a stale offer', () => {
+  /* hideForms' whole job. 209's note says adding the café form meant adding two lines there and
+     nothing else; this is the check that the fourth one was not forgotten. */
+  const g = makeGate(true);
+  g.setInvites(INV_TWO);
+  g.run('nomember');
+  assert.strictEqual(g.invites.hidden, false, 'offered first');
+  g.run('error', 'Couldn’t load your data: boom');
+  assert.strictEqual(g.invites.hidden, true, 'an error screen must not carry a stale offer');
+});
+
+test('243: a re-sync does NOT tear the offer down — 185’s early return, and it is deliberate', () => {
+  /* ⚠️ WRITTEN THE OTHER WAY ROUND FIRST, ASSERTING THAT 'loading' HID IT, AND THE CODE WAS RIGHT.
+     185 returns early from 'loading' whenever the non-member latch is set and this is not an
+     explicit retry, precisely so an `online` blip cannot swap this screen for a spinner. The
+     chooser is part of that screen and inherits the protection: a person reading two café names is
+     mid-decision, and a background re-sync must not take the choice away and put it back.
+     Kept as a test rather than deleted, because the next reader will have the same instinct. */
+  const g = makeGate(true);
+  g.setInvites(INV_TWO);
+  g.run('nomember');
+  g.run('loading');
+  assert.strictEqual(g.invites.hidden, false, 'a background re-sync leaves the choice on screen');
+
+  /* An EXPLICIT retry is the exception 185 already carves out — the tap must visibly respond. */
+  const g2 = makeGate(true);
+  g2.setInvites(INV_TWO);
+  g2.run('nomember');
+  g2.run('error', 'boom');
+  g2.retry.onclick();
+  assert.strictEqual(g2.invites.hidden, true, 'a tapped Try again does respond');
+});
+
+test('243: a re-sync REPAINTS the offer rather than leaving a cancelled one up', () => {
+  /* Unlike the café field, which is "shown, never reset" because a person may be halfway through
+     typing it. There is nothing to type here, and an invitation cancelled between two re-syncs
+     must stop being offered. */
+  const g = makeGate(true);
+  g.setInvites(INV_TWO);
+  g.run('nomember');
+  assert.strictEqual(g.inviteList.querySelectorAll('[data-invite]').length, 2);
+
+  g.setInvites({ data: [{ invite_id: 'inv-b', business_name: 'The Beach Shack', role: 'staff' }], error: null });
+  g.run('nomember');
+  assert.strictEqual(g.inviteList.querySelectorAll('[data-invite]').length, 1, 'the cancelled one is gone');
+  assert.ok(!/inv-a/.test(g.inviteList.innerHTML));
+});
+
+test('243: a cached index.html with no chooser markup degrades to silence, not a throw', () => {
+  /* ⚠️ EACH ELEMENT IS OMITTED ON ITS OWN AS WELL AS ALL THREE TOGETHER, and the gate caught why:
+     the guard is `if(!box || !list) return;`, and flipping it to `&&` still returns when BOTH are
+     missing — so a test that only omits everything passes against the broken guard. A PARTIAL cached
+     page is also the more realistic failure: index.html and js/app.js are separate requests with
+     separate cache entries, so "new script, older markup" is a state this app genuinely reaches. */
+  [['bgInvites', 'bgInvitesNote', 'bgInviteList'], ['bgInvites'], ['bgInviteList'], ['bgInvitesNote']]
+    .forEach((omit) => {
+      const g = makeGate(true, { omit });
+      g.setInvites(INV_TWO);
+      assert.doesNotThrow(() => { g.run('nomember'); g.run('nomember'); },
+        'missing ' + omit.join(',') + ' must be a no-op, not a throw');
+      assert.strictEqual(g.cafeForm.hidden, false, 'and the rest of the screen still paints');
+      assert.strictEqual(g.out.hidden, false, 'including the way out');
+    });
+});
+
+test('243: a session that expires on the non-member screen does not leave its offers up', () => {
+  /* nomember -> signin is reachable: `getSession` failing, or a session expiring, while that screen
+     is up flips `sessionUser` to null and bootstrapSync paints 'signin' instead.
+     PRE-EXISTING since 209 for the café form — "Create my café" sat above a sign-in form, offering
+     an action the server refuses for having no session — and this batch would have made the
+     invitation chooser a third stale block. Fixed here rather than filed, because the batch that
+     adds a block to a screen owns whether it comes down. */
+  const g = makeGate(true);
+  g.setInvites(INV_TWO);
+  g.run('nomember');
+  assert.strictEqual(g.cafeForm.hidden, false);
+  assert.strictEqual(g.invites.hidden, false);
+
+  g.run('signin');
+  assert.strictEqual(g.invites.hidden, true, 'no invitation offer over a sign-in form');
+  assert.strictEqual(g.cafeForm.hidden, true, 'and no café form either');
+  assert.strictEqual(g.cafeNote.hidden, true);
+  assert.strictEqual(g.form.hidden, false, 'the sign-in form is what this screen is for');
+});
+
+test('243: ...and it does NOT use hideForms, which would tear down a half-typed sign-up', () => {
+  /* The reason the fix above is three NAMED lines rather than one `hideForms()` call. 192's guard
+     protects an in-progress sign-up, and the "check your email" line, from being reset by a
+     re-sync; reaching for hideForms() to tidy the café form away would have fixed a stale offer by
+     reintroducing exactly that defect.
+     ⚠️ This assertion was vacuous when first written — `bgSignUpForm` and `bgDone` were not in the
+     stub, so 192's guard read two nulls and could not fire. They are real nodes now. */
+  const g = makeGate(true);
+  g.run('signin');
+  g.signUp.hidden = false;                 // the person is part-way through signing up
+  g.done.textContent = 'Check your email to confirm.';
+  g.done.hidden = false;
+
+  g.run('signin');                         // an `online` blip re-enters the same state
+  assert.strictEqual(g.signUp.hidden, false, '192: a half-typed sign-up survives a re-sync');
+  assert.strictEqual(g.done.textContent, 'Check your email to confirm.', 'and so does its message');
+});
+
+test('243: 192’s guard actually fires — the sign-in form is not repainted over a sign-up', () => {
+  /* The other half of the same guard, and the one that proves it is reached at all: with the
+     sign-up side up, the 'signin' branch must RETURN before it touches the sign-in form or the
+     message. With the stub's two missing nodes this could never have failed. */
+  const g = makeGate(true);
+  g.run('signin');
+  assert.strictEqual(g.form.hidden, false, 'the sign-in form is up to begin with');
+  g.form.hidden = true;                    // the sign-up swap hid it
+  g.signUp.hidden = false;
+  g.msg.textContent = 'Create your account.';
+
+  g.run('signin');
+  assert.strictEqual(g.form.hidden, true, 'the guard returned before re-showing the sign-in form');
+  assert.strictEqual(g.msg.textContent, 'Create your account.', 'and before overwriting the wording');
 });
