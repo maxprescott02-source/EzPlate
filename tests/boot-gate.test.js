@@ -163,6 +163,48 @@ function makeGate(present, opts) {
            urlErrShown: api.shown, calls };
 }
 
+/* ---------------------------------------------------------------------------------------------
+   246 / QUEUE item 20 — WHICH READS ARE FATAL.
+
+   ⚠️ THESE ARE COUPLING CHECKS AND ARE LABELLED AS ONE, because CLAUDE.md's roster is largely tests
+   that grep source and prove nothing. The BEHAVIOUR is pinned in `tests/visual/246-menus-read.spec.js`,
+   which fails the real `menus` request in a real browser and asserts the gate appears — the only
+   harness that can, since the read list lives inside a 400-line async `bootstrapSync` that cannot be
+   brace-extracted and driven.
+   What these add is the thing a browser spec cannot: they fail by NAME when someone re-softens the
+   read or drops it from the throw, instead of failing as a timeout in a spec about something else.
+   --------------------------------------------------------------------------------------------- */
+
+const bootCode = SRC.replace(/\/\*[\s\S]*?\*\//g, '').split('\n')
+  .map((l) => l.replace(/(^|[^:])\/\/.*$/, '$1')).join('\n');   // 183(a): the prose here names both spellings
+
+test('246: the menus read is REQUIRED — not soft-wrapped, and in the fatal check', () => {
+  /* THE FATAL CHECK IS THE MECHANISM and is asserted first, because the two look like a pair and
+     are not. Measured by mutating each separately: re-softening the read alone leaves the browser's
+     behaviour correct (a soft `{error}` still reaches this check); dropping `mres.error` from the
+     check alone restores the bug in full. The soft assertion below is about legibility — this read
+     belongs with the four it is now one of — and is kept for that, not as a second guard. */
+  const fatal = /if\(ing\.error\|\|men\.error\|\|pla\.error\|\|setg\.error\|\|mres\.error\)/;
+  assert.match(bootCode, fatal, 'mres joins the four reads whose failure raises the boot gate');
+  assert.match(bootCode, /\n\s*SUPA\.from\('menus'\)\.select\('\*'\),/,
+    'and the read is issued bare, alongside the other four required ones');
+  assert.doesNotMatch(bootCode, /soft\(SUPA\.from\('menus'\)/,
+    'not back inside soft(), where it read as optional');
+});
+
+test('246: nothing seeds a menu into memory any more — the list means menus the server has', () => {
+  /* The invariant the deletion bought, and the reason it is asserted HERE rather than only in
+     menu-default: `withPublishMenu` reads `menusList.length` to decide whether a menu needs
+     creating, so a writer that does not wait for the server puts a hole straight through the
+     publish path. Three writers survive and every one of them waits. */
+  assert.doesNotMatch(bootCode, /ensureDefaultMenu/,
+    'the boot seeder is deleted, definition and call site');
+  assert.doesNotMatch(bootCode, /menusList\.unshift/,
+    'and nothing else unshifts an unwritten menu in its place');
+  const writers = (bootCode.match(/menusList\s*=\s*[^=]|menusList\.push/g) || []).length;
+  assert.ok(writers > 0, 'sanity: the writers are still findable, or the two assertions above are vacuous');
+});
+
 test('loading shows the gate, with no retry offered yet', () => {
   const g = makeGate(true);
   g.run('loading');

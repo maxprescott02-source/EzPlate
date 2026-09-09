@@ -239,6 +239,10 @@ test('184: the MENU_ORIGINAL literal is gone from the shipped code entirely', ()
                                                 // over a file searches its prose as well as its code.
   assert.ok(!code.includes('MENU_ORIGINAL'),
     'no executable line may name MENU_ORIGINAL — menus.id is minted by uid() and a dish with no menu is null');
-  assert.ok(/function ensureDefaultMenu\(\)\{ if\(!menusList\.length\) menusList\.unshift\(\{id:uid\('MENU'\)/.test(code),
-    'the seeded default menu must carry a MINTED id — a hard-coded one is what two cafes collide on');
+  /* 246: this pinned the MINTED id on `ensureDefaultMenu`, the boot seeder, which QUEUE item 20
+     deleted along with the branch that called it. The property survives its subject: a default menu
+     is still minted, by `ensurePublishMenu`, which is now the ONLY path that creates one — so the
+     assertion moves rather than going. Rewritten, not dropped to go green. */
+  assert.ok(/var rec=\{id:uid\('MENU'\), name:DEFAULT_MENU_NAME/.test(code),
+    'the default menu must carry a MINTED id — a hard-coded one is what two cafes collide on');
 });
