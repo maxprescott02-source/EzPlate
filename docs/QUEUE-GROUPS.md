@@ -47,7 +47,7 @@ G1's twelve alongside the six already there is eighteen — **under the cap, so 
 **One description, in one file.** Copying twelve bodies would both blow `docs/QUEUE.md` past the size that got it split at 979 lines, and leave two descriptions of one item to drift apart — which is the failure this whole file is written to avoid.
 
 ⚠️ **PROMOTION MUST RESOLVE TRANCHE 0 DEPENDENCIES, AND ITEM 17 IS WHY THIS IS A RULE.** Three groups are gated on something only Max can do, and **those gates live in the consolidated file's Tranche 0 section, not in any item's `Blocked on:` line.** Promote item 17 without checking, and `/batch` — which does not stop for approval, correctly — takes an item whose entire premise is a reversal that may not have been written yet, and **edits the protected parser region without authority.** `CLAUDE.md` Tier 1 still forbids that, and reversing his own call is his alone.
-**So at promotion, walk Tranche 0 and mark every dependent item `blocked` with the Tranche 0 line named in plain language.** The three live gates today: the **written parser reversal** (G2 entire), the **staging account** (G7's 27, 28, 29), the **tokens decision** (G5's 66). A gate that is satisfied gets the item promoted `next` and the check recorded in the handover.
+**So at promotion, walk Tranche 0 and mark every dependent item `blocked` with the Tranche 0 line named in plain language.** ~~The three live gates today: the **written parser reversal** (G2 entire)~~ — ✅ **THE PARSER REVERSAL IS IN WRITING, 10 Sep 2026 (Max: "its lifted"), so G2 IS NO LONGER GATED**; see `docs/decisions/2026-09-10.md` question 1 and `CLAUDE.md`'s parser-region section. The two live gates left: the **staging account** (G7's 27, 28, 29), the **tokens decision** (G5's 66). A gate that is satisfied gets the item promoted `next` and the check recorded in the handover.
 
 ### How the next session knows what is left, after the context that made this plan is gone
 
@@ -194,7 +194,7 @@ Each rides whichever batch opens its file, per `docs/MAINTENANCE.md`'s standing 
 ## The order
 
 1. **G1** — the wrong numbers, and three of G8's inputs.
-2. **G2** — the moment the written reversal exists. Unblocks the whole G8 chain.
+2. **G2** — ✅ **the written reversal exists as of 10 Sep 2026.** Unblocks the whole G8 chain.
 3. **G4 + G5** — the polish tranche; mechanical, one file each, and the largest item count for the least risk.
 4. **G3** — the migration procedure paid once.
 5. **G6**, then **G8** as its chain opens.

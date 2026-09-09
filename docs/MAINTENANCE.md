@@ -979,12 +979,17 @@ Filed here per the tier test: none of these would stop, embarrass or hurt a payi
 
 **What is missing is the mechanism.** The only region check anywhere is `tests/extractfn.test.js:121`, which asserts the **anchors still slice** — not that the contents are unchanged. Every audit since v125 has compared the hash by hand, and v176 is the first time it moved. **The strongest invariant in `CLAUDE.md` is the only one with no test behind it**, and a silent crossing is indistinguishable from compliance — which is this repo's most-recorded shape, one level up from the code.
 
-Two things for Max, neither actionable without him: whether 197's edit is **ratified after the fact**, and whether the region gets a **hash pin in `npm test`**. The hash to pin, if he wants one, is the region between the two anchors as of `main`; compute it at the time rather than trusting a number written here, since this file cannot notice it going stale.
+✅ **BOTH SETTLED, 10 Sep 2026, by one sentence from Max — *"its lifted"*** (`docs/decisions/2026-09-10.md`, question 1). This entry had been asking since 28 Aug 2026, through **two audits**.
+
+- **197's edit is RATIFIED.** The question was put to him with that consequence written out — *"his sentence ratifies it or it does not, in the same breath"* — and answered against that wording.
+- **The hash pin is not deferred, it is DISSOLVED, and that is a different outcome worth stating plainly.** A hash pin exists to detect an edit nobody authorised. Edits are now authorised, so the pin has no subject: it would fail on every legitimate change to the region and teach whoever hit it to delete the check. **What replaces it is a corpus, which is what it should always have been** — this repo's own conclusion, already written into the consolidated backlog: *"the guard that should have existed was a corpus, not a hash; item 17's corpus test and mutation targets replace it."* A hash proves the text did not move; a corpus proves the parser still prices six real invoices correctly, which is the thing anybody actually cares about.
+
+**The paragraph below is kept rather than struck**, because its lesson outlived its question: the recommendation to write a specific hash into prose came from the one process whose value is that it checks things, and the hash could not be reproduced.
 
 ⚠️ **THAT LAST INSTRUCTION PROVED ITSELF ON 10 SEP 2026, IN ONE STEP, AND IT IS WHY NO NUMBER IS WRITTEN ABOVE.** AUDIT-v207 recommended recording a specific md5 for the region and quoted one. **Batch 252 could not reproduce it** — four plausible slice variants against `tests/_extract.js`'s own `sliceBetween` semantics (exact, rstripped, rstrip-plus-newline, through the end marker) all disagreed with the quoted value while agreeing with each other on the line count. So it was computed, not recorded.
 **A bare hash in prose is an artefact nobody can falsify**, and the recommendation to write one down arrived from the one process whose value is that it checks things. That is this entry's own point, arriving from the direction it did not expect.
 **What AUDIT-v207 could add that v197 could not: the region has NOT MOVED since.** Verified by slicing it at batch 240 and at batch 251 and comparing — identical. So batch 197's edit remains the only one outstanding for ratification, and **the "has a hash ever been compared" disagreement between this file and AUDIT-v197 is settled: one has now, by this batch, and deliberately left unwritten.**
-**The pin in `npm test` is still Max's**, exactly as this entry has always said, and it is one of the two sentences that also settle item 17.
+~~**The pin in `npm test` is still Max's**~~ — ✅ **answered 10 Sep 2026, and the answer removes the question rather than deciding it; see the strike above.** The same sentence unblocked item 17.
 
 ### Two handover threads reached NEITHER `QUEUE.md` NOR `MAINTENANCE.md`
 

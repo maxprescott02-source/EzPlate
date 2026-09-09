@@ -32,7 +32,7 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 **Conflicts walk the §3 rubric and the rule number is recorded at the site:** R1 presentational → mock wins · R2 real constraint → old behaviour in new dress · R3 dropped control → rehome, never delete · R4 missing backend → build what exists, spec the rest, never a dead control · R5 tie → mock wins, note the loss.
 
-**Standing rules:** naming inversion holds (only human-read text changes) · protected parser region untouched · **list every handler, data read/write and edge case BEFORE touching a screen; that list is the contract (§5) — never discover behaviour by deleting it** · six-spot cache bump per shipping batch · `npm test` + Playwright green (specs pinning old layouts are rewritten honestly in the same change, never deleted to go green) · one screen per change set, one PR, one review; never mix shell work with screen work · every pre-existing flow completes end-to-end after every commit, or carries a written R3/R4 reason.
+**Standing rules:** naming inversion holds (only human-read text changes) · **the parser region's PROTECTION IS LIFTED (Max, 10 Sep 2026) — its two `tests/_extract.js` anchors are still load-bearing strings** · **list every handler, data read/write and edge case BEFORE touching a screen; that list is the contract (§5) — never discover behaviour by deleting it** · six-spot cache bump per shipping batch · `npm test` + Playwright green (specs pinning old layouts are rewritten honestly in the same change, never deleted to go green) · one screen per change set, one PR, one review; never mix shell work with screen work · every pre-existing flow completes end-to-end after every commit, or carries a written R3/R4 reason.
 
 **§4 acceptance criteria = the definition of done for every F-item** (check them off in the PR): structure matches the mock side-by-side at 1360×900 (same regions in order; row grammar identity-left, mono-figures-right, status-pill-rightmost) · every colour/border/shadow from a token, ZERO hard-coded hex in screen code · Geist for UI, Geist Mono `tabular-nums` for every number · all five states (loading skeleton, empty, error, first-run, permission denied) exist and are v3-styled · mobile counterpart converted in the SAME item per the §6.1 parity map · old component + CSS deleted in the same change · focus ring on every interactive; modals trap focus and close on Esc · no behaviour regression without a logged reason.
 
@@ -56,12 +56,14 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
-## blocked  17 · The invoice parser prices by repetition and position, and is wrong on every Supplier B line  **[A, 36 of 41 real lines silently wrong, measured 8 Sep against six real invoices]**
+## next  17 · The invoice parser prices by repetition and position, and is wrong on every Supplier B line  **[A, 36 of 41 real lines silently wrong, measured 8 Sep against six real invoices]**
 
 **Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 17. **Promoted here on 9 Sep 2026 by batch 240 ALREADY BLOCKED, which is the point of promoting it** — it is the largest open defect in the backlog and it was invisible to `/batch` while sitting in a group nobody had reached.
 
-**Blocked on: MAX, ONE SENTENCE — does the parser-region protection stand or is it lifted?**
-**Put to him 10 Sep 2026 — `docs/decisions/2026-09-10.md`, question 1.**
+✅ **UNBLOCKED 10 Sep 2026. Max: *"its lifted"*** (`docs/decisions/2026-09-10.md`, question 1). **The same sentence RATIFIES batch 197's edit**, which the question said it would and which `docs/MAINTENANCE.md` had been asking through two audits.
+**All four documents now agree** — `CLAUDE.md`'s parser-region section is rewritten, this file's standing-rules line says the protection is lifted, `docs/QUEUE-GROUPS.md` no longer gates G2, and `docs/MAINTENANCE.md` records 197 as ratified.
+⚠️ **What is NOT lifted, because it was never his rule: the two `tests/_extract.js` anchors** — `var INV_EXCLUDE=` and `function unitLabelFor(` — are load-bearing STRINGS. Disturb either and `sliceBetween` silently returns a different span or an empty one, and every test built on it asserts about the wrong text while staying green. Edit inside them freely; change them only alongside that file.
+⚠️ **And the hash-pin question is DISSOLVED rather than deferred.** A hash pin detects an edit nobody authorised; edits are authorised now, so it would fail on every legitimate change. **A CORPUS replaces it** — which this repo had already concluded in the consolidated backlog — and building that corpus is part of this item, not a follow-up.
 
 `CLAUDE.md` Tier 1 says *"never edit anything inside it"* and names four never-touch functions. `docs/QUEUE-2026-09-08-CONSOLIDATED.md`'s owner-override block says the protection **is lifted** and attributes that to him on 8 Sep. That file's own Tranche 0 lists *getting the reversal in writing* as still outstanding. `docs/QUEUE-GROUPS.md` blocks the whole G2 group on it. **Four documents, three positions, and no decision file.**
 
@@ -81,29 +83,18 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 ⚠️ **Every line number in these items is a POINTER TO GREP, not a fact** — the consolidated file says so of itself, and the blind audit above is why. **Step one of each is the repro**, and "it does not reproduce" deletes the item and says so in the handover.
 *(G1's only [B — wrong number] item, 15, shipped in batch 244; what is left of the group is below. The two headings were folded into one when it went, because a section with a title and no items reads as work nobody has got to.)*
 
-## blocked  91 · Staff may not delete a plate, and may delete every product that plate costs from  **[B, measured on production]**
+## next  91 · Staff may delete every product a plate costs from  **[B, measured on production — ANSWERED 10 Sep, the products half is buildable]**
 
 **Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 91 — raised by AUDIT-v207 out of a question batch 250 handed off, and measured against `pg_policies` rather than the schema file.
 
-**Blocked on: MAX, two sentences. Put to him 10 Sep 2026 — `docs/decisions/2026-09-10.md`, question 2.** May staff delete a **product**? May staff delete a **taught pack** (`supplier_phrases`)? Both are deletable by any member today, through the same permissive `FOR ALL` policy that made `price_history` a hole until 250.
-⚠️ **`menu_items` is the third such table and is DELIBERATE** — 187 decided staff may unpublish a dish, and it says so in the migration. It is not part of this.
-**Why it needs him:** what staff may do is his decision — 187 was his. The migration, if the answer is no, is 187's exact idiom with 250 as the worked example.
+✅ **ANSWERED 10 Sep 2026** (`docs/decisions/2026-09-10.md`, question 2). Max: ***"they can do plates but not products, since those can break other plates that arent theres."***
 
-## blocked  90 · A refused invoice row should be left unticked with its own error  **[B — everything else in this item has shipped]**
+**What is decided and buildable now: STAFF MAY NOT DELETE A PRODUCT.** Owner-only, 187's exact idiom with 250 as the worked example. His reason is the load-bearing part and belongs in the migration header: a product is shared, so deleting one **breaks plates belonging to other people**, which is a different and worse harm than losing your own work.
 
-**Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 90.
+**Taught packs (`supplier_phrases`) were not named, and are being protected alongside products on his stated reason** — deleting one silently changes what every future invoice prices that product at, so it reaches other people's plates by the same route. **Say so in the header as an inference from his sentence, not as a second answer he gave.** If he corrects it, the migration is one `drop policy`.
 
-**Blocked on: MAX, one sentence — after applying an invoice, would you rather have your screen back straight away, or wait on the invoice list while it saves so any row the server refused stays on screen with its own error?**
-**Put to him 10 Sep 2026 — `docs/decisions/2026-09-10.md`, question 3, with the cost corrected.**
-
-✅ **The other three parts have shipped.** The completion message in 253 (`ezplate-v208`); the menu delete's sequencing and the boot-time history merge in 254 (`ezplate-v209`).
-
-⚠️ **THE COST OF THIS WAS OVERSTATED BY 253 AND THE CORRECTED FIGURE IS WHAT MAKES IT A REAL QUESTION.** That batch wrote, at the site and in its handover, that holding the dialog open would mean *"dozens of round trips on café mobile data"*. **Measured against the code rather than reasoned: the app ALREADY waits for those writes** — `applyInvoice` closes the dialog, then awaits `importKeptCount(priceWrites)` before it says anything — and the writes are dispatched in parallel, so the wait is the slowest of N, not N in sequence, and it is bounded at 15s either way. **So the choice does not add waiting. It only decides whether the user is blocked during a wait that already happens**, and buys per-row attribution in exchange.
-**A recommendation, since one is owed:** keep the current behaviour unless Max wants the per-row detail. `CLAUDE.md` says an occasional user *"would rather be told a thing did not save than discover it next week"*, and 253 already tells them — a count, honestly, without blocking. The per-row version is better only if he intends to ACT on a refused row there and then.
-
-⚠️ Related and still unbuilt whichever way this goes: the shortfall line covers the **price-update branch only**. A product CREATED by an import, and a pack taught during one, are written by other branches and collected nowhere, so a failure there is invisible to that line. Raised by 253's pre-push review; say so on screen or collect them too.
-⚠️ **SPLIT OUT OF 21 BY BATCH 247, which shipped 21's history half as `ezplate-v204`.** 21 grouped four instances under one mechanism and only one of them shared it in substance: the history gating was fifteen call sites and a dedup interaction, the invoice completion message needs a COUNT of what landed rather than a boolean, the menu delete is a sequencing change, and the boot-time replace is a merge decision. **Each needs its own repro; none falls out of the others**, and 21's old `Do after: 20` reason was falsified by 246 before either could be used.
-
+⚠️ **HIS ANSWER ALSO REVERSES 187 AND THAT HALF IS NOT ACTED ON.** *"They can do plates"* would let staff delete a plate, which **187 deliberately closed and which was his own decision.** Flagged back to him in chat the same day; **do not build it on the strength of the sentence above.** The products half stands on its own and does not depend on it.
+⚠️ **`menu_items` is a third such table and is DELIBERATE** — 187 decided staff may unpublish a dish, and the migration says so. Not part of this.
 
 ## next  89 · A `price_history` point cannot be deleted or corrected from the app  **[B — the SERVER half shipped in batch 250; the SURFACE is what is left]**
 

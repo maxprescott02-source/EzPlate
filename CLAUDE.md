@@ -140,14 +140,19 @@ The measured instance: the builder's misc-cost field carried `min="0"`, `setMisc
 
 **The general shape, which is this file's oldest rule wearing a new costume: a declaration is not an enforcement.** `[hidden]` losing to an author `display` rule is the same sentence in CSS, and a `revoke … from public` that does not name `anon` is the same sentence in SQL. In all three the artefact states the rule correctly and something else decides.
 
-## The protected parser region
+## The parser region - THE PROTECTION IS LIFTED (Max, 10 Sep 2026: *"its lifted"*)
 
-The contiguous block in `js/app.js` between the exact strings `var INV_EXCLUDE=` and `function unitLabelFor(` is sliced by `tests/_extract.js` using those anchors.
-**Never edit anything inside it.** If a fix seems to require it, stop and tell Max - solve outside the region.
-The taught-pack path exists precisely so the parser needn't learn every notation.
+⚠️ **THIS SECTION SAID "NEVER EDIT ANYTHING INSIDE IT" AND NAMED FOUR NEVER-TOUCH FUNCTIONS. IT NO LONGER DOES.**
+Put to him as question 1 of `docs/decisions/2026-09-10.md` with both consequences written out, because reversing a decision he made himself is his alone and the record had been contradicting itself for two days across four documents.
+**The same sentence RATIFIES batch 197's edit inside the region**, which `docs/MAINTENANCE.md` had been asking about since 28 Aug 2026 through two audits - the question said so in as many words, and the answer was given against that wording.
 
-**Never touch** `resolveMatchedPrice`, `unitCatCategory`, `applySupplierMemory`, `packToUnitCost`.
-Reading them is fine.
+**So the region may be edited, and `resolveMatchedPrice`, `unitCatCategory`, `applySupplierMemory` and `packToUnitCost` may be changed.** The reason the prohibition existed - QUEUE item 17, the parser pricing by repetition and position, wrong on 36 of 41 real lines - is the work it was blocking.
+
+**What is NOT lifted, because it was never a decision of his and is not a rule at all:**
+
+- **The two anchors are LOAD-BEARING STRINGS.** `tests/_extract.js` slices the block with `sliceBetween(src, 'var INV_EXCLUDE=', 'function unitLabelFor(')`. Delete, rename or reorder either literal and the slice silently becomes something else - a different span, or an empty one - and every test built on it is then asserting about the wrong text while staying green. **Edit inside the anchors freely; do not disturb the anchors themselves without changing that file in the same commit.**
+- **The taught-pack path still exists so the parser needn't learn every notation.** That is a design fact, not a permission: a notation the user can teach is still cheaper than a parser rule, and lifting the protection does not make parsing the right answer to every line.
+- **These four functions are the ones this file has recorded defects in most often** - the exemption-scope trap at `resolveMatchedPrice` is a Tier 1 section of its own. They are now editable and they are still the code where a wrong change is hardest to see, because a mispriced line looks exactly like a correctly priced one. **Extract and pin before changing, per the roster.**
 
 ## The row boundary - the backup export is IN-MEMORY shape, not schema shape
 
@@ -584,6 +589,16 @@ That matters here because "anchor it `position:fixed` to the input's viewport re
 **And the near-miss is the instructive part:** `tests/visual/v150-builder-order.spec.js` already had a comment saying the docket's filter *"creates a containing block but does NOT clip"*. The fact was recorded, correctly, and filed under the wrong consequence — the reader was thinking about clipping, so a note about containing blocks read as reassurance.
 
 **The remedy is `fixedContainingBlock`, which ASKS instead of assuming**, and every coordinate `anchorDrop` writes is offset by it. **The tell to recognise: `position:fixed` set from JS together with numbers out of `getBoundingClientRect()`.** Before trusting that pair, ask what is between the element and the root — and if the answer is "nothing today", note that adding a shadow, a transform or a `contain` anywhere above it is enough to break it silently.
+
+## An optimistic write that changes a FIGURE owes a rollback - and the wait it avoids may not exist
+
+(Max, 10 Sep 2026: *"dont make them wait"*, closing QUEUE item 90's last part.)
+
+**The decision: an applied invoice does NOT hold its dialog open while the writes settle.** The list closes immediately and the honest count - *"4 of 36 price writes saved"* - arrives when the server answers. A refused row is therefore NOT left on screen with its own error, and building that is declined rather than deferred.
+
+⚠️ **THE REASON IT IS RECORDED HERE IS THE FIGURE THAT WAS WRONG IN THE FILE FOR A WEEK, NOT THE ANSWER.** Batch 253 wrote at the site, in its handover, and into the queue item that holding the dialog open would cost *"dozens of round trips on cafe mobile data"*. **Measured against the code rather than reasoned: `applyInvoice` already awaits those writes before it says anything, and they are dispatched in parallel** - so the cost is the slowest of N, not N in sequence, and it is bounded either way. The choice never added waiting. It only decided whether the user is BLOCKED during a wait that already happens.
+
+**So the transferable rule is about how a trade-off gets written down, not about invoices: a cost stated in a comment is a claim, and the next person to read it will price the decision off it without re-measuring.** Here the inflated figure would have made the answer look obvious in the direction it happened to go, which is the worst case - it agrees with the outcome, so nothing prompts anyone to check it. **When you defer a decision to someone else, measure the cost you are handing them.** He was asked on the corrected terms and still said no, which is a stronger answer than the old framing could have produced.
 
 ## "The server refuses it anyway" is true of an ACTION and false of a VALUE
 

@@ -164,7 +164,7 @@ The café's data was all there; the app hid the failure behind a working-looking
 
 ⚠️ **WHY THIS WAS SPLIT RATHER THAN FINISHED.** Four instances, and only the first shares a mechanism with the others in name. The history gating is fifteen call sites and a dedup interaction; the invoice completion message needs a COUNT of what landed rather than a boolean; `doDeleteMenu`'s unawaited dish deletes are a delete-path sequencing change; and `priceHistory`'s wholesale replace at boot is a merge decision, not a gating one. Each carries a different risk and `skills/batch`'s own stop condition is to split when one PR cannot be reviewed as one thing.
 
-## blocked  90 · ~~Item 21's remaining halves~~ — **THE DELETE SEQUENCE AND THE BOOT MERGE SHIPPED in batch 254 (`ezplate-v209`). What is left is ONE question for Max.**  **[B]**
+## ~~90 · Item 21's remaining halves~~  **CLOSED 10 Sep 2026. Two defects shipped (253, 254); the third part was DECLINED by Max.**
 
 ✅ **THE COMPLETION MESSAGE SHIPPED, batch 253, `ezplate-v208`.** `applyInvoice` fired its summary synchronously off the count of rows the SCREEN applied, so an import whose upserts were all refused still said "Invoice imported · 36 prices" — `pushWrite` toasting each failure underneath it, telling the user twice, once truthfully and once not.
 It waits now, and reports what landed: **"4 of 36 price writes saved — the rest did not reach the server"**, read from `setProducts`' saved manifest. The dialog still closes immediately — holding it through dozens of round trips on café data would be worse than the bug — which is the app's own rule that the optimistic repaint stays and the WORDING waits.
@@ -173,7 +173,10 @@ It waits now, and reports what landed: **"4 of 36 price writes saved — the res
 
 ✅ **BOTH REMAINING DEFECTS SHIPPED IN BATCH 254 (`ezplate-v209`)**, and the third bullet below is now the whole of this item — see the strikes on the last two.
 
-**WHAT IS LEFT, and it is the UX question rather than a defect:**
+❌ **AND THE UX QUESTION IS ANSWERED: NO.** Put to him 10 Sep 2026 (`docs/decisions/2026-09-10.md`, question 3) with the cost corrected, and the answer was ***"dont make them wait"*** — leave the dialog closing immediately and the honest count arriving after. **So this item is finished and is struck, not deferred.**
+⚠️ **THE CORRECTION IS THE PART WORTH KEEPING, because the item and 253's own comment both carried the wrong figure.** Both said holding the dialog open would cost *"dozens of round trips on café mobile data"*. Measured against the code: `applyInvoice` ALREADY awaits those writes before it says anything, and they are dispatched in parallel — so it is the slowest of N, not N in sequence, bounded at 15s either way. **The choice never added waiting; it only decided whether the user was blocked during a wait that already happens.** He was asked on those terms and still said no, which is a stronger answer than the one the old framing would have got.
+
+**WHAT WAS LEFT, now closed:**
 
 - **A REFUSED ROW should be left unticked with its own error.** 253 deliberately did not: it needs the invoice review still on screen, so it is a decision about whether the dialog stays open through the writes — seconds, on café data, for dozens of products. **Ask before building.** The counts are honest without it; this is the half that would let a user act per-row.
   ⚠️ Related and also unbuilt: the shortfall covers the **price-update branch only**. A product CREATED by an import, and a pack taught during one, are written by other branches and collected nowhere, so a failure there is invisible to that line. Raised by 253's pre-push review; say so on screen or collect them too.
