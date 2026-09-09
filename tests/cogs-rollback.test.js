@@ -51,6 +51,7 @@ function harness(opts) {
     var COGS_PCT_DEFAULT = 40;
     var cogsPct = OPT.boot === undefined ? 40 : OPT.boot;
     var cogsServer = cogsPct;
+    var _cogsSeq = 0, _cogsConfirmed = 0;
     function renderAnalysis(){ C.renders++; }
     function dbSetSetting(key, val){
       C.writes.push([key, val]);
@@ -149,6 +150,43 @@ test('244: a refusal of a superseded value leaves an ACCEPTED newer one alone', 
   await Promise.all([p1, p2]);
   assert.strictEqual(A.cogsPct, 35, 'the accepted newer target survives a late refusal of the older one');
   assert.strictEqual(A.cogsServer, 35);
+});
+
+test('244: two writes that both SUCCEED out of order leave the NEWER one confirmed', { timeout: 5000 }, async () => {
+  /* Found by 244's own pre-push review, measured against the real functions, and it is the fix's
+     own defect rather than the item's: a response's arrival order is not its send order. The
+     debounce sends one write 500ms after typing stops and a blur flushes the next immediately, so
+     two really can be in flight — and `cogsServer = pct` on every success let the LATE answer for
+     the OLDER value win. The screen and the server both hold 35; the rollback target was 30.
+     Asserted through a subsequent refusal, because `cogsServer` is not a number any user reads —
+     what it does is decide where a refusal lands, and that is where the harm was. */
+  const A = harness({ boot: 40, manual: true });
+  const p1 = A.setCogs(30, true);
+  const p2 = A.setCogs(35, true);
+  A.calls.resolvers[1]({ data: [{ key: 'food_cost_target', value: 35 }] });   // the NEWER answer, first
+  A.calls.resolvers[0]({ data: [{ key: 'food_cost_target', value: 30 }] });   // the older, late
+  await Promise.all([p1, p2]);
+  assert.strictEqual(A.cogsServer, 35, 'the confirmed value is the newer write, not whichever answered last');
+
+  A.field.value = '25';
+  const p3 = A.setCogs(25, true);
+  A.calls.resolvers[2]({ error: { message: 'permission denied', code: '42501' } });
+  await p3;
+  assert.strictEqual(A.cogsPct, 35, 'so a later refusal rolls back to 35 — 30 is a number nobody chose');
+  assert.strictEqual(A.field.value, '35');
+});
+
+test('244: a re-save of the SAME value is told apart by its sequence, not by its number', { timeout: 5000 }, async () => {
+  /* The case the value guard alone cannot see: both writes carry pct=30, so `cogsPct===pct` is true
+     for the older one's refusal even though a newer write is still in flight and will decide. */
+  const A = harness({ boot: 40, manual: true });
+  const p1 = A.setCogs(30, true);
+  const p2 = A.setCogs(30, true);
+  A.calls.resolvers[0]({ error: { message: 'permission denied', code: '42501' } });   // the older, refused
+  A.calls.resolvers[1]({ data: [{ key: 'food_cost_target', value: 30 }] });           // the newer, accepted
+  await Promise.all([p1, p2]);
+  assert.strictEqual(A.cogsPct, 30, 'the accepted write is the last word, not the refusal that raced it');
+  assert.strictEqual(A.cogsServer, 30);
 });
 
 test('244: the field is only restored while it still shows the refused number', { timeout: 5000 }, async () => {

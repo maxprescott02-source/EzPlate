@@ -1435,8 +1435,13 @@ function resetTenantState(){
   priceHistory=[]; menuHistory={}; menuPriceLog={}; ingPriceLog={};
   supplierMem={};
   /* 244: BOTH halves of the target, or the new café inherits the old one's confirmed value as the
-     thing a refused edit rolls back to — a number belonging to somebody else's café. */
+     thing a refused edit rolls back to — a number belonging to somebody else's café.
+     ⚠️ AND THE SEQUENCE WITH THEM, which is the half that is not obvious: a write sent in café A can
+     still answer after the move, and its `then` would write A's target into B's confirmed value.
+     Retiring every outstanding sequence here is what makes the reset hold — the same reason the
+     invoice watchdog bumps `gemToken` rather than trusting the response to be late enough. */
   cogsPct=cogsServer=COGS_PCT_DEFAULT;
+  _cogsConfirmed=++_cogsSeq;   // no write issued in the café we are leaving is still the newest, or still news
   gstDefault=GST_DEFAULT_MODE;
   /* ⚠️ THE TWELFTH STORE, MISSED BY THE FIRST CUT OF THIS FUNCTION — whose own comment claimed to
      cover every one of them. Found by the pre-push review.
@@ -3273,6 +3278,20 @@ var cogsPct = COGS_PCT_DEFAULT;                    // target food cost, as a per
    never held either. Rolling back to the last CONFIRMED value is right whichever order the two
    settle in, which is the whole reason the guard below compares against this and not a closure. */
 var cogsServer = COGS_PCT_DEFAULT;
+/* ⚠️ AND A SEQUENCE, BECAUSE A RESPONSE'S ARRIVAL ORDER IS NOT ITS SEND ORDER. (Added by 244's
+   pre-push review, which measured it against the real functions rather than reasoning about it.)
+   Two persisted writes really can be in flight together — the debounce sends one 500ms after typing
+   stops, and a blur flushes the next straight away — and nothing orders their answers. Take 30 then
+   35, let 35's answer come back first and 30's arrive late, and `cogsServer=pct` on every success
+   leaves the CONFIRMED value at 30 while the screen and the server both hold 35. The next refusal
+   then rolls the café back to 30: a number nobody chose and the server never ended on, produced by
+   the fix for exactly that class of defect.
+   `_cogsConfirmed` is the highest sequence that has been confirmed, so a late answer for an older
+   write cannot overwrite a newer confirmed one. It is the same shape as `gemToken` and as
+   `confirmPrices`'s `_priceSeen` — "something newer already settled" — and this is the third place
+   in this app that has needed it, which is the argument for recognising it rather than re-deriving
+   it: ANY optimistic state updated from an async answer needs a sequence, not just a value guard. */
+var _cogsSeq = 0, _cogsConfirmed = 0;
 function foodTarget(){ return cogsPct/100; }               // as a fraction for the maths
 /* ONE PRECISION, IN ALL THREE PLACES (QUEUE item 25, riding this batch as its C).
    This rounded to an INTEGER while `bootstrapSync` accepted any `parseFloat` in [1,99] and
@@ -3308,12 +3327,20 @@ function setCogs(pct, persist){
   pct=cogsRound(pct);
   applyCogs(pct);
   if(!persist) return;
+  var seq=++_cogsSeq;
   return Promise.resolve(dbSetSetting('food_cost_target', pct)).then(function(r){   // shared across devices
-    if(r && !r.error){ cogsServer=pct; return r; }
-    /* Only a refusal of what is CURRENTLY on screen may move it. A later keystroke has already
-       replaced this value, and its own write is in flight with its own answer — putting the older
-       number back would fight the user and could not be right in either settle order. */
-    if(cogsPct===pct){
+    if(r && !r.error){
+      if(seq>_cogsConfirmed){ _cogsConfirmed=seq; cogsServer=pct; }   // a late answer for an older write is not news
+      return r;
+    }
+    /* TWO GUARDS, ASKING TWO DIFFERENT QUESTIONS, and neither is a stricter version of the other.
+       `cogsPct===pct` is about the SCREEN: a later keystroke has already replaced this value, and
+       repainting the older one would fight somebody who is still typing. `seq===_cogsSeq` is about
+       the SERVER: a newer write is in flight with its own answer, so this refusal is not the last
+       word on what the row holds and must not act on the assumption that it is.
+       Each covers a case the other does not — a keystroke that has not yet been persisted, and a
+       re-save of the SAME value where the two `pct`s are equal by coincidence. */
+    if(cogsPct===pct && seq===_cogsSeq){
       applyCogs(cogsServer);
       /* The field too, or it sits there stating a target nothing else in the app agrees with. Only
          when it still shows the refused number: the persist is debounced at the handler precisely

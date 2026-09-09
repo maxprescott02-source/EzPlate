@@ -1043,6 +1043,17 @@ const allowedSurvivors = [
       + 'reader is ingPriceAt, which re-reads ingPriceLog[pid] each time. Truly equivalent, not merely unlikely.',
   },
   {
+    key: 'setCogs :: if(seq>_cogsConfirmed){ _cogsConfirmed=seq; cogsServer=pct; }   // a late answer for an older write is not news :: relational >>>= #0',
+    reason: '244. EQUALITY IS UNREACHABLE HERE, so `>=` and `>` cannot be told apart. A sequence is issued by '
+      + '`++_cogsSeq` and therefore belongs to exactly one write, whose handler runs once — so `seq` can never '
+      + 'already BE the confirmed one. The only other writer of `_cogsConfirmed` is `resetTenantState`, which '
+      + 'sets it to a freshly incremented `_cogsSeq` that no write has been issued under, and which is by '
+      + 'construction GREATER than every outstanding seq. So the two operators differ only on a state the '
+      + 'counter cannot enter. The reachable half of this guard — a LATE answer for an OLDER write failing to '
+      + 'overwrite a newer confirmed value — is killed by "two writes that both SUCCEED out of order leave the '
+      + 'NEWER one confirmed", which is the defect the pre-push review measured and this line exists for.',
+  },
+  {
     key: 'samePrice :: function samePrice(a, b){ return a===b || Math.abs(a-b) < Math.abs(b)*1e-6; } :: relational <><= #0',
     reason: 'The two differ only when the gap between two prices is EXACTLY one part in a million of the second — '
       + 'one representable double out of the continuum, which no price the app computes lands on. A test pinning '

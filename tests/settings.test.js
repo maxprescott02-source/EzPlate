@@ -270,6 +270,7 @@ function cogsHarness() {
     function renderAnalysis(){}
     var cogsPct = 40;
     var cogsServer = 40;
+    var _cogsSeq = 0, _cogsConfirmed = 0;
     ${extractFn(APP, 'cogsRound')}
     ${extractFn(APP, 'applyCogs')}
     ${extractFn(APP, 'foodTarget')}

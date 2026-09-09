@@ -61,11 +61,23 @@ function boot(opts) {
     ${extractVar(SRC, 'COGS_PCT_DEFAULT')}
     ${extractVar(SRC, 'GST_DEFAULT_MODE')}
     var cogsPct = COGS_PCT_DEFAULT;
-    /* 244: the THIRTEENTH store, and it travels with cogsPct rather than beside it — it is the
-       value a refused target write rolls the screen back to, so a copy inherited from café A would
+    /* 244: the THIRTEENTH store, and it travels with cogsPct rather than beside it - it is the
+       value a refused target write rolls the screen back to, so a copy inherited from cafe A would
        put A's confirmed target on B's screen the first time B's owner is refused. */
     var cogsServer = COGS_PCT_DEFAULT;
+    /* 244's pre-push review: a write sent in cafe A can still ANSWER after the move, and its then()
+       would write A's target into B's confirmed value. The reset retires every outstanding sequence
+       for the same reason the invoice watchdog bumps gemToken. Driven for real below rather than
+       asserted structurally - the whole point is what a late promise does.
+       (No backticks anywhere in this block: it is inside a template literal, as the note at the
+       boundary already says. A backtick here is a SyntaxError in this FILE, not in the app.) */
+    var _cogsSeq = 0, _cogsConfirmed = 0;
+    var COGS_RESOLVERS = [];
+    function dbSetSetting(){ return new Promise(function(res){ COGS_RESOLVERS.push(res); }); }
+    function renderAnalysis(){}
     ${extractFn(SRC, 'cogsRound')}
+    ${extractFn(SRC, 'applyCogs')}
+    ${extractFn(SRC, 'setCogs')}
     var gstDefault = GST_DEFAULT_MODE;
     var aiInvoiceCheck = loadAiInvoiceCheck();
     var aiSuggestions = loadAiSuggestions();
@@ -141,6 +153,9 @@ function boot(opts) {
         teamData = { status:'ok', members:[{ email:'owner@cafe-a.test' }], invites:[], err:'' };
         LS.setItem('cafeDB_lastImport', '2026-09-01T00:00:00.000Z');
       },
+      /* A target change issued in the café we are about to leave, left unanswered. */
+      setTargetInFlight: function(pct){ return setCogs(pct, true); },
+      answerTarget: function(i, res){ COGS_RESOLVERS[i](res); },
       snap: function(){
         return {
           cogsPct: cogsPct, cogsServer: cogsServer, gstDefault: gstDefault,
@@ -280,6 +295,28 @@ test('STAFF in A does not become staff in B, the café they may own', () => {
   assert.equal(s.businessRole, 'owner', "A's role must not describe B — the guess is remade");
   assert.equal(s.isOwner, true, 'and B is not pre-judged as somebody else’s staff café');
   assert.equal(s.cogsPct, 40, 'the rest of the reset still happened');
+});
+
+test('244: a target write issued in cafe A cannot answer into cafe B', async () => {
+  /* 244's pre-push review found the same-café half of this (two answers out of order); the tenant
+     half is its sibling and is worse, because the number it lands is somebody else's. The write is
+     left UNANSWERED across the move and then answered — which is the one thing a structural
+     assertion about the counters could not check. */
+  const app = boot();
+  app.boundary(okRes(A_ID));
+  app.seedA();
+  const pending = app.setTargetInFlight(28);        // A's owner nudges the target, on a slow connection
+
+  const didReset = app.boundary(okRes(B_ID));       // and the account is moved to cafe B mid-flight
+  assert.equal(didReset, true);
+  app.applySettings([{ key: 'food_cost_target', value: 35 }]);   // B has a target of its own
+  assert.equal(app.snap().cogsServer, 35, 'precondition: B is loaded and confirmed at 35');
+
+  app.answerTarget(0, { data: [{ key: 'food_cost_target', value: 28 }] });   // A's write lands, late
+  await pending;
+
+  assert.equal(app.snap().cogsServer, 35, "A's 28 must not become the value a refusal in B rolls back to");
+  assert.equal(app.snap().cogsPct, 35, "and it must not move B's target either");
 });
 
 test('B’s DEFINITE role always wins over the reset’s guess, both ways', () => {
