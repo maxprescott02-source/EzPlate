@@ -491,6 +491,21 @@ const targets = [
   { fn: 'dbDeleteMenuAfterDishes', tests: ['delete-sequencing.test.js'] },
   { fn: 'rollbackMenuDelete', tests: ['delete-sequencing.test.js'] },
   { fn: 'mergeSeries', tests: ['dash-scope.test.js'] },
+  /* 254's PRE-PUSH REVIEW added this one, and the reason is worth more than the entry.
+     The batch listed the two new HELPERS and not the function that calls them, then reported "0
+     survived" - which was true and did not mean what it looked like. `doDeleteMenu` holds the
+     `wasCurrent=(currentMenuId===id)` capture that decides which menu is SELECTED after a rollback,
+     and `deleteCurrentMenu` is its only caller and always passes the current menu, so that guard runs
+     on EVERY real delete. Nothing asserted it: the review inverted it and deleted it outright, and all
+     49 tests stayed green both times.
+     ⚠️ NOTE THE LIMIT, because adding this entry does not fully close it. The line that CONSUMES the
+     capture - `if(wasCurrent) setCurrentMenuId(menuRec.id);` - carries no operator to flip and is
+     excluded from void-call deletion by the leading `if`, so this engine cannot mutate it at all.
+     What holds it is the three behavioural tests at the end of delete-sequencing.test.js, one of them
+     asserting the guard's OTHER side so an inversion cannot pass. The gate covers the capture; the
+     tests cover the use. CLAUDE.md's oldest rule, arriving in the tool built to enforce it: a check
+     that finds nothing has only proved something about what it looked for. */
+  { fn: 'doDeleteMenu', tests: ['delete-sequencing.test.js', 'plates-independence.test.js'] },
   /* 253's pre-push review — whether an import owes a trend point. Both of this batch's majors were
      decisions buried inside `applyInvoice` where nothing could run them, and both were wrong; this
      is the second one extracted. Its `relinked` arm is the whole reason it exists. */
@@ -531,6 +546,19 @@ const targets = [
  * removes is how a list like this rots into permission to ignore everything.
  */
 const allowedSurvivors = [
+  /* 254 — the file-wide optional-call idiom, and the ONE survivor of this batch that is a genuine
+     equivalence rather than a missing assertion. The other five in this function were all real gaps
+     in what the tests looked at and were killed with assertions. */
+  {
+    key: "doDeleteMenu :: if(typeof renderPlatesTab==='function') renderPlatesTab(); :: equality ===>!== #0",
+    reason: '`renderPlatesTab` is a top-level function declaration in js/app.js, so it is hoisted and is ALWAYS '
+      + "typeof 'function' by the time any handler runs. The guard is defensive against load order, not a "
+      + 'decision — so === and !== differ only in an environment where the function does not exist, which no '
+      + 'test and no browser can produce. Killing it would mean asserting that a repaint happened in a world '
+      + 'where the repainter is undefined. The repaint itself IS pinned: delete-sequencing.test.js asserts the '
+      + 'rendered menu after both a successful delete and a rollback, and the void-call mutants of the repaint '
+      + 'block and of repaint() are both killed by those.',
+  },
   /* 241, the six on the two functions the PRE-PUSH REVIEW added to this list. Two families, and the
      first is worth reading because it is a shape rather than an accident: `dishesOverTarget`'s own
      guards are BACKED BY `analyze`, which refuses a zero price and a zero cost on its own. So the

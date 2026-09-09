@@ -35,11 +35,17 @@ function makeHarness(opts) {
     failPlate: !!opts.failPlate,
     failMenuRec: !!opts.failMenuRec,           // 254: the menus-row delete, the menu path's second write
     rejectMenuRec: !!opts.rejectMenuRec,       // 254: and its REJECTION arm — see the tests at the end
+    /* 254, from the pre-push review: the menu being deleted is ALWAYS the current one in the shipped
+       app — `deleteCurrentMenu` is doDeleteMenu's only caller and it passes `currentMenuId`. So the
+       default here is the realistic case, not a neutral one. */
+    currentMenuId: opts.currentMenuId || (opts.menusList && opts.menusList[0] && opts.menusList[0].id) || null,
     rejectDish: opts.rejectDish || [],
     rejectPlate: !!opts.rejectPlate,
     holdDishes: !!opts.holdDishes,
     toasts: [],
+    dashRepaints: 0,                           // 254: see repaintDashboardIfVisible below
     changes: [],                               // v114: change-log kinds actually written
+    changeDetails: [],                         // 254: and the objects themselves
     savedPlates: opts.savedPlates,
     customMenu: opts.customMenu,
     menusList: opts.menusList || [{ id: 'MENU_ORIGINAL', name: 'Original' }],
@@ -50,7 +56,7 @@ function makeHarness(opts) {
   const factory = new Function('S', `
     "use strict";
     var savedPlates=S.savedPlates, customMenu=S.customMenu, menusList=S.menusList, loadedPlateId=S.loadedPlateId;
-    var MENU=[], menuById={}, delChoiceId=null, currentMenuId=(S.menusList[0]&&S.menusList[0].id)||null;
+    var MENU=[], menuById={}, delChoiceId=null, currentMenuId=S.currentMenuId;
     function rebuildMenu(){ MENU=customMenu.slice(); menuById={}; MENU.forEach(function(m){menuById[m.id]=m;}); }
     function toast(m){ S.toasts.push(m); }
     function askConfirm(t,msg,label,fn){ S.confirmFn=fn; }
@@ -65,7 +71,7 @@ function makeHarness(opts) {
        this is the only file that can exercise every failure shape. */
     function computeAvgFoodCost(){ return 30; }
     function logHistory(){}   // v115: path 11 logs a trend point in the success branch — stubbed silent here because these tests compare S.log EXACTLY; the point that lands is owned by tests/history-paths.test.js
-    function logChange(kind,o){ S.changes.push(kind); return o; }
+    function logChange(kind,o){ S.changes.push(kind); S.changeDetails.push(o); return o; }   // 254: the entry's CONTENT, not just its kind
     function logChangeIfSaved(w,kind,o){
       return Promise.resolve(w).then(function(r){ if(!r||r.error) return null; return logChange(kind,o); }, function(){ return null; });
     }
@@ -86,7 +92,7 @@ function makeHarness(opts) {
     }
     function setCurrentMenuId(v){ currentMenuId=v; }
     function updateMenuDelBtn(){}
-    function repaintDashboardIfVisible(){}
+    function repaintDashboardIfVisible(){ S.dashRepaints++; }   // 254: counted - v60's liveness rule is a real property, not decoration
     function dbDeletePlate(id){
       S.log.push('plate:'+id);
       // 180: rejectPlate drives the belt-and-braces REJECTION handler. pushWrite always resolves, so
@@ -503,4 +509,78 @@ test('254: the whole status object — the dishes went and the menus row did not
 test('254: the whole status object — no dishes to wait for', async () => {
   const { api } = makeHarness(twoDishOneMenu());
   assert.deepEqual(await api.menuSequence([], 'MW'), { dishesOk: true, failedDishIds: [], menuOk: true });
+});
+
+/* ---- 254, FROM THE PRE-PUSH REVIEW: which menu is SELECTED afterwards ----
+   `wasCurrent` was captured, restored on rollback, and asserted by nothing. The review confirmed the
+   gap mechanically: inverting the guard to `if(!wasCurrent)`, and deleting the line outright, both
+   left all 49 tests in this file and plates-independence green.
+   ⚠️ AND IT IS THE COMMON PATH, NOT AN EDGE CASE, which is what makes the gap worth more than the
+   line it covers. `deleteCurrentMenu` is doDeleteMenu's only caller and it always passes
+   `currentMenuId`, so `wasCurrent` is TRUE on every real invocation — this is the whole mechanism by
+   which the menu selector recovers after a failed delete, and a user watching it is the only thing
+   that would ever have noticed. */
+
+test('254: deleting the CURRENT menu moves the selection off it', async () => {
+  const { api } = makeHarness(Object.assign(twoDishOneMenu(), { currentMenuId: 'MW' }));
+  await api.doDeleteMenu('MW', 'Winter');
+  assert.strictEqual(api.state().currentMenuId, 'MENU_ORIGINAL',
+    'the deleted menu cannot stay selected — fallbackMenuId picks the survivor');
+});
+
+test('254: a rolled-back delete puts the SELECTION back, not just the menu', async () => {
+  const { api } = makeHarness(Object.assign(twoDishOneMenu(), { currentMenuId: 'MW', failMenuRec: true }));
+  await api.doDeleteMenu('MW', 'Winter');
+  const st = api.state();
+  assert.ok(st.menusList.some(m => m.id === 'MW'), 'the menu is back');
+  assert.strictEqual(st.currentMenuId, 'MW',
+    'and it is selected again — restoring the row while leaving the selector on another menu is a second silent change on top of the failure');
+});
+
+test('254: a rollback does NOT move the selection when a DIFFERENT menu was being deleted', async () => {
+  // The other side of the guard. Without this, `if(!wasCurrent)` passes the test above and is wrong.
+  const { api } = makeHarness(Object.assign(twoDishOneMenu(), { currentMenuId: 'MENU_ORIGINAL', failMenuRec: true }));
+  await api.doDeleteMenu('MW', 'Winter');
+  assert.strictEqual(api.state().currentMenuId, 'MENU_ORIGINAL',
+    'the user was not looking at the failed menu, so a rollback must not drag them to it');
+});
+
+/* ---- 254: what the successful path actually SHOWS ----
+   Added after the mutation gate reported six survivors in `doDeleteMenu`, every one of them in the
+   presentation half. The behavioural tests above all read the STATE ARRAYS, and a gutted repaint does
+   not touch those — MENU simply keeps whatever the harness seeded, so `menuView` agreed with the
+   assertion for the wrong reason. Reading the rendered view after a SUCCESS is what separates them. */
+
+test('254: a successful delete repaints, so the deleted menu is off the screen and not merely out of the array', async () => {
+  const { S, api } = makeHarness(Object.assign(twoDishOneMenu(), { currentMenuId: 'MW' }));
+  const before = S.dashRepaints;
+  await api.doDeleteMenu('MW', 'Winter');
+  assert.deepEqual(api.menuView(), ['D3'], 'the two dishes on the deleted menu are gone from the RENDERED menu');
+  assert.ok(S.dashRepaints > before,
+    'and the dashboard was repainted — v60 item 1a: liveness is not gated on anything, so it must fire whether or not the writes land');
+});
+
+test('254: the success toast names how many plates came off, and pluralises them', async () => {
+  const { S, api } = makeHarness(Object.assign(twoDishOneMenu(), { currentMenuId: 'MW' }));
+  await api.doDeleteMenu('MW', 'Winter');
+  assert.match(S.toasts[S.toasts.length - 1], /“Winter” deleted — 2 plates came off it, still in your library/,
+    'the plates are not deleted, and the words have to say so or a user reads a menu delete as a plate delete');
+});
+
+test('254: a menu with ONE plate says "1 plate", not "1 plates"', async () => {
+  const st = twoDishOneMenu();
+  st.customMenu = st.customMenu.filter(d => d.id !== 'D2');
+  const { S, api } = makeHarness(Object.assign(st, { currentMenuId: 'MW' }));
+  await api.doDeleteMenu('MW', 'Winter');
+  assert.match(S.toasts[S.toasts.length - 1], /1 plate came off it/);
+});
+
+test('254: the change-log entry carries the menu NAME, and null rather than a falsy name', async () => {
+  const { S, api } = makeHarness(Object.assign(twoDishOneMenu(), { currentMenuId: 'MW' }));
+  await api.doDeleteMenu('MW', 'Winter');
+  assert.deepEqual(S.changeDetails[S.changeDetails.length - 1].detail, { name: 'Winter', dishes: 2 });
+  const b = makeHarness(Object.assign(twoDishOneMenu(), { currentMenuId: 'MW' }));
+  await b.api.doDeleteMenu('MW', '');
+  assert.strictEqual(b.S.changeDetails[b.S.changeDetails.length - 1].detail.name, null,
+    'an unnamed menu logs null, not an empty string — the column is nullable and the log is read back by rowToChange');
 });

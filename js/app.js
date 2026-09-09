@@ -13955,11 +13955,17 @@ function rollbackMenuDelete(menuRec, menuIdx, wasCurrent, dishes, r, repaint, na
   }
   repaint();
   if(r.dishesOk){
-    toast('\u201c'+name+'\u201d is empty now, but the menu itself couldn\u2019t be deleted \u2014 it\u2019s still on your Menu tab.');
+    /* 254: kept SHORT deliberately. Measured at 380px, both themes: the toast is 190px wide there, so
+       this string at its first draft (93 chars) wrapped to 137px of six-line toast on a phone. The
+       clause that went was "it's still on your Menu tab", which the user can see. */
+    toast('\u201c'+name+'\u201d is empty now, but the menu couldn\u2019t be deleted.');
     return;
   }
   var went=(dishes||[]).length-(r.failedDishIds||[]).length;        // some may genuinely have gone; saying so is the honest half
-  toast('Couldn\u2019t delete \u201c'+name+'\u201d \u2014 it has NOT been deleted.'
+  /* 254: "Couldn't delete X - it has NOT been deleted" said the same thing twice. It reads that way in
+     rollbackPlateDelete because there the two halves are DIFFERENT things (the dish went, the plate did
+     not); here the subject is one object, so the second clause was pure length. */
+  toast('\u201c'+name+'\u201d has NOT been deleted.'
     +(went?(' '+went+' plate'+(went===1?'':'s')+' did come off it.'):''));
 }
 // v54: delete a menu \u2014 its dishes (menu_items rows) are removed and their plates are UNLINKED (menu_id \u2192 null),
@@ -14185,12 +14191,16 @@ function forgetMenuItems(ids){
   customMenu=customMenu.filter(function(c){ return !kill[c.id]; });
 }
 /* v114 — THE CHANGE LOG IS DELIBERATELY WRITTEN BY THIS FUNCTION'S CALLERS, NOT BY THIS FUNCTION.
-   Three callers, two meanings: mmRemove and doDeleteMenuOnly are a user taking ONE plate off ONE menu
-   (`dish_removed` each); doDeleteMenu calls this once per dish while deleting the whole menu, which is
-   ONE decision and logs ONE `menu_deleted`. Logging here would turn a menu deletion into N+1 entries and
-   report a burst of interventions that never happened. The cost of that choice is that a FOURTH caller
+   TWO callers now, one meaning: mmRemove and doDeleteMenuOnly are a user taking ONE plate off ONE menu,
+   and each logs its own `dish_removed`. Logging in here would turn one decision into N+1 entries and
+   report a burst of interventions that never happened. The cost of that choice is that a NEW caller
    could be added without a log entry, so tests/change-log.test.js asserts the call sites by name — if
-   this list ever grows, that test fails and names the newcomer. */
+   this list ever changes, that test fails and names the newcomer.
+   ⚠️ 254: THIS SAID "THREE CALLERS" AND NAMED doDeleteMenu AS THE THIRD, calling this once per dish
+   while deleting a whole menu. It no longer calls it at all: it needs the local forget and the server
+   delete to happen at different TIMES, so it calls `forgetMenuItems` directly and hands the deletes to
+   `dbDeleteMenuAfterDishes`. The log accounting is unchanged — still exactly one `menu_deleted` for the
+   whole menu — which is why this is a correction to the census's list rather than to its reasoning. */
 function removeMenuItem(id){
   forgetMenuItems([id]);
   return dbDeleteMenu(id);                            // remove server row (harmless if none)
