@@ -590,6 +590,16 @@ That matters here because "anchor it `position:fixed` to the input's viewport re
 
 **The remedy is `fixedContainingBlock`, which ASKS instead of assuming**, and every coordinate `anchorDrop` writes is offset by it. **The tell to recognise: `position:fixed` set from JS together with numbers out of `getBoundingClientRect()`.** Before trusting that pair, ask what is between the element and the root — and if the answer is "nothing today", note that adding a shadow, a transform or a `contain` anywhere above it is enough to break it silently.
 
+## An optimistic write that changes a FIGURE owes a rollback - and the wait it avoids may not exist
+
+(Max, 10 Sep 2026: *"dont make them wait"*, closing QUEUE item 90's last part.)
+
+**The decision: an applied invoice does NOT hold its dialog open while the writes settle.** The list closes immediately and the honest count - *"4 of 36 price writes saved"* - arrives when the server answers. A refused row is therefore NOT left on screen with its own error, and building that is declined rather than deferred.
+
+⚠️ **THE REASON IT IS RECORDED HERE IS THE FIGURE THAT WAS WRONG IN THE FILE FOR A WEEK, NOT THE ANSWER.** Batch 253 wrote at the site, in its handover, and into the queue item that holding the dialog open would cost *"dozens of round trips on cafe mobile data"*. **Measured against the code rather than reasoned: `applyInvoice` already awaits those writes before it says anything, and they are dispatched in parallel** - so the cost is the slowest of N, not N in sequence, and it is bounded either way. The choice never added waiting. It only decided whether the user is BLOCKED during a wait that already happens.
+
+**So the transferable rule is about how a trade-off gets written down, not about invoices: a cost stated in a comment is a claim, and the next person to read it will price the decision off it without re-measuring.** Here the inflated figure would have made the answer look obvious in the direction it happened to go, which is the worst case - it agrees with the outcome, so nothing prompts anyone to check it. **When you defer a decision to someone else, measure the cost you are handing them.** He was asked on the corrected terms and still said no, which is a stronger answer than the old framing could have produced.
+
 ## "The server refuses it anyway" is true of an ACTION and false of a VALUE
 
 (Batch 244, 9 Sep 2026, the food-cost target. Reproduced before it was fixed: a $6 dish reading **$20** against a 30% the server had rejected, where the honest answer is $15.)
