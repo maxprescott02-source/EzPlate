@@ -48,7 +48,8 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 ⚠️ **READ THIS BEFORE PLANNING OFF ANY OF THE FOUR ITEMS BELOW. ITS TOP-RANKED FINDING, THE ONLY ONE IT CALLED A RELEASE BLOCKER, WAS FALSE.** It claimed `js/app.js` on `main` contains bare English prose at lines 7290 and 11586 and therefore does not parse. `git show origin/main:js/app.js | node --check` **parses clean** at `a56055e`; both citations are continuation lines inside `/* … */` block comments. **The reviewer read the repository in network slices and lost the comment context** — which is exactly the condition that produced its most confident, most precisely cited and most urgent claim.
 
 **So every line citation in these four items is a POINTER TO CHECK, not a fact**, and the queue header's own rule applies with unusual force: *an item that names a behaviour without naming its sites is an item whose list is already wrong.* **Each item below states which of its claims is measured and which is not.**
-**Item 12 RAN in batch 236 and its finding was TRUE, reproduced exactly as written** (`ezplate-v194`); item 14 was verified against the SQL. 13 and 15 are still unmeasured claims.
+**Item 12 RAN in batch 236 and its finding was TRUE, reproduced exactly as written** (`ezplate-v194`); item 14 was verified against the SQL. **13 RAN in batch 242 and its finding was TRUE** (`ezplate-v199`). 15 is still an unmeasured claim.
+⚠️ **13 was TRUE IN SUBSTANCE AND SHORT BY A FACTOR OF SIX, which is the third of these to be so and is now the pattern rather than the exception.** It described "two findings, merged because they are one mechanism at one site"; there were **twelve** stores surviving a café move, across three different application patterns and about six hundred lines, and the twelfth was found by the pre-push review after the fix's own header claimed to have counted them all. **So read the remaining item's enumeration as a starting point and grep it**, exactly as the header rule above says — the audit is reliable about the neighbourhood and not about the size.
 ⚠️ **And running 12 produced 12b, which is a defect the audit never saw and which is WORSE than the one it reported** — the pre-push review of the fix found it. That is the argument for taking these items seriously even where the citations are wrong: the audit was pointing at a real neighbourhood.
 
 **Step one of every one of these is the repro, and "it does not reproduce" is a legitimate outcome that DELETES the item** — say so in the handover rather than fixing something to make the finding true. That is `CLAUDE.md`'s standing rule about a review's three separable claims (the defect, the mechanism, the remedy) arriving from an outside reviewer instead of the pre-push one.
@@ -78,24 +79,6 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ⚠️ **Every line number in these items is a POINTER TO GREP, not a fact** — the consolidated file says so of itself, and the blind audit above is why. **Step one of each is the repro**, and "it does not reproduce" deletes the item and says so in the handover.
 
-
-## next  13 · Café A's settings and supplier memory survive a same-session move into café B  **[A — cross-tenant, and one half writes A's data into B's database]**
-
-⚠️ **UNMEASURED.** Two findings, merged because they are one mechanism at one site: **bootstrap does not clear tenant-scoped in-memory state before applying the new tenant's rows**, so anything café B has no row for keeps café A's value.
-
-**The sequence claimed, and it needs no page reload because the current code implements exactly this transition:** A is loaded with a food-cost target of 30% and a GST default of `inc`. The A membership is revoked while the page stays open — **the non-member path deliberately leaves in-memory state present**, which is 185's `unknown`-third-value work doing what it was built to do. The same account is then admitted to B.
-
-**Half one, wrong numbers.** B has no `food_cost_target` row, so bootstrap never assigns the variable and A's 30% survives. A $6 dish that should price off the 40% baseline is suggested at **$20 instead of $15**. An inherited inclusive-GST default reads a $110 invoice figure as $100.
-
-**Half two, and this is the worse one.** `supplierMem` survives the same transition. B's `supplier_phrases` read **succeeds and returns `[]`**, bootstrap treats A's retained phrases as local unsynced data, and pushes them into B — **correctly stamped as B by the tenant machinery, which is the point.** That is cross-tenant disclosure plus persistent parser pollution: B's later invoices are matched using pack knowledge learned in A.
-
-**The reviewer is explicit that this is NOT an RLS failure:** *"RLS is doing its job; the client is handing B data that originated from A."* It found no ordinary-table cross-tenant bypass in the migrations it traced. **Do not go looking for a policy bug.**
-
-**Claimed sites:** `js/app.js:1082-1085, 1231-1237, 1239-1249, 2737-2751, 9907-9918`, supplier-memory helpers around `4131-4140`.
-
-⚠️ **This is a successful-but-empty read being treated as absence, which is the family `CLAUDE.md` already names three times** — a successful empty read, an RLS-blocked read and a failed read are three different things that arrive looking like two. **The fix belongs at the boundary, not per variable:** a tenant transition clears tenant-scoped state, and `[]` from B means B has nothing rather than "keep what you had".
-
-**What must be true when it is fixed:** after an A → non-member → B bootstrap in one page, every tenant-scoped setting reads B's value or the application default, never A's; and **zero rows originating in A appear in B's `supplier_phrases`.** The regression test is that exact three-step bootstrap with **empty** B settings and phrases — `boot-gate.test.js` does not cover it.
 
 ## next  14 · An account with two pending invitations joins the OLDEST café, not the intended one  **[A — multi-tenant correctness, and it also decides their role]**
 

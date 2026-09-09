@@ -39,6 +39,27 @@ const targets = [
      and a function that is not a target has never been asked the question. Its `if(tok)` and its 5s
      bound are both load-bearing, and both were confirmed red by hand before it was listed. */
   { fn: 'apiAuthHeaders', tests: ['api-auth.test.js'] },
+  /* 242 — THE TENANT BOUNDARY. Four functions deciding whether one café's data is cleared before
+     another café's rows are applied to memory, so a surviving mutant here is a cross-tenant
+     disclosure rather than a wrong number. `supplierMemApply` is the one that WRITES: its rePush
+     arm re-pushes held phrases into whichever café is loading, which is correct only because the
+     boundary has already cleared memory that belongs to somebody else. All four were confirmed red
+     by hand — ten mutants, ten kills — before being listed, per 184's rule that a function which is
+     not a target has never been asked the question. */
+  { fn: 'tenantIdOf', tests: ['tenant-switch.test.js'] },
+  { fn: 'tenantChanged', tests: ['tenant-switch.test.js'] },
+  { fn: 'applyTenantBoundary', tests: ['tenant-switch.test.js'] },
+  /* Added by this batch's pre-push review, which pointed out that the ONE function whose whole job
+     is the safety property was the one not listed. It carries no operators, so its mutants are all
+     call deletions — and that is exactly the class that matters here: dropping `rebuild()` after
+     `productsById={}` leaves PRODUCTS and byId still holding the previous café while the store they
+     derive from reads empty. */
+  { fn: 'resetTenantState', tests: ['tenant-switch.test.js'] },
+  /* TWO files, and the second is not decoration: `smem-sync-guard.test.js` predates this batch and
+     is where v107's keep-local-over-an-empty-read behaviour is pinned, against the real block that
+     sequences the log, the pushes and the adopt. Listing only the new file would leave the older
+     half of this function's contract unasked, which is this list's own stated failure mode. */
+  { fn: 'supplierMemApply', tests: ['tenant-switch.test.js', 'smem-sync-guard.test.js'] },
   { fn: 'invGstAdjust', tests: ['invoice-gst.test.js', 'catalogue-import.test.js'] },
   /* Both extracted from inline code DURING this batch, and both are on this list for 195's reason:
      a function that is not a target has never been asked the question, and neither of these existed
