@@ -246,7 +246,7 @@ From `docs/MAINTENANCE.md`. The exposure is closed (186 asks and discards on swi
 
 ⚠️ **AND THE IN-MEMORY SIBLING, measured by batch 242 and deliberately not fixed there.** `resetTenantState` clears every tenant-scoped store on a café move but does NOT touch the builder's `plate[]`, so an in-progress plate survives into the new café with `kid` lines that now resolve to nothing: it renders and costs **zero**, and saving it writes a plate whose lines reference kitchen ingredients the café does not have. **No data from the previous café is written by that path** — a line is `{kid, qty}` and a kid is an opaque local id — which is why this is a note here rather than an item of its own, and why 242 left it alone. It is the same question as the draft (whose unsaved work is this, and may it cross a tenant), it needs the same decision about discarding somebody's typing, and the two should be answered together. **`refreshFromCloud`'s comment says bootstrapSync "does NOT touch plate[]… so an in-progress build survives a refresh" — true, and now incomplete: across a MOVE, surviving is the defect. Fix that comment in the same change.**
 
-## ~~40 · `claim_business_invite()` and `business_team()` are callable by `anon`, and both files say otherwise~~  **SHIPPED, batch 243, `ezplate-v200` — applied to STAGING; production with the deploy. Rode 14's migration exactly as this item said it should.**
+## ~~40 · `claim_business_invite()` and `business_team()` are callable by `anon`, and both files say otherwise~~  **SHIPPED, batch 243, `ezplate-v200` — applied to STAGING **and PRODUCTION**, 9 Sep 2026. Rode 14's migration exactly as this item said it should.**
 
 ```sql
 revoke execute on function public.claim_business_invite() from anon;

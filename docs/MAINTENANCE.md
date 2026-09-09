@@ -978,7 +978,7 @@ Max chose option A of `docs/decisions/2026-08-28.html` — change one title, wri
 
 **It is copy, so it needs Max**, and it is a one-line change plus the CTA already reading as a verb. The rule's own comment says at its site not to read this title as evidence against the rule.
 
-### ~~`claim_business_invite()` and `business_team()` are callable by `anon`, and both files say otherwise~~ — **DONE, batch 243 (`ezplate-v200`), applied to STAGING; production with the deploy**
+### ~~`claim_business_invite()` and `business_team()` are callable by `anon`, and both files say otherwise~~ — **DONE, batch 243 (`ezplate-v200`), applied to STAGING **and PRODUCTION**, 9 Sep 2026**
 
 ✅ **Closed by `supabase/migrations/20260909_invite_choice.sql`**, which was already replacing `claim_business_invite` for QUEUE item 14 — exactly the "genuinely cheap for whichever batch next writes a migration" case this entry predicted, taken the way it asked.
 **Measured, not read.** `pg_proc.proacl` on staging before: both carried `anon=X`. After: neither does, and all three RPCs answer **HTTP 401** to an anon caller over PostgREST — the GRANT refusing, where the entry's own point was that the BODY had been doing the refusing all along.

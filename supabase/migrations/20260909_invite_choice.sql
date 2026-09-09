@@ -141,9 +141,20 @@
 --   3 memberships, 0 invites, and `c@example.com` a member of nothing again — which STAGING.md
 --   requires by name, because it is the only way this project can reproduce 185's silent empty app.
 --
---   production (izrnptxhdylllodvglla): NOT YET APPLIED at the time this line was written.
---   Deliberately deferred to the deploy, not forgotten: see the ordering note above — this
---   migration is safe to land before the client, and the record goes in when it happens.
+--   production (izrnptxhdylllodvglla): 9 Sep 2026, batch 243, via the Supabase MCP, in the same
+--   one transaction, AFTER the staging rehearsal above was re-run against this exact body.
+--   State before: `claim_business_invite()` 0-arg with `anon=X`; `business_team()` with `anon=X`;
+--   no `my_pending_invites`. 1 business, 1 membership, 1 PENDING invitation, 2 auth users.
+--   State after, read back from `pg_proc.proacl`: one signature `p_invite uuid`, and `anon` absent
+--   from all three. Row counts UNCHANGED -- this migration writes no rows.
+--   VERIFIED AS THE CLIENT over PostgREST with the production publishable key:
+--     anon -> claim_business_invite  HTTP 401
+--     anon -> my_pending_invites     HTTP 401
+--     anon -> business_team          HTTP 401
+--     anon -> invite_pending         HTTP 200   <- deliberately still public; NOT swept up
+--   The one pending invitation on production is the SINGLE-invitation case, whose behaviour is
+--   unchanged: the argumentless claim still takes it. Nobody on production can reach the ambiguous
+--   path today, which is what makes landing the migration ahead of the client uneventful here.
 -- ---------------------------------------------------------------------------
 
 begin;
