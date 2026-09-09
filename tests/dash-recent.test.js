@@ -54,7 +54,7 @@ function harness(opts) {
        esc that disagreed with the shipped one, twice, once missing the closing angle bracket
        entirely. CLAUDE.md's remedy is this line.
        NO BACKTICKS IN THIS COMMENT - it sits inside a template literal, and one would end it. */
-    ${['esc', 'dashRangeCutoff', 'changeName', 'recentChangeRows', 'relDayLabel', 'recentChangesHtml']
+    ${['esc', 'dashRangeCutoff', 'changeName', 'changeKindWord', 'recentChangeRows', 'relDayLabel', 'recentChangesHtml']
       .map((n) => extractFn(APP, n)).join('\n')}
     return { rows:recentChangeRows, html:recentChangesHtml, rel:relDayLabel, name:changeName,
              cutoff:dashRangeCutoff };
@@ -181,4 +181,94 @@ test('the row escapes its plate name', () => {
   const app = harness({ log: [entry({ detail: { name: '<img src=x onerror=alert(1)>' } })] });
   const html = app.html(null, 40);
   assert.ok(!html.includes('<img'), 'the name goes through esc() like every other rendered string');
+});
+
+
+/* =============================================================================================
+ * 251 / QUEUE item 55.
+ *
+ * ⚠️ THE ITEM'S MAIN CLAIM DOES NOT REPRODUCE, AND ITS OWN INSTRUCTION IS WHAT PROVES IT.
+ * It says a sell-price rise Max made "shows +$5.00 red and a price cut green, the opposite of its
+ * effect on food cost", and then says: *"Unmeasured which field the row reads for a `dish_price`
+ * entry; grep `costBefore` in `logChange`'s writers first."* Measured:
+ *
+ *   `recentChangeRows` requires BOTH costBefore and costAfter to be finite numbers.
+ *   All three `dish_price` writers pass NEITHER, or only costAfter.
+ *
+ * So a sell-price change can never appear in this card at all, and can never be coloured. The
+ * colouring is correct for every entry that CAN render — a plate cost rise is red, which the
+ * target-anchored test above already pins.
+ *
+ * What was real is the item's second clause: the card never said WHAT changed. These pin that.
+ * ========================================================================================== */
+
+test('251: a sell-price change cannot reach this card, so it cannot be mis-coloured', () => {
+  /* The item's defect, driven: a `dish_price` entry exactly as `saveMenuEdit` writes one — a price
+     RISE, with no cost figures, because a sell-price move changes no cost. */
+  const api = harness({ log: [entry({
+    id: 'C1', kind: 'dish_price', costBefore: null, costAfter: null,
+    detail: { name: 'Fish & Chips', priceFrom: 18, priceTo: 23 },
+  })] });
+  assert.deepEqual(api.rows(null), [],
+    'no row, so no red plus — the item describes something the filter makes unreachable');
+});
+
+test('251: …and the entries that DO render still colour by effect on food cost', () => {
+  /* The counterweight, or the test above would pass against a card that renders nothing at all. */
+  const api = harness({ log: [entry({ costBefore: 3, costAfter: 5 })] });
+  const r = api.rows(null);
+  assert.equal(r.length, 1);
+  assert.ok(r[0].delta > 0, 'a plate cost RISE is a positive delta, which the renderer paints as danger');
+});
+
+test('251: the row says what kind of change it was, read from detail and not from kind alone', () => {
+  const api = harness({ log: [
+    entry({ id: 'A', t: 1e12 - DAY, kind: 'plate_created', plateId: 'P1',
+            costBefore: 0, costAfter: 4, detail: { name: 'New one' } }),
+    entry({ id: 'B', t: 1e12 - 2 * DAY, kind: 'plate_edited', plateId: 'P2',
+            costBefore: 3, costAfter: 5, detail: { name: 'Edited one' } }),
+    /* ⚠️ THE SAME KIND, A DIFFERENT EVENT — 249's orphan link writes `plate_edited` too, and
+       `detail.via` is the only thing that tells them apart. CLAUDE.md's "read `detail`, never
+       `kind` alone" as a live case rather than a rule. */
+    entry({ id: 'C', t: 1e12 - 3 * DAY, kind: 'plate_edited', plateId: 'P3',
+            costBefore: 2, costAfter: 6, detail: { name: 'Linked one', via: 'orphan-link' } }),
+  ] });
+  assert.deepEqual(api.rows(null).map((r) => r.kindWord), ['New plate', 'Ingredients', 'Line linked'],
+    'three events, three words, and the two sharing a kind are still told apart');
+});
+
+test('251: a kind this cannot name says NOTHING rather than guessing', () => {
+  const api = harness({ log: [entry({ kind: 'menu_deleted', costBefore: 3, costAfter: 5 })] });
+  const r = api.rows(null);
+  assert.equal(r.length, 1, 'the row still renders — the word is an addition, not a filter');
+  assert.equal(r[0].kindWord, '',
+    'and an unnamed kind is blank, so a future one cannot arrive mislabelled');
+});
+
+test('251: a malformed detail is a blank word, not a throw', () => {
+  /* The guard the mutation gate found unexercised. `changeEntry` and `rowToChange` both normalise
+     `detail` to an object, so a null one should be unreachable — but `changeKindWord` reads
+     `d.via` and `typeof null === 'object'`, so the wrong guard here throws inside the dashboard's
+     render rather than returning nothing. One line to prove it holds is cheaper than an allowance
+     arguing it cannot happen. */
+  /* ⚠️ THE NAME HAS TO COME FROM SOMEWHERE ELSE, or this test cannot reach the code it is about.
+     `recentChangeRows` calls `changeName` FIRST and drops the row when it resolves to nothing — and
+     a null `detail` loses `detail.name` too, so the row never gets as far as the word. The first
+     draft did exactly that and the mutant survived it. `savedPlates` is the other name source. */
+  for (const bad of [null, undefined, 'a string', 42]) {
+    const api = harness({
+      log: [entry({ plateId: 'SP1', kind: 'plate_edited', costBefore: 3, costAfter: 5, detail: bad })],
+      plates: [{ id: 'SP1', name: 'Fish & Chips' }],
+    });
+    const r = api.rows(null);
+    assert.equal(r.length, 1, JSON.stringify(bad) + ' must still render — the name came from the plate');
+    assert.equal(r[0].kindWord, 'Ingredients', 'and the kind still names itself without a usable detail');
+  }
+});
+
+test('251: the word reaches the markup, before the relative day', () => {
+  const api = harness({ log: [entry({ kind: 'plate_created', costBefore: 0, costAfter: 4 })] });
+  const html = api.html(null, 30);
+  assert.match(html, /New plate/, 'the word is on screen, not just in the row object');
+  assert.match(html, /New plate\s*·/, 'and sits before the relative day, separated');
 });
