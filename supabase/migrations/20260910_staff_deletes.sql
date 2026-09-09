@@ -1,0 +1,146 @@
+-- 20260910_staff_deletes.sql — batch 255
+--
+-- WHAT THIS DOES
+--   Moves the staff/owner delete line to where Max put it on 10 Sep 2026. Three policy
+--   changes on three tables, and one of them REMOVES a restriction rather than adding one.
+--
+-- HIS DECISION, in his words (docs/decisions/2026-09-10.md, question 2, answered in chat):
+--
+--     "they can do plates but not products, since those can break other plates that arent theres."
+--
+--   and, when told that half of it reversed his own 187 decision and had deliberately not been
+--   acted on: "touch it and sort the merge out."
+--
+--   ⚠️ THE REASON IS THE LOAD-BEARING PART AND IT IS WHY THE THREE TABLES SPLIT THE WAY THEY DO.
+--   The line is not "how much damage can this do" — deleting a plate is plenty. It is WHOSE WORK
+--   IS DESTROYED. A plate belongs to whoever built it, and a café that lets its staff cost dishes
+--   has to let them delete their own mistakes. A PRODUCT is shared: it is the row every plate's
+--   cost is computed from, so deleting one reaches other people's plates. Same for a taught pack,
+--   by the same route one step later — see the note on supplier_phrases below.
+--
+-- WHAT WAS TRUE BEFORE, measured against pg_policies on PRODUCTION 10 Sep 2026:
+--
+--   plates            permissive "plates tenant access" FOR ALL
+--                     + RESTRICTIVE "plates owner-only delete"   (187)   -> staff CANNOT delete
+--   ingredients       permissive "ingredients tenant access" FOR ALL, and nothing else
+--                     -> ANY member, staff included, can delete any product
+--   supplier_phrases  permissive "supplier_phrases tenant access" FOR ALL, and nothing else
+--                     -> ANY member can delete any taught pack
+--
+--   So the two rules were exactly inverted against what he wanted, which is what item 91 measured
+--   and what AUDIT-v207 raised out of a question batch 250 handed off.
+--
+-- ⚠️ TAUGHT PACKS WERE NOT NAMED IN HIS ANSWER. This is an INFERENCE from his stated reason and is
+--   recorded as one rather than as a second answer he gave. A taught pack decides what a supplier's
+--   line is worth on every FUTURE import, so removing one silently changes the price that lands on
+--   every plate using that product. It reaches other people's plates by the same route as a product
+--   does, one step later and less visibly. If he disagrees the fix is one `drop policy`.
+--
+-- ⚠️ WHAT THE CLIENT ALREADY DID, so this is not the whole story and should not be read as it:
+--   `deleteIngredient` (which deletes a PRODUCT — the naming inversion) already REFUSES when the
+--   product is referenced by any ingredient or plate line, and names what would break. So the case
+--   this policy newly refuses is a staff member deleting an UNREFERENCED product — which still
+--   destroys that product's `ing_price_history` — plus anything sent straight at PostgREST, where
+--   no client guard exists at all. **A hidden control is an affordance, not enforcement** is this
+--   repo's own rule, and it is the reason the server half is worth having anyway.
+--
+-- WHY RESTRICTIVE, AND WHY THE WORD MATTERS
+--   Postgres ORs permissive policies together and ANDs restrictive ones in, and `as permissive` is
+--   the DEFAULT — so a policy meant to take something away and written without the word is
+--   decoration: OR'd with the tenant policy that already permits the delete, changing nothing,
+--   while still appearing in the policy list under the right name. CLAUDE.md records that as a
+--   shipped defect. Both new policies say `as restrictive` and are `to public`, because a
+--   restriction that does not apply to everyone restricts nobody.
+--
+--   NULL REFUSES: `current_business_role()` answers NULL for a caller with no membership, and a
+--   policy evaluating to NULL denies. That is what we want on the server, and it is the exact
+--   opposite of the client-side rule about not locking anyone out.
+--
+-- THE ORDER AGAINST THE DEPLOY — this migration goes FIRST, and that is deliberate.
+--   CLAUDE.md: a client change and a migration are ONE change, and the window between them is an
+--   intermediate state no transaction can protect. Here both orders leave a control that errors,
+--   so the question is which one fails on a control the user has just been GIVEN:
+--     migration first -> staff's existing product-delete button starts refusing before the deploy
+--                        hides it. An existing control begins enforcing the new rule early.
+--     client first    -> staff is shown a NEW plate-delete button that the server still refuses.
+--   The second is worse: a control that appears and immediately fails reads as a broken app. So the
+--   SQL lands first and the deploy follows.
+--   ⚠️ On production today this window is empty in any case: Scoopy's has exactly one member and he
+--   is the owner, so there is no staff account for either intermediate to reach. Recorded because
+--   that will stop being true, not as a reason the ordering did not matter.
+--
+-- ROLLBACK, one statement per policy, restoring exactly today's behaviour:
+--   drop policy "ingredients owner-only delete" on public.ingredients;
+--   drop policy "supplier_phrases owner-only delete" on public.supplier_phrases;
+--   create policy "plates owner-only delete" on public.plates
+--     as restrictive for delete to public
+--     using ((select public.current_business_role()) = 'owner');
+--
+-- ⚠️ THIS MIGRATION DELETES NO DATA and rewrites no row. It changes who may delete, nothing else.
+--
+-- APPLIED: see the record at the bottom, written when it happened.
+
+begin;
+
+-- ---------------------------------------------------------------------------
+-- plates — GIVE THE DELETE BACK TO STAFF. This is 187 being reversed by its author.
+-- Dropping the restrictive policy leaves the permissive tenant policy, which already permits
+-- DELETE for any member of the café; no new grant is needed and none is made.
+-- The menus owner-only delete from 187 is NOT touched: he said plates.
+-- ---------------------------------------------------------------------------
+drop policy if exists "plates owner-only delete" on public.plates;
+
+-- ---------------------------------------------------------------------------
+-- ingredients — the PRODUCTS table (naming inversion: the UI calls these "Products", and the
+-- kitchen "Ingredients" live in app_settings as a JSON blob, not here). Measured 10 Sep 2026:
+-- 428 rows, 35 of them user-made. Owner-only from here.
+-- ---------------------------------------------------------------------------
+drop policy if exists "ingredients owner-only delete" on public.ingredients;
+create policy "ingredients owner-only delete" on public.ingredients
+  as restrictive for delete to public
+  using ((select public.current_business_role()) = 'owner');
+
+-- ---------------------------------------------------------------------------
+-- supplier_phrases — the taught packs. See the inference note in the header: this one is reasoned
+-- from his sentence rather than stated by it.
+-- ---------------------------------------------------------------------------
+drop policy if exists "supplier_phrases owner-only delete" on public.supplier_phrases;
+create policy "supplier_phrases owner-only delete" on public.supplier_phrases
+  as restrictive for delete to public
+  using ((select public.current_business_role()) = 'owner');
+
+commit;
+
+-- ---------------------------------------------------------------------------
+-- APPLICATION RECORD — written when it happened, never ahead of it.
+-- ---------------------------------------------------------------------------
+-- STAGING, 10 Sep 2026, by Claude via the Supabase MCP (execute_sql; apply_migration is blocked on
+--   this setup). Verified in this order:
+--     1. `pg_policies` read back — "plates owner-only delete" is GONE, and the two new ones exist
+--        and really do say RESTRICTIVE. That word is the whole mechanism and is the one most often
+--        left out, so it is read back rather than assumed.
+--     2. THE ONE THAT COUNTS — AS A SIGNED-IN STAFF MEMBER, because every rule here names a role and
+--        batch 219's lesson is that a rehearsal which never signs in as that role has not tested it.
+--        Staging's seed carries a staff row (user 4444…, business 0000…0001). In one transaction,
+--        `set local role authenticated` plus that user's JWT claims:
+--            STAFF  plate=1  product=0  phrase=0
+--            OWNER  plate=-  product=1  phrase=1
+--        i.e. staff DELETED the plate (which is the reversal Max asked for), and was refused on both
+--        the product and the taught pack; the owner then deleted both. Probe rows removed; leftover
+--        count 0.
+--     3. AND THE HARNESS WAS PROVED TO FAIL. A second block asserted the OPPOSITE — that staff can
+--        delete a product — and raised `staff deleted 0 products`. So step 2's pass is a measurement
+--        and not a green light nobody has watched go red.
+--
+-- PRODUCTION, 10 Sep 2026, same statements, immediately after. `pg_policies` re-read:
+--     plates            → permissive tenant policy ONLY; the owner-only DELETE is gone.
+--     ingredients       → permissive tenant + RESTRICTIVE owner-only DELETE, to public.
+--     supplier_phrases  → permissive tenant + RESTRICTIVE owner-only DELETE, to public.
+--   ⚠️ The staff behaviour was NOT re-exercised on production, and deliberately: it has exactly one
+--   member, who is the owner, so there is no staff account to sign in as, and creating one on the
+--   real café's database to test a policy is not a trade worth making. The behaviour was measured on
+--   staging against identical policy text; what production verifies is that the policies are present,
+--   absent and RESTRICTIVE as intended. Recorded rather than glossed, because "verified on production"
+--   and "the same SQL verified on staging" are different claims.
+--
+-- NO DATA WAS DELETED OR REWRITTEN BY THIS MIGRATION.

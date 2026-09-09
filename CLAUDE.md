@@ -82,8 +82,13 @@ UI labels and internal identifiers are deliberately CROSSED:
 - `data-tab="pantry"` is **labelled "Ingredients"** (kitchen words).
 - `data-tab="ingredients"` is **labelled "Products"** (supplier goods).
 - `data-tab="builder"` is **labelled "Plates"**.
-- Internally: `kitchenIngredients` / `king*` / `kById` / the Supabase `ingredients` table = kitchen words (UI "Ingredients").
-  `PRODUCTS` / `byId` / `ing*` render code = supplier products (UI "Products").
+- Internally: `kitchenIngredients` / `king*` / `kById` = kitchen words (UI "Ingredients").
+  `PRODUCTS` / `byId` / `ing*` render code **and the Supabase `ingredients` TABLE** = supplier products (UI "Products").
+
+⚠️ **THIS LIST PUT THE SUPABASE `ingredients` TABLE ON THE WRONG SIDE UNTIL 10 SEP 2026, AND IT IS THE ONE ENTRY THAT COULD COST DATA.** It grouped the table with the kitchen words; the table holds PRODUCTS. Tier 2 has always said so correctly - *"Products come from the Supabase `ingredients` table and nowhere else"* - so the file disagreed with itself, and the wrong half was in the section a reader consults precisely when they are unsure which is which.
+**Measured on production, 10 Sep 2026, not reasoned:** `public.ingredients` holds **428 rows, 35 of them `is_custom`** (the same 428 batch 248 counted when it found `price_as_of` written by nothing), while the kitchen Ingredients are **164 entries in an `app_settings` JSON blob** under the key `kitchen_ingredients` - the row-boundary section below has always said that blob is where they live.
+**Caught while writing a migration that names the table**, which is exactly the situation the section exists for: batch 255 was about to grant or revoke a delete on "products" and had to know which table that was. A reader trusting this line would have written the policy against the wrong data.
+**The transferable half: a two-column mapping is wrong in a way prose is not, because you check the column you are unsure about and trust the row.** When a file states the same fact twice, in two sections, for two audiences, the two are not redundancy - they are a pair that can disagree, and this one did for months.
 
 **Only ever change text a human reads.** Never rename an identifier, class, id, `data-tab` value, localStorage key or Supabase table.
 Renaming for consistency has caused rollbacks.
@@ -235,6 +240,26 @@ This is the same family as the empty-read ambiguity above: **a successful-but-em
 
 **The transferable rule: a foreign key does NOT confine a reference to your own tenant, and it is easy to assume it does** because every other operation on that table is scoped. If a column can be written with a value the caller did not read from its own rows — a literal, a default, an id from an imported file — then **only the application can guarantee the target is yours.** The restore path is the standing example of the import case.
 **The symptom to recognise: a row that saved without error and is invisible.** Reach for this before assuming a render bug.
+
+## What staff may delete is decided by WHOSE work it destroys, not by how much damage it does
+
+(Max, 10 Sep 2026, reversing his own 187 decision. His words: *"they can do plates but not products, since those can break other plates that arent theres"*, and when told the first half was a reversal and had deliberately not been acted on: *"touch it and sort the merge out."*)
+
+**The line moved, and it moved to a better place than "how destructive is this".** Deleting a plate is plenty destructive. It is also *your own work*, and a cafe whose staff cost dishes has to let them delete their own mistakes. A **product** is the row every plate's cost is computed from, so deleting one reaches plates belonging to other people; a **taught pack** decides what every future import prices that product at, so it reaches them one step later and less visibly.
+
+| | before 255 | after |
+|---|---|---|
+| plate | owner only (187) | **any member** |
+| menu | owner only | owner only - he said plates, and widening it would be a decision he did not make |
+| product (`ingredients`) | **any member** | owner only |
+| taught pack (`supplier_phrases`) | **any member** | owner only |
+| dish (`menu_items`) | any member | any member - 187 decided that deliberately |
+
+**So the two rules were exactly inverted against what he wanted**, which is what made this worth measuring rather than assuming: the restriction that existed was on the thing he was happy for staff to do, and the two that reach other people's work had none.
+
+⚠️ **THE TAUGHT PACK IS AN INFERENCE FROM HIS REASON, NOT SOMETHING HE SAID**, and it is recorded as one at the migration, in the mirror, in the queue item and here. He named products. **When you extend a decision by its stated reason, say at every site that you extended it** - otherwise the next reader cannot tell his sentence from your reasoning, and the only person who can correct it is the one who cannot see which is which.
+
+**The client half is not the enforcement and is not decoration either.** `deleteIngredient` - which deletes a PRODUCT, the naming inversion again - already refused when the product was referenced by any ingredient or plate line. So the case the new policy newly refuses is an UNREFERENCED product, which still takes its `ing_price_history` with it, plus anything sent straight at PostgREST where no client guard exists at all.
 
 ## A policy that RESTRICTS and a policy that GRANTS differ by one word and read identically
 

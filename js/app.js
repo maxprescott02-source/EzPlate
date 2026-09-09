@@ -1328,8 +1328,14 @@ function ownerOnly(what){
    second definition of the same thing. This function calls those owners instead. */
 function applyRoleUi(){
   var owner=isOwner();
-  syncBuilderPlateActions();                               // #bldDelete
+  syncBuilderPlateActions();                               // #bldDelete — 255: no longer role-gated, still owned here
   updateMenuDelBtn();                                      // #menuDelBtn
+  /* 255 — the product delete moved ONTO this list as the plate delete moved off it. `#ingDelete`
+     lives in the product edit modal, which is rebuilt by openIngEdit rather than by a repaint, so
+     unlike #bldDelete and #menuDelBtn it can be assigned here without a later render undoing it.
+     The Remove buttons in the taught-pack list are NOT assigned here for the opposite reason:
+     renderSmemList rebuilds that list every time it opens, so its own render owns them. */
+  var idl=document.getElementById('ingDelete'); if(idl) idl.hidden=!owner;
   var rr=document.getElementById('setRestoreRow'); if(rr) rr.hidden=!owner;
   /* The target is made READ-ONLY rather than hidden, unlike the three destructive buttons, and
      the difference is the point. A Delete button carries no information, so removing it costs
@@ -5166,7 +5172,18 @@ function renderSmemList(){
   }).join('');
   box.querySelectorAll('.smem-row').forEach(function(row){
     var id=row.getAttribute('data-id');
-    row.querySelector('.smem-del').addEventListener('click', function(){ delete supplierMem[id]; dbDeleteSupplierPhrase(id); renderSmemList(); toast('Removed'); });
+    /* 255: the affordance half. This list is rebuilt on every open, so its Remove buttons are
+       hidden HERE rather than in applyRoleUi — an assignment made there would be undone by the
+       next renderSmemList, which is 188's own reasoning for #bldDelete and #menuDelBtn. */
+    var rm=row.querySelector('.smem-del'); if(rm) rm.hidden=!isOwner();
+    /* 255: a taught pack decides what every FUTURE import prices that product at, so removing one
+       reaches other people's plates by the same route a product delete does, one step later.
+       Owner-only on the server as of 10 Sep 2026 — reasoned from Max's stated reason rather than
+       named by him, and recorded as an inference in the migration header. */
+    row.querySelector('.smem-del').addEventListener('click', function(){
+      if(!ownerOnly('remove a taught pack')) return;
+      delete supplierMem[id]; dbDeleteSupplierPhrase(id); renderSmemList(); toast('Removed');
+    });
   });
 }
 function openSmem(){ renderSmemList(); show('smemModal'); }
@@ -5531,6 +5548,13 @@ function productRefs(pid){
            plates:plates.map(function(sp){ return sp.name; }) };
 }
 function deleteIngredient(){
+  /* 255 — NOTE THE NAME: this deletes a PRODUCT, not a kitchen Ingredient. The naming inversion,
+     same class as `rowToMenu` mapping a dish; the kitchen ingredients are an app_settings blob.
+     Max, 10 Sep 2026: staff may not delete one, "since those can break other plates that arent
+     theres". The guard is at the ACTION and not only on the button, per 188 — this is reachable
+     from the product edit modal and a stale screen must not walk past a hidden control. The server
+     refuses regardless (20260910_staff_deletes.sql); this is what makes the refusal legible. */
+  if(!ownerOnly('delete a product')) return;
   var id=ingEditId; if(!id||!byId[id]) return; var nm=byId[id].description||'this product';
   var refs=productRefs(id);
   /* REFUSE, and name what breaks \u2014 not a generic "are you sure". Max's call (D3): the thing that
@@ -8874,7 +8898,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v209';
+var APP_VERSION='v210';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -10982,11 +11006,13 @@ function syncBuilderPlateActions(){
   var on=!!loadedPlateId;
   var dup=document.getElementById('bldDuplicate'); if(dup) dup.hidden=!on;
   /* 188: staff may not delete a plate (a restrictive policy on `plates` refuses it), so the button
-     is not offered. The role condition lives HERE rather than in applyRoleUi because this function
-     is the owner of #bldDelete's visibility and runs on every path that changes loadedPlateId — an
-     assignment made anywhere else is undone by the next one of those. Duplicate is untouched:
-     staff create plates freely, they just cannot delete them. */
-  var del=document.getElementById('bldDelete'); if(del) del.hidden=!on || !isOwner();
+     is not offered.
+     ⚠️ 255 — THE ROLE CONDITION IS GONE. Max reversed 187 on 10 Sep 2026: staff may delete a plate.
+     His reason is the rule and it is worth carrying here, because the next person to look at this
+     line will wonder why plates are unguarded while products are not: the line is not how much
+     damage a delete does, it is WHOSE work it destroys. A plate belongs to whoever built it, and a
+     café whose staff cost dishes has to let them delete their own mistakes. A product is shared. */
+  var del=document.getElementById('bldDelete'); if(del) del.hidden=!on;
 }
 /* v85 — the two builder entries that REPLACE its contents ("+ New plate", "Edit plate" from a card)
    used to bin unfinished work in silence: press ×, go to the Ingredients tab, come back and tap
@@ -11057,7 +11083,9 @@ function duplicateCurrentPlate(){
    server rejects the delete: the rollback puts the plate back in the library and says so in a toast,
    which is a better place to be than re-entering a builder the user has just left. */
 function deletePlate(id, onRemoved){
-  if(!ownerOnly('delete a plate')) return;                           // 188 — see ownerOnly: the guard at the action, not only the button
+  /* 255: 188's `ownerOnly('delete a plate')` is REMOVED — staff may delete a plate (Max, 10 Sep
+     2026, reversing his own 187 decision). The server dropped the matching policy in the same
+     change; see 20260910_staff_deletes.sql for which order they had to land in and why. */
   var sp=savedPlates.find(function(s){return s.id===id;}); if(!sp) return;
   var nm=sp.name||'plate'; var on=menusOfPlate(sp);
   var msg=on.length
@@ -14343,17 +14371,19 @@ function setEditMode(){
 function onEditSave(){ saveMenuEdit(); }
 function openDelChoice(id,nm){
   delChoiceId=id;
-  /* 188 \u2014 the affordance half of doDeleteEverything's guard, and it is conditional on the same
-     `sp` for the same reason: "Delete everything" only deletes a plate when there IS one. For a
-     staff account looking at a dish that has one, the button is not offered and the question the
-     modal asks stops being a question \u2014 so the wording changes too, rather than leaving a
-     choice-of-two message above a single button. */
-  var owns=!plateForMenuItem(menuById[id]) || isOwner();
-  var all=document.getElementById('delChoiceAll'); if(all) all.hidden=!owns;
+  /* 188 was the AFFORDANCE half of doDeleteEverything's guard: "Delete everything" only deletes a
+     plate when there IS one, and it was additionally hidden from staff.
+     ⚠️ 255 — THE ROLE HALF IS GONE (Max, 10 Sep 2026, reversing his own 187 decision: staff may
+     delete a plate). What remains is the `sp` condition, which was always the real one — the button
+     is offered when the dish HAS a plate to delete, whoever is looking at it. The staff wording that
+     used to stand here is deleted rather than left unreachable: a message explaining a restriction
+     that no longer exists is worse than no message, and a dead branch is how it survives a grep. */
+  var hasPlate=!!plateForMenuItem(menuById[id]);
+  var all=document.getElementById('delChoiceAll'); if(all) all.hidden=!hasPlate;
   var msg=document.getElementById('delChoiceMsg');
-  if(msg)msg.textContent = owns
+  if(msg)msg.textContent = hasPlate
     ? ('Delete \u201c'+nm+'\u201d from the menu. Keep its saved plate for reuse, or delete everything?')
-    : ('Remove \u201c'+nm+'\u201d from the menu? Its saved plate stays in your library \u2014 only the caf\u00e9 owner can delete a plate.');
+    : ('Remove \u201c'+nm+'\u201d from the menu?');
   show('delChoiceModal');
 }
 function closeDelChoice(){ hide('delChoiceModal'); delChoiceId=null; }
@@ -14423,7 +14453,8 @@ function doDeleteEverything(){
      plate it deletes the plate, which staff may not do. WITHOUT one there is no plate to delete
      and the branch below only removes the menu_items row — everyday unpublishing, which staff may
      do and which 187 deliberately left them. Guarding the whole function would take that away. */
-  if(sp && !ownerOnly('delete a plate')){ closeDelChoice(); return; }
+  /* 255: the owner check here is gone with the rest — staff may delete a plate. The `sp` branch
+     still matters for what the modal OFFERS, just no longer for who may press it. */
   var repaint=function(){ rebuildMenu(); buildMenuOptions(); updateEditTag(); renderPlate(); renderAnalysis(); renderPlatesTab(); };
   closeDelChoice();
   var avgBefore=computeAvgFoodCost();                     // v114: before anything is forgotten

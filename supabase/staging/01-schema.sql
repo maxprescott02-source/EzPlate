@@ -615,11 +615,31 @@ begin
   end loop;
 end $$;
 
--- 187: the four RESTRICTIVE policies. They AND with the permissive tenant policies
--- above rather than replacing them, so this section can be read on its own: what
--- staff may not do is exactly these four statements and nothing else.
-drop policy if exists "plates owner-only delete" on public.plates;
-create policy "plates owner-only delete" on public.plates
+-- The RESTRICTIVE policies. They AND with the permissive tenant policies above rather than
+-- replacing them, so this section can be read on its own: what staff may not do is exactly
+-- these statements and nothing else.
+-- ⚠️ 255 CHANGED WHICH ONES THESE ARE, and the header above said "the four from 187" while the
+-- list underneath it grew twice. No count here on purpose; read the statements.
+--   - PLATES came OFF the list on 10 Sep 2026. Max reversed his own 187 decision: staff may
+--     delete a plate. His reason is the whole rule and is quoted in 20260910_staff_deletes.sql —
+--     the line is not how much damage a delete does, it is WHOSE work it destroys. A plate
+--     belongs to whoever built it; a product is shared.
+--   - INGREDIENTS (the PRODUCTS table) and SUPPLIER_PHRASES (taught packs) went ON, same day.
+--   - price_history and menu_price_history went on in 250.
+drop policy if exists "plates owner-only delete" on public.plates;   -- 255: dropped, not created
+
+-- 255: products. `ingredients` is the PRODUCTS table despite its name — the kitchen "Ingredients"
+-- are an app_settings JSON blob. Deleting a product reaches plates that are not yours.
+drop policy if exists "ingredients owner-only delete" on public.ingredients;
+create policy "ingredients owner-only delete" on public.ingredients
+  as restrictive for delete to public
+  using ((select public.current_business_role()) = 'owner');
+
+-- 255: taught packs. Reasoned from his stated reason rather than named by him — a taught pack
+-- decides what every FUTURE import prices that product at, so it reaches other people's plates
+-- one step later. Recorded as an inference in the migration header.
+drop policy if exists "supplier_phrases owner-only delete" on public.supplier_phrases;
+create policy "supplier_phrases owner-only delete" on public.supplier_phrases
   as restrictive for delete to public
   using ((select public.current_business_role()) = 'owner');
 
