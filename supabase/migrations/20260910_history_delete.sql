@@ -41,11 +41,17 @@
 --
 -- THE ORDER OF THE STATEMENTS
 --   `menu_price_history` gains its permissive DELETE and its restrictive owner-only
---   guard in that order, inside one transaction. If the two were ever split, the
---   permissive one alone would briefly let STAFF delete — the exact thing this
---   migration exists to prevent — so the restrictive one is never the second
---   deploy. Ordering the statements so the dangerous intermediate state cannot
---   exist is this repo's standing rule and the transaction is not a substitute.
+--   guard in that order, inside one transaction.
+--   ⚠️ CORRECTED AFTER APPLICATION by this batch's pre-push review, and the SQL is
+--   untouched — only this paragraph was wrong. It claimed the ordering mattered
+--   because the permissive policy alone "would briefly let STAFF delete". Inside a
+--   single transaction NO OTHER SESSION CAN OBSERVE THE INTERMEDIATE STATE at all,
+--   whatever the statement order, so the transaction is doing that work and the
+--   ordering is not. What the ordering actually guards is the two statements being
+--   split across two DEPLOYS, where the window is real and is minutes long. That is
+--   still worth writing them this way for; it is not what the file said.
+--   Left as a correction rather than a rewrite because a migration is a record: the
+--   claim was made, it was wrong, and the next reader should see which.
 --
 -- ROLLBACK, one statement per policy, and it restores exactly today's behaviour:
 --   drop policy "price_history owner-only delete" on public.price_history;

@@ -678,9 +678,13 @@ create policy "price_history owner-only delete" on public.price_history
   as restrictive for delete to public
   using ((select public.current_business_role()) = 'owner');
 
--- The permissive half FIRST and the restriction in the same transaction: split
--- across two deploys, the permissive one alone would briefly hand STAFF the delete
--- this section exists to withhold.
+-- The permissive half FIRST and the restriction in the same transaction. The
+-- TRANSACTION is what makes the intermediate state unobservable — no other session
+-- can see between two statements of one transaction, whatever their order. What the
+-- ordering guards is the two being split across two DEPLOYS, where the window is
+-- real and minutes long, and where the permissive one alone would hand STAFF the
+-- delete this section exists to withhold. (Corrected by 250's pre-push review,
+-- which caught the migration claiming the transaction's work for the ordering.)
 drop policy if exists "menu_price_history tenant delete" on public.menu_price_history;
 create policy "menu_price_history tenant delete" on public.menu_price_history
   for delete to anon, authenticated
