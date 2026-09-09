@@ -1120,7 +1120,10 @@ function createBusinessState(res){
    NULL IS NOT A ROLE. `current_business_role()` answers NULL for a caller with no membership —
    the non-member case the tenant gate has already returned on, several lines above this ever
    being read. It arrives here as 'unknown' rather than being invented into a role. */
-var businessRole='owner';
+/* 242: the default is a constant because `resetTenantState` needs it too — see the note there on
+   why 'owner' is also the right answer for "we have just arrived in a café we know nothing about". */
+var BUSINESS_ROLE_DEFAULT='owner';
+var businessRole=BUSINESS_ROLE_DEFAULT;
 /* 192 — THE TEAM CARD'S STATE, DECLARED HERE RATHER THAN BESIDE THE FUNCTIONS THAT USE IT, which
    are 5,000 lines below. `applyRoleUi` reads `teamData.status`, and `applyRoleUi` runs inside
    `bootstrapSync`, which is INVOKED at line ~6054 — above the Team card's own section. The
@@ -1211,23 +1214,29 @@ function applyRoleUi(){
 /* ---- 242: EVERY TENANT-SCOPED STORE, PUT BACK TO WHAT A FRESH PAGE LOAD WOULD HOLD ----------
    WHY THIS EXISTS. `bootstrapSync` applies a café's rows to memory, and for most stores it does so
    UNCONDITIONALLY — `productsById`, `savedPlates`, `customMenu` are rebuilt from the read whatever
-   it returned. Eleven are not, in two different ways, and both are individually correct:
+   it returned. A dozen are not, in three different ways, each individually correct:
 
      * a SETTING is applied only `if(theRow)`, because a café with no row must keep the app default
        rather than be handed a null — `food_cost_target`, `gst_default`, `kitchen_ingredients`,
        `king_wiz_skips`, the two AI toggles, `last_invoice_import`;
      * a HISTORY SERIES is MERGED rather than replaced, because `pushWrite` has no queue and a
        point logged with no signal exists only in memory — `changeLog`, `menuHistory`,
-       `menuPriceLog`; and `supplierMem` keeps local entries over an empty read for v107's reason.
+       `menuPriceLog`; and `supplierMem` keeps local entries over an empty read for v107's reason;
+     * a THREE-VALUED ANSWER moves the standing verdict only when it is definite — `businessRole`,
+       whose own note is at the bottom of this function.
 
    Every one of those reads "the server said nothing about this, so keep what you had", and that is
    right for a re-sync of the SAME café and wrong for a different one. Nothing distinguished the
    two, because until this batch the app never retained which café was in memory.
 
-   ⚠️ THE ITEM NAMED TWO OF THESE AND THERE ARE ELEVEN, which is why this is one function at the
+   ⚠️ THE ITEM NAMED TWO OF THESE AND THERE ARE TWELVE, which is why this is one function at the
    boundary rather than a guard per variable. A per-variable fix is a list that the next `if(row)`
    silently falls off; the boundary cannot be fallen off, because it clears the store rather than
    remembering to check it.
+   ⚠️ AND THE FIRST CUT OF THIS FUNCTION LISTED ELEVEN AND MISSED THE TWELFTH, which is the same
+   rule biting the batch that wrote it: an enumeration is wrong until it is counted, and `businessRole`
+   is applied 200 lines from the settings, by a different mechanism, so it read as a different kind of
+   thing. It is not. Anything `bootstrapSync` assigns behind an `if` belongs in this list.
 
    WHAT "the application default" MEANS HERE: what the store would hold on a fresh page load with
    no server rows — so the two AI toggles go back to `load*()`, their per-DEVICE preference, which
@@ -1249,6 +1258,28 @@ function resetTenantState(){
   supplierMem={};
   cogsPct=COGS_PCT_DEFAULT;
   gstDefault=GST_DEFAULT_MODE;
+  /* ⚠️ THE TWELFTH STORE, MISSED BY THE FIRST CUT OF THIS FUNCTION — whose own comment claimed to
+     cover every one of them. Found by the pre-push review.
+     `businessRole` is applied by exactly the pattern the header describes: `if(_rs!=='unknown')
+     businessRole=_rs;`, so an unreadable `current_business_role` leaves the standing role alone.
+     Right for a re-sync of the SAME café (188: a flaky lookup must not demote a known staff
+     account) and wrong across a move, where the standing role belongs to somebody else's café.
+
+     ⚠️ AND THE DIRECTION THAT ACTUALLY MOVES IS THE OPPOSITE ONE FROM THE FINDING'S, which is worth
+     writing down because the review's DEFECT was real while its stated CONSEQUENCE was not repaired
+     by the fix — CLAUDE.md's rule that a finding's defect, mechanism and remedy fail independently.
+     Measured against the real functions, both ways, before and after:
+       owner in A, B unreadable -> 'owner' EITHER WAY. Clearing changes nothing, because `unknown`
+         reads as owner by design. The finding's scenario is not fixed here and does not need to be:
+         the server refuses all four actions regardless, which is 188's whole argument.
+       staff in A, B unreadable -> 'staff' inherited before, 'owner' after. THIS is the harm: a staff
+         member in café A who OWNS café B is shown a staff screen — the four controls hidden and the
+         team card gone — in their own café, until a reload.
+     So the reset buys a guess made FRESH for B rather than inherited from A, and 'owner' is that
+     guess for 188's stated reason: guessing staff hides controls from the person who owns the place,
+     guessing owner shows one that then fails honestly in the server's own words. B's definite role
+     arrives two lines after this runs and overwrites it. */
+  businessRole=BUSINESS_ROLE_DEFAULT;
   aiInvoiceCheck=loadAiInvoiceCheck();
   aiSuggestions=loadAiSuggestions();
   try{ localStorage.removeItem('cafeDB_lastImport'); }catch(e){}

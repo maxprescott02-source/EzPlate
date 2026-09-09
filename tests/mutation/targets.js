@@ -49,6 +49,12 @@ const targets = [
   { fn: 'tenantIdOf', tests: ['tenant-switch.test.js'] },
   { fn: 'tenantChanged', tests: ['tenant-switch.test.js'] },
   { fn: 'applyTenantBoundary', tests: ['tenant-switch.test.js'] },
+  /* Added by this batch's pre-push review, which pointed out that the ONE function whose whole job
+     is the safety property was the one not listed. It carries no operators, so its mutants are all
+     call deletions — and that is exactly the class that matters here: dropping `rebuild()` after
+     `productsById={}` leaves PRODUCTS and byId still holding the previous café while the store they
+     derive from reads empty. */
+  { fn: 'resetTenantState', tests: ['tenant-switch.test.js'] },
   /* TWO files, and the second is not decoration: `smem-sync-guard.test.js` predates this batch and
      is where v107's keep-local-over-an-empty-read behaviour is pinned, against the real block that
      sequences the log, the pushes and the adopt. Listing only the new file would leave the older

@@ -72,6 +72,10 @@ function boot(opts) {
     var priceHistory = [], menuHistory = {}, menuPriceLog = {}, ingPriceLog = {};
     var supplierMem = {};
     var teamData = { status:'idle', members:[], invites:[], err:'' };
+    ${extractVar(SRC, 'BUSINESS_ROLE_DEFAULT')}
+    var businessRole = BUSINESS_ROLE_DEFAULT;
+    ${extractFn(SRC, 'roleState')}
+    ${extractFn(SRC, 'isOwner')}
     ${extractFn(SRC, 'rebuild')}
     ${extractFn(SRC, 'rebuildKById')}
     ${extractFn(SRC, 'setKingWizSkips')}
@@ -94,6 +98,13 @@ function boot(opts) {
         return r.rePush;
       },
       phrases: function(){ return supplierMem; },
+      /* bootstrapSync's role step, which runs on the line after the boundary: only a DEFINITE
+         answer moves the standing role. Passed the raw rpc result, exactly as production does. */
+      applyRole: function(res){
+        var rs = roleState(res);
+        if (rs !== 'unknown') businessRole = rs;
+        return businessRole;
+      },
       /* bootstrapSync's setting step, reduced to the two that carry a number: each is applied only
          when the café HAS a row, which is the conditional that let café A's value survive. */
       applySettings: function(rows){
@@ -110,6 +121,7 @@ function boot(opts) {
         if (chg && Array.isArray(chg.value)) setKingWizSkips(chg.value);
       },
       seedA: function(){
+        businessRole = 'owner';
         cogsPct = 30; gstDefault = 'inc';
         kitchenIngredients = [{ id:'k1', name:'A onions', pid:'pA' }]; rebuildKById();
         setKingWizSkips(['pA']);
@@ -139,6 +151,7 @@ function boot(opts) {
           ingPriceLog: Object.keys(ingPriceLog).length,
           supplierMem: Object.keys(supplierMem).length,
           teamStatus: teamData.status, teamMembers: teamData.members.length,
+          businessRole: businessRole, isOwner: isOwner(),
           lastImport: LS.getItem('cafeDB_lastImport'),
           lastTenantId: _lastTenantId,
         };
@@ -225,6 +238,72 @@ test('the cross-tenant WRITE is what the reset prevents: without it, A is pushed
   assert.equal(rePush.length, 1, 'this is the defect: A’s phrase is queued for a push into B');
   assert.equal(rePush[0].id, 'sA');
   assert.equal(rePush[0].supplier, 'Bidfood');
+});
+
+test('STAFF in A does not become staff in B, the café they may own', () => {
+  /*
+   * THE TWELFTH CONDITIONALLY-APPLIED STORE, found by the pre-push review after the first cut of
+   * `resetTenantState` claimed to cover every one of them.
+   *
+   * ⚠️ THIS TEST ASSERTS THE OPPOSITE DIRECTION FROM THE ONE THE FINDING DESCRIBED, and the reason
+   * is the whole lesson. The finding's scenario was "owner in A, staff in B, B's role lookup
+   * fails". Measured against the real functions, that case yields 'owner' WITH the fix and 'owner'
+   * WITHOUT it — because `unknown` reads as owner by design (188) — so a test written from the
+   * finding's own words asserts `businessRole === 'owner'` against a fixture where both sides are
+   * already 'owner'. It passes with the fix deleted. That was written, hand-mutated, and caught:
+   * roster entry 184(b), a fixture whose fields agree cannot tell you which one the code read.
+   *
+   * The direction that MOVES is this one: staff in A, then a move to B whose role lookup fails.
+   * Inherited, it hides the four owner controls and the whole team card from somebody in their own
+   * café until they reload. Reset, the guess is made fresh for B and lands on 188's documented
+   * fail-open.
+   */
+  const app = boot();
+  app.boundary(okRes(A_ID));
+  app.seedA();
+  app.applyRole({ data: 'staff', error: null });
+  assert.equal(app.snap().isOwner, false, 'genuinely staff in café A');
+
+  app.boundary(okRes(B_ID));
+  // B's role RPC alone fails — one flaky request out of the twelve in the boot batch.
+  app.applyRole({ error: { message: 'network' } });
+
+  const s = app.snap();
+  assert.equal(s.businessRole, 'owner', "A's role must not describe B — the guess is remade");
+  assert.equal(s.isOwner, true, 'and B is not pre-judged as somebody else’s staff café');
+  assert.equal(s.cogsPct, 40, 'the rest of the reset still happened');
+});
+
+test('B’s DEFINITE role always wins over the reset’s guess, both ways', () => {
+  /* The reset only ever supplies the answer for "could not tell". A readable role overwrites it on
+     the very next line, so neither direction can be stuck at the default. */
+  const staffInB = boot();
+  staffInB.boundary(okRes(A_ID));
+  staffInB.applyRole({ data: 'owner', error: null });
+  staffInB.boundary(okRes(B_ID));
+  staffInB.applyRole({ data: 'staff', error: null });
+  assert.equal(staffInB.snap().isOwner, false, "B's definite staff role must win");
+
+  const ownerInB = boot();
+  ownerInB.boundary(okRes(A_ID));
+  ownerInB.applyRole({ data: 'staff', error: null });
+  ownerInB.boundary(okRes(B_ID));
+  ownerInB.applyRole({ data: 'owner', error: null });
+  assert.equal(ownerInB.snap().isOwner, true, "B's definite owner role must win");
+});
+
+test('a re-sync of the SAME café does not re-guess a known staff role', () => {
+  /* The counterweight, and the reason the reset is scoped to a tenant CHANGE rather than run on
+     every boot: 188's three-value shape exists so a flaky role lookup cannot promote a staff
+     account. Resetting unconditionally would do exactly that, every `online` blip. */
+  const app = boot();
+  app.boundary(okRes(A_ID));
+  app.applyRole({ data: 'staff', error: null });
+  assert.equal(app.snap().isOwner, false);
+
+  app.boundary(okRes(A_ID));                       // pull-to-refresh, same café
+  app.applyRole({ error: { message: 'network' } }); // role lookup alone fails
+  assert.equal(app.snap().isOwner, false, 'a known staff account stays staff across a flaky re-sync');
 });
 
 test('café B’s OWN phrases are adopted, and A’s are not kept alongside them', () => {
