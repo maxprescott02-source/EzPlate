@@ -9719,13 +9719,19 @@ function clearCacheAndRefresh(){
      target — and only the settled value is written, once, ~500ms after typing stops. `cogsPct` is
      what gets persisted rather than `v`, so it is by construction the number on screen. */
   var cogsSaveT=null;
+  function cogsPersist(){ clearTimeout(cogsSaveT); cogsSaveT=null; setCogs(cogsPct,true); }
   if(ci) ci.addEventListener('input',function(){   // setCogs re-renders every consumer, the v133 nav badge included
     if(!isOwner()) return;
     var v=parseFloat(ci.value); if(!(v>=1&&v<=99)) return;
     setCogs(v,false);
     clearTimeout(cogsSaveT);
-    cogsSaveT=setTimeout(function(){ setCogs(cogsPct,true); }, 500);
+    cogsSaveT=setTimeout(cogsPersist, 500);
   });
+  /* And the debounce's own cost, paid rather than left: a delay is a window in which the tab can be
+     closed, and the old per-keystroke write had no such window. `change` fires on blur and on Enter,
+     which is every ordinary way of finishing with a field, so the wait is only ever the 500ms of
+     somebody still looking at it. It clears the timer first, so this is one write and not two. */
+  if(ci) ci.addEventListener('change',function(){ if(!isOwner()) return; if(cogsSaveT) cogsPersist(); });
   var gs=document.getElementById('setGstDefault');
   if(gs) gs.addEventListener('change',function(){ setGstDefault(gs.value,true); });
   // v81: AI feature toggles

@@ -121,3 +121,30 @@ for (const size of SIZES) {
     });
   }
 }
+
+/* One width and one theme, because this is about TIMING rather than layout. The persist is
+   debounced by 500ms, and a debounce is a window in which the tab can be closed — so leaving the
+   field has to flush it. Asserted by counting the writes rather than by waiting, or the test would
+   pass on the timer it is supposed to be bypassing. */
+test('leaving the target field saves it without waiting for the debounce', async ({ page }) => {
+  await boot(page, { width: 1280, height: 900, theme: 'light' });
+  await gotoTab(page, 'settings');
+
+  await page.evaluate(() => {
+    window.__upserts = [];
+    const orig = window.SUPA.from.bind(window.SUPA);
+    window.SUPA.from = (table) => (table === 'app_settings'
+      ? { upsert: (row) => { window.__upserts.push(row); return Promise.resolve({ data: [row], error: null }); } }
+      : orig(table));
+  });
+
+  await page.locator('#setCogsInput').fill('28');
+  await page.locator('#setCogsInput').dispatchEvent('input');
+  await page.locator('#setCogsInput').dispatchEvent('change');   // blur, or Enter
+  await page.waitForTimeout(150);                                // well inside the 500ms debounce
+  expect(await page.evaluate(() => window.__upserts)).toEqual([{ key: 'food_cost_target', value: 28 }]);
+
+  /* And the flushed timer does not fire a second time behind it. */
+  await page.waitForTimeout(700);
+  expect(await page.evaluate(() => window.__upserts.length)).toBe(1);
+});
