@@ -462,7 +462,7 @@ Every item here is something a person sees. Where Max deferred a row on 3 Sep (u
 - **"4 not costed, 12 unpublished" with no filter (U35):** add Not costed and Unpublished chips beside the category filter, the Menu screen's `.mlf-chip` pattern.
 - **Search persists across sessions with the header still saying "103 plates" (U36):** clear `#plateSearch` on reload, or show "Showing 3 of 103" whenever a filter is active. Check where the value survives (a `type=search` input's form restoration, or a stored preference; grep `plateSearch`).
 - **Products: name and brand both ellipsise in one row (ui-audit R10, deferred 3 Sep, re-asked; persona §9 "acceptable"):** a brand min-width floor, or stack brand under name at 1024.
-- **Last change column is a column of dashes, and "Used in" shows a dash for zero (U38):** hide Last change until item 22 gives it values; write "Not used" instead of a dash.
+- **~~Last change column is a column of dashes~~ ✅ RESOLVED BY 248 (`ezplate-v205`), DIFFERENTLY FROM WHAT THIS ASKED. It said to HIDE the column until item 22 gave it values; item 22 instead RENAMED it "Supplier move", which is what the figure has always been. Hiding it would have removed a true reading because its label was wrong — a dash on a product whose supplier has not moved is honest under the right name.** Still open: **"Used in" shows a dash for zero (U38)** — write "Not used" instead of a dash.
 
 **Test:** `fresh-states.spec.js` asserts the published cell's computed colour equals `--text` (equality, not "not orange"); a unit test on the plates renderer asserts the chips filter.
 

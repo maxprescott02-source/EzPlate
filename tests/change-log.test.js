@@ -232,6 +232,17 @@ test('changeEntry is pure — same input, identical entry, no clock and no globa
   assert.deepStrictEqual(api.changeEntry('plate_deleted', o), api.changeEntry('plate_deleted', o));
 });
 
+
+/* 248: the real `lastChangeEntry`, run over a log we supply. It is a top-level function reading the
+   `changeLog` global, so it is sliced and given one — rather than reimplemented, which would be the
+   stub that agrees with the code whether or not the code is right. */
+const lastOf = (log) => new Function('LOG', `
+  "use strict";
+  var changeLog = LOG;
+  ${extractFn(SRC, 'lastChangeEntry')}
+  return lastChangeEntry();
+`)(log);
+
 /* =============================================================================================
  * 2. THE CONDITION THAT MATTERS MOST — a supplier price change writes NOTHING
  * ========================================================================================== */
@@ -255,12 +266,58 @@ test('CENSUS: no product-price path names the change log at all', () => {
     const body = extractFn(SRC, fn);
     assert.ok(!/logChange/.test(body), `${fn} must not write the change log — it is a supplier-price path`);
   }
-  // applyInvoice DOES write, and every entry it writes must be a repoint. A price it applied is drift.
+  /* applyInvoice DOES write, and 248 added a second kind to what it writes. This assertion was
+     rewritten rather than widened, and the distinction matters because this is the invariant this
+     project protects hardest.
+     ⚠️ IT USED TO PIN A SHAPE — "the only kind is `ingredient_repointed`" — WHERE THE RULE IS ABOUT A
+     MECHANISM. CLAUDE.md's condition is a function, not a list: *if `setProducts` wrote it, it is
+     drift*. An `invoice_applied` entry is not written by `setProducts`; it records the act of
+     applying, which is something Max did. What must never happen is that such an entry RESETS the
+     "since you last acted" clock, and that is decided by whether it carries an average — so the
+     mechanism is asserted below, by running it, and the shape is only a subset check. */
   const inv = extractFn(SRC, 'applyInvoice');
   const kinds = [...inv.matchAll(/logChange(?:IfSaved)?\([^,]*,\s*'([a-z_]+)'/g)].map((m) => m[1]);
   assert.ok(kinds.length > 0, 'the invoice DOES relink ingredients — that path must log');
-  assert.deepStrictEqual([...new Set(kinds)], ['ingredient_repointed'],
-    'the only intervention inside an invoice import is a re-link; every price it wrote is supplier drift');
+  const allowed = ['ingredient_repointed', 'invoice_applied'];
+  for (const k of new Set(kinds)) {
+    assert.ok(allowed.includes(k), `applyInvoice writes "${k}", which is neither a re-link nor the import record`);
+  }
+  assert.ok(new Set(kinds).has('ingredient_repointed'), 'the re-link entry must still be written');
+
+  /* ⚠️ AND THE CALL SITE MUST PASS THE NULLS, which the behavioural test below does NOT prove — it
+     builds its own entry, so it pins how `changeEntry`/`lastChangeEntry` treat a figureless entry and
+     says nothing about what `applyInvoice` hands them. Found by mutating the call site to carry real
+     averages and watching all forty tests stay green: the pair reads like coverage and was half of it.
+     A coupling check, labelled as one, because the whole of `applyInvoice` cannot be driven here. */
+  const invCode = inv.replace(/\/\*[\s\S]*?\*\//g, '').split('\n')
+    .map((l) => l.replace(/(^|[^:])\/\/.*$/, '$1')).join('\n');
+  const call = /logChangeIfSaved\([^,]*,\s*'invoice_applied',\s*\{([^}]*)/.exec(invCode);
+  assert.ok(call, "the invoice_applied call site is still findable");
+  assert.match(call[1], /avgBefore:\s*null/, 'the import record must carry NO average before…');
+  assert.match(call[1], /avgAfter:\s*null/, '…and none after — an average here resets the since-line clock');
+});
+
+test('248: the import record cannot reset the "since you last acted" clock', () => {
+  /* THE MECHANISM the census above used to pin by shape, tested by running the two real functions
+     that decide it. `sinceLineHtml` reads `lastChangeEntry`, which picks the newest entry carrying
+     avgBefore/avgAfter — so an invoice entry with those figures would become "your last change" and
+     reset the clock on every supplier rise, which is the exact event the drift counter accumulates.
+     CLAUDE.md calls that self-defeating, and it is why the entry omits figures it could supply. */
+  const { api } = harness({});
+  const inv = api.changeEntry('invoice_applied', {
+    id: 'CL1', t: 1754179200000, avgBefore: null, avgAfter: null,
+    detail: { supplier: 'Bidfood', lines: 41, changed: 36, added: 2 },
+  });
+  assert.ok(inv, 'the kind is accepted — changeEntry refuses an unknown one');
+  assert.strictEqual(inv.avgBefore, null, 'and it carries no average…');
+  assert.strictEqual(inv.avgAfter, null, '…on either side');
+  assert.strictEqual(lastOf([inv]), null, 'so lastChangeEntry cannot pick it, whatever its date');
+
+  /* The counterweight: a real intervention on the SAME date IS picked, or the assertion above would
+     pass against a lastChangeEntry that picks nothing at all. */
+  const real = api.changeEntry('plate_edited', { id: 'CL2', t: 1754179200000, avgBefore: 30, avgAfter: 28 });
+  assert.ok(lastOf([real, inv]), 'a genuine change is still the last change');
+  assert.strictEqual(lastOf([real, inv]).id, 'CL2', 'and the import does not outrank it despite sharing its timestamp');
 });
 
 /* =============================================================================================
