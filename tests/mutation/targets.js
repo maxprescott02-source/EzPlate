@@ -358,6 +358,22 @@ const targets = [
   { fn: 'healBarePidPlate', tests: ['bare-pid-heal.test.js'] },
   { fn: 'syncHealRow', tests: ['bare-pid-heal.test.js'] },
   { fn: 'plateFullyCosted', tests: ['plate-cost.test.js'] },
+  /* 241 (item 18) — the sanity bound. `dishRatios` is the ONE walk that decides which plates the
+     café's headline figure is made of and which are named as typos, so every operator in it is a
+     decision about a number on the Dashboard. `avgFoodCostForScope` is listed for the first time
+     and had never been asked a question, which is 184's lesson: the mean the whole app reads was
+     not a target. `kpiStripHtml` owns the over-target count the bound now steps around. */
+  { fn: 'dishRatios', tests: ['food-cost-bound.test.js', 'dash-scope.test.js'] },
+  /* The three the pre-push review found. `dishesOverTarget` is the SECOND over-target counter and
+     the one an invoice import reads; `mcmpSparkSeries` had the chart's own unbounded-scale defect
+     in a 54px glyph. Neither had ever been a target, which is why the bound could miss them both
+     without a single test going red. */
+  { fn: 'dishesOverTarget', tests: ['food-cost-bound.test.js'] },
+  { fn: 'mcmpSparkSeries', tests: ['food-cost-bound.test.js'] },
+  { fn: 'avgFoodCostForScope', tests: ['food-cost-bound.test.js', 'dash-scope.test.js'] },
+  { fn: 'mispricedDishes', tests: ['food-cost-bound.test.js'] },
+  { fn: 'mispricedHtml', tests: ['food-cost-bound.test.js'] },
+  { fn: 'kpiStripHtml', tests: ['food-cost-bound.test.js', 'kpi-strip.test.js'] },
   { fn: 'analyze', tests: ['menu-margin.test.js', 'kpi-strip.test.js', 'dash-digin.test.js'] },
   /* 0c (batch 203). buildInvRows was measured at 12 survivors in 201 and held in `pending`; the
      twelve are killed in inv-chain.test.js §5, and TWO of them were reachable only after the
@@ -425,6 +441,124 @@ const targets = [
  * removes is how a list like this rots into permission to ignore everything.
  */
 const allowedSurvivors = [
+  /* 241, the six on the two functions the PRE-PUSH REVIEW added to this list. Two families, and the
+     first is worth reading because it is a shape rather than an accident: `dishesOverTarget`'s own
+     guards are BACKED BY `analyze`, which refuses a zero price and a zero cost on its own. So the
+     mutants that let a zero past the guard reach a function that turns it away anyway, and nothing
+     observable changes. The guards are not redundant — they stop the work being done at all, and
+     `analyze` returning 'nomenu' is a different statement from "this plate was never a candidate" —
+     but they are, measured, unobservable through this function's return value.
+     The other four are exact-boundary ties of the kind this file already carries several of: at the
+     tie the two operators compute the same value, or the side it falls is arbitrary by construction.
+     Every one of them has both sides away from the tie asserted in food-cost-bound.test.js §7. */
+  {
+    key: "dishesOverTarget :: var over=0; MENU.forEach(function(m){ if(!(m.price>0)) return; var sp=plateForMenuItem(m); if(!sp) return; :: relational >>>= #0",
+    reason: 'Equivalent: at a price of exactly 0 the mutant lets the plate through, and analyze(cost, 0) returns '
+      + "state 'nomenu' on its own `!menuPrice || menuPrice<=0` guard, so it is not counted either way. Measured — "
+      + 'food-cost-bound.test.js asserts the zero-price plate is not over target, and it passes both ways.',
+  },
+  {
+    key: "dishesOverTarget :: var d=costDetail(sp.lines); if(d.miss || !(d.cost>0)) return; :: relational >>>= #0",
+    reason: 'The same equivalence at a cost of exactly 0: analyze(0, price) computes suggested=0 and returns '
+      + "'nomenu' from its own guard, so the mutant counts nothing extra.",
+  },
+  {
+    key: "mcmpSparkSeries :: if(mx-mn<0.2){ var mid=(mn+mx)/2; mn=mid-0.1; mx=mid+0.1; }        // a flat series draws centred, not glued to an edge :: relational <><= #0",
+    reason: 'Exact-boundary tie at a spread of precisely 0.2, where widening the window to 0.2 and leaving it at '
+      + '0.2 produce the same domain. Flat and clearly-not-flat are both asserted.',
+  },
+  {
+    key: "mcmpSparkSeries :: var v=(p.v>mx?mx:(p.v<mn?mn:p.v));                              // clamped, exactly as the chart's y() is :: relational >>>= #0",
+    reason: 'Provably equivalent, not merely untested: at v===mx the mutant clamps to mx and the original passes v '
+      + 'through, and v IS mx. There is no input that distinguishes them.',
+  },
+  {
+    key: "mcmpSparkSeries :: var v=(p.v>mx?mx:(p.v<mn?mn:p.v));                              // clamped, exactly as the chart's y() is :: relational <><= #0",
+    reason: 'The mirror of the entry above, on the lower clamp: at v===mn both yield mn.',
+  },
+  {
+    key: "mcmpSparkSeries :: var cls=(vs[vs.length-1]<=cogsPct+0.05)?'good':'bad'; :: relational <=>< #0",
+    reason: 'The display-epsilon tie again, on the sparkline colour — the same one already allowed on kpiStripHtml, '
+      + 'and it is the same 0.05 by design so the row and the strip cannot disagree on a rounding hair. Both sides '
+      + 'away from the tie are asserted (40 then 25 is good, 25 then 40 is bad, exactly 30 is good).',
+  },
+
+  /* 241 — computeInsights' three, and TWO OF THEM WERE KILLED BEFORE THIS BATCH. That is the finding
+     rather than a footnote: adding `if(cost/m.price*100 > FOOD_COST_SANE_MAX) return;` to this
+     function made the price>0 guard above it unobservable at a price of exactly zero, because the
+     mutant that lets a zero-price dish through now divides by zero, gets Infinity, and Infinity is
+     over the bound — so it returns from the next line instead of the previous one. Same exit, no
+     visible difference, mutant equivalent.
+     ⚠️ **A NEW GUARD CAN RETIRE AN OLD ASSERTION WITHOUT ANYONE TOUCHING THE TEST**, which is the
+     shape roster entry 188 records for a shared counter, arriving here through a shared code path.
+     The guard above is NOT redundant and must not be deleted on the strength of this: it is what
+     stops the division happening at all, and `Infinity` reaching a figure is exactly the class of
+     value this app must never render. It is defence in depth that now has one observable layer.
+     `dishRatios` carries the same pair of lines and its equivalent mutant IS killed, because there
+     the zero-price dish lands in the "check the price" LIST rather than being dropped — the
+     difference is observable there and is asserted in food-cost-bound.test.js. */
+  {
+    key: "computeInsights :: if(!m || !(m.price>0)) return; :: logical ||>&& #0",
+    reason: 'Equivalent since 241 added the sanity bound to this function: the mutant lets a zero-price dish past '
+      + 'this guard, the next lines compute Infinity%, and the bound returns. Same exit, nothing observable. '
+      + 'Killed before 241; the guard stays because it is what prevents the division, not merely the outcome.',
+  },
+  {
+    key: "computeInsights :: if(!m || !(m.price>0)) return; :: relational >>>= #0",
+    reason: 'The same equivalence as the entry above, on the other operator of the same guard: price exactly 0 '
+      + 'passes the mutated test, reaches the bound as Infinity%, and returns there instead.',
+  },
+  {
+    key: "computeInsights :: if(cost/m.price*100 > FOOD_COST_SANE_MAX) return; :: relational >>>= #0",
+    reason: 'Exact-boundary tie at precisely 300%. The bound is a typo detector and 300 is deliberately far above '
+      + 'anything arguable, so which side an exact 300.000% falls is not a decision worth pinning — pinning it '
+      + 'would state an arbitrary choice as though it were one. Both sides away from the tie are asserted in '
+      + 'food-cost-bound.test.js (299 counts, 301 does not), and the same tie in dishRatios IS killed there, '
+      + 'because the LIST makes it observable while this function only drops the dish.',
+  },
+
+  /* 241 — kpiStripHtml's four EXACT-BOUNDARY ties, added the batch this function first became a
+     target. None is a defect and none is killable, and the reasons are two different kinds.
+
+     ⚠️ THE FIRST ONE IS ONLY EQUIVALENT BECAUSE OF THIS BATCH'S OWN CHANGE, which is worth writing
+     down: `m.price>0` -> `>=0` differs solely at a price of exactly 0, and there the mutant now
+     falls into the branch, computes `cost/0*100` = Infinity, and Infinity is over FOOD_COST_SANE_MAX
+     — so it lands in `unready`, which is precisely where the unmutated `else` puts it. The sanity
+     bound closed the gap. Before this batch the mutant would have divided by zero and counted the
+     plate as costed at Infinity%, and it WAS killable. If the bound is ever removed, this allowance
+     is wrong and must go with it.
+
+     The other three are DISPLAY-EPSILON ties, and the epsilon exists precisely so that no cell can
+     contradict another on a rounding hair (the comment at the site says so). Each differs only when
+     a figure sits EXACTLY on the boundary — 30.05 against a 30% target, or a gap of exactly ±0.05 —
+     where which side it falls is arbitrary by construction and the design deliberately puts the tie
+     on the calmer side. An assertion pinning the tie would pin an arbitrary choice as though it were
+     a decision, which is this repo's "a title that names a property the assertions cannot see"
+     failure wearing a different hat. The NON-tie behaviour on both sides is pinned in
+     food-cost-bound.test.js §6. */
+  {
+    key: "kpiStripHtml :: if(m.price>0 && c>0){ :: relational >>>= #0",
+    reason: 'Equivalent ONLY since 241 added FOOD_COST_SANE_MAX: at a price of exactly 0 the mutant enters the '
+      + 'branch, computes Infinity%, and the new bound routes it to `unready` — the same cell the unmutated `else` '
+      + 'uses. Measured, not argued (food-cost-bound.test.js pins the zero-price outcome from both sides). '
+      + 'If the bound is removed this allowance must be removed with it: the mutant was killable before it.',
+  },
+  {
+    key: "kpiStripHtml :: costed++; if(pct0 > cogsPct+0.05) over++; :: relational >>>= #0",
+    reason: 'Display-epsilon tie. Differs only when a plate sits EXACTLY on target+0.05, where which side it falls '
+      + 'is arbitrary and the epsilon exists to stop the cells disagreeing on a rounding hair. Both sides of the '
+      + 'boundary are asserted (30.04 is not over, 31.0 is); the tie itself is not a decision to pin.',
+  },
+  {
+    key: "kpiStripHtml :: var sub=(d>0.05) ? (d.toFixed(1)+' pts over your '+fmtTargetPct()+' target') :: relational >>>= #0",
+    reason: 'Same display-epsilon tie, on the sub-line. A gap of exactly +0.05 reads as "at your target" either way '
+      + 'once rounded, which is what the band is for. The over/under/at states are each asserted away from the tie.',
+  },
+  {
+    key: "kpiStripHtml :: : (d<-0.05 ? (Math.abs(d).toFixed(1)+' pts under your '+fmtTargetPct()+' target') :: relational <><= #0",
+    reason: 'The mirror of the entry above, on the under side. Same reason, same assertions.',
+  },
+
   /* 238 — authUrlParams' VALUE ternary, `i<0` -> `i<=0`. The two ternaries on that line take the
      same test and only ONE of them is observable, which is why the key's `#1` matters: `#0` is the
      KEY ternary and is killed by an assertion (a `=foo` pair must not become the key `"=foo"`).

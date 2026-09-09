@@ -102,6 +102,7 @@ function harness(opts) {
        a hand-rolled counter here would agree with a broken generator and hide exactly the
        collision it exists to prevent (CLAUDE.md, "a stub that mirrors a real function must
        mirror its CONTRACT"). No backticks in this comment - it sits inside a template literal. */
+    ${extractVar(SRC, 'FOOD_COST_SANE_MAX')}
     ${extractVar(SRC, '_uidSeq')}
     ${extractFn(SRC, 'uidRandom')}
     ${extractFn(SRC, 'uid')}
@@ -111,7 +112,7 @@ function harness(opts) {
       'menuIdOf', 'dishOnMenu',
       'lineProduct', 'lineCost', 'costDetail', 'costFromLines', 'plateIdOf', 'plateForMenuItem', 'dishesOfPlate', 'menusOfPlate',
       'platesUsingKid', 'menuIdsForPlates', 'fallbackMenuId',
-      'avgFoodCostForScope', 'computeAvgFoodCost',
+      'dishRatios', 'avgFoodCostForScope', 'computeAvgFoodCost',
       'ptMs', 'logHistory', 'logMenuHistory', 'logAllMenuPrices', 'logMenuPrice', 'repaintDashboardIfVisible',
       'saveKitchenIngredients',
       'forgetMenuItems', 'removeMenuItem', 'mmRemove', 'doDeleteMenuOnly', 'doDeleteMenu',

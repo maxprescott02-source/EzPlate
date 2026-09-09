@@ -28,7 +28,7 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
-const { loadApp, extractFn } = require('./_extractfn');
+const { loadApp, extractFn, extractVar } = require('./_extractfn');
 
 const SRC = loadApp();
 
@@ -79,6 +79,8 @@ function boot(store, MENU, menusList) {
     var DASH_ALL='all';
     ${extractFn(SRC, 'menuIdOf')}
     ${extractFn(SRC, 'dishOnMenu')}
+    ${extractVar(SRC, 'FOOD_COST_SANE_MAX')}
+    ${extractFn(SRC, 'dishRatios')}
     ${extractFn(SRC, 'avgFoodCostForScope')}
     ${extractFn(SRC, 'computeAvgFoodCost')}
     ${extractFn(SRC, 'menuComparisonRows')}
@@ -241,6 +243,8 @@ function withRows(MENU, menusList) {
     var menuHistory = {}, priceHistory = [], cogsPct = 30;   // v115: sparklines colour by target now
     ${extractFn(SRC, 'menuIdOf')}
     ${extractFn(SRC, 'dishOnMenu')}
+    ${extractVar(SRC, 'FOOD_COST_SANE_MAX')}
+    ${extractFn(SRC, 'dishRatios')}
     ${extractFn(SRC, 'avgFoodCostForScope')}
     ${extractFn(SRC, 'computeAvgFoodCost')}
     ${extractFn(SRC, 'menuComparisonRows')}
@@ -391,6 +395,8 @@ function withComparisons(MENU, priceHistory) {
     var DASH_ALL='all';
     ${extractFn(SRC, 'menuIdOf')}
     ${extractFn(SRC, 'dishOnMenu')}
+    ${extractVar(SRC, 'FOOD_COST_SANE_MAX')}
+    ${extractFn(SRC, 'dishRatios')}
     ${extractFn(SRC, 'avgFoodCostForScope')}
     ${extractFn(SRC, 'computeAvgFoodCost')}
     ${extractFn(SRC, 'avgOf')}

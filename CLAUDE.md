@@ -310,6 +310,16 @@ The real per-product series is `ing_price_history`, and **`setProducts` is its o
 Its condition is the PREVIOUS STORED price, not the last logged point - two separate guards, deliberately not merged.
 Product creation logs a first point on purpose.
 
+## The headline average is a MEAN OF PER-PLATE RATIOS, and it is bounded at 300%
+
+(241, queue items 18 and 23. Two decisions about one number, written together because they are read together.)
+
+**Which average.** `avgFoodCostForScope` averages each plate's own `cost/price`, so a $0.36 fritter weighs exactly as much as an $18.84 seafood box. The defensible alternative — total cost over total price — is a different number, **1.4 points away on Max's real data** (25.0 against 26.4, turning "5.0 pts under" into "3.6"). Nothing on any screen used to say which one you were reading, and the tile, the menu pills and the sidebar badge all agree with each other, so the disagreement was invisible by construction. **Both tiles now name the method** — "Average of plate food costs" — and the method itself is unchanged. Change the maths and you change every stored history point's meaning; change the label and you have only told the truth.
+
+**And it is bounded.** A plate whose ratio exceeds `FOOD_COST_SANE_MAX` (300%) is excluded from the average, from the over-target count, from the insight facts and from the Dig-in ranking — because **a ratio that high is not a menu that needs repricing, it is a price that is wrong**, and averaging it in let one $0.01 typo take the production headline to 354.4%, the trend axis to 380%, and the AI copy to "swings 20000-30000%". Every figure deterministic, correctly phrased, and about a typo.
+⚠️ **EXCLUDING IS ONLY HALF A FIX AND THE OTHER HALF IS NOT OPTIONAL: the plate is NAMED on its own Dashboard row.** A figure that silently drops a plate is exactly as unreconcilable as one that silently includes it — the reader cannot tie either back to the menu in front of them. Any future exclusion from a headline figure owes the same debt.
+**The number is written once, in `js/app.js`, with its reason.** Do not restate it here; grep the constant.
+
 ## Per-publication counting was decided, then reverted on real data
 
 The dashboard headline counts **per publication**, so a plate on two menus counts twice.

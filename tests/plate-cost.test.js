@@ -20,7 +20,7 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
-const { loadApp, extractFn } = require('./_extractfn');
+const { loadApp, extractFn, extractVar } = require('./_extractfn');
 
 const APP = loadApp();
 
@@ -230,6 +230,8 @@ function menuHarness(MENU) {
     ${extractFn(APP, 'plateFullyCosted')}
     ${extractFn(APP, 'foodTarget')}
     ${extractFn(APP, 'analyze')}
+    ${extractVar(APP, 'FOOD_COST_SANE_MAX')}
+    ${extractFn(APP, 'dishRatios')}
     ${extractFn(APP, 'avgFoodCostForScope')}
     ${extractFn(APP, 'dishesOverTarget')}
     return { avg:function(){ return avgFoodCostForScope('all'); }, over:dishesOverTarget,

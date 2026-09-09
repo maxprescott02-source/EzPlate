@@ -18,7 +18,7 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
-const { loadApp, extractFn } = require('./_extractfn');
+const { loadApp, extractFn, extractVar } = require('./_extractfn');
 
 const SRC = loadApp();
 
@@ -42,6 +42,8 @@ function withState(MENU, menusList, cogsPct) {
     function menuNameById(id){ var m=menusList.find(function(x){return x.id===(id||'MENU_ORIGINAL');}); return m?m.name:'Original menu'; }
     ${extractFn(SRC, 'menuIdOf')}
     ${extractFn(SRC, 'dishOnMenu')}
+    ${extractVar(SRC, 'FOOD_COST_SANE_MAX')}
+    ${extractFn(SRC, 'dishRatios')}
     ${extractFn(SRC, 'avgFoodCostForScope')}
     ${extractFn(SRC, 'computeAvgFoodCost')}
     ${extractFn(SRC, 'menuComparisonRows')}

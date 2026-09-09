@@ -90,7 +90,11 @@ Four documents held three positions. `CLAUDE.md` Tier 1 says *"never edit anythi
 
 **Do after:** nothing. Handover must carry the `--products` run: pre-tick count and pre-ticked-wrong count, before and after. Then `docs/PHONE.md`: import one real Supplier B PDF and read the review screen.
 
-## next  18 · One mispriced dish rewrites every headline, rescales the chart, and leaves a permanent history point  **[A, a $0.01 typo took production to 354.4%, "324.4 pts over target", and a 380% axis, measured 8 Sep]**
+## ~~18 · One mispriced dish rewrites every headline, rescales the chart, and leaves a permanent history point~~  **SHIPPED, batch 241, `ezplate-v198` — EXCEPT the history-point removal, which is now item 89**
+
+✅ `FOOD_COST_SANE_MAX` is 300, written once. A plate over it is excluded from the average, the over-target count, the insight facts and the Dig-in ranking, and is NAMED on its own "Check the price" Dashboard row with what it costs and what it sells for. The trend axis is built from the readings that are ON the scale, a stored bad point is clamped to the top, and the caption says a reading was clipped. Item 23 rode the same batch: both tiles say which average they are.
+⚠️ **THE ITEM'S SITE LIST WAS SHORT BY TWO, both found by measuring rather than reading** — `kpiStripHtml`'s over-target count (the item named the behaviour, not the site) and the Dig-in "Highest food cost %" ranking, which read *"Pineapple Fritter 30000.0%"* and pushed the genuinely worst plate off the row. **And two defects were visible ONLY in a browser**, with the suite green and the mutation gate clean: the clipped point drew as a gentle hump peaking near 31% with nothing saying it was off the scale, and `clipped` was computed and never read.
+⚠️ **SPLIT DELIBERATELY.** The bound is prevention; deleting a stored point is a new destructive write surface with its own RLS and confirm design. **See item 89.**
 
 **Mechanism.** `avgFoodCostForScope` (`js/app.js:4226`) is the mean of per-dish `cost/price` ratios with no bound; a dish at $0.01 contributes 30000% and one row moves the mean by hundreds of points. `logHistory` (`:4291`) appends that mean to `priceHistory` and `dbPushHistory`, and `logAllMenuPrices` appends per-menu points; nothing can delete either. `trendChart` (`:5724`) scales its y-domain to the data, so every real week flattens. `computeInsights` (`:6655`) feeds the same figures to `api/insight`, which then phrases "swings 20000-30000%" and "Uncategorised sits at 958%". The menu pill, the sidebar badge and the Dashboard headline all read the same number (consistent, and consistently wrong).
 
@@ -141,7 +145,11 @@ Four documents held three positions. `CLAUDE.md` Tier 1 says *"never edit anythi
 
 **Do after:** 16 (the relink heal changes which plates a relink touches). MM-4's weekly page needs a date per price, which is this item.
 
-## next  23 · The Dashboard headline does not say which average it is  **[B, 25.0% (mean of ratios) against 26.4% (ratio of sums) on the same data; "5.0 pts under" becomes 3.6]**
+## ~~23 · The Dashboard headline does not say which average it is~~  **SHIPPED, batch 241, `ezplate-v198`, riding item 18**
+
+✅ Both tiles read **"Average of plate food costs"** — the mobile hero and the desktop KPI strip.
+⚠️ **The item's own suggested wording could not be used: it said "average of DISH food costs", and "dish" is a FORBIDDEN UI noun** (Max, 25 Jul 2026 — a plate on a menu is still a plate). `tests/terminology.test.js` caught it within a minute of it being typed, which is the guard doing exactly its job on copy written by someone who had read the rule that morning.
+The method itself is unchanged, and the choice is written up in `CLAUDE.md` beside per-publication counting.
 
 `avgFoodCostForScope` (`js/app.js:4226`) is the mean of per-dish ratios, and the tile, the Menu pills and the sidebar badge all agree, so this is an unstated method rather than a contradiction: a $0.36 Pineapple Fritter weighs the same as an $18.84 Ocean Bounty Box. **What must be true:** the tile names the method in a few words ("average of dish food costs"), the weekly page (MM-4) uses the same one, and the choice is written once in `CLAUDE.md` beside per-publication counting. **Test:** `tests/dashboard-*.test.js` asserts the label text is present in the hero and the KPI strip. **Do after:** 18 (same function).
 
@@ -582,6 +590,16 @@ Blocked on: **Max's priority call.** From `docs/MAINTENANCE.md`'s "Displaced" se
 
 **What must be true when it is fixed:** the app ASKS rather than guesses — one choice per product, not per line ("which ingredient is this?"), applied to every line pointing at it, through the same write and rollback path the heal already uses. **Refusing is a legitimate answer and must stay one**; a plate line may genuinely be meant to cost off a product no ingredient owns.
 ⚠️ **Do NOT heal these by name-matching the product to an ingredient.** `CLAUDE.md` records the shape (batch 223): a name matched inside a longer one blames the wrong product, and the failure mode has no symptom.
+
+## next  89 · A `price_history` point cannot be deleted or corrected from the app  **[B, the 354.4 written by the 8 Sep typo is still on production and nothing but SQL can remove it]**
+
+**Split out of item 18 by batch 241**, which shipped the bound that stops another one being written and deliberately did not build this. The two are different in kind: the bound is arithmetic, this is a destructive write surface.
+
+**The state today.** `logHistory` appends to `priceHistory` and `dbPushHistory`; `logAllMenuPrices` appends per-menu points. **Nothing in the app deletes either**, so a point written by a typo is permanent, and production carries one at 354.4. 241's axis cap means it no longer flattens the chart — the caption now says a reading is off the scale — but the point is still there, still in every backup, and still the answer to "what was our food cost that week".
+
+**What must be true when it is fixed:** an OWNER can delete or correct a single `price_history` / `menu_price_history` point from the app; the write goes through a `pushWrite` helper like every other (RLS already scopes it to the tenant, and 187's owner-only pattern is the precedent for the policy); the confirm names the point being removed by its date and value; and the deletion is itself recorded, because a history the user can silently edit is a different artefact from one they cannot.
+⚠️ **Settings → Data is the natural home** and it is where 239 put the other one-off repair, so the two should look alike.
+⚠️ **This DELETES production data, so running it is Max's** — the same standing rule as the restore's wipe. Building the surface is not.
 
 # Dropped or merged
 

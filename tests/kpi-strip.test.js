@@ -14,7 +14,7 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
-const { loadApp, extractFn } = require('./_extractfn');
+const { loadApp, extractFn, extractVar } = require('./_extractfn');
 
 const APP = loadApp();
 /* dishes: [{menuId, price, cost}] — cost null = no plate/uncosted */
@@ -37,6 +37,8 @@ function harness(dishes, opts = {}) {
     ${extractFn(APP, 'menuIdOf')}
     ${extractFn(APP, 'dishOnMenu')}
     ${extractFn(APP, 'analyze')}
+    ${extractVar(APP, 'FOOD_COST_SANE_MAX')}
+    ${extractFn(APP, 'dishRatios')}
     ${extractFn(APP, 'avgFoodCostForScope')}
     ${extractFn(APP, 'dashPctClass')}
     ${extractFn(APP, 'kpiStripHtml')}
@@ -58,7 +60,9 @@ test('three cells, counted per publication: %, over-target, and not-costed-or-pr
     { price: 10, cost: 2.0 }, { price: 10, cost: 3.5 }, { price: 10, cost: 3.5 }, { price: 10, cost: null },
   ]);
   const [c1, c2, c3] = cells(h.kpiStripHtml('all', { current: h.avgFoodCostForScope('all'), lastMonth: null }));
-  assert.ok(/Average food cost/.test(c1) && /30\.0%/.test(c1), 'cell 1: the average (20+35+35)/3');
+  // 241 (item 23): the label names the METHOD now — this figure is the mean of PER-PLATE ratios, and
+  // a ratio-of-sums answer is 1.4 pts away on real data. "plate", not "dish": the forbidden noun.
+  assert.ok(/Average of plate food costs/.test(c1) && /30\.0%/.test(c1), 'cell 1: the average (20+35+35)/3, and it says which average');
   assert.ok(/vs your/.test(c1) === false, 'cell 1 sub states the pts gap, not a bare "vs target"');
   assert.ok(/Plates over target/.test(c2) && />2<\/span>/.test(c2), 'cell 2: exactly the two over-target publications');
   assert.ok(/of 3 costed/.test(c2), 'cell 2 sub: three costed publications');
