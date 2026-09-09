@@ -5172,18 +5172,17 @@ function renderSmemList(){
   }).join('');
   box.querySelectorAll('.smem-row').forEach(function(row){
     var id=row.getAttribute('data-id');
-    /* 255: the affordance half. This list is rebuilt on every open, so its Remove buttons are
-       hidden HERE rather than in applyRoleUi — an assignment made there would be undone by the
-       next renderSmemList, which is 188's own reasoning for #bldDelete and #menuDelBtn. */
-    var rm=row.querySelector('.smem-del'); if(rm) rm.hidden=!isOwner();
+    /* 255: NO ROLE GATE HERE, and the absence is deliberate — see 20260910_staff_deletes.sql.
+       Restricting taught-pack deletion was reverted when the pre-push review found that
+       `applyTidy`'s supplier rename re-keys these (delete-then-insert) through an ungated chain,
+       so the restriction would have turned a staff rename into a silent half-apply. The question
+       went back to Max with that cost attached. If he says yes, the gate goes here AND on the tidy
+       flow, not here alone.
     /* 255: a taught pack decides what every FUTURE import prices that product at, so removing one
        reaches other people's plates by the same route a product delete does, one step later.
        Owner-only on the server as of 10 Sep 2026 — reasoned from Max's stated reason rather than
        named by him, and recorded as an inference in the migration header. */
-    row.querySelector('.smem-del').addEventListener('click', function(){
-      if(!ownerOnly('remove a taught pack')) return;
-      delete supplierMem[id]; dbDeleteSupplierPhrase(id); renderSmemList(); toast('Removed');
-    });
+    row.querySelector('.smem-del').addEventListener('click', function(){ delete supplierMem[id]; dbDeleteSupplierPhrase(id); renderSmemList(); toast('Removed'); });
   });
 }
 function openSmem(){ renderSmemList(); show('smemModal'); }
@@ -14378,12 +14377,16 @@ function openDelChoice(id,nm){
      is offered when the dish HAS a plate to delete, whoever is looking at it. The staff wording that
      used to stand here is deleted rather than left unreachable: a message explaining a restriction
      that no longer exists is worse than no message, and a dead branch is how it survives a grep. */
-  var hasPlate=!!plateForMenuItem(menuById[id]);
-  var all=document.getElementById('delChoiceAll'); if(all) all.hidden=!hasPlate;
+  /* ⚠️ 255: the condition was `!plateForMenuItem(...) || isOwner()`, i.e. "show unless staff AND
+     there is a plate". The ROLE half is what 187 added and what Max reversed, so removing it leaves
+     the button shown in every case — which is what the other three cases already did.
+     A first cut of this batch rewrote it to `hasPlate`, which reads tidier and is a DIFFERENT
+     change: it newly HID the button for a plate-less dish, for every role, which nobody asked for.
+     Caught by the pre-push review. The plate-less wording is odd (it offers "delete everything" for
+     a dish with nothing extra to delete) and that oddity is pre-existing — filed, not fixed here. */
+  var all=document.getElementById('delChoiceAll'); if(all) all.hidden=false;
   var msg=document.getElementById('delChoiceMsg');
-  if(msg)msg.textContent = hasPlate
-    ? ('Delete \u201c'+nm+'\u201d from the menu. Keep its saved plate for reuse, or delete everything?')
-    : ('Remove \u201c'+nm+'\u201d from the menu?');
+  if(msg)msg.textContent='Delete \u201c'+nm+'\u201d from the menu. Keep its saved plate for reuse, or delete everything?';
   show('delChoiceModal');
 }
 function closeDelChoice(){ hide('delChoiceModal'); delChoiceId=null; }

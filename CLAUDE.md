@@ -252,12 +252,19 @@ This is the same family as the empty-read ambiguity above: **a successful-but-em
 | plate | owner only (187) | **any member** |
 | menu | owner only | owner only - he said plates, and widening it would be a decision he did not make |
 | product (`ingredients`) | **any member** | owner only |
-| taught pack (`supplier_phrases`) | **any member** | owner only |
+| taught pack (`supplier_phrases`) | any member | any member - extended to, then REVERTED; see below |
 | dish (`menu_items`) | any member | any member - 187 decided that deliberately |
 
 **So the two rules were exactly inverted against what he wanted**, which is what made this worth measuring rather than assuming: the restriction that existed was on the thing he was happy for staff to do, and the two that reach other people's work had none.
 
-⚠️ **THE TAUGHT PACK IS AN INFERENCE FROM HIS REASON, NOT SOMETHING HE SAID**, and it is recorded as one at the migration, in the mirror, in the queue item and here. He named products. **When you extend a decision by its stated reason, say at every site that you extended it** - otherwise the next reader cannot tell his sentence from your reasoning, and the only person who can correct it is the one who cannot see which is which.
+⚠️ **THE TAUGHT PACK WAS AN INFERENCE FROM HIS REASON, IT SHIPPED IN THE FIRST CUT, AND THE PRE-PUSH REVIEW SENT IT BACK. That sequence is the rule, not the outcome.**
+
+The inference was sound and still looks sound: a taught pack decides what every future import prices a product at, so removing one reaches other people's plates the same way, one step later. What it MISSED is that `applyTidy`'s supplier rename **re-keys** every taught pack for that supplier, and re-keying is delete-then-insert - through a chain (`openTidyManage` -> `renderTidyValues` -> `openTidy` -> `applyTidy`) with **no role check anywhere in it**. So the restriction would have made a staff supplier rename refuse its DELETE, drop the entry from memory anyway, push the new row, toast success, and leave the old row to reappear at the next boot: this file's own orphaned-taught-pack trap, manufactured by the fix.
+
+**The honest remedy would have been to make renaming a supplier owner-only - a capability he was never asked about.** At that point the question stopped being *"is my inference sound"* and became *"is it worth staff losing supplier renames"*, which is his.
+
+**So: an inference from someone's stated reason is free to make WHILE IT COSTS NOTHING, and becomes theirs the moment it costs something.** The test is not whether the reasoning holds - it usually does, which is what makes this shape survive - but **what the extension takes away, and from whom.** Go and look for the OTHER callers of whatever you are restricting before deciding you have merely applied their answer.
+**And say at every site that you extended it**, which is what made this recoverable: the migration, the mirror, the queue item and this file all said "inference, not his answer", so the review had something to check rather than a rule to re-derive.
 
 **The client half is not the enforcement and is not decoration either.** `deleteIngredient` - which deletes a PRODUCT, the naming inversion again - already refused when the product was referenced by any ingredient or plate line. So the case the new policy newly refuses is an UNREFERENCED product, which still takes its `ing_price_history` with it, plus anything sent straight at PostgREST where no client guard exists at all.
 

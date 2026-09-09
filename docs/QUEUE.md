@@ -83,18 +83,24 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 ⚠️ **Every line number in these items is a POINTER TO GREP, not a fact** — the consolidated file says so of itself, and the blind audit above is why. **Step one of each is the repro**, and "it does not reproduce" deletes the item and says so in the handover.
 *(G1's only [B — wrong number] item, 15, shipped in batch 244; what is left of the group is below. The two headings were folded into one when it went, because a section with a title and no items reads as work nobody has got to.)*
 
-## next  91 · Staff may delete every product a plate costs from  **[B, measured on production — ANSWERED 10 Sep, the products half is buildable]**
+## blocked  91 · May staff delete a TAUGHT PACK? (the products half shipped in 255)  **[B — one sentence, and it now has a COST attached that it did not have this morning]**
 
 **Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 91 — raised by AUDIT-v207 out of a question batch 250 handed off, and measured against `pg_policies` rather than the schema file.
 
-✅ **ANSWERED 10 Sep 2026** (`docs/decisions/2026-09-10.md`, question 2). Max: ***"they can do plates but not products, since those can break other plates that arent theres."***
+✅ **THE PRODUCTS HALF SHIPPED IN BATCH 255 (`ezplate-v210`).** Max: ***"they can do plates but not products, since those can break other plates that arent theres"***, and *"touch it and sort the merge out"* for the half that reversed 187. Staff may delete a plate; staff may not delete a product. Server and client both, verified on staging as a signed-in staff member.
 
-**What is decided and buildable now: STAFF MAY NOT DELETE A PRODUCT.** Owner-only, 187's exact idiom with 250 as the worked example. His reason is the load-bearing part and belongs in the migration header: a product is shared, so deleting one **breaks plates belonging to other people**, which is a different and worse harm than losing your own work.
+**Blocked on: MAX, ONE SENTENCE — may staff remove a TAUGHT PACK? It is not free, and this is the part that changed:**
 
-**Taught packs (`supplier_phrases`) were not named, and are being protected alongside products on his stated reason** — deleting one silently changes what every future invoice prices that product at, so it reaches other people's plates by the same route. **Say so in the header as an inference from his sentence, not as a second answer he gave.** If he corrects it, the migration is one `drop policy`.
+⚠️ **255 built this, on the strength of his stated reason, and the pre-push review sent it back — not because the reasoning is wrong but because of what it COSTS.** A taught pack decides what every future import prices a product at, so removing one reaches other people's plates the same way a product does, one step later. That still looks right.
 
-⚠️ **HIS ANSWER ALSO REVERSES 187 AND THAT HALF IS NOT ACTED ON.** *"They can do plates"* would let staff delete a plate, which **187 deliberately closed and which was his own decision.** Flagged back to him in chat the same day; **do not build it on the strength of the sentence above.** The products half stands on its own and does not depend on it.
-⚠️ **`menu_items` is a third such table and is DELIBERATE** — 187 decided staff may unpublish a dish, and the migration says so. Not part of this.
+**What it misses: `applyTidy`'s supplier rename/merge/clear RE-KEYS every taught pack for that supplier, and re-keying is delete-then-insert.** Nothing in that chain — `openTidyManage`, `renderTidyValues`, `openTidy`, `applyTidy` — carries a role check. So with the restriction in place a staff supplier rename would have its DELETE refused, drop the entry from local memory anyway, push the NEW row, toast *"Renamed supplier … on N packs"*, and leave the OLD row on the server to come back at the next boot. **That is `CLAUDE.md`'s own orphaned-taught-pack trap, manufactured by the fix.**
+
+**So the honest question is not "should taught packs be protected" but "is protecting them worth staff losing the ability to rename a supplier"** — because gating the table without gating that flow is the half-apply above, and gating the flow takes away a capability he has never been asked about and which is exactly the kind of tidying staff do.
+
+- **A — leave it open (today's behaviour).** Staff can remove a taught pack and can rename suppliers. **Recommended** unless he wants the protection: the harm is real but indirect, and the capability lost is not.
+- **B — protect taught packs AND make supplier rename owner-only.** One migration plus one gate; they must ship together, and the queue item should say so.
+
+**Everything needed to build B is written down** — the migration is `20260910_staff_deletes.sql`'s reverted block, restored, plus `ownerOnly` on the tidy chain. It is an hour, not a day.
 
 ## next  89 · A `price_history` point cannot be deleted or corrected from the app  **[B — the SERVER half shipped in batch 250; the SURFACE is what is left]**
 

@@ -286,38 +286,37 @@ test('restore: the row is hidden for staff, and the CSS lets it actually hide', 
    3. THE SECOND DOOR TO A PLATE DELETE
    --------------------------------------------------------------------------------------------- */
 
-test('"Delete everything" is a plate delete ONLY when there is a plate — both halves', () => {
-  /* ⚠️ THIS IS THE DOOR THAT IS EASY TO MISS. The builder is not the only way to delete a plate;
-     the menu-item modal's "Delete everything" does it too. And it is not a blanket restriction,
-     because for a dish with NO plate the same button only removes the menu_items row — everyday
-     unpublishing, which 187 deliberately left staff able to do. */
+/* ⚠️ 255 — THIS TEST'S SUBJECT IS GONE, AND SAYING SO IS THE POINT.
+   It pinned a condition with two halves: hide "Delete everything" when the dish HAS a plate AND the
+   viewer is staff. Max reversed the role half on 10 Sep 2026, and the remaining half was never a
+   condition on this button at all — it was `!hasPlate || isOwner()`, so a plate-less dish showed the
+   button for everyone already. With the role gone, the button is shown in every case.
+   A first cut of this batch "tidied" that into `hidden = !hasPlate`, which reads better and newly
+   HID the button for a plate-less dish — a behaviour change nobody asked for, caught by the review.
+   So this now pins the thing that is true: the button is offered to every role, with or without a
+   plate, and the two roles get the SAME screen. */
+test('"Delete everything" is offered to every role, with or without a plate', () => {
   const linked = { D1: { id: 'D1', name: 'Fish', plate: { id: 'P1' } } };
   const loose = { D2: { id: 'D2', name: 'Soup', plate: null } };
 
-  const owner = harness({ menuById: linked });
-  owner.api.openDelChoice('D1', 'Fish');
-  assert.equal(owner.D.delChoiceAll.hidden, false, 'an owner is offered both');
-  assert.match(owner.D.delChoiceMsg.textContent, /or delete everything\?/);
+  for (const [label, role] of [['an owner', undefined], ['staff', 'staff']]) {
+    const withPlate = harness(role ? { menuById: linked, role } : { menuById: linked });
+    withPlate.api.openDelChoice('D1', 'Fish');
+    assert.equal(withPlate.D.delChoiceAll.hidden, false, `${label} is offered it on a dish WITH a plate`);
+    assert.match(withPlate.D.delChoiceMsg.textContent, /or delete everything\?/);
 
-  /* 255: the ROLE half of this condition is gone — staff may delete a plate. What was always the
-     real condition remains and is what the test now pins on both sides. */
-  const staff = harness({ menuById: linked, role: 'staff' });
-  staff.api.openDelChoice('D1', 'Fish');
-  assert.equal(staff.D.delChoiceAll.hidden, false, 'staff are offered the plate delete too now');
-  assert.match(staff.D.delChoiceMsg.textContent, /or delete everything\?/);
+    const noPlate = harness(role ? { menuById: loose, role } : { menuById: loose });
+    noPlate.api.openDelChoice('D2', 'Soup');
+    assert.equal(noPlate.D.delChoiceAll.hidden, false, `${label} is offered it on a dish with NO plate too`);
+  }
 
-  /* The half that never depended on the role: a dish with NO plate has nothing to delete, so the
-     button is not offered and the message stops asking a question with one answer. */
-  const ownerLoose = harness({ menuById: loose });
-  ownerLoose.api.openDelChoice('D2', 'Soup');
-  assert.equal(ownerLoose.D.delChoiceAll.hidden, true, 'no plate, no plate-delete — for an owner too');
-  assert.ok(ownerLoose.D.delChoiceMsg.textContent.indexOf('delete everything') < 0,
-    'and the message stops asking a question it no longer offers');
-
-  const staffLoose = harness({ menuById: loose, role: 'staff' });
-  staffLoose.api.openDelChoice('D2', 'Soup');
-  assert.equal(staffLoose.D.delChoiceAll.hidden, true, 'same answer for staff — the condition is the plate, not the role');
+  /* The two roles must agree, which is the whole of the reversal: before 255 these differed. */
+  const o = harness({ menuById: linked }); o.api.openDelChoice('D1', 'Fish');
+  const st = harness({ menuById: linked, role: 'staff' }); st.api.openDelChoice('D1', 'Fish');
+  assert.equal(st.D.delChoiceAll.hidden, o.D.delChoiceAll.hidden, 'staff and owner see the same button');
+  assert.equal(st.D.delChoiceMsg.textContent, o.D.delChoiceMsg.textContent, 'and the same words');
 });
+
 
 /* ---------------------------------------------------------------------------------------------
    4. THE GUARD AT THE ACTION, NOT ONLY AT THE BUTTON
@@ -360,11 +359,14 @@ test('every action the server refuses is guarded at the FUNCTION, not only at it
     assert.ok(!re.test(noComments(extractFn(SRC, name), 'block', 'line')),
       `${name} must NOT refuse a non-owner — Max reversed that on 10 Sep 2026`);
   });
-  /* The taught-pack removal is a listener rather than a named function, so it is pinned where it
-     lives, the same way the restore picker below is. */
+  /* ⚠️ THE TAUGHT-PACK REMOVAL IS DELIBERATELY UNGATED, and is asserted as such rather than left
+     out — an omission from a census reads as an oversight. The restriction was built and reverted:
+     `applyTidy` re-keys taught packs through the same delete with no role check anywhere in its
+     chain, so gating only this door produces a silent half-apply on a staff supplier rename.
+     tests/roles.test.js holds the server half of the same statement. */
   const smem = jsCode(SRC).slice(jsCode(SRC).indexOf(".smem-del').addEventListener"));
-  assert.match(smem.slice(0, 400), /ownerOnly\('remove a taught pack'\)/,
-    'removing a taught pack must refuse a non-owner itself');
+  assert.ok(!/ownerOnly\(/.test(smem.slice(0, 400)),
+    'removing a taught pack is NOT owner-gated — gating it alone half-applies a staff supplier rename');
   /* The restore is not a named function of its own — it is the file-picker pair — so it is pinned
      at both ends: the button that OPENS the picker and the change event that arrives afterwards,
      because a change can land after the row was hidden mid-flow. */

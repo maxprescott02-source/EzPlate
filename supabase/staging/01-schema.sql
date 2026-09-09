@@ -635,13 +635,11 @@ create policy "ingredients owner-only delete" on public.ingredients
   as restrictive for delete to public
   using ((select public.current_business_role()) = 'owner');
 
--- 255: taught packs. Reasoned from his stated reason rather than named by him — a taught pack
--- decides what every FUTURE import prices that product at, so it reaches other people's plates
--- one step later. Recorded as an inference in the migration header.
+-- 255: taught packs are NOT restricted, and this drop is deliberate rather than an omission. The
+-- first cut restricted them; it was reverted because `applyTidy`'s supplier rename re-keys every
+-- taught pack (delete-then-insert) through a chain with no owner gate, so the policy turned a staff
+-- rename into a silent half-apply. Full reasoning in 20260910_staff_deletes.sql.
 drop policy if exists "supplier_phrases owner-only delete" on public.supplier_phrases;
-create policy "supplier_phrases owner-only delete" on public.supplier_phrases
-  as restrictive for delete to public
-  using ((select public.current_business_role()) = 'owner');
 
 drop policy if exists "menus owner-only delete" on public.menus;
 create policy "menus owner-only delete" on public.menus

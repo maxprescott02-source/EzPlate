@@ -79,6 +79,14 @@ That is why `addProduct` is dead in the app and deliberately kept - the `fresh-s
 This run takes ~9 minutes, so the temptation is to background it and keep working. **Do not edit `js/app.js`, `index.html`, `css/style.css` or `tests/` while it is running** - it reads them off disk as it goes, so a mid-run edit means half the specs ran against one version and half against another, and the result describes neither.
 **It happened twice in three batches, and the second time was after the first had been written up** (246 and 248, AUDIT-v207 §3.2). The measured signature of the bad run:
 
+⚠️ **AND THE `code-review` AGENT MUTATES THE TREE, SO IT CANNOT RUN WHILE PLAYWRIGHT DOES.** (Batch 255, and it is the third discarded run of the same session by a route "commit first, run second" does not cover.)
+The rule above is about YOUR edits. The reviewer makes its own: it hand-applies mutations to `js/app.js` to check whether a finding is real — which is exactly what makes it worth running — and it does that in the working tree, on your branch, while your browser suite is halfway through reading those files.
+
+**The tell is a count, not a failure.** Measured: `npx playwright test --list` reported **492 tests in 60 files**, and the run finished **exit 0, no failures, 474 passed + 14 skipped = 488**. Four tests neither passed, failed nor skipped. Nothing in the output says so; you have to know the number.
+**So check the total against `--list` every time, and treat any shortfall as a discarded run** — this repo already records `node --test` printing `fail 0` while exiting 1, and this is the same class in the other harness: a green exit code that has not run what you think it ran.
+
+**Run them in sequence: review, then Playwright.** They are both slow and the temptation to overlap them is the whole problem.
+
 ```
 47 minutes   against a normal 8.6
 466 passed   where 474 was expected

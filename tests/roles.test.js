@@ -71,8 +71,13 @@ const RESTORE = code(RESTORE_MIGRATION);   // 219: the newest definition, not 18
    against a NAMED migration is a pin against a name.
    So every policy below is read from whichever migration LAST mentions it. */
 function newestPolicySource(policy) {
+  /* ⚠️ THE SELECTION IS MADE OVER `code(...)`, NOT RAW TEXT, and that was a review finding: the first
+     cut filtered on the raw file and only comment-stripped the winner. Roster 183(a) one level up —
+     the SELECTION step was searching prose, so a later migration whose only mention of a policy is a
+     `--` comment discussing it would be chosen as its newest source. This file's own header explains
+     that lesson for statements and the function underneath it did not apply it to files. */
   const files = fs.readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql')).sort()
-    .filter((f) => fs.readFileSync(path.join(MIGRATIONS_DIR, f), 'utf8').includes(`"${policy}"`));
+    .filter((f) => code(fs.readFileSync(path.join(MIGRATIONS_DIR, f), 'utf8')).includes(`"${policy}"`));
   assert.ok(files.length, `no migration mentions "${policy}" — the census names a policy nothing creates`);
   return code(fs.readFileSync(path.join(MIGRATIONS_DIR, files[files.length - 1]), 'utf8'));
 }
@@ -87,9 +92,8 @@ const RESTRICTED = [
   // 250: the food-cost history, on both series.
   { policy: 'price_history owner-only delete', table: 'price_history', cmd: 'delete' },
   { policy: 'menu_price_history owner-only delete', table: 'menu_price_history', cmd: 'delete' },
-  // 255: products and taught packs — the two that reach OTHER people's plates.
+  // 255: products. Taught packs were in this list and came OUT — see the test below.
   { policy: 'ingredients owner-only delete', table: 'ingredients', cmd: 'delete' },
-  { policy: 'supplier_phrases owner-only delete', table: 'supplier_phrases', cmd: 'delete' },
 ];
 for (const r of RESTRICTED) r.src = newestPolicySource(r.policy);
 
@@ -409,6 +413,8 @@ for (const name of ['price_history owner-only delete',
 
 const STAFF_DELETES = code(fs.readFileSync(
   path.join(MIGRATIONS_DIR, '20260910_staff_deletes.sql'), 'utf8'));
+const { loadApp, extractFn, noComments } = require('./_extractfn');
+const APP = loadApp();
 
 test('255: the plates owner-only delete is DROPPED, and not re-created anywhere', () => {
   assert.match(STAFF_DELETES, /drop policy if exists "plates owner-only delete" on public\.plates;/,
@@ -423,12 +429,36 @@ test('255: the plates owner-only delete is DROPPED, and not re-created anywhere'
     'the mirror drops it, so a staging built from an older copy converges on the new rule');
 });
 
-test('255: the two tables that reach OTHER people\'s plates are the ones restricted', () => {
+/* ⚠️ 255 — TAUGHT PACKS ARE DELIBERATELY NOT RESTRICTED, and the absence needs a test precisely
+   BECAUSE it is a deliberate absence. Nothing else distinguishes "we decided not to" from "nobody
+   got round to it", and the next reader with Max's quoted reason in front of them will conclude the
+   second and add the policy — reintroducing a silent half-apply on every staff supplier rename.
+   This test is the note that cannot go stale. */
+test('255: taught packs are NOT owner-only, and the reason is a COST rather than a disagreement', () => {
+  assert.match(STAFF_DELETES, /drop policy if exists "supplier_phrases owner-only delete"/,
+    'the migration drops it explicitly, so a database that got the first cut converges');
+  assert.ok(!/create policy "supplier_phrases owner-only delete"/.test(STAFF_DELETES),
+    'and does not create it');
+  assert.ok(!/create policy "supplier_phrases owner-only delete"/.test(MIR),
+    'nor does the mirror — re-running 01-schema.sql must not put it back on every staging rebuild');
+  /* The coupling that makes this a decision rather than an oversight: `applyTidy` re-keys taught
+     packs through dbDeleteSupplierPhrase, and nothing in that chain checks the role. Restricting the
+     table without gating that flow is the half-apply. If a future batch gates the flow, this test is
+     what tells it the two changes belong together. */
+  const tidy = noComments(extractFn(APP, 'applyTidy'), 'block', 'line');
+  assert.match(tidy, /dbDeleteSupplierPhrase\(/,
+    'applyTidy still deletes taught packs — if this ever stops being true, the cost above is gone '
+    + 'and the restriction can be reconsidered');
+  assert.ok(!/ownerOnly\(/.test(tidy),
+    'and it is still ungated — restricting supplier_phrases while this is true is the half-apply');
+});
+
+test('255: the table that reaches OTHER people\'s plates is the one restricted', () => {
   /* His reason, and the reason the split is where it is: a plate belongs to whoever built it, so
      deleting one destroys your own work. A product is the row every plate's cost is computed from,
      and a taught pack decides what every future import prices it at — both reach plates that are
      not yours. That is the line, not "how much damage can this do". */
-  for (const t of ['ingredients', 'supplier_phrases']) {
+  for (const t of ['ingredients']) {
     const i = STAFF_DELETES.indexOf(`create policy "${t} owner-only delete"`);
     assert.ok(i > -1, `${t} must gain an owner-only delete`);
     const head = STAFF_DELETES.slice(i, STAFF_DELETES.indexOf(';', i));

@@ -30,11 +30,10 @@
 --   So the two rules were exactly inverted against what he wanted, which is what item 91 measured
 --   and what AUDIT-v207 raised out of a question batch 250 handed off.
 --
--- ⚠️ TAUGHT PACKS WERE NOT NAMED IN HIS ANSWER. This is an INFERENCE from his stated reason and is
---   recorded as one rather than as a second answer he gave. A taught pack decides what a supplier's
---   line is worth on every FUTURE import, so removing one silently changes the price that lands on
---   every plate using that product. It reaches other people's plates by the same route as a product
---   does, one step later and less visibly. If he disagrees the fix is one `drop policy`.
+-- ⚠️ TAUGHT PACKS WERE NOT NAMED IN HIS ANSWER, WERE EXTENDED TO ON HIS REASON, AND THE EXTENSION
+--   WAS THEN REVERTED BY THE PRE-PUSH REVIEW. Full reasoning at the supplier_phrases block below.
+--   The short version: the inference was sound and turned out to COST something he had never been
+--   asked about, so it went back to him instead of shipping.
 --
 -- ⚠️ WHAT THE CLIENT ALREADY DID, so this is not the whole story and should not be read as it:
 --   `deleteIngredient` (which deletes a PRODUCT — the naming inversion) already REFUSES when the
@@ -101,13 +100,29 @@ create policy "ingredients owner-only delete" on public.ingredients
   using ((select public.current_business_role()) = 'owner');
 
 -- ---------------------------------------------------------------------------
--- supplier_phrases — the taught packs. See the inference note in the header: this one is reasoned
--- from his sentence rather than stated by it.
+-- supplier_phrases — NOT RESTRICTED. The drop below is deliberate, not an omission.
+--
+-- ⚠️ THE FIRST CUT OF THIS MIGRATION DID RESTRICT IT, reasoning from his stated harm: a taught pack
+-- decides what every FUTURE import prices a product at, so removing one reaches other people's plates
+-- the same way a product delete does, one step later. That reasoning still looks right. It was
+-- reverted because the pre-push review found what it COSTS, and the cost was not mine to accept for him.
+--
+-- `applyTidy`'s supplier rename/merge/clear RE-KEYS every taught pack for that supplier, and re-keying
+-- is delete-then-insert (`tidySupplierMemMigration`). NOTHING in that chain is owner-gated —
+-- openTidyManage, renderTidyValues, openTidy and applyTidy carry no role check at all. So with the
+-- policy in place, a staff supplier rename would: have its DELETE refused, drop the entry from local
+-- memory anyway, push the NEW row successfully, toast "Renamed supplier ... on N packs", and leave the
+-- OLD row on the server to reappear at the next boot. **That is CLAUDE.md's own orphaned-taught-pack
+-- trap, manufactured by this migration.** The honest fix would be to make renaming a supplier
+-- owner-only — a capability he never discussed, and exactly the kind of tidying a staff member does.
+--
+-- **So the question stopped being "is the inference sound" and became "is it worth staff losing
+-- supplier renames" — which is his, and which he has not been asked.** He named products; products is
+-- what this migration does.
+-- The lesson is one batch old and arrived immediately: when you hand a decision back, measure the cost
+-- you are handing over, because a cost stated wrongly is priced straight into the answer.
 -- ---------------------------------------------------------------------------
 drop policy if exists "supplier_phrases owner-only delete" on public.supplier_phrases;
-create policy "supplier_phrases owner-only delete" on public.supplier_phrases
-  as restrictive for delete to public
-  using ((select public.current_business_role()) = 'owner');
 
 commit;
 
