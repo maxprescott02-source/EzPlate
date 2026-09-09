@@ -80,10 +80,10 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 ⚠️ **Every line number in these items is a POINTER TO GREP, not a fact** — the consolidated file says so of itself, and the blind audit above is why. **Step one of each is the repro**, and "it does not reproduce" deletes the item and says so in the handover.
 *(G1's only [B — wrong number] item, 15, shipped in batch 244; what is left of the group is below. The two headings were folded into one when it went, because a section with a title and no items reads as work nobody has got to.)*
 
-## next  21 · Success is announced, and history is logged, before the write that justifies it has settled  **[B, unmeasured; a false completion message and a history point for a price that never landed]**
+## next  90 · The other three halves of item 21: a completion message, a delete sequence, and a boot-time replace  **[B, unmeasured]**
 
-**Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 21. One mechanism, four instances.
-⚠️ **`Do after: 20` DELETED 9 Sep 2026 — satisfied, AND ITS REASON FALSIFIED BY THE SAME BATCH.** 20 shipped as 246 / `ezplate-v203`, and its fix removed the fictional menu this item was told to reproduce as its deterministic failure trigger. **Nothing falls out of 20; this needs a trigger of its own** — a refused `menu_items` upsert injected at the client, copying `tests/visual/246-menus-read.spec.js`. Read the note on the item before planning.
+**Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 90.
+⚠️ **SPLIT OUT OF 21 BY BATCH 247, which shipped 21's history half as `ezplate-v204`.** 21 grouped four instances under one mechanism and only one of them shared it in substance: the history gating was fifteen call sites and a dedup interaction, the invoice completion message needs a COUNT of what landed rather than a boolean, the menu delete is a sequencing change, and the boot-time replace is a merge decision. **Each needs its own repro; none falls out of the others**, and 21's old `Do after: 20` reason was falsified by 246 before either could be used.
 
 ## next  22 · Nothing records when or how a price last moved  **[B, "Last change" reads a dash on 163 of 163 ingredients, including one whose unit cost doubled that minute]**
 

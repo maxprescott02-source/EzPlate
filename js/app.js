@@ -2122,6 +2122,12 @@ function commitPrice(uid,raw){
     // logs in agreement by remembering to call it at each site is exactly how the Products tab was
     // missed for 18 versions. logHistory stays — it is the OTHER log, the all-menus average.)
     setProduct(p.id,{cost_per_base_unit:base});
+   /* 247: NOT GATED, deliberately. `setProducts` returns a CHUNKED write whose verdict is a saved
+      manifest rather than a single error (see saveIngLog / writeSaved), so `!r||r.error` is the
+      wrong question here: a partial success really did move the average, and gating on the error
+      would drop a point that belongs on the line. The per-product series this path feeds is
+      already gated correctly by 224, at the manifest. Doing the same for the all-menus average
+      needs the manifest too, and is queued with the invoice half of item 21. */
     logHistory();
   }
   renderPlate();
@@ -2323,7 +2329,7 @@ function setDishSellPrice(dishId, price){
   var write=upsertCustomMenu({id:dishId, section:m.section, name:m.name, price:price,
     notes:(m.notes||''), custom:true, menuId:mid, plateId:plateId});
   rebuildMenu(); buildMenuOptions();
-  logHistory();
+  logHistory(write);   /* 247 */
   logChangeIfSaved(write, 'dish_price', {plateId:plateId, dishId:dishId, menuIds:[mid],
     avgBefore:avgBefore, detail:{name:m.name, priceFrom:was, priceTo:price, menuFrom:mid, menuTo:mid}});
   renderAnalysis(); renderPlatesTab();
@@ -3711,7 +3717,7 @@ function saveCurrentPlate(asNew){
   } else { _plateLanded(true); }
   syncBuilderPlateActions();                                         // a saved plate can now be duplicated and deleted
   renderBuilderCost(costFromLines(sp.lines));                        // the Publishing card becomes usable the moment the plate has an id
-  logHistory();                                                       // v60 item 1a: a plate re-cost changes the menu average — refresh a visible dashboard
+  logHistory(_write);   /* 247 */                                                       // v60 item 1a: a plate re-cost changes the menu average — refresh a visible dashboard
   logChangeIfSaved(_write, _isNew?'plate_created':'plate_edited', {plateId:sp.id,
     menuIds:menusOfPlate(sp).map(function(o){ return o.menuId; }),                 // every menu this re-cost moved; empty for an unpublished plate, which is a real state
     avgBefore:_avgBefore, costBefore:_costBefore, costAfter:costFromLines(sp.lines), detail:{name:sp.name}});
@@ -4871,7 +4877,40 @@ function menuComparisonRows(){
              // menus, not the ones that need attention.
              .sort(function(a,b){ return b.pct-a.pct || String(a.name).localeCompare(String(b.name)); });
 }
-function logHistory(){
+/* ⚠️ 247 — THE POINT WAITS FOR THE WRITE; THE REPAINT NEVER DOES. QUEUE item 21.
+   This function pushes a point onto the app's three food-cost series and, until this batch, it did so
+   the instant the in-memory mutation happened — before the `pushWrite` that decides whether the
+   mutation is real had settled. Fifteen of its eighteen call sites were optimistic that way. So a
+   dish price edit the server refused still put a point on the trend line saying the café's average
+   had moved, `pushWrite` toasted the failure, memory kept the new price, and the next boot read the
+   OLD price back from the server and left the point behind — a reading of a state that never existed,
+   in `price_history`, which is the table QUEUE item 89 exists because nothing can correct.
+   **THE PATTERN IS ALREADY IN THIS FILE TWICE and this series is the one that never got it:**
+   `logChangeIfSaved(write, …)` does it for the change log, and 224's `saveIngLog(write)` does it for
+   `ing_price_history` — whose comment says outright that it is "the discipline logChangeIfSaved
+   already applies to the change log, arriving on the series it was measuring against". Third time.
+   ⚠️ THE TWO HALVES SPLIT DELIBERATELY, because v60 item 1a is still true: a data-changing event must
+   ALWAYS refresh a visible dashboard, immediately, whatever the server later says. So the repaint
+   fires now and the POINT waits. Gating both would have made the header stale for a round trip on
+   every edit, which is the bug v60 fixed.
+   ⚠️ AND THE VALUE IS COMPUTED AFTER THE WRITE SETTLES, NOT BEFORE, which is not a detail. Computing
+   it early and pushing late would let two rapid edits both pass the near-duplicate check before
+   either landed, and stipple the line with a pair of points where the synchronous version wrote one.
+   Deferring the whole body keeps the dedup semantics exactly as they were.
+   Called with NO argument, it behaves as it always did — which is right for the three call sites
+   already inside a server-success branch (they have established the write landed) and for the paths
+   whose verdict is a manifest rather than a single error; see the note at `logHistoryPoint`. */
+function logHistory(write){
+  if(write && typeof write.then==='function'){
+    repaintDashboardIfVisible();                                      // v60 item 1a: liveness is not gated on anything
+    return Promise.resolve(write).then(function(r){
+      if(!r || r.error) return null;                                  // the mutation did not land, so nothing moved
+      return logHistoryPoint();
+    }, function(){ return null; });
+  }
+  return logHistoryPoint();
+}
+function logHistoryPoint(){
   // v60 item 1a (LIVENESS): a data-changing event (price edit, invoice apply, plate save) must ALWAYS
   // refresh a visible dashboard — the header "% today" and stat cards are computed live in renderDashboard,
   // so the fix is simply to re-render. Logging a NEW trend point is separate and still deduped: two edits a
@@ -5403,6 +5442,12 @@ function saveIngEdit(){
     base_unit:ub.base_unit, cost_basis:ub.cost_basis, cost_per_base_unit:price/ub.div,
     pack_qty:(isNaN(pq)?null:pq), pack_unit:(pu||null)});
   if(!isNaN(pq) && pq>0) syncMemoryToProduct(id, pq, (pu||'ea'));   // ITEM 1: no stale Remembered-items entry left behind
+   /* 247: NOT GATED, deliberately. `setProducts` returns a CHUNKED write whose verdict is a saved
+      manifest rather than a single error (see saveIngLog / writeSaved), so `!r||r.error` is the
+      wrong question here: a partial success really did move the average, and gating on the error
+      would drop a point that belongs on the line. The per-product series this path feeds is
+      already gated correctly by 224, at the manifest. Doing the same for the all-menus average
+      needs the manifest too, and is queued with the invoice half of item 21. */
   logHistory();
   renderIngredients(); if(typeof renderPlate==='function') renderPlate(); if(typeof renderAnalysis==='function') renderAnalysis();
   closeIngEdit(); toast('Product updated');
@@ -5890,7 +5935,7 @@ function saveKingModal(){
       var write=saveKitchenIngredients(); renderKitchenPanel(); rerenderCurrentTab();
       if(moved) logChangeIfSaved(write, 'ingredient_repointed', {menuIds:menuIdsForPlates(hit), avgBefore:avgBefore,
         detail:{name:chk.name, from:(byId[oldPid]||{}).description||null, to:(np||{}).description||null, plates:hit.length}});
-      if(moved) logHistory();   // v115 path 2: a repoint moves every plate that cooks with it — the trend line must move too. Inside if(moved): a rename is display-only and must not stipple the line.
+      if(moved) logHistory(write);   /* 247 */   // v115 path 2: a repoint moves every plate that cooks with it — the trend line must move too. Inside if(moved): a rename is display-only and must not stipple the line.
       toast(moved?(renamed?'Ingredient updated':'Product changed'):'Ingredient renamed'); };
     if(moved && g.needsConfirm){                                     // the guard belongs to the PRODUCT change — a rename alone can never change how anything is measured, so it must not fire here
       closeKingModal();                                             // close this modal first so the confirm sits cleanly on top
@@ -6127,7 +6172,7 @@ function deleteKitchenIngredient(kid){
     var write=saveKitchenIngredients(); renderKitchenPanel(); rerenderCurrentTab(); toast('Ingredient removed');
     logChangeIfSaved(write, 'ingredient_deleted', {menuIds:menuIdsForPlates(hit), avgBefore:avgBefore,
       detail:{name:k.name||null, plates:hit.length}});
-    logHistory();   // v115 path 5: the drop this records is real but has no saving behind it (see the comment above) — the change-log entry is what explains it later
+    logHistory(write);   /* 247 */   // v115 path 5: the drop this records is real but has no saving behind it (see the comment above) — the change-log entry is what explains it later
   });
 }
 (function(){
@@ -8468,7 +8513,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v203';
+var APP_VERSION='v204';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -10785,7 +10830,7 @@ function mmRemove(dishId){
   rebuildMenu(); buildMenuOptions(); buildMenuSelector(); renderAnalysis(); renderPlatesTab(); renderManageMenus();
   logChangeIfSaved(write, 'dish_removed', {plateId:plateId, dishId:dishId, menuIds:[mid], avgBefore:avgBefore,
     detail:{name:nm||null, price:m.price, via:'manage-menus'}});
-  logHistory();   // v115 path 10: after rebuildMenu() — computeAvgFoodCost reads MENU, which is stale until then
+  logHistory(write);   /* 247 */   // v115 path 10: after rebuildMenu() — computeAvgFoodCost reads MENU, which is stale until then
   toast('Removed from the menu — plate kept');
 }
 (function(){                                                         // Plates-tab + builder-page wiring
@@ -10999,7 +11044,7 @@ function linkDishToPlate(dish, sp){
   // the user on no menu at all, which is worse than staying where they were.
   if(menuIdOf(item)) setCurrentMenuId(menuIdOf(item));
   buildMenuSelector();
-  logHistory();                                                   // the dish now has a cost — the menu average and its price log move
+  logHistory(write);   /* 247 */                                                   // the dish now has a cost — the menu average and its price log move
   renderAnalysis(); renderPlatesTab();
   // openPublishModal is often reached FROM Manage menus, which would otherwise sit behind this showing
   // the pre-link state. Same refresh submitMenuItem does, and a no-op when that modal isn't open.
@@ -11049,7 +11094,7 @@ function submitMenuItem(){
   if(plan.action==='update'){ _write=upsertCustomMenu(item); }
   else { customMenu.push(item); _write=dbPushMenuAfterPlate({id:targetId,section:cat,name:name,price:parseFloat(priceV),notes:notes,menuId:chosenMenu,plateId:sp.id}, sp); }
   rebuildMenu(); buildMenuOptions(); setCurrentMenuId(chosenMenu); buildMenuSelector();
-  logHistory();   // v90: publishing a plate at a sell price changes the menu average and seeds that dish's price log
+  logHistory(_write);   /* 247 */   // v90: publishing a plate at a sell price changes the menu average and seeds that dish's price log
   if(plan.action!=='update'){
     logChangeIfSaved(_write, 'dish_added', {plateId:sp.id, dishId:targetId, menuIds:[chosenMenu], avgBefore:_avgBefore,
       costAfter:costFromLines(sp.lines), detail:{name:name, price:item.price, section:cat}});
@@ -13091,6 +13136,11 @@ function applyInvoice(){
     var kingWrite=saveKitchenIngredients(); renderKitchenPanel();
     repointLog.forEach(function(o){ logChangeIfSaved(kingWrite, 'ingredient_repointed', o); });
   }
+  /* 247: NOT GATED. This one call stands for a whole invoice apply — dozens of product writes
+     with no single verdict — and making it honest is the FIRST instance of item 21 (the
+     completion message that does not wait), which is split into its own queue item because it
+     needs the count of what landed, not a boolean. Left as it was rather than gated on the
+     `last_invoice_import` setting write beside it, which decides nothing about the prices. */
   if(n||added){ var iso=new Date().toISOString(); try{localStorage.setItem('cafeDB_lastImport',iso);}catch(e){} dbSetSetting('last_invoice_import',iso); logHistory(); }
   renderPlate(); renderAnalysis(); updateLastImport();
   var overAfter=dishesOverTarget();
@@ -13131,7 +13181,7 @@ function confirmGuardedRepoints(list){
       if(done){
         var write=saveKitchenIngredients(); renderKitchenPanel(); rerenderCurrentTab();
         entries.forEach(function(o){ logChangeIfSaved(write, 'ingredient_repointed', o); });
-        logHistory();   // v115 path 3: once for the whole confirm, after every repoint has landed — the invoice's own logHistory (applyInvoice) fired before these were applied, so its point does not reflect them
+        logHistory(write);   /* 247 */   // v115 path 3: once for the whole confirm, after every repoint has landed — the invoice's own logHistory (applyInvoice) fired before these were applied, so its point does not reflect them
       }
       toast(done+' ingredient'+(done===1?'':'s')+' re-linked');
     });
@@ -13388,11 +13438,15 @@ function doDeleteMenu(id, name){
      being awaited, which is pre-existing behaviour this batch is not in scope to change (the FK
      menu_items.menu_id -> menus.id is ON DELETE SET NULL, so unlike the plate case there is nothing to
      sequence against). Flagged in the handover rather than fixed. */
-  logChangeIfSaved(dbDeleteMenuRecord(id), 'menu_deleted', {menuIds:[id], avgBefore:avgBefore,
+  /* 247: the write is captured rather than inlined, because TWO things now depend on whether the menu
+     row actually went — the change-log entry and the trend point below. Passing the same promise to
+     both is what stops them disagreeing about whether the delete happened. */
+  var menuWrite=dbDeleteMenuRecord(id);
+  logChangeIfSaved(menuWrite, 'menu_deleted', {menuIds:[id], avgBefore:avgBefore,
     detail:{name:name||null, dishes:affected.length}});
   setCurrentMenuId(fallbackMenuId());
   rebuildMenu(); buildMenuSelector(); renderAnalysis(); updateMenuDelBtn(); if(typeof renderPlatesTab==='function') renderPlatesTab();
-  logHistory();   // v115 path 12: after rebuildMenu() \u2014 computeAvgFoodCost reads MENU, which is stale until then
+  logHistory(menuWrite);   /* 247 */   // v115 path 12: after rebuildMenu() \u2014 computeAvgFoodCost reads MENU, which is stale until then
   toast('\u201c'+name+'\u201d deleted'+(affected.length?(' \u2014 '+affected.length+' plate'+(affected.length===1?'':'s')+' came off it, still in your library'):''));
 }
 // v55: single confirm. Deleting a menu removes only that menu's dishes; every plate stays in the Plates
@@ -13499,7 +13553,7 @@ function submitAddDish(){
   var avgBefore=computeAvgFoodCost();                              // v114: before the push, for the same reason everywhere else — computeAvgFoodCost is live
   customMenu.push(item); var write=dbPushMenuAfterPlate(item, sp);
   rebuildMenu(); buildMenuOptions();
-  logHistory();   // v90: as above — a new priced dish moves the menu average and seeds its price log
+  logHistory(write);   /* 247 */   // v90: as above — a new priced dish moves the menu average and seeds its price log
   // v114: the SECOND path that puts a plate on a menu. v113 found this pair the hard way — both carried
   // the identical publish guard and only one was in the brief — so they log the identical kind.
   logChangeIfSaved(write, 'dish_added', {plateId:sp.id, dishId:id, menuIds:[currentMenuId], avgBefore:avgBefore,
@@ -13668,7 +13722,7 @@ function saveMenuEdit(){
   // v55: a dish keeps its own name/price/category per menu \u2014 editing it never renames the shared plate.
   var _write=upsertCustomMenu({id:id, section:cat, name:name, price:price, notes:(m.notes||''), custom:true, menuId:chosenMenu, plateId:_plateId});   // saves all edits at once
   rebuildMenu(); buildMenuOptions();
-  logHistory();   // v90: a sell-price edit moves the menu average AND is the event the sell-price log exists to catch. This path never logged either (the v60 item 1a liveness rule, missed here).
+  logHistory(_write);   /* 247 */   // v90: a sell-price edit moves the menu average AND is the event the sell-price log exists to catch. This path never logged either (the v60 item 1a liveness rule, missed here).
   if(_priceMoved || _menuMoved){
     logChangeIfSaved(_write, _priceMoved?'dish_price':'dish_moved',
       {plateId:_plateId, dishId:id, menuIds:_menuMoved?[_wasMenu, chosenMenu]:[chosenMenu], avgBefore:_avgBefore,
@@ -13779,7 +13833,7 @@ function doDeleteMenuOnly(){
   logChangeIfSaved(write, 'dish_removed', {plateId:plateId, dishId:id, menuIds:[mid], avgBefore:avgBefore,
     detail:{name:nm||null, price:price, via:'menu-tab'}});
   rebuildMenu(); buildMenuOptions(); updateEditTag(); renderPlate(); renderAnalysis(); renderPlatesTab(); closeDelChoice();
-  logHistory();   // v115 path 10: after rebuildMenu() \u2014 computeAvgFoodCost reads MENU, which is stale until then (NOT beside the logChangeIfSaved above, which would log the pre-delete average)
+  logHistory(write);   /* 247 */   // v115 path 10: after rebuildMenu() \u2014 computeAvgFoodCost reads MENU, which is stale until then (NOT beside the logChangeIfSaved above, which would log the pre-delete average)
   toast('\u201c'+nm+'\u201d removed from this menu \u2014 plate kept');
 }
 // v55: "delete everything" deletes the plate AND every menu entry backed by it (across all menus).

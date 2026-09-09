@@ -474,6 +474,14 @@ const targets = [
      $-1.08 and saved it there. Listed for 184's reason: `setQty` and `commitPrice` guard, this one
      did not, and nothing had ever asked the question of any of the three at this level. */
   { fn: 'setMiscCost', tests: ['misc-cost-sign.test.js'] },
+  /* 247 — the gate that decides whether a food-cost trend point describes a write that landed.
+     Neither this nor `logChangeIfSaved` had ever been a target, which is 184's rule again: the two
+     functions that decide what goes into the app's permanent record had never been asked the
+     question. `logHistory`'s branch is small and every arm of it matters — gating the repaint would
+     make the dashboard stale for a round trip (v60 item 1a), and inverting the error test would log
+     exactly the points that should not exist. Both were confirmed red by hand before listing. */
+  { fn: 'logHistory', tests: ['history-paths.test.js'] },
+  { fn: 'logChangeIfSaved', tests: ['history-paths.test.js', 'change-log.test.js'] },
 ];
 
 /*
