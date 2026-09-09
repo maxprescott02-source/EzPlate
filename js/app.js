@@ -5412,6 +5412,25 @@ function barePidHealMessage(plan, products){
   }
   return out.join('\n\n');
 }
+/* ⚠️ THE ONE CONDITION THE HEAL'S SAFETY RESTS ON, in one place because the PLAN proves it and the
+   WRITE has to re-prove it: the ingredient about to be written ALREADY points at the product this
+   line ALREADY points at. That is what makes `lineProduct` answer the same product on both sides,
+   and it is the entire basis of the promise in the confirm — "nothing costs a different amount
+   afterwards".
+   The plan is made when the confirm OPENS and applied when it is pressed, and `bootstrapSync`
+   replaces BOTH `kitchenIngredients` and `savedPlates` in between whenever the `online` listener
+   fires — which is this app's user, on café mobile data. Re-checking the line's SHAPE is not
+   enough, and this was shipped checking only that:
+     · a relink moves `k.pid` under a plan that named that kid, so the line lands on a DIFFERENT
+       product; or
+     · a re-sync reorders `lines`, so index `i` is now a different bare-pid line entirely.
+   Either way the write is a real cost change the user never agreed to, with no error, and a
+   change-log entry whose figures are null BY DESIGN — so nothing on any screen could notice. Found
+   by the pre-push review (batch 239); the mechanism it gave was right and its repro reproduces. */
+function barePidSameProduct(kids, kid, pid){
+  var k=(kids||{})[kid];
+  return !!(k && pid && k.pid===pid);
+}
 /* The write half. One dbPushPlate per touched plate, and one change-log entry per plate that the
    server took — never one for the batch, because a plate whose write failed did not happen.
    ⚠️ THE FIGURES ARE DELIBERATELY NULL. avgBefore/avgAfter drive the trend markers and the
@@ -5441,6 +5460,9 @@ function applyBarePidHeal(plan){
       // re-checked against the array as it is NOW: the plan was made a confirm ago, and a line that
       // has changed shape since is not the line the plan was about.
       if(!l || l.misc || l.kid || !l.pid) return;
+      // ...and the shape is not enough. See barePidSameProduct: this is the plan's own proof, made
+      // again against the ingredients as they stand at the moment of the write.
+      if(!barePidSameProduct(kById, m.kid, l.pid)) return;
       lines[m.i]={kid:m.kid, qty:l.qty}; moved++;
     });
     if(!moved) return;
@@ -5450,10 +5472,14 @@ function applyBarePidHeal(plan){
   return Promise.all(jobs).then(function(res){
     var okPlates=0, okLines=0, bad=0;
     res.forEach(function(r){ if(r.ok){ okPlates++; okLines+=r.lines; } else bad++; });
-    if(okLines) rerenderCurrentTab();
+    // unconditional: if every move was refused by the re-check above, the plan is stale precisely
+    // BECAUSE the data moved, so the row's own count is stale too and has to be worked out again.
+    rerenderCurrentTab();
     if(okLines && !bad) toast('Fixed '+okLines+' line'+(okLines===1?'':'s')+' in '+okPlates+' plate'+(okPlates===1?'':'s'));
     else if(okLines) toast('Fixed '+okLines+' line'+(okLines===1?'':'s')+' — '+bad+' plate'+(bad===1?'':'s')+' could not be saved');
     else if(bad) toast('Nothing was saved — try again');
+    // and never silence: pressing a button and being told nothing is how a user concludes it worked.
+    else toast('Nothing to change — those plate lines have already moved');
     return {plates:okPlates, lines:okLines, failed:bad};
   });
 }

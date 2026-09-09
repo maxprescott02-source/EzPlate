@@ -352,6 +352,7 @@ const targets = [
      meant, which is a silently wrong cost. applyBarePidHeal owns the rollback. */
   { fn: 'lineProduct', tests: ['plate-cost.test.js', 'bare-pid-heal.test.js'] },
   { fn: 'barePidPlan', tests: ['bare-pid-heal.test.js'] },
+  { fn: 'barePidSameProduct', tests: ['bare-pid-heal.test.js'] },
   { fn: 'barePidLinesFor', tests: ['bare-pid-heal.test.js'] },
   { fn: 'applyBarePidHeal', tests: ['bare-pid-heal.test.js'] },
   { fn: 'healBarePidPlate', tests: ['bare-pid-heal.test.js'] },

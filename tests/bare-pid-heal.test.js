@@ -245,11 +245,12 @@ test('a product that is GONE is named by its id rather than crashing or printing
  * ========================================================================================== */
 
 function healSandbox(opts) {
-  const S = { writes: [], pushed: [], fail: {}, reject: {}, toasts: [] };
+  const S = { writes: [], pushed: [], fail: {}, reject: {}, toasts: [], repaints: 0 };
   // eslint-disable-next-line no-new-func
   const factory = new Function('S', `"use strict";
     var savedPlates=${JSON.stringify(opts.savedPlates)};
     var kitchenIngredients=${JSON.stringify(opts.kings)};
+    var kById={}; kitchenIngredients.forEach(function(k){ if(k&&k.id) kById[k.id]=k; });
     var byId=${JSON.stringify(opts.byId || {})};
     var MENU=${JSON.stringify(opts.MENU || [])};
     var menusList=${JSON.stringify(opts.menusList || [])};
@@ -262,7 +263,10 @@ function healSandbox(opts) {
       return Promise.resolve(S.fail[sp.id] ? {error:{message:'42501'}} : {ok:true}); }
     function dbPushChange(e){ S.pushed.push(e); return Promise.resolve({ok:true}); }
     function toast(m){ S.toasts.push(m); }
-    function rerenderCurrentTab(){}
+    /* Counted, not a no-op: this call is what makes the Settings row (and its verb) recompute after
+       a heal, and it is the ONLY thing that does. A no-op stub makes "call it" and "do not call it"
+       the same program — the note tests/_extract.js carries about stubbing real functions flat. */
+    function rerenderCurrentTab(){ S.repaints++; }
     function repaintDashboardIfVisible(){}
     function computeAvgFoodCost(){ throw new Error('the heal must not read the average — it moves none'); }
     ${extractVar(SRC, '_uidSeq')}
@@ -270,7 +274,7 @@ function healSandbox(opts) {
     ${extractFn(SRC, 'uid')}
     ${['plateIdOf', 'dishesOfPlate', 'menuIdOf', 'menusOfPlate', 'menuIdsForPlates',
        'changeEntry', 'nextChangeId', 'logChange',
-       'barePidPlan', 'barePidFixCount', 'healBarePidPlate', 'applyBarePidHeal']
+       'barePidPlan', 'barePidFixCount', 'barePidSameProduct', 'healBarePidPlate', 'applyBarePidHeal']
       .map((n) => extractFn(SRC, n)).join('\n')}
     var CHANGE_KINDS=${JSON.stringify(kindsFromSource())};
     return {
@@ -278,6 +282,7 @@ function healSandbox(opts) {
       runPlan:function(p){ return applyBarePidHeal(p); },
       plan:function(){ return barePidPlan(savedPlates, kitchenIngredients); },
       plates:function(){ return savedPlates; },
+      kids:function(){ return kById; },
       log:function(){ return changeLog; }
     };`);
   return { S, api: factory(S) };
@@ -309,6 +314,7 @@ test('one write per touched plate, and the lines are rewritten in memory', async
   assert.deepStrictEqual(api.plates()[0].lines, [{ kid: 'K1', qty: 10 }]);
   assert.deepStrictEqual(api.plates()[1].lines, [{ kid: 'K1', qty: 5 }, { kid: 'K1', qty: 1 }]);
   assert.deepStrictEqual(S.toasts, ['Fixed 2 lines in 2 plates'], 'and it says what it did, plurals and all');
+  assert.equal(S.repaints, 1, 'and the screen is repainted, which is what retires the Settings row');
 });
 
 test('the success toast counts LINES and PLATES separately, and gets the singulars right', async () => {
@@ -391,9 +397,68 @@ for (const [what, lines] of RESHAPED) {
   });
 }
 
-test('a plan naming a plate that has since been deleted writes nothing', async () => {
+test('a plan naming a plate that has since been deleted writes nothing, and SAYS nothing happened', async () => {
   const { S, api } = healSandbox(writeCase());
   const r = await api.runPlan({ fix: [{ plateId: 'SP_GONE', name: 'X', moves: [{ i: 0, kid: 'K1' }] }], orphan: [] });
+  assert.deepStrictEqual(S.writes, []);
+  assert.deepStrictEqual(r, { plates: 0, lines: 0, failed: 0 });
+  assert.deepStrictEqual(S.toasts, ['Nothing to change — those plate lines have already moved'],
+    'pressing a button and being told nothing is how a user concludes it worked');
+  assert.equal(S.repaints, 1,
+    'repainted even though nothing was written: a stale plan means the DATA moved, so the row\'s own count is stale too');
+});
+
+/* =============================================================================================
+ * 5b. The confirm-to-apply window — found by the pre-push review, and it is the whole safety claim
+ *
+ * The plan is built when the confirm OPENS and applied when it is PRESSED. `bootstrapSync` replaces
+ * BOTH kitchenIngredients and savedPlates in between whenever the `online` listener fires, which on
+ * this app's user is café mobile data. The shipped first cut re-checked the LINE'S SHAPE only, which
+ * is not the condition the safety argument rests on — and the two failures below both write a
+ * product the user never agreed to, with no error and a change-log entry whose figures are null by
+ * design, so nothing on any screen could notice.
+ * ========================================================================================== */
+
+const sameProduct = new Function(`"use strict";
+  ${extractFn(SRC, 'barePidSameProduct')} return barePidSameProduct;`)();
+
+test('barePidSameProduct is the identity, not a presence check', () => {
+  const kids = { K1: { id: 'K1', pid: 'P1' }, K2: { id: 'K2', pid: null } };
+  assert.equal(sameProduct(kids, 'K1', 'P1'), true);
+  assert.equal(sameProduct(kids, 'K1', 'P2'), false, 'the ingredient exists and points somewhere else');
+  assert.equal(sameProduct(kids, 'K_GONE', 'P1'), false);
+  assert.equal(sameProduct(kids, 'K2', null), false, 'null === null must not read as "same product"');
+  assert.equal(sameProduct(null, 'K1', 'P1'), false);
+});
+
+test('the ingredient was RELINKED while the confirm was open: the line is left alone', async () => {
+  const { S, api } = healSandbox(writeCase());
+  const plan = api.plan();
+  // saveKingModal on another device, arriving here through bootstrapSync's `online` re-run
+  api.kids().K1.pid = 'P9';
+  const r = await api.runPlan(plan);
+  assert.deepStrictEqual(api.plates()[0].lines, [{ pid: 'P1', qty: 10 }], 'still on the product it named');
+  assert.deepStrictEqual(S.writes, [], 'and nothing was written at all');
+  assert.deepStrictEqual(r, { plates: 0, lines: 0, failed: 0 });
+  assert.deepStrictEqual(api.log(), []);
+});
+
+test('a re-sync REORDERED the lines: the index now names a different product, and nothing is written', async () => {
+  const c = writeCase();
+  c.kings = [{ id: 'K1', name: 'Chips', pid: 'P1' }, { id: 'K2', name: 'Salt', pid: 'P7' }];
+  c.savedPlates = [{ id: 'SP1', name: 'Fish', lines: [{ pid: 'P1', qty: 10 }, { pid: 'P7', qty: 2 }] }];
+  const { S, api } = healSandbox(c);
+  const plan = api.plan();
+  assert.equal(plan.fix[0].moves.length, 2, 'both lines were plannable before the re-sync');
+  // bootstrapSync hands back the same plate with its lines the other way round
+  api.plates()[0].lines = [{ pid: 'P7', qty: 2 }, { pid: 'P1', qty: 10 }];
+  const r = await api.runPlan(plan);
+  /* Both moves are refused, which is the SAFE answer rather than the clever one: index 0 now holds
+     P7 and the plan says K1 (which owns P1), index 1 holds P1 and the plan says K2. Healing them
+     "correctly" by re-deriving the owner here would be a second planner living inside the writer —
+     a stub of barePidPlan that agrees with it right up until it does not. The row recomputes on the
+     next Settings render and the user presses Fix again against a plan that is true. */
+  assert.deepStrictEqual(api.plates()[0].lines, [{ pid: 'P7', qty: 2 }, { pid: 'P1', qty: 10 }]);
   assert.deepStrictEqual(S.writes, []);
   assert.deepStrictEqual(r, { plates: 0, lines: 0, failed: 0 });
 });
