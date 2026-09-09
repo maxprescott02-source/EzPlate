@@ -109,12 +109,17 @@ test('confirming rewrites the line, leaves the cost alone, and retires the fixab
   expect(after.lines[2]).toEqual([{ pid: 'P0002', qty: 50 }]);   // refused, and left exactly as it was
   expect(after.costs).toEqual(costBefore);                        // the whole safety argument
   expect(after.log).toEqual(['plate_relinked']);
-  /* The row survives as the report of the one line nothing can decide, and stops saying "Fix".
+  /* ⚠️ REWRITTEN BY 249, WHICH REVERSED WHAT THIS ASSERTED. 239 kept this row visible after the
+     fixable half was gone, with its button reading "Show", as the standing report of the line
+     nothing could decide. QUEUE item 88 is that such a line CAN be decided — by a person — so the
+     report became an ask, and the ask is a second row (#setOrphanRow) that can act on it.
+     The property is unchanged and is what is asserted: after the heal, the line nothing could fix
+     is still FINDABLE in Settings. It is now findable somewhere that can do something about it.
      Checked BEFORE the relink below, because relinking K1 onto the orphaned product makes that
      line decidable again — correctly, and it would read here as the heal not having run. */
   await page.evaluate(() => window.showTab('settings'));
-  await expect(page.locator('#setHealRow')).toBeVisible();
-  await expect(page.locator('#setHealLines')).toHaveText('Show');
+  await expect(page.locator('#setOrphanRow')).toBeVisible();
+  await expect(page.locator('#setHealRow')).toBeHidden();
   /* And the point of the item: a relink now reaches the line that it could not reach before. */
   // eslint-disable-next-line no-undef
   const moved = await page.evaluate(() => {

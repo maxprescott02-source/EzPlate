@@ -18,7 +18,13 @@ const SEED = () => {
     { id: 'PL1', name: 'Bacon Bene', category: 'Mains', lines: [{ pid: 'P0108', qty: 100 }] },
     { id: 'PL2', name: "Scoopy's Breakfast", category: 'Mains', lines: [{ pid: 'P0108', qty: 50 }] },
   ]));
-  localStorage.setItem('cafeDB_menu', JSON.stringify([]));
+  /* Both plates are ON a menu, at a price. Without dishes `computeAvgFoodCost` is null and every
+     change-log average is null too — which is correct behaviour and would make the composition test
+     below vacuous, so the fixture has to give the app an average that can actually move. */
+  localStorage.setItem('cafeDB_menu', JSON.stringify([
+    { id: 'D1', name: 'Bacon Bene', section: 'Mains', price: 18, custom: true, menuId: 'M1', plateId: 'PL1' },
+    { id: 'D2', name: "Scoopy's Breakfast", section: 'Mains', price: 22, custom: true, menuId: 'M1', plateId: 'PL2' },
+  ]));
 };
 
 async function boot(page, width) {
@@ -90,6 +96,51 @@ for (const [name, width] of [['mobile', 380], ['desktop', 1280]]) {
     expect(errs).toEqual([]);
   });
 }
+
+test('249 (review): each plate logs its OWN share of the drop, not the whole batch\'s', async ({ page }) => {
+  /* THE CRITICAL FINDING of 249's pre-push review, pinned end to end.
+     `logChange` defaults an omitted `avgAfter` to a LIVE `computeAvgFoodCost()`, evaluated when that
+     plate's write settles — by which time EVERY plate in the batch has already been mutated. So the
+     first cut logged two entries both carrying the whole batch's movement, and `trendMarkers` sums
+     `drop` per calendar day: the chart showed twice the real fall for a two-plate choice.
+     The fix is the invoice repoint loop's pattern — measure the pair around each plate's own
+     mutation — and this asserts the property that pattern exists for: **the entries COMPOSE.**
+     `changeLog` is a `var`, so unlike `savedPlates` it really is on `window`. */
+  const errs = await boot(page, 1280);
+  await gotoTab(page, 'settings');
+  await page.locator('#setLinkOrphans').click();
+  await page.waitForTimeout(400);
+  await page.locator('#orphanLinkList .ad-item').first().click();
+  await page.waitForTimeout(900);
+
+  const log = await page.evaluate(() => window.changeLog
+    .filter((e) => e.detail && e.detail.via === 'orphan-link')
+    .map((e) => ({ before: e.avgBefore, after: e.avgAfter })));
+  expect(log.length).toBe(2, 'one entry per plate, which is what makes the sum wrong if they overlap');
+
+  /* Every figure is a real number — a null pair would make the assertions below vacuous, which is
+     the 205 shape ("these two agree about X" is satisfied when neither has an X). */
+  log.forEach((e) => {
+    expect(typeof e.before).toBe('number');
+    expect(typeof e.after).toBe('number');
+  });
+
+  /* THE PROPERTY: the entries chain. Plate B's "before" is plate A's "after", because B was measured
+     after A had already moved. Two entries each carrying the batch's whole span would instead be
+     identical, which is exactly what the defect looked like. */
+  const spans = log.map((e) => e.after - e.before);
+  expect(Math.abs(log[1].before - log[0].after)).toBeLessThan(0.051, 'B starts where A finished');
+  expect(spans[0]).not.toBe(0);
+  expect(spans[1]).not.toBe(0);
+
+  /* And the sum the day's trend marker actually draws is the WHOLE movement, once — not twice it. */
+  const total = log[0].before - log[1].after;
+  const summed = spans.reduce((a, b) => a + (b * -1), 0);
+  expect(Math.abs(summed - total)).toBeLessThan(0.051,
+    'the per-plate drops add up to the batch drop; before the fix they added up to double it');
+
+  expect(errs).toEqual([]);
+});
 
 test('"Leave these alone" writes nothing and keeps the row', async ({ page }) => {
   /* Refusing is a legitimate answer and must stay one — item 88 says so, because a plate line may

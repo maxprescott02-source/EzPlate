@@ -6235,11 +6235,16 @@ function applyBarePidHeal(plan){
    through rather than what happened.
    Rollback per plate, one handler, one verdict — the same reason `healBarePidPlate` does not call
    `logChangeIfSaved`: a second handler on the same promise is a second copy of the success test. */
-function linkOrphanPlate(sp, before, moved, costBefore, costAfter, avgBefore, write){
+function linkOrphanPlate(sp, before, moved, costBefore, costAfter, avgBefore, avgAfter, write){
   return Promise.resolve(write).then(function(r){
     if(!r || r.error){ sp.lines=before; return {ok:false, lines:0}; }
+    /* ⚠️ BOTH AVERAGES ARE PASSED, and `avgAfter` especially. `logChange` defaults an omitted
+       `avgAfter` to a LIVE `computeAvgFoodCost()` — evaluated when this promise settles, which is
+       after EVERY plate in the batch has already been mutated. The first cut omitted it, so all N
+       entries carried the same whole-batch movement, and `trendMarkers` sums `drop` per calendar
+       day: the chart showed N times the real fall. Found by the pre-push review. */
     logChange('plate_edited', {plateId:sp.id, menuIds:menuIdsForPlates([sp]),
-      avgBefore:avgBefore, costBefore:costBefore, costAfter:costAfter,
+      avgBefore:avgBefore, avgAfter:avgAfter, costBefore:costBefore, costAfter:costAfter,
       detail:{name:sp.name||'', lines:moved, via:'orphan-link'}});
     return {ok:true, lines:moved};
   }, function(){ sp.lines=before; return {ok:false, lines:0}; });
@@ -6255,7 +6260,6 @@ function linkOrphanPlate(sp, before, moved, costBefore, costAfter, avgBefore, wr
 function applyOrphanChoice(pid, kid){
   var k=(kById||{})[kid];
   if(!pid || !k) return Promise.resolve({plates:0, lines:0, failed:0});
-  var avgBefore=computeAvgFoodCost();                 // live, so BEFORE the mutation (CLAUDE.md)
   var jobs=[];
   (savedPlates||[]).forEach(function(sp){
     if(!sp || !Array.isArray(sp.lines)) return;
@@ -6266,10 +6270,20 @@ function applyOrphanChoice(pid, kid){
       lines[i]={kid:kid, qty:l.qty}; moved++;
     });
     if(!moved) return;
+    /* ⚠️ THE PAIR IS MEASURED AROUND THIS PLATE'S OWN MUTATION, which is the invoice repoint loop's
+       pattern and its comment says why: "the entries compose in sequence rather than each claiming
+       the whole batch's movement". `computeAvgFoodCost` is live, so before must be read before the
+       assignment and after immediately following it — one line either side, in the loop, per plate.
+       The first cut read ONE average before the loop and let `logChange` default the other, which
+       gave every entry the whole batch's drop and made the day's trend marker N times too big. */
+    var avgBefore=computeAvgFoodCost();
     sp.lines=lines;                                   // optimistic, exactly as every other write here
-    jobs.push(linkOrphanPlate(sp, before, moved, cb, costFromLines(lines), avgBefore, dbPushPlate(sp)));
+    jobs.push(linkOrphanPlate(sp, before, moved, cb, costFromLines(lines), avgBefore, computeAvgFoodCost(), dbPushPlate(sp)));
   });
-  if(!jobs.length) return Promise.resolve({plates:0, lines:0, failed:0});
+  /* No early return on an empty batch, deliberately: `applyBarePidHeal` has none either, and its
+     comment is the reason — "never silence: pressing a button and being told nothing is how a user
+     concludes it worked". An empty batch is exactly the re-sync race this function guards for, and
+     it is the case a person most needs told about. (Pre-push review, 249.) */
   return Promise.all(jobs).then(function(res){
     var okPlates=0, okLines=0, bad=0;
     res.forEach(function(r){ if(r.ok){ okPlates++; okLines+=r.lines; } else bad++; });
@@ -6348,7 +6362,7 @@ function renderOrphanChoice(){
     msg.textContent=g.lines+' line'+s(g.lines)+' in '+g.plates.length+' plate'+s(g.plates.length)+' cost off \u201c'+nm+'\u201d'
       +(names?' ('+names+')':'')+'. '
       +(g.why==='ambiguous'
-        ? 'More than one ingredient uses that product, so the app will not choose between them. Either costs the same.'
+        ? 'More than one ingredient uses that product, so the app will not choose between them. The ones that use it cost the same as each other; anything else below re-costs every line, and each row says what those plates would cost.'
         : 'No ingredient uses that product any more, so nothing can tell which one was meant. Picking one re-costs every line \u2014 each row below says what those plates would cost.')
       +(_orphanQueue.length>1 ? ' ('+_orphanQueue.length+' products to go.)' : '');
   }
