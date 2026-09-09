@@ -295,6 +295,27 @@ jobs:
           # and it must fetch Chromium ONLY, not Firefox and WebKit as well.
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
 
+      # ⚠️ THIS JOB DOES NOT INSTALL CHROME FROM apt AND MUST NOT DEPEND ON GOOGLE'S REPO.
+      # Playwright downloads its own Chromium build; the two steps below only apt-install the
+      # Ubuntu libraries that build links against. But both of them run `apt-get update`
+      # internally, which refreshes EVERY repo configured on the runner image - and Google's
+      # Chrome repo is one of those, preinstalled, used by nothing here. `apt-get update`
+      # fails as a whole (exit 100) when any single index is bad, so a third party we do not
+      # use can stop the browser suite booting.
+      #
+      # MEASURED 9 Sep 2026, and it is a persistent break rather than a flake: dl.google.com
+      # served a Packages.gz whose SHA256 (bc1428ab...) did not match the digest its own
+      # Release file declared (233e56de...) - 3 requests of 3 from a laptop, and twice in CI
+      # 16 minutes apart. The job failed at this step in 17-19 seconds with NO spec executed,
+      # which is the tell: a setup failure and a real regression both show up as one red X.
+      # That matters more than the outage, because Playwright is NOT a required check here,
+      # so a permanently-red browser job trains the next batch to read past the one net that
+      # catches what the pre-push hook cannot (batch 214 shipped a hidden control that way).
+      #
+      # `rm -f` is a no-op if the file is ever absent, so this cannot itself break the job.
+      - name: Drop the Google Chrome apt source (unused here, and it breaks apt-get update)
+        run: sudo rm -f /etc/apt/sources.list.d/google-chrome.list
+
       # Key the browser cache on the exact resolved Playwright version, not on the
       # lockfile hash: a lockfile change that does not move Playwright should still
       # hit the cache, and a Playwright bump must always miss it (the browser build
