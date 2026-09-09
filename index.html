@@ -102,7 +102,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=200">
+<link rel="stylesheet" href="css/style.css?v=201">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -849,7 +849,7 @@
                      and this line saying who can change it. -->
                 <p class="stg-help" id="setCogsHelp">Share of the sell price going to ingredients. Drives suggested prices and the target line.</p>
               </div>
-              <div class="stg-ctl cogs-in"><input id="setCogsInput" type="number" min="1" max="99" step="1" inputmode="numeric"><span class="pct">%</span></div>
+              <div class="stg-ctl cogs-in"><input id="setCogsInput" type="number" min="1" max="99" step="0.1" inputmode="decimal"><span class="pct">%</span></div>
             </div>
             <!-- the mock's Costing card carries "Prices include GST" as a switch. R2: the app's control
                  is a two-option SELECT and it means "assume this when the invoice does not say", which
@@ -1798,7 +1798,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=200"></script>
+<script src="js/app.js?v=201"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —

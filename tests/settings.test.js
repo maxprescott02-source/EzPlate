@@ -262,9 +262,17 @@ function cogsHarness() {
     "use strict";
     var localStorage = { getItem:function(k){return (k in STORE)?STORE[k]:null;}, setItem:function(k,v){STORE[k]=String(v);} };
     var document = { getElementById: function(){ return null; } };
-    function dbSetSetting(k,v){ WRITES.push({key:k, value:v}); }
+    /* 244: dbSetSetting is pushWrite-wrapped, so its REAL contract is a promise resolving to the
+       result or to {error} and never to null — and setCogs now reads that answer to decide whether
+       the number stands. A stub returning undefined would look like a refusal and roll every one of
+       these edits back a microtask after the assertion, which is a green test over a broken app. */
+    function dbSetSetting(k,v){ WRITES.push({key:k, value:v}); return Promise.resolve({data:[{key:k, value:v}]}); }
     function renderAnalysis(){}
     var cogsPct = 40;
+    var cogsServer = 40;
+    var _cogsSeq = 0, _cogsConfirmed = 0;
+    ${extractFn(APP, 'cogsRound')}
+    ${extractFn(APP, 'applyCogs')}
     ${extractFn(APP, 'foodTarget')}
     ${extractFn(APP, 'setCogs')}
     ${extractFn(APP, 'analyze')}
@@ -298,7 +306,13 @@ test('ITEM 6: the target stays clamped to a sane range from any entry point', ()
   const { api } = cogsHarness();
   api.setCogs(0, true);   assert.equal(api.get(), 1,  'floor');
   api.setCogs(500, true); assert.equal(api.get(), 99, 'ceiling');
-  api.setCogs(37.6, true); assert.equal(api.get(), 38, 'rounded');
+  /* 244 / QUEUE item 25: the precision moved from integer to ONE DECIMAL, and this assertion is
+     rewritten rather than deleted. It used to read 37.6 -> 38, which was the defect: bootstrapSync
+     accepted any float in [1,99] and fmtTargetPct renders a decimal, so a 32.5 restored from a
+     backup was loadable and renderable and NOT settable — the first touch of this field rewrote it.
+     Two decimals still round, because that is a precision nothing in the app can print. */
+  api.setCogs(37.6, true); assert.equal(api.get(), 37.6, 'one decimal is settable');
+  api.setCogs(37.64, true); assert.equal(api.get(), 37.6, 'and is the limit — a second decimal rounds');
 });
 
 /* ---------- the Menu tab actually gave up its editor ---------- */

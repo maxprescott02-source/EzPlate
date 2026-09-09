@@ -458,6 +458,17 @@ const targets = [
   { fn: 'createBusinessState', tests: ['cafe-create.test.js'] },
   { fn: 'cafeNameProblem', tests: ['cafe-create.test.js'] },
   { fn: 'cafeNameClean', tests: ['cafe-create.test.js'] },
+  /* 244 — THE FOOD-COST TARGET, which is the one number every suggested price and every good/bad
+     colour in the app is divided by. It is here for 184's stated reason and not because anything
+     else is suspected: `setCogs` had never been a target, so the question had never been asked, and
+     what it was hiding was that a REFUSED write left the new number on screen — a $6 dish reading
+     $20 against a 30% the server had rejected. Both guards in the rollback are load-bearing and
+     both were confirmed red by hand before this was listed: which value it rolls back to (the last
+     CONFIRMED one, not the previous client one) and whether a superseded refusal may move the
+     screen at all. `cogsRound` is the precision the setter and the boot read now share; flipping
+     either clamp silently widens the range the server is asked to store. */
+  { fn: 'setCogs', tests: ['cogs-rollback.test.js'] },
+  { fn: 'cogsRound', tests: ['cogs-rollback.test.js'] },
 ];
 
 /*
@@ -1030,6 +1041,17 @@ const allowedSurvivors = [
     reason: 'At exactly 60 points `a.slice(-60)` returns a copy of the whole array, and `a` IS `ingPriceLog[pid]` '
       + 'already, so the mutant re-assigns an identical series. Nothing holds a second reference to it: the only '
       + 'reader is ingPriceAt, which re-reads ingPriceLog[pid] each time. Truly equivalent, not merely unlikely.',
+  },
+  {
+    key: 'setCogs :: if(seq>_cogsConfirmed){ _cogsConfirmed=seq; cogsServer=pct; }   // a late answer for an older write is not news :: relational >>>= #0',
+    reason: '244. EQUALITY IS UNREACHABLE HERE, so `>=` and `>` cannot be told apart. A sequence is issued by '
+      + '`++_cogsSeq` and therefore belongs to exactly one write, whose handler runs once — so `seq` can never '
+      + 'already BE the confirmed one. The only other writer of `_cogsConfirmed` is `resetTenantState`, which '
+      + 'sets it to a freshly incremented `_cogsSeq` that no write has been issued under, and which is by '
+      + 'construction GREATER than every outstanding seq. So the two operators differ only on a state the '
+      + 'counter cannot enter. The reachable half of this guard — a LATE answer for an OLDER write failing to '
+      + 'overwrite a newer confirmed value — is killed by "two writes that both SUCCEED out of order leave the '
+      + 'NEWER one confirmed", which is the defect the pre-push review measured and this line exists for.',
   },
   {
     key: 'samePrice :: function samePrice(a, b){ return a===b || Math.abs(a-b) < Math.abs(b)*1e-6; } :: relational <><= #0',

@@ -48,7 +48,7 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 ⚠️ **READ THIS BEFORE PLANNING OFF ANY OF THE FOUR ITEMS BELOW. ITS TOP-RANKED FINDING, THE ONLY ONE IT CALLED A RELEASE BLOCKER, WAS FALSE.** It claimed `js/app.js` on `main` contains bare English prose at lines 7290 and 11586 and therefore does not parse. `git show origin/main:js/app.js | node --check` **parses clean** at `a56055e`; both citations are continuation lines inside `/* … */` block comments. **The reviewer read the repository in network slices and lost the comment context** — which is exactly the condition that produced its most confident, most precisely cited and most urgent claim.
 
 **So every line citation in these four items is a POINTER TO CHECK, not a fact**, and the queue header's own rule applies with unusual force: *an item that names a behaviour without naming its sites is an item whose list is already wrong.* **Each item below states which of its claims is measured and which is not.**
-**Item 12 RAN in batch 236 and its finding was TRUE** (`ezplate-v194`). **13 RAN in batch 242 and its finding was TRUE** (`ezplate-v199`). **14 RAN in batch 243 and its finding was TRUE, confirmed against the SQL before and reproduced on staging** (`ezplate-v200`). **15 is the only one left, and it is still an unmeasured claim.**
+**All four have now RUN and all four findings were TRUE.** 12 in batch 236 (`ezplate-v194`), 13 in 242 (`ezplate-v199`), 14 in 243 (`ezplate-v200`, confirmed against the SQL and reproduced on staging), and **15 in 244 (`ezplate-v201`) — the one item of the four that was still UNMEASURED when it was taken, and it reproduced on the first attempt: a $6 dish read $20 against a target the server had rejected.** Four for four is worth recording against this section's own warning: the audit's top-ranked finding was false and its four queued ones were not, so a citation being wrong says nothing about the neighbourhood being wrong.
 ⚠️ **13 was TRUE IN SUBSTANCE AND SHORT BY A FACTOR OF SIX, which is the third of these to be so and is now the pattern rather than the exception.** It described "two findings, merged because they are one mechanism at one site"; there were **twelve** stores surviving a café move, across three different application patterns and about six hundred lines, and the twelfth was found by the pre-push review after the fix's own header claimed to have counted them all. **So read the remaining item's enumeration as a starting point and grep it**, exactly as the header rule above says — the audit is reliable about the neighbourhood and not about the size.
 ⚠️ **And running 12 produced 12b, which is a defect the audit never saw and which is WORSE than the one it reported** — the pre-push review of the fix found it. That is the argument for taking these items seriously even where the citations are wrong: the audit was pointing at a real neighbourhood.
 
@@ -75,28 +75,10 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 **These came from `docs/QUEUE-2026-09-08-CONSOLIDATED.md` by promotion, per `docs/QUEUE-GROUPS.md`.** They are referenced, not copied: **the full item — mechanism, sites, acceptance, the test that pins it — is in the consolidated file under the number given, and that file is the one to read before planning.** One description, in one place.
 **When one ships, delete it here AND strike it there**, with the batch and deploy version. `skills/batch` step 10 carries the rule; the strike is what stops finished work being re-promoted.
-**Their C riders are NOT promoted** — 25 (rides 15), 69, 76, 77 and 81 ride whichever batch opens their function, per `docs/MAINTENANCE.md`'s standing rule.
+**Their C riders are NOT promoted** — 69, 76, 77 and 81 ride whichever batch opens their function, per `docs/MAINTENANCE.md`'s standing rule. *(25 rode 15 in batch 244 and is struck; the naming of a rider on the item it rides is what made that work, and it is the pattern to copy.)*
 
 ⚠️ **Every line number in these items is a POINTER TO GREP, not a fact** — the consolidated file says so of itself, and the blind audit above is why. **Step one of each is the repro**, and "it does not reproduce" deletes the item and says so in the handover.
-
-
-## next  15 · A transient role-lookup failure lets staff move the live costing target, with no rollback  **[B — a wrong price on screen, and the server is not the problem]**
-
-⚠️ **UNMEASURED.**
-
-**The claim:** on a fresh session an unknown or errored role is treated as owner-like client-side. `current_business_role` transiently fails for a staff account, the food-cost target control stays operable, they change 40% to 30%, and **`setCogs()` updates `cogsPct` and recomputes pricing immediately.** The Supabase write is then correctly refused by 187's owner-only restrictive policy — and **nothing rolls the client state back.** A $6 dish shows **$20 instead of $15** until a reload.
-
-**"The server authorization is sound here. The numeric client state is not."** Do not touch the policies.
-
-**Claimed sites:** `js/app.js:916-926, 1131-1133, 2739-2750`, target-input handler around `8534-8540`.
-
-⚠️ **The comment at `js/app.js:916-919` is a finding in its own right** and is the reason this was not caught: it argues fail-open role presentation is harmless because the server rejects the write and the user gets an error. **That is right about authorisation and wrong about consequence** — the number has already moved. This is the shape `CLAUDE.md` names as *a comment that records the defect correctly and files it under the wrong consequence*, and it is that section's fourth dated instance. **Fix the comment in the same change.**
-
-**What must be true when it is fixed:** a cost-affecting client write that the server refuses leaves the client showing what the server holds. **The regression test must assert the rollback, not the refusal** — the existing role/client tests pin unknown-as-owner-like and therefore establish nothing about state after rejection.
-
----
-
-# G1 continued — the B items
+*(G1's only [B — wrong number] item, 15, shipped in batch 244; what is left of the group is below. The two headings were folded into one when it went, because a section with a title and no items reads as work nobody has got to.)*
 
 ## next  19 · A misc cost accepts a negative number and the plate saves at a negative cost  **[B, a plate at minus $2.00 persisted to production on 8 Sep]**
 

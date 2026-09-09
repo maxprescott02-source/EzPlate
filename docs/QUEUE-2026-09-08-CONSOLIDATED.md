@@ -171,9 +171,10 @@ The method itself is unchanged, and the choice is written up in `CLAUDE.md` besi
 
 **Test:** for each of the three, one case that today passes and must fail, in `tests/api-insight.test.js` / `tests/insight-parity.test.js`, run on the shared validator so client and server cannot drift.
 
-## next  25 · The food-cost target is an integer in one place, a decimal in another, and a float in a third  **[C, a fractional target is loadable and renderable but not settable, and the first Settings touch silently rounds it]**
+## ~~25 · The food-cost target is an integer in one place, a decimal in another, and a float in a third~~  **SHIPPED, batch 244, `ezplate-v201` — rode 15 exactly as this item said it should**
 
-`setCogs` (`js/app.js:2936`) rounds to an integer; `bootstrapSync` (`:1174`, grep `food_cost_target`) accepts any `parseFloat` in `[1,99]`; `fmtTargetPct` renders one decimal. Decide which is right and make the three agree. **Rides 15** (same function, same batch); a test pins the chosen precision through all three.
+✅ **ONE DECIMAL, at both entry points, through one function (`cogsRound`).** Integer was the other candidate and was rejected for a reason worth keeping: it would have had the boot read rewrite a restored 32.5 to 33 on sight, which is this file's own "wrong number on a costing screen" in the direction nobody would look. `setCogs` and `bootstrapSync`'s `food_cost_target` read now round through the same function, the field's `step` is `0.1`, and `fmtTargetPct`'s decimal branch is reachable rather than theoretical.
+⚠️ **The load-bearing half is that both entry points round, not that the setter does.** `cogsPct` is concatenated raw at ~10 sites; while it is held at one decimal those and `fmtTargetPct` cannot print different numbers, and the moment either entry point stops rounding they can. `tests/cogs-rollback.test.js` pins the precision through all three, `tests/settings.test.js`'s 37.6→38 clamp assertion was rewritten honestly rather than deleted, and `docs/MAINTENANCE.md`'s "Comments that disagree with the code" bullet is struck.
 
 ## next  26 · A $0.00 invoice line means two different things to two functions on the same import  **[C, `invDerivePackQty` derives no pack from a freebie while `applySupplierMemory` stores a price of zero]**
 
