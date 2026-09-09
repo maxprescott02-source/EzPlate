@@ -1,0 +1,96 @@
+{
+ "gst": "ex",
+ "subtotal": 224.93,
+ "gst_amount": 1.2,
+ "total": 238.13,
+ "lines": [
+  {
+   "desc": "Milk 2L x10 at 3.20",
+   "match": "milk full cream",
+   "qty": 10,
+   "pack": "2L",
+   "unitPriceEx": 3.2,
+   "per": "ea",
+   "lineTotal": 32.0,
+   "accept": [
+    {
+     "unit": "l",
+     "price": 1.6
+    }
+   ]
+  },
+  {
+   "desc": "Cream 1L x4 at 5.60",
+   "match": "cream thickened",
+   "qty": 4,
+   "pack": "1L",
+   "unitPriceEx": 5.6,
+   "per": "ea",
+   "lineTotal": 22.4,
+   "accept": [
+    {
+     "unit": "l",
+     "price": 5.6
+    }
+   ]
+  },
+  {
+   "desc": "Butter 5kg x2 at 52.00",
+   "match": "butter unsalted",
+   "qty": 2,
+   "pack": "5kg",
+   "unitPriceEx": 52.0,
+   "per": "ea",
+   "lineTotal": 104.0,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 10.4
+    }
+   ]
+  },
+  {
+   "desc": "Yoghurt 1kg x6 at 7.90 less 5%",
+   "match": "yoghurt",
+   "qty": 6,
+   "pack": "1kg",
+   "unitPriceEx": 7.505,
+   "per": "ea",
+   "lineTotal": 45.03,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 7.505
+    },
+    {
+     "unit": "kg",
+     "price": 7.9
+    }
+   ],
+   "note": "5% discount: 7.505 net is exact, 7.90 list is tolerable"
+  },
+  {
+   "desc": "Cheese 2kg x1 at 21.50",
+   "match": "cheese tasty",
+   "qty": 1,
+   "pack": "2kg",
+   "unitPriceEx": 21.5,
+   "per": "ea",
+   "lineTotal": 21.5,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 10.75
+    }
+   ]
+  }
+ ],
+ "exclude": [
+  "subtotal",
+  "freight",
+  "tax:",
+  "total amount"
+ ],
+ "style": "MYOB AccountRight item invoice. Item Number | Description | Ship Qty | Price | Disc% | Total | Tax code. Ex-GST with tax codes (GST / FRE).",
+ "source": "pdf"
+}

@@ -1,0 +1,378 @@
+{
+ "style": "Supplier A (foodservice distributor, ReportLab PDF). Columns: Code | Description | Brand | Pack Size | UOM | Qty | Unit Price | Price | Excl GST Value | GST Value | Total Value. Ex-GST, GST shown per line (mostly 0.00, GST-free food). Two pages, table breaks mid-way; page 2 repeats the header. The app's extractor puts the UOM word at the START of page-1 lines and the END of page-2 lines. Summary block, carton counts and a balance-owing line on page 2.",
+ "source": "pdf",
+ "gst": "ex",
+ "subtotal": 1780.76,
+ "gst_amount": 11.95,
+ "total": 1792.71,
+ "lines": [
+  {
+   "desc": "BREAD BUNS MILK 4.5in 48x85gr CTN",
+   "match": "bread buns milk",
+   "qty": 4,
+   "pack": "48x85g",
+   "unitPriceEx": 52.12,
+   "per": "ctn",
+   "lineTotal": 208.48,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 12.774509803921568
+    },
+    {
+     "unit": "ea",
+     "price": 1.0858333333333332
+    }
+   ]
+  },
+  {
+   "desc": "BREAD SOURDOUGH SLICED CAFE STYLE 8x1.2kg CTN",
+   "match": "bread sourdough",
+   "qty": 3,
+   "pack": "8x1.2kg",
+   "unitPriceEx": 45.7,
+   "per": "ctn",
+   "lineTotal": 137.1,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 4.760416666666667
+    },
+    {
+     "unit": "ea",
+     "price": 5.7125
+    }
+   ]
+  },
+  {
+   "desc": "HASH BROWNS TRIANGLES CHUNKY 1kg PKT",
+   "match": "hash browns",
+   "qty": 10,
+   "pack": "1kg",
+   "unitPriceEx": 5.62,
+   "per": "pkt",
+   "lineTotal": 56.2,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 5.62
+    }
+   ]
+  },
+  {
+   "desc": "HOKI S/F FLT S/ON 4/6 6.8kg BLK",
+   "match": "hoki",
+   "qty": 5,
+   "pack": "6.8kg",
+   "unitPriceEx": 82.27,
+   "per": "blk",
+   "lineTotal": 411.35,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 12.098529411764705
+    }
+   ]
+  },
+  {
+   "desc": "ICE CREAM VANILLA 10lt TUB",
+   "match": "ice cream vanilla",
+   "qty": 2,
+   "pack": "10L",
+   "unitPriceEx": 29.49,
+   "per": "tub",
+   "lineTotal": 58.98,
+   "accept": [
+    {
+     "unit": "l",
+     "price": 2.949
+    }
+   ]
+  },
+  {
+   "desc": "PANCAKES HOTCAKES HAPPY PLAIN 100MM 8x6's CTN",
+   "match": "pancakes",
+   "qty": 2,
+   "pack": "8x6 = 48 ea",
+   "unitPriceEx": 30.25,
+   "per": "ctn",
+   "lineTotal": 60.5,
+   "accept": [
+    {
+     "unit": "ea",
+     "price": 0.6302083333333334
+    }
+   ]
+  },
+  {
+   "desc": "PORK PULLED FROZEN 1kg PKT",
+   "match": "pork pulled",
+   "qty": 5,
+   "pack": "1kg",
+   "unitPriceEx": 16.21,
+   "per": "pkt",
+   "lineTotal": 81.05,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 16.21
+    }
+   ]
+  },
+  {
+   "desc": "SQUID RINGS NATURAL CRUMBED (APP 30-40 RINGS) 1kg PKT",
+   "match": "squid rings",
+   "qty": 15,
+   "pack": "1kg",
+   "unitPriceEx": 13.37,
+   "per": "pkt",
+   "lineTotal": 200.55,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 13.37
+    }
+   ]
+  },
+  {
+   "desc": "BEEF SANDWICH STEAK 100GR 1kg PKT",
+   "match": "beef sandwich steak",
+   "qty": 1,
+   "pack": "1kg (100g steaks)",
+   "unitPriceEx": 29.89,
+   "per": "pkt",
+   "lineTotal": 29.89,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 29.89
+    }
+   ]
+  },
+  {
+   "desc": "BUTTER P/C 100x8gr TRAY",
+   "match": "butter p/c",
+   "qty": 2,
+   "pack": "100x8g",
+   "unitPriceEx": 18.05,
+   "per": "tray",
+   "lineTotal": 36.1,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 22.5625
+    },
+    {
+     "unit": "ea",
+     "price": 0.1805
+    }
+   ]
+  },
+  {
+   "desc": "CHEESE FETTA DANISH 2kg BKT",
+   "match": "cheese fetta",
+   "qty": 1,
+   "pack": "2kg",
+   "unitPriceEx": 21.96,
+   "per": "bkt",
+   "lineTotal": 21.96,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 10.98
+    }
+   ]
+  },
+  {
+   "desc": "CHEESE MOZZARELLA SHREDDED 2kg PKT",
+   "match": "cheese mozzarella",
+   "qty": 2,
+   "pack": "2kg",
+   "unitPriceEx": 23.0,
+   "per": "pkt",
+   "lineTotal": 46.0,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 11.5
+    }
+   ]
+  },
+  {
+   "desc": "CREAM WHIPPED AEROSOL 400gr CAN",
+   "match": "cream whipped",
+   "qty": 12,
+   "pack": "400g",
+   "unitPriceEx": 8.94,
+   "per": "can",
+   "lineTotal": 107.28,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 22.349999999999998
+    }
+   ]
+  },
+  {
+   "desc": "HAM LEG SLICED 2MM (APP 1KG) per kg",
+   "match": "ham leg sliced",
+   "qty": 1.135,
+   "pack": "kg (catch weight)",
+   "unitPriceEx": 11.98,
+   "per": "kg",
+   "lineTotal": 13.6,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 11.98
+    }
+   ]
+  },
+  {
+   "desc": "MAYONNAISE AIOLI SQUEEZE BOTTLE 1lt BTL",
+   "match": "mayonnaise aioli",
+   "qty": 2,
+   "pack": "1L",
+   "unitPriceEx": 11.93,
+   "per": "btl",
+   "lineTotal": 23.86,
+   "accept": [
+    {
+     "unit": "l",
+     "price": 11.93
+    }
+   ]
+  },
+  {
+   "desc": "MAYONNAISE BASIL PESTO SQUEEZE GLUTEN FREE 1kg BTL",
+   "match": "mayonnaise basil",
+   "qty": 1,
+   "pack": "1kg",
+   "unitPriceEx": 10.23,
+   "per": "btl",
+   "lineTotal": 10.23,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 10.23
+    }
+   ]
+  },
+  {
+   "desc": "MAYONNAISE WHOLE EGG FREE RANGE 1lt BTL",
+   "match": "mayonnaise whole egg",
+   "qty": 1,
+   "pack": "1L",
+   "unitPriceEx": 11.13,
+   "per": "btl",
+   "lineTotal": 11.13,
+   "accept": [
+    {
+     "unit": "l",
+     "price": 11.13
+    }
+   ]
+  },
+  {
+   "desc": "CUCUMBERS SANDWICH STACKERS 2.2kg JAR",
+   "match": "cucumbers",
+   "qty": 1,
+   "pack": "2.2kg",
+   "unitPriceEx": 9.98,
+   "per": "jar",
+   "lineTotal": 9.98,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 4.536363636363636
+    }
+   ]
+  },
+  {
+   "desc": "GRAVY MIX RICH CLASSIC 7.5kg PAIL",
+   "match": "gravy mix",
+   "qty": 1,
+   "pack": "7.5kg",
+   "unitPriceEx": 100.12,
+   "per": "pail",
+   "lineTotal": 100.12,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 13.349333333333334
+    }
+   ]
+  },
+  {
+   "desc": "JUICE CLEAR APPLE LONG LIFE 100% PET 2lt BTL",
+   "match": "juice clear apple",
+   "qty": 6,
+   "pack": "2L",
+   "unitPriceEx": 3.84,
+   "per": "btl",
+   "lineTotal": 23.04,
+   "accept": [
+    {
+     "unit": "l",
+     "price": 1.92
+    }
+   ]
+  },
+  {
+   "desc": "SAUCE BARBEQUE GLUTEN FREE 4lt BTL (page 2)",
+   "match": "sauce barbeque",
+   "qty": 2,
+   "pack": "4L",
+   "unitPriceEx": 13.37,
+   "per": "btl",
+   "lineTotal": 26.74,
+   "accept": [
+    {
+     "unit": "l",
+     "price": 3.3425
+    }
+   ]
+  },
+  {
+   "desc": "SAUCE HOLLANDAISE GARDE DOR TETRA 1lt EA (page 2)",
+   "match": "sauce hollandaise",
+   "qty": 6,
+   "pack": "1L",
+   "unitPriceEx": 12.41,
+   "per": "ea",
+   "lineTotal": 74.46,
+   "accept": [
+    {
+     "unit": "l",
+     "price": 12.41
+    }
+   ]
+  },
+  {
+   "desc": "SAUCE TOMATO GLUTEN FREE 4lt BTL (page 2)",
+   "match": "sauce tomato",
+   "qty": 3,
+   "pack": "4L",
+   "unitPriceEx": 10.72,
+   "per": "btl",
+   "lineTotal": 32.16,
+   "accept": [
+    {
+     "unit": "l",
+     "price": 2.68
+    }
+   ]
+  }
+ ],
+ "exclude": [
+  "gst free supplies",
+  "gst supplies",
+  "balance owing",
+  "totals 1780.76",
+  "invoice total",
+  "cust phone",
+  "customer number",
+  "route no",
+  "pay: bsb"
+ ]
+}

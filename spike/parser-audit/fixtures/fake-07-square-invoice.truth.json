@@ -1,0 +1,75 @@
+{
+ "gst": "inc",
+ "subtotal": 314.36,
+ "gst_amount": 31.44,
+ "total": 345.8,
+ "lines": [
+  {
+   "desc": "Espresso 1kg x4 at 38.00 inc",
+   "match": "espresso",
+   "qty": 4,
+   "pack": "1kg",
+   "unitPriceEx": 34.545,
+   "per": "ea",
+   "lineTotal": 152.0,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 34.54545454545454
+    }
+   ]
+  },
+  {
+   "desc": "Cold brew 1L x6 at 18.00 inc",
+   "match": "cold brew",
+   "qty": 6,
+   "pack": "1L",
+   "unitPriceEx": 16.364,
+   "per": "ea",
+   "lineTotal": 108.0,
+   "accept": [
+    {
+     "unit": "l",
+     "price": 16.363636363636363
+    }
+   ]
+  },
+  {
+   "desc": "Oat milk 1L x12 at 3.90 inc",
+   "match": "oat milk",
+   "qty": 12,
+   "pack": "1L",
+   "unitPriceEx": 3.545,
+   "per": "ea",
+   "lineTotal": 46.8,
+   "accept": [
+    {
+     "unit": "l",
+     "price": 3.545454545454545
+    }
+   ]
+  },
+  {
+   "desc": "Chai 500g x2 at 19.50 inc",
+   "match": "chai",
+   "qty": 2,
+   "pack": "500g",
+   "unitPriceEx": 17.727,
+   "per": "ea",
+   "lineTotal": 39.0,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 35.45454545454545
+    }
+   ]
+  }
+ ],
+ "exclude": [
+  "subtotal",
+  "gst (included)",
+  "total $345.80"
+ ],
+ "style": "Square invoice. Item name with quantity x price on one line and the amount at the end. Prices GST-inclusive with GST shown at the foot.",
+ "source": "pdf"
+}

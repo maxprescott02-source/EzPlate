@@ -15,7 +15,9 @@ If a line here disagrees with the code, **the code is right and this file is a f
 
 | | |
 |---|---|
-| Outstanding work - tier A and B only, capped at 20 | `docs/QUEUE.md` |
+| Outstanding work - tier A and B only, capped at 20. **It is the WORKING SET, not the backlog** | `docs/QUEUE.md` |
+| **The backlog itself - 72 items from the 8 Sep 2026 consolidation, struck as they ship** | `docs/QUEUE-2026-09-08-CONSOLIDATED.md` |
+| **Which of those load the same context, and the promotion order `/batch` refills from** | `docs/QUEUE-GROUPS.md` |
 | Tier C - internal quality, ridden along by whichever batch already touches the file (its header has the reasoning; the parallel worktree track was retired 22 Aug 2026) | `docs/MAINTENANCE.md` |
 | Device checks | `docs/PHONE.md` |
 | **Migrations - the procedure, both projects, what staging can and cannot rehearse** | `docs/STAGING.md` |

@@ -1,0 +1,130 @@
+{
+ "gst": "ex",
+ "subtotal": 583.19,
+ "gst_amount": 9.0,
+ "total": 592.19,
+ "lines": [
+  {
+   "desc": "CHIPS 6x2.5kg CTN",
+   "match": "chips 10mm",
+   "qty": 8,
+   "pack": "6x2.5kg",
+   "unitPriceEx": 40.17,
+   "per": "ctn",
+   "lineTotal": 321.36,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 2.678
+    }
+   ]
+  },
+  {
+   "desc": "BREAD BUNS 48x85gr CTN",
+   "match": "bread buns",
+   "qty": 2,
+   "pack": "48x85g",
+   "unitPriceEx": 52.12,
+   "per": "ctn",
+   "lineTotal": 104.24,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 12.774509803921568
+    },
+    {
+     "unit": "ea",
+     "price": 1.0858333333333332
+    }
+   ]
+  },
+  {
+   "desc": "CHEESE SLICES 105'S 1.5kg PKT",
+   "match": "cheese slices",
+   "qty": 1,
+   "pack": "105 slices / 1.5kg",
+   "unitPriceEx": 21.29,
+   "per": "pkt",
+   "lineTotal": 21.29,
+   "accept": [
+    {
+     "unit": "ea",
+     "price": 0.20276190476190475
+    },
+    {
+     "unit": "kg",
+     "price": 14.193333333333333
+    }
+   ]
+  },
+  {
+   "desc": "ICE CREAM 10lt TUB",
+   "match": "ice cream",
+   "qty": 1,
+   "pack": "10L",
+   "unitPriceEx": 29.49,
+   "per": "tub",
+   "lineTotal": 29.49,
+   "accept": [
+    {
+     "unit": "l",
+     "price": 2.949
+    }
+   ]
+  },
+  {
+   "desc": "HAM LEG SLICED per kg 2.31kg",
+   "match": "ham leg",
+   "qty": 2.31,
+   "pack": "catch weight",
+   "unitPriceEx": 11.98,
+   "per": "kg",
+   "lineTotal": 27.67,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 11.98
+    }
+   ]
+  },
+  {
+   "desc": "BEETROOT 3kg CAN",
+   "match": "beetroot",
+   "qty": 2,
+   "pack": "3kg",
+   "unitPriceEx": 9.32,
+   "per": "can",
+   "lineTotal": 18.64,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 3.106666666666667
+    }
+   ]
+  },
+  {
+   "desc": "PANCAKES 8x6's CTN",
+   "match": "pancakes",
+   "qty": 2,
+   "pack": "48 ea",
+   "unitPriceEx": 30.25,
+   "per": "ctn",
+   "lineTotal": 60.5,
+   "accept": [
+    {
+     "unit": "ea",
+     "price": 0.6302083333333334
+    }
+   ]
+  }
+ ],
+ "exclude": [
+  "gst free supplies",
+  "gst supplies 89.99",
+  "total 583.19",
+  "totals 583.19",
+  "balance owing"
+ ],
+ "style": "Foodservice distributor A. Code | Description | Brand | Pack | UOM | Qty | Unit Price | Price | Excl GST | GST | Total; UOM extracted at line start. Ex-GST.",
+ "source": "pdf"
+}

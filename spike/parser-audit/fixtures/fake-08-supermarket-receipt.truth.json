@@ -1,0 +1,122 @@
+{
+ "gst": "inc",
+ "subtotal": 82.24,
+ "gst_amount": 2.46,
+ "total": 84.7,
+ "lines": [
+  {
+   "desc": "Milk 3L, GST-free",
+   "match": "full cream milk",
+   "qty": 2,
+   "pack": "3L",
+   "unitPriceEx": 4.8,
+   "per": "ea",
+   "lineTotal": 9.6,
+   "accept": [
+    {
+     "unit": "l",
+     "price": 1.5999999999999999
+    },
+    {
+     "unit": "l",
+     "price": 1.4545454545454544
+    }
+   ],
+   "note": "GST-free line on a mixed receipt; either the raw or the divided figure is defensible until the parser reads the * marker"
+  },
+  {
+   "desc": "Bread 700g taxable",
+   "match": "white bread",
+   "qty": 3,
+   "pack": "700g",
+   "unitPriceEx": 3.818181818181818,
+   "per": "ea",
+   "lineTotal": 12.6,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 5.454545454545454
+    },
+    {
+     "unit": "ea",
+     "price": 3.818181818181818
+    }
+   ]
+  },
+  {
+   "desc": "Eggs 12pk",
+   "match": "free range eggs",
+   "qty": 4,
+   "pack": "12",
+   "unitPriceEx": 6.5,
+   "per": "ea",
+   "lineTotal": 26.0,
+   "accept": [
+    {
+     "unit": "ea",
+     "price": 0.5416666666666666
+    },
+    {
+     "unit": "ea",
+     "price": 0.4924242424242424
+    }
+   ]
+  },
+  {
+   "desc": "Cheese 1kg",
+   "match": "tasty cheese",
+   "qty": 2,
+   "pack": "1kg",
+   "unitPriceEx": 11.0,
+   "per": "ea",
+   "lineTotal": 22.0,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 11.0
+    },
+    {
+     "unit": "kg",
+     "price": 10.0
+    }
+   ]
+  },
+  {
+   "desc": "Dishwashing 1L taxable",
+   "match": "dishwashing",
+   "qty": 1,
+   "pack": "1L",
+   "unitPriceEx": 5.0,
+   "per": "ea",
+   "lineTotal": 5.5,
+   "accept": [
+    {
+     "unit": "l",
+     "price": 5.0
+    }
+   ]
+  },
+  {
+   "desc": "Paper towel 6pk taxable",
+   "match": "paper towel",
+   "qty": 1,
+   "pack": "6",
+   "unitPriceEx": 8.181818181818182,
+   "per": "ea",
+   "lineTotal": 9.0,
+   "accept": [
+    {
+     "unit": "ea",
+     "price": 1.3636363636363635
+    }
+   ]
+  }
+ ],
+ "exclude": [
+  "total 84.70",
+  "gst included",
+  "eftpos"
+ ],
+ "style": "Supermarket tax invoice. Item | qty @ unit price | amount, taxable items marked with *, GST-inclusive with the GST included figure at the foot.",
+ "source": "pdf"
+}

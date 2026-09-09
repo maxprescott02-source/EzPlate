@@ -1,10 +1,19 @@
 # Independent code audit — EzPlate
 
-**Reviewer: GPT-5.6 Sol, ChatGPT Plus, thinking effort High, 5 Sep 2026.
-Worked for 25m 52s. It cloned the repo and read raw files over the network.**
+**Reviewer: OpenAI model slug `gpt-5-6`, ChatGPT Plus, thinking effort High,
+5 Sep 2026. Worked for 25m 52s. It cloned the repo and read raw files over the
+network.**
 
-⚠️ **NOT GPT-6 Astra.** The staged rollout had not reached this account: the model
-picker offered GPT-5.6 Sol and GPT-5.5 only. Worth re-running when Astra lands.
+⚠️ **Cite the SLUG, not the display name, because the two sources disagree.** The
+in-app model picker rendered it **"GPT-5.6 Sol"**; `/backend-api/models` returns
+`slug: "gpt-5-6", title: "GPT-5.6 Luna"` for the same entry, checked hours later
+on the same account. Only the slug is stable.
+
+⚠️ **NOT GPT-6 Astra.** The staged rollout had not reached this account. Checked
+twice, the second time straight off the models endpoint, which returned exactly
+six entries: `gpt-5-5`, `gpt-5-6`, `gpt-5-3-mini`, `gpt-5-5-mini`, `gpt-5-6-mini`,
+`auto`. **No `gpt-6` and no Astra anywhere in the payload.** Worth re-running when
+it lands.
 
 Brief: `BLIND-AUDIT-2026-09-05-brief-code.md`. It was told not to read `CLAUDE.md`,
 `docs/QUEUE.md`, `docs/MAINTENANCE.md` or `docs/handovers/`, so **a finding here

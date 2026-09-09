@@ -1,0 +1,125 @@
+{
+ "gst": "ex",
+ "subtotal": 473.6,
+ "gst_amount": 4.2,
+ "total": 477.8,
+ "lines": [
+  {
+   "desc": "CHIPS 6X2KG",
+   "match": "chips straight",
+   "qty": 2,
+   "pack": "6x2kg",
+   "unitPriceEx": 38.2,
+   "per": "ctn",
+   "lineTotal": 76.4,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 3.1833333333333336
+    }
+   ]
+  },
+  {
+   "desc": "CHICKEN BREAST 2.5KG",
+   "match": "chicken breast",
+   "qty": 4,
+   "pack": "2.5kg",
+   "unitPriceEx": 24.75,
+   "per": "pack",
+   "lineTotal": 99.0,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 9.9
+    }
+   ]
+  },
+  {
+   "desc": "MILK 10LT",
+   "match": "milk full cream",
+   "qty": 1,
+   "pack": "10L",
+   "unitPriceEx": 16.9,
+   "per": "ea",
+   "lineTotal": 16.9,
+   "accept": [
+    {
+     "unit": "l",
+     "price": 1.69
+    }
+   ]
+  },
+  {
+   "desc": "SERVIETTES 1000S",
+   "match": "serviettes",
+   "qty": 1,
+   "pack": "1000",
+   "unitPriceEx": 42.0,
+   "per": "ctn",
+   "lineTotal": 42.0,
+   "accept": [
+    {
+     "unit": "ea",
+     "price": 0.042
+    }
+   ]
+  },
+  {
+   "desc": "EGGS 15 DOZEN",
+   "match": "eggs free range",
+   "qty": 2,
+   "pack": "15 dozen",
+   "unitPriceEx": 68.0,
+   "per": "ctn",
+   "lineTotal": 136.0,
+   "accept": [
+    {
+     "unit": "ea",
+     "price": 0.37777777777777777
+    }
+   ]
+  },
+  {
+   "desc": "BUTTER PORTIONS 100X10G",
+   "match": "butter portions",
+   "qty": 3,
+   "pack": "100x10g",
+   "unitPriceEx": 19.5,
+   "per": "ctn",
+   "lineTotal": 58.5,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 19.5
+    },
+    {
+     "unit": "ea",
+     "price": 0.195
+    }
+   ]
+  },
+  {
+   "desc": "OIL CANOLA 20LT",
+   "match": "oil canola",
+   "qty": 1,
+   "pack": "20L",
+   "unitPriceEx": 44.8,
+   "per": "drum",
+   "lineTotal": 44.8,
+   "accept": [
+    {
+     "unit": "l",
+     "price": 2.24
+    }
+   ]
+  }
+ ],
+ "exclude": [
+  "sub total",
+  "total due",
+  "gst 4.20",
+  "please pay"
+ ],
+ "style": "Foodservice distributor B. Product Code | Description | Pack Size | Qty Ord | Qty Sup | Unit Price | Ext Price | GST (Y/N). Ex-GST, quantities printed as integers.",
+ "source": "pdf"
+}

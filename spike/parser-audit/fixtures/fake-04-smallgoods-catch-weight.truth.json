@@ -1,0 +1,90 @@
+{
+ "gst": "ex",
+ "subtotal": 216.69,
+ "gst_amount": 0.0,
+ "total": 216.69,
+ "lines": [
+  {
+   "desc": "BACON 2x2.5kg nominal, 5.12kg actual, 11.90/kg",
+   "match": "bacon middle",
+   "qty": 5.12,
+   "pack": "2x2.5kg",
+   "unitPriceEx": 11.9,
+   "per": "kg",
+   "lineTotal": 60.93,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 11.9
+    }
+   ]
+  },
+  {
+   "desc": "HAM LEG SHAVED 1kg x3 = 3.06kg, 13.40/kg",
+   "match": "ham leg",
+   "qty": 3.06,
+   "pack": "1kg",
+   "unitPriceEx": 13.4,
+   "per": "kg",
+   "lineTotal": 41.0,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 13.4
+    }
+   ]
+  },
+  {
+   "desc": "PORK SAUSAGES 1.5kg x2 = 3.00kg, 9.80/kg",
+   "match": "pork sausages",
+   "qty": 3.0,
+   "pack": "1.5kg",
+   "unitPriceEx": 9.8,
+   "per": "kg",
+   "lineTotal": 29.4,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 9.8
+    }
+   ]
+  },
+  {
+   "desc": "SALAMI 500g x4 = 2.04kg, 18.50/kg",
+   "match": "salami",
+   "qty": 2.04,
+   "pack": "500g",
+   "unitPriceEx": 18.5,
+   "per": "kg",
+   "lineTotal": 37.74,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 18.5
+    }
+   ]
+  },
+  {
+   "desc": "CHICKEN BREAST 5kg = 5.35kg, 8.90/kg",
+   "match": "chicken breast",
+   "qty": 5.35,
+   "pack": "5kg",
+   "unitPriceEx": 8.9,
+   "per": "kg",
+   "lineTotal": 47.62,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 8.9
+    }
+   ]
+  }
+ ],
+ "exclude": [
+  "total ex gst",
+  "invoice total",
+  "gst 0.00"
+ ],
+ "style": "Smallgoods and meat supplier. Code | Description | Pack | Units | Weight kg | $/kg | Amount. Priced per actual kg; nominal pack in the description. Ex-GST.",
+ "source": "pdf"
+}

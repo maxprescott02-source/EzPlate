@@ -1,0 +1,13 @@
+Invoice #000123
+Bean Roasters Co.
+Bill to The Corner Cafe
+Due 15 Sep 2026
+Item Quantity Price Amount
+Espresso Blend 1kg 4 x $38.00 $152.00
+Cold Brew Concentrate 1L 6 x $18.00 $108.00
+Oat Milk Barista 1L 12 x $3.90 $46.80
+Chai Powder 500g 2 x $19.50 $39.00
+Subtotal $345.80
+GST (included) $31.44
+Total $345.80
+Pay online

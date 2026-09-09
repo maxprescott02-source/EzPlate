@@ -1,0 +1,10 @@
+TAX INVOICE
+VALLEY MEATS
+Qty Description Unit Price Price Total Net Wt
+2 CTN Beef Mince Premium 6 x 1kg 60.00 60.00 120.00 12.0kg
+1 CTN Chicken Breast Fillet 5 x 2kg 95.00 95.00 95.00 10.3kg
+1 Sauce Peri Peri 6 x 500ml 30.00 30.00 30.00 3.2kg
+3 CTN Bacon Middle 2 x 2.5kg 55.00 55.00 165.00 15.4kg
+Sub Total 410.00
+GST 0.00
+Total 410.00

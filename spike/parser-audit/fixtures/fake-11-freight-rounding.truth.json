@@ -1,0 +1,79 @@
+{
+ "gst": "ex",
+ "subtotal": 321.74,
+ "gst_amount": 32.17,
+ "total": 353.91,
+ "lines": [
+  {
+   "desc": "CUPS 500S x2 at 68.00",
+   "match": "coffee cups",
+   "qty": 2,
+   "pack": "500",
+   "unitPriceEx": 68.0,
+   "per": "ctn",
+   "lineTotal": 136.0,
+   "accept": [
+    {
+     "unit": "ea",
+     "price": 0.136
+    }
+   ]
+  },
+  {
+   "desc": "LIDS 1000S x1 at 52.00",
+   "match": "lids 8oz",
+   "qty": 1,
+   "pack": "1000",
+   "unitPriceEx": 52.0,
+   "per": "ctn",
+   "lineTotal": 52.0,
+   "accept": [
+    {
+     "unit": "ea",
+     "price": 0.052
+    }
+   ]
+  },
+  {
+   "desc": "NAPKINS 2000S x1 at 39.00",
+   "match": "napkins",
+   "qty": 1,
+   "pack": "2000",
+   "unitPriceEx": 39.0,
+   "per": "ctn",
+   "lineTotal": 39.0,
+   "accept": [
+    {
+     "unit": "ea",
+     "price": 0.0195
+    }
+   ]
+  },
+  {
+   "desc": "CONTAINER 750ML 500S x1 at 88.00",
+   "match": "takeaway container",
+   "qty": 1,
+   "pack": "500",
+   "unitPriceEx": 88.0,
+   "per": "ctn",
+   "lineTotal": 88.0,
+   "accept": [
+    {
+     "unit": "ea",
+     "price": 0.176
+    }
+   ],
+   "note": "750ML is the container size, not a volume bought"
+  }
+ ],
+ "exclude": [
+  "freight",
+  "discount",
+  "rounding",
+  "subtotal",
+  "gst 32.17",
+  "total 353.91"
+ ],
+ "style": "Wholesaler invoice with a freight line, a settlement discount line and a cash rounding line among the totals.",
+ "source": "pdf"
+}

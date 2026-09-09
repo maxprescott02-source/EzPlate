@@ -1,0 +1,80 @@
+{
+ "gst": "ex",
+ "subtotal": 361.8,
+ "gst_amount": 8.7,
+ "total": 370.5,
+ "lines": [
+  {
+   "desc": "Sourdough loaf 800g x12 at 6.50",
+   "match": "sourdough loaf",
+   "qty": 12,
+   "pack": "800g loaf",
+   "unitPriceEx": 6.5,
+   "per": "ea",
+   "lineTotal": 78.0,
+   "accept": [
+    {
+     "unit": "ea",
+     "price": 6.5
+    },
+    {
+     "unit": "kg",
+     "price": 8.125
+    }
+   ]
+  },
+  {
+   "desc": "Croissant 48 pack x2 at 62.40",
+   "match": "croissant",
+   "qty": 2,
+   "pack": "48 pack",
+   "unitPriceEx": 62.4,
+   "per": "pack",
+   "lineTotal": 124.8,
+   "accept": [
+    {
+     "unit": "ea",
+     "price": 1.3
+    }
+   ]
+  },
+  {
+   "desc": "Brioche buns 6 pack x10 at 7.20",
+   "match": "brioche",
+   "qty": 10,
+   "pack": "6 pack",
+   "unitPriceEx": 7.2,
+   "per": "pack",
+   "lineTotal": 72.0,
+   "accept": [
+    {
+     "unit": "ea",
+     "price": 1.2
+    }
+   ]
+  },
+  {
+   "desc": "Cookies 12 pack x4 at 18.00",
+   "match": "cookies",
+   "qty": 4,
+   "pack": "12 pack",
+   "unitPriceEx": 18.0,
+   "per": "pack",
+   "lineTotal": 72.0,
+   "accept": [
+    {
+     "unit": "ea",
+     "price": 1.5
+    }
+   ]
+  }
+ ],
+ "exclude": [
+  "delivery",
+  "subtotal",
+  "total gst",
+  "total aud"
+ ],
+ "style": "Xero standard invoice template. Description | Quantity | Unit Price | GST | Amount AUD. GST column names the rate; ex-GST amounts with GST added at the foot.",
+ "source": "pdf"
+}

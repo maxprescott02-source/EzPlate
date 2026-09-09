@@ -1,0 +1,74 @@
+{
+ "gst": "ex",
+ "subtotal": 410.0,
+ "gst_amount": 0.0,
+ "total": 410.0,
+ "lines": [
+  {
+   "desc": "2 CTN Beef Mince 6x1kg at 60.00/ctn, 12.0kg delivered",
+   "match": "beef mince",
+   "qty": 2,
+   "pack": "6x1kg",
+   "unitPriceEx": 60.0,
+   "per": "ctn",
+   "lineTotal": 120.0,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 10.0
+    }
+   ]
+  },
+  {
+   "desc": "1 CTN Chicken Breast 5x2kg at 95.00, 10.3kg delivered",
+   "match": "chicken breast",
+   "qty": 1,
+   "pack": "5x2kg",
+   "unitPriceEx": 95.0,
+   "per": "ctn",
+   "lineTotal": 95.0,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 9.5
+    }
+   ]
+  },
+  {
+   "desc": "Sauce 6x500ml at 30.00, 3.2kg gross",
+   "match": "sauce peri",
+   "qty": 1,
+   "pack": "6x500ml",
+   "unitPriceEx": 30.0,
+   "per": "ctn",
+   "lineTotal": 30.0,
+   "accept": [
+    {
+     "unit": "l",
+     "price": 10.0
+    }
+   ]
+  },
+  {
+   "desc": "3 CTN Bacon 2x2.5kg at 55.00/ctn, 15.4kg delivered",
+   "match": "bacon middle",
+   "qty": 3,
+   "pack": "2x2.5kg",
+   "unitPriceEx": 55.0,
+   "per": "ctn",
+   "lineTotal": 165.0,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 11.0
+    }
+   ]
+  }
+ ],
+ "exclude": [
+  "sub total",
+  "total 410.00"
+ ],
+ "style": "Meat wholesaler printing a delivered net weight column AFTER the money columns: \"... 6 x 1kg 60.00 60.00 120.00 12.0kg\".",
+ "source": "pdf"
+}

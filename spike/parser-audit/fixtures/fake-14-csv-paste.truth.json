@@ -1,0 +1,46 @@
+{
+ "source": "csv",
+ "gst": "ex",
+ "subtotal": 41.4,
+ "gst_amount": 0.0,
+ "total": 41.4,
+ "lines": [
+  {
+   "desc": "Chips 6x2kg at 38.20 (CSV gives no pack maths, price is the typed price)",
+   "match": "chips straight",
+   "qty": 1,
+   "pack": "6x2kg",
+   "unitPriceEx": 38.2,
+   "per": "ctn",
+   "lineTotal": 38.2,
+   "accept": [
+    {
+     "unit": "auto",
+     "price": 38.2
+    }
+   ],
+   "note": "the CSV path stores the typed price in unit auto by design; the unit is resolved against the matched product"
+  },
+  {
+   "desc": "Milk 2L at 3.20",
+   "match": "milk full cream",
+   "qty": 1,
+   "pack": "2L",
+   "unitPriceEx": 3.2,
+   "per": "ea",
+   "lineTotal": 3.2,
+   "accept": [
+    {
+     "unit": "auto",
+     "price": 3.2
+    }
+   ],
+   "note": "same"
+  }
+ ],
+ "exclude": [
+  "sub total",
+  "gst"
+ ],
+ "style": "The paste-box / CSV path: \"name, unit price\" rows with a header."
+}

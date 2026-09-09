@@ -1,0 +1,77 @@
+{
+ "style": "Supplier B (poultry and smallgoods distributor, dompdf PDF). Columns: Item Code | Item Description (wraps onto a SECOND line for brand/notes) | Ordered | Shipped | UOM | Ship Doc + Unit UOM | Item Price | GST | Line Total. Item Price is per UOM: per KG when UOM is KG (catch-weight bacon, chipolatas, chicken), per CTN/BAG/UNIT otherwise. Ex-GST. A FUEL LEVY line carries the only GST. Ordered and Shipped print as equal 2-decimal numbers on every line. One page.",
+ "source": "pdf",
+ "gst": "ex",
+ "subtotal": 211.15,
+ "gst_amount": 0.3,
+ "total": 211.45,
+ "lines": [
+  {
+   "desc": "FZ CHIPS - S/CUT 10MM GF 6X2KG (carton)",
+   "match": "fz chips",
+   "qty": 5,
+   "pack": "6x2kg",
+   "unitPriceEx": 29.5,
+   "per": "ctn",
+   "lineTotal": 147.5,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 2.4583333333333335
+    }
+   ]
+  },
+  {
+   "desc": "CANNED - BEETROOT SLICES 3KG (3) per CAN",
+   "match": "canned - beetroot",
+   "qty": 3,
+   "pack": "3kg can",
+   "unitPriceEx": 8.15,
+   "per": "can",
+   "lineTotal": 24.45,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 2.716666666666667
+    }
+   ]
+  },
+  {
+   "desc": "PORK CHIPOLATAS 1.5KG (3) per KG",
+   "match": "pork chipolatas",
+   "qty": 1.5,
+   "pack": "1.5kg pack, priced per kg",
+   "unitPriceEx": 12.9,
+   "per": "kg",
+   "lineTotal": 19.35,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 12.9
+    }
+   ]
+  },
+  {
+   "desc": "FLOUR - SELF RAISING FLOUR 12.5KG",
+   "match": "flour - self raising",
+   "qty": 1,
+   "pack": "12.5kg",
+   "unitPriceEx": 16.85,
+   "per": "bag",
+   "lineTotal": 16.85,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 1.348
+    }
+   ]
+  }
+ ],
+ "exclude": [
+  "fuel levy",
+  "total ex",
+  "outstanding amount",
+  "credit claims",
+  "$4,188.00"
+ ]
+}

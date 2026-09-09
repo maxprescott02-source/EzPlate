@@ -1,0 +1,10 @@
+TAX INVOICE
+VALLEY MEATS
+Qty Description Unit Price Price Total
+2 CTN Beef Mince Premium 6 x 1kg 60.00 60.00 120.00
+3 CTN Chicken Thigh Fillet 4 x 2.5kg 85.00 85.00 255.00
+1 CTN Lamb Shoulder Diced 5 x 1kg 92.50 92.50 92.50
+4 BAG Pork Belly Sliced 2kg 31.00 31.00 124.00
+Sub Total 591.50
+GST 0.00
+Total 591.50

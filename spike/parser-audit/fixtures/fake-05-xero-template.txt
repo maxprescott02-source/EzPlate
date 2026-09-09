@@ -1,0 +1,17 @@
+TAX INVOICE
+Riverbend Bakery
+ABN 22 222 222 222
+Invoice Date 05 Sep 2026
+Invoice Number INV-0412
+Reference Weekly
+The Corner Cafe
+Description Quantity Unit Price GST Amount AUD
+Sourdough loaf 800g 12.00 6.50 GST Free 78.00
+Croissant butter 48 pack 2.00 62.40 GST Free 124.80
+Brioche buns 6 pack 10.00 7.20 GST Free 72.00
+Cookies choc chip 12 pack 4.00 18.00 10% 72.00
+Delivery 1.00 15.00 10% 15.00
+Subtotal 361.80
+TOTAL GST 10% 8.70
+TOTAL AUD 370.50
+Due Date 12 Sep 2026

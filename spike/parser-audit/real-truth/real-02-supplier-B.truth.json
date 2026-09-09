@@ -1,0 +1,266 @@
+{
+ "style": "Supplier B (poultry and smallgoods distributor, dompdf PDF). Columns: Item Code | Item Description (wraps onto a SECOND line for brand/notes) | Ordered | Shipped | UOM | Ship Doc + Unit UOM | Item Price | GST | Line Total. Item Price is per UOM: per KG when UOM is KG (catch-weight bacon, chipolatas, chicken), per CTN/BAG/UNIT otherwise. Ex-GST. A FUEL LEVY line carries the only GST. Ordered and Shipped print as equal 2-decimal numbers on every line. Three pages: page 1 holds all items, page 2 is an empty repeat of the header, page 3 holds Total Ex / GST / Total and the EFT block.",
+ "source": "pdf",
+ "gst": "ex",
+ "subtotal": 974.7,
+ "gst_amount": 0.3,
+ "total": 975.0,
+ "lines": [
+  {
+   "desc": "FZ CHIPS - S/CUT 10MM GF 6X2KG (carton)",
+   "match": "fz chips",
+   "qty": 3,
+   "pack": "6x2kg",
+   "unitPriceEx": 29.5,
+   "per": "ctn",
+   "lineTotal": 88.5,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 2.4583333333333335
+    }
+   ]
+  },
+  {
+   "desc": "BACON - RINDLESS MIDDLE 2.5KG(2) per KG (25 kg shipped = 5 ctn)",
+   "match": "bacon - rindless",
+   "qty": 25,
+   "pack": "2x2.5kg ctn, priced per kg",
+   "unitPriceEx": 12.2,
+   "per": "kg",
+   "lineTotal": 305.0,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 12.2
+    }
+   ]
+  },
+  {
+   "desc": "PORK CHIPOLATAS 1.5KG (3) per KG",
+   "match": "pork chipolatas",
+   "qty": 3,
+   "pack": "1.5kg pack, priced per kg",
+   "unitPriceEx": 12.9,
+   "per": "kg",
+   "lineTotal": 38.7,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 12.9
+    }
+   ]
+  },
+  {
+   "desc": "VINEGAR - WHITE 20LTR CASK",
+   "match": "vinegar",
+   "qty": 1,
+   "pack": "20L",
+   "unitPriceEx": 20.4,
+   "per": "drum",
+   "lineTotal": 20.4,
+   "accept": [
+    {
+     "unit": "l",
+     "price": 1.02
+    }
+   ]
+  },
+  {
+   "desc": "FZ CHICKEN BREAST SCHNITZEL 40 X 100G (carton)",
+   "match": "fz chicken breast schnitzel",
+   "qty": 1,
+   "pack": "40x100g",
+   "unitPriceEx": 55.7,
+   "per": "ctn",
+   "lineTotal": 55.7,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 13.925
+    },
+    {
+     "unit": "ea",
+     "price": 1.3925
+    }
+   ]
+  },
+  {
+   "desc": "CHICKEN 1/2 BREAST (F) S/OFF 5KG BAG per KG",
+   "match": "chicken 1/2 breast",
+   "qty": 5,
+   "pack": "5kg bag, priced per kg",
+   "unitPriceEx": 8.9,
+   "per": "kg",
+   "lineTotal": 44.5,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 8.9
+    }
+   ]
+  },
+  {
+   "desc": "FZ BEEF BURGER PATTIES PART COOKED 60*120G (carton; the 60*120G is on the wrapped 2nd line)",
+   "match": "fz beef burger",
+   "qty": 2,
+   "pack": "60x120g",
+   "unitPriceEx": 99.1,
+   "per": "ctn",
+   "lineTotal": 198.2,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 13.763888888888888
+    },
+    {
+     "unit": "ea",
+     "price": 1.6516666666666666
+    }
+   ],
+   "note": "the pack size is on the wrapped second line; from the first line alone the pack is unknown, so a manual row is also acceptable"
+  },
+  {
+   "desc": "FZ BREAD - WHITE SLICED 700G/UNIT 6 UNITS/CTN",
+   "match": "fz bread - white",
+   "qty": 1,
+   "pack": "6x700g",
+   "unitPriceEx": 25.0,
+   "per": "ctn",
+   "lineTotal": 25.0,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 5.9523809523809526
+    },
+    {
+     "unit": "ea",
+     "price": 4.166666666666667
+    }
+   ],
+   "note": "the '6' ends the first line and 'UNITS/CTN' wraps; from the first line alone the pack is 700g per unit and units per carton is ambiguous, so a manual row is acceptable"
+  },
+  {
+   "desc": "FZ BREAD - RAISIN THICK 600G/UNIT 6UNITS/CTN",
+   "match": "fz bread - raisin",
+   "qty": 1,
+   "pack": "6x600g",
+   "unitPriceEx": 38.0,
+   "per": "ctn",
+   "lineTotal": 38.0,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 10.555555555555555
+    },
+    {
+     "unit": "ea",
+     "price": 6.333333333333333
+    }
+   ],
+   "note": "units per carton is on the wrapped second line; manual is acceptable"
+  },
+  {
+   "desc": "CHEESE - HALLOUMI PDO 750G (5) per UNIT",
+   "match": "cheese - halloumi",
+   "qty": 2,
+   "pack": "750g",
+   "unitPriceEx": 16.4,
+   "per": "unit",
+   "lineTotal": 32.8,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 21.866666666666664
+    },
+    {
+     "unit": "ea",
+     "price": 16.4
+    }
+   ]
+  },
+  {
+   "desc": "VEGAN AIOLI 1KG BOTTLE (6) per BTL",
+   "match": "vegan aioli",
+   "qty": 2,
+   "pack": "1kg",
+   "unitPriceEx": 11.0,
+   "per": "btl",
+   "lineTotal": 22.0,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 11.0
+    }
+   ]
+  },
+  {
+   "desc": "FLOUR - PLAIN FLOUR 12.5KG",
+   "match": "flour - plain",
+   "qty": 1,
+   "pack": "12.5kg",
+   "unitPriceEx": 12.5,
+   "per": "bag",
+   "lineTotal": 12.5,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 1.0
+    }
+   ]
+  },
+  {
+   "desc": "FLOUR - SELF RAISING FLOUR 12.5KG",
+   "match": "flour - self raising",
+   "qty": 2,
+   "pack": "12.5kg",
+   "unitPriceEx": 16.85,
+   "per": "bag",
+   "lineTotal": 33.7,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 1.348
+    }
+   ]
+  },
+  {
+   "desc": "CANNED - PINEAPPLE SLICES IN SYRUP 60-70 RINGS A10 (3) per CAN",
+   "match": "canned - pineapple",
+   "qty": 3,
+   "pack": "A10 can (about 3kg), no weight printed",
+   "unitPriceEx": 10.75,
+   "per": "can",
+   "lineTotal": 32.25,
+   "accept": [
+    {
+     "unit": "ea",
+     "price": 10.75
+    }
+   ],
+   "note": "no weight on the line: per-can price or a manual row is right; any per-kg figure is a guess"
+  },
+  {
+   "desc": "CANNED - BEETROOT SLICES 3KG (3) per CAN",
+   "match": "canned - beetroot",
+   "qty": 3,
+   "pack": "3kg can",
+   "unitPriceEx": 8.15,
+   "per": "can",
+   "lineTotal": 24.45,
+   "accept": [
+    {
+     "unit": "kg",
+     "price": 2.716666666666667
+    }
+   ]
+  }
+ ],
+ "exclude": [
+  "fuel levy",
+  "total ex",
+  "outstanding amount",
+  "credit claims",
+  "$4,188.00"
+ ]
+}
