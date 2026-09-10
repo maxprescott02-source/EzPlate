@@ -11959,7 +11959,12 @@ function buildInvRows(rawRows){
     var top=cands.length?cands[0].coverage:0;
     var addNew=(top<0.3);                                          // <0.3 -> no confident match -> Add New
     var tier=top>=0.6?'hi':(top>=0.3?'mid':'lo');                  // >=0.6 confident, 0.3-0.59 possible
+    /* ⚠️ `basis` IS CARRIED ONTO THE ROW AND THAT IS LOAD-BEARING, not bookkeeping. It is the only
+       thing that says WHY the parser refused a line, and the two re-pricers below decide whether to
+       overrule that refusal — so dropping it here (which is what this object did until batch 256)
+       silently un-refuses every credit line that has a taught pack. `invFixRow` reads it too. */
     var row={name:r.name, raw:r.raw||r.name, unitPrice:up, unit:(r.unit||'auto'), rawUnit:(r.unit||'auto'),
+            basis:r.basis||null,
             needManual:(!!r.needManual || up==null), uncertain:!!r.uncertain, cands:cands,
             bestId:(addNew?null:(cands.length?cands[0].id:null)),
             conf:top, tier:tier, addNew:addNew, newItem:null, remembered:false};
@@ -12013,11 +12018,43 @@ function normalizePhrase(s){       // stable key for "how this supplier writes t
   return s.replace(/\s+/g,' ').trim();
 }
 function packPriceOf(raw){         // the price of one pack from a raw invoice line
+  /* ⚠️ THIS FUNCTION IS D1 A SECOND TIME, ON THE PATH THAT OUTRANKS THE PARSER, and fixing the
+     parser alone would have left it. (Batch 256, prompted by its pre-push review reproducing the
+     credit-note defect and the taught-pack price landing at $0.25/kg beside it.)
+     `firstPairPrice`, then the LAST amount, is exactly the rule `parsePdfLine` no longer uses: on
+     a layout printing "3.00 3.00 CTN ... $29.50 $88.50" the pair is the QUANTITY, and on a layout
+     with a quantity column and no repeated price the last amount is the price TIMES the quantity.
+     It matters more here than in the parser, not less: `resolveMatchedPrice` puts a taught pack
+     ABOVE the parser's own answer, so a product the user has taught was still being priced by the
+     defect while every untaught product beside it came out right — and a taught pack is, by
+     definition, a product the user cared enough about to correct once already.
+     Measured on production, 10 Sep 2026: 23 of 431 products carry a taught pack, plus 7 remembered
+     supplier phrases; every one of them imports through this line.
+     **It asks `lineColumns` — the SAME function the parser asks** — rather than repeating the
+     arithmetic, so the two can never disagree about what one pack cost. That is this repo's
+     standing rule about a second reader of a decision: extract it, do not restate it.
+     The old chooser stays as the fallback for every line that does not add up, which is what it
+     was always right about: a repeated price column with no quantity anywhere. */
+  var col=lineColumns(raw||''); if(col) return col.price;
   var m=moneyMatches(raw||''); if(!m.length) return null;
   var p=firstPairPrice(m); return (p!=null)?p:m[m.length-1].val;
 }
+/* ⚠️ A CREDIT LINE IS NOT A PURCHASE AT A STRANGE PRICE, AND EVERY PATH THAT RE-DERIVES A PRICE
+   FROM `row.raw` HAS TO KNOW THAT — not just the parser that first refused it.
+   (Batch 256, found by the pre-push review of the batch that added the refusal. `CLAUDE.md`'s
+   "an exemption is scoped to the CLAIM that justified it" trap, arriving from the other end: a
+   REFUSAL is scoped to the function that made it, and the writes downstream never asked why.)
+   `parsePdfLine` refuses a line carrying any negative amount and says so in `basis.kind`. But
+   `resolveMatchedPrice` and `applySupplierMemory` re-price off `row.raw` through `packPriceOf`,
+   which reads the digits and drops the sign — so on the real credit page of a real 25/08 invoice,
+   `-2.00 -2.00 CTN $29.50 $-59.00` gives `firstPairPrice` **2**, and a taught 12kg pack turns the
+   refusal into **$0.1667/kg with `needManual:false`**. Measured, not reasoned.
+   ⚠️ The precedence rule is right and is NOT what changed: a pack the user taught still outranks
+   the parser. What it may not outrank is the line not being a purchase at all. */
+function invRowIsCredit(row){ return !!(row && row.basis && row.basis.kind==='credit'); }
 function applySupplierMemory(row, mem){   // re-derive unit price from a remembered pack {qty, unit}; never touches a row that already parsed
   if(!row || !mem || !row.needManual) return row;
+  if(invRowIsCredit(row)) return row;      // a remembered pack does not make a refund a purchase
   var pack=packPriceOf(row.raw||row.name); var qty=parseFloat(mem.qty);
   if(pack==null || !(qty>0)) return row;
   var u=(mem.unit||'ea').toLowerCase(), unitPrice, unit;
@@ -12052,11 +12089,20 @@ function derivePackPrice(raw, packQty, packUnit){          // product's OWN pack
 }
 function resolveMatchedPrice(row, product, mem){
   var chosen=null;
-  if(product && product.pack_qty>0 && product.pack_unit){        // 1) the product's taught pack wins
+  /* The credit refusal, see invRowIsCredit above. Skipping branches 1 and 2 lands on branch 3,
+     which returns `needManual` for a row the parser already refused — so the row asks, which is
+     what it did before either of these two got hold of it. This is deliberately NOT a fourth
+     `chosen` source: nothing new is decided here, a decision made upstream is simply not overruled.
+     ⚠️ It guards the FUNCTION rather than its call sites because there are two callers and the
+     second (`invSelChanged`, when the user picks a product by hand) wants the same answer: choosing
+     a product for a refund does not turn it into a purchase. A guard at one call site would have
+     left the other open, which is this file's own most-repeated shape. */
+  var credit=invRowIsCredit(row);
+  if(!credit && product && product.pack_qty>0 && product.pack_unit){        // 1) the product's taught pack wins
     var d=derivePackPrice(row.raw||row.name, product.pack_qty, product.pack_unit);
     if(d) chosen={unitPrice:d.unitPrice, unit:d.unit, source:'product-pack', needManual:false};
   }
-  if(!chosen && mem && parseFloat(mem.qty)>0){                    // 2) then supplier memory for this phrase
+  if(!credit && !chosen && mem && parseFloat(mem.qty)>0){         // 2) then supplier memory for this phrase
     var pack=packPriceOf(row.raw||row.name), q=parseFloat(mem.qty);
     if(pack!=null && q>0){
       var mu=(mem.unit||'ea').toLowerCase(), unit, up;
@@ -12137,7 +12183,23 @@ function lineColumns(line){
       for(var k=nums.length-1;k>=0;k--){
         var q=nums[k]; if(!(q.val>0) || q.end>P.idx) continue;
         if(q.val===P.val && P.val===T.val) continue;                             // 1 x 1.00 = 1.00 says nothing
-        if(Math.abs(q.val*P.val-T.val) > 0.01*q.val+0.006) continue;
+        /* ⚠️ THE SLACK IS TIED TO THE PRICE, NOT TO THE QUANTITY, and it was the other way round in
+           this batch's first cut (`0.01*q.val+0.006`). Found by the pre-push review.
+           Scaling by q makes the tolerance grow without bound on exactly the lines where a wrong
+           price costs most — a café buying consumables in the hundreds. Measured: at q=200 the slack
+           is $2.006, so `WIDGET 200 UNIT $5.00 $5.01 $1000.00` accepted **5.01** and then preferred
+           it over the correct 5.00 for being the rightmost $ amount; at q=300 a total 50c off an
+           exact multiple confirmed anyway, `needManual:false`.
+           Rounding does not work like that. A printed extension is out by at most half a cent, and a
+           printed rate by at most half a cent PER UNIT — so the honest bound at high q is the one
+           thing this must not do, because it would swallow real errors. Tying it to the price keeps
+           a cent of rate rounding plus the extension's own, and when it is too tight the line simply
+           does not add up and the row ASKS, which is the direction this whole function exists for.
+           Measured before changing: all four candidate tolerances (q-scaled, half-q-scaled,
+           P-scaled and a flat 0.006) score the corpus identically at 63 right / 2 silent-wrong /
+           0 unflagged leaks — so the loose version was never earning anything on any layout here,
+           and only the two repros above could tell them apart. */
+        if(Math.abs(q.val*P.val-T.val) > 0.01*P.val+0.006) continue;
         var cand={price:P.val, dollar:P.dollar, priceIdx:P.idx, qty:q.val, qtyIdx:q.idx, qtyEnd:q.unitEnd, qtyUnit:q.unit, total:T.val};
         if(!best || (cand.dollar&&!best.dollar) || (cand.dollar===best.dollar && cand.priceIdx>=best.priceIdx)) best=cand;
         break;                                                                   // nearest quantity to this price wins

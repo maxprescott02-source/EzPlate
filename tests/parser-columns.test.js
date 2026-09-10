@@ -137,3 +137,24 @@ test('⚠️ the repeated-pair fallback never returns a price of ZERO', () => {
     'a pair of zeros is not a price');
   assert.equal(firstPairPrice(moneyMatches('BUNS 4 52.12 52.12 208.48')), 52.12, 'a real pair still is');
 });
+
+test('⚠️ the arithmetic tolerance is tied to the PRICE, not to the quantity', () => {
+  /* The first cut of this function scaled its slack by the quantity (`0.01*q + 0.006`), which grows
+     without bound on exactly the lines where a wrong price costs most — a cafe buys napkins, cups
+     and sachets in the hundreds. Both fixtures below were accepted before the fix, silently.
+
+     Rounding does not work that way: a printed extension is out by at most half a cent. When the
+     bound is too tight the line does not add up and the row ASKS, which is safe; when it is too
+     loose the row is confidently wrong, which is the defect this whole file is about. */
+  assert.equal(lineColumns('CUPS 8OZ WHITE 300 EA 0.10 30.50'), null,
+    '300 x 0.10 is 30.00, not 30.50 — a 50c discrepancy is not a rounding artefact');
+
+  const two = lineColumns('WIDGET 200 UNIT $5.00 $5.01 $1000.00');
+  assert.ok(two === null || two.price === 5.00,
+    `200 x 5.00 = 1000 exactly; 5.01 must not be accepted as also fitting — got ${two && two.price}`);
+
+  // and the slack that IS legitimate still works: a rate rounded to the cent, times a small qty
+  const rounded = lineColumns('ITEM 3 CTN $2.46 $7.37');
+  assert.ok(rounded, 'a cent of rate rounding across 3 cartons still confirms');
+  assert.equal(rounded.price, 2.46);
+});
