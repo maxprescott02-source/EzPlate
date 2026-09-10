@@ -63,9 +63,16 @@ Not batches. Each is a dashboard click, a SQL statement on production, or a deci
 
 **Do after:** nothing. Step one is the repro on staging with the `03` seed. Rehearse the heal on staging against a real export before production; it writes `plates` rows, so it is Max's go on the day (a rewrite of production data).
 
-## blocked  17 · The invoice parser prices by repetition and position, never by arithmetic, and is wrong on every Supplier B line  **[A, 36 of 41 real lines silently wrong, measured 8 Sep against six real invoices]**
+## ~~17 · The invoice parser prices by repetition and position, never by arithmetic, and is wrong on every Supplier B line~~  **SHIPPED, batch 256, `ezplate-v211` — D1-D11 plus D10, with two carve-outs named below**
 
-⚠️ **Blocked on: MAX PUTTING THE PARSER-REGION REVERSAL IN WRITING — one sentence, either way.**
+✅ **UNBLOCKED 10 Sep 2026 (Max: *"its lifted"*) and SHIPPED the same day.** `lineColumns` prices by arithmetic — q x P = T — so the parser knows which column was the quantity. Measured before and after on the fourteen synthetic layouts: **30 right / 31 silent-wrong / 2 unflagged leaks → 63 right / 2 silent-wrong / 0 unflagged leaks**, and against the cafe's own 393-product catalogue the pre-ticked-wrong count went **3 → 0**. The two residuals are the ones the audit named (fake-04 units-vs-weight, fake-11 container-capacity-beside-a-count) and are allowed BY LINE in `tests/parser-corpus.test.js`.
+✅ **The eval harness is now `npm test`.** `run.js` and its fixtures MOVED from `spike/parser-audit/` to `tests/parser-corpus/`, and `tests/parser-corpus.test.js` fails on any silent-wrong price or unflagged leak. It was proved to go RED against the shipped parser and green against the fix. That is the first of the three mechanisms replacing "never edit the region".
+⚠️ **D12 (sorting a line's items by x) was NOT done and is deliberate** — the audit says to do it only with the real corpus in place, which is item 37.
+⚠️ **D13 and D14 are unchanged and were never in scope:** a line discount is now LOUD instead of silent, and the fuel levy is still one review row per import.
+⚠️ **The audit's test item 10 — the mutation targets — is SPLIT. Five landed; `parsePdfLine`, `lineColumns` and `rankCandidates` did not.** See item 92, which carries the survivor counts.
+⚠️ **AND ONE DEFECT THE AUDIT NEVER SAW, found by writing the test the audit asked for:** its D4 patch claims the continuation stop-list carries "no summary word" and its own test spec asks for a summary line to be refused — and neither `INV_CONT_STOP` nor `INV_EXCLUDE` contained one, so *"Summary of Supplies"*, the heading that directly follows the last table row on page 2 of a real invoice, was spliced onto that row's name. `\bsummar` added. **The audit's prose was right about the intent and the code did not carry it**, which is `CLAUDE.md`'s citation trap in a patch rather than a comment.
+
+⚠️ **Blocked on: MAX PUTTING THE PARSER-REGION REVERSAL IN WRITING — one sentence, either way.** *(Historical; answered 10 Sep 2026.)*
 **The heading MOVED from `next` to `blocked` on 9 Sep 2026 by batch 240 (AUDIT-v197 finding C1), and which one moved is stated here because the queue's own header rule requires it: the SAFER of two disagreeing readings wins.**
 Four documents held three positions. `CLAUDE.md` Tier 1 says *"never edit anything inside it"* and names four functions as never-touch; `docs/QUEUE.md`'s standing rules say *"protected parser region untouched"*; this file's owner-override block says the protection **is lifted**; this file's own Tranche 0 lists *getting that reversal in writing* as still outstanding; and `docs/QUEUE-GROUPS.md` blocks G2 on it, writing down the exact failure — *"`/batch` … takes an item whose entire premise is a reversal that may not have been written yet, and edits the protected parser region without authority"* — and then left the heading saying `next`, which is the one thing that would have prevented it.
 **A heading is what `/batch` acts on, and the promotion rule copies headings VERBATIM.** So this item, graded A and marked ready, was one group-promotion away from having the loop edit the protected region on the strength of a chat summary nobody had written down. That is not a hypothetical: **the region has already been edited once**, in batch 197, and `docs/MAINTENANCE.md` has been asking whether that edit is ratified since 28 Aug 2026, through two audits.
@@ -626,6 +633,7 @@ From `docs/MAINTENANCE.md`.
 - `saveCurrentPlate` leaves 12 survivors across six declared files (measured 29 Aug, batch 221); the honest close is twelve assertions, its own batch; do not add the target without doing the work.
 - One magnitude check against a production snapshot: every plate cost, unit cost and food-cost % inside a sane band; state at the site that a band cannot catch a 10% error (the composition test is the complement). Item 18's bound is the runtime half of the same idea.
 From `docs/MAINTENANCE.md`.
+**Do with: item 92** — the same job on the three parser functions, split out of 17 by batch 256 with the survivor counts already measured. One batch, one file, one kind of reasoning. And 92's first bullet is this one's own rule arriving again: *do not add the target without doing the work*, because the gate fails on an unresolved survivor and a half-added target cannot ship.
 
 ## next  82 · `docs/PHONE.md` needs a groom, and Max asked for it  **[C, 973 lines, 42 sections, one question asked five times, and no handover records the list catching anything]**
 
@@ -711,6 +719,22 @@ Two sibling series, written by the same function on the same event, with opposit
 **If the answer is yes**, say so in `20260814_roles_part1.sql`'s list of what staff keep, because the next person to look will ask again.
 ⚠️ **`productRefs` is not a substitute and must not be mistaken for one.** It refuses a delete from the APP when an ingredient or plate line references the product; it is client-side and says nothing about what the server permits.
 
+## next  92 · The three parser functions that decide every stored price have never been asked the mutation question  **[C — 34 survivors, COUNTED on the batch-256 merge commit, not estimated]**
+
+⚠️ **Graded C, and it was first written B, which is worth recording because the grade felt wrong.** `CLAUDE.md`'s tier test is explicit — *a missing test is C by construction* — and item **81** is the standing precedent: "Two more mutation targets" is C. A missing test does not stop, embarrass or hurt a paying customer; a wrong price does, and that is item 17, which shipped. **Do it with 81** — same file, same reasoning, one batch. C, not "unimportant": this is the gate on the arithmetic that prices every invoice line, and it is C because of what a tier measures, not what the work is worth.
+
+**Split out of item 17 by batch 256, which shipped the parser fix and landed five of the audit's eight mutation targets.** `packWeight`, `packCount`, `moneyMatches`, `firstPairPrice` and `pdfTextToRows` are on the list and green (two written allowances between them). **`parsePdfLine`, `lineColumns` and `rankCandidates` are not**, and they are the three that matter most: the first two are the new arithmetic that prices every invoice line, and the third decides which product a line is matched to.
+
+**Why it was split rather than finished:** adding those three reports **16, 11 and 7 survivors** — 34 — and the gate FAILS on a survivor with no written allowance, so a half-added target cannot ship. Every one needs either a new assertion or an allowance a reader can disagree with, which is a body of work the size of 256's test suite again. 256's diff was already 44 files.
+
+**Why it is B and not A:** `tests/parser-corpus.test.js` is a real net over the same code — it scores 66 prices across fourteen layouts and goes red on any silent-wrong, proved by running it against the shipped parser. What the corpus does NOT cover is exactly what the survivors are: guards whose inputs no realistic fixture contains — a `$`-marked amount in the quantity position, a zero quantity, a percent column between the rate and the extension, a number to the RIGHT of the price that multiplies. Those guards are why `lineColumns` refuses a line rather than guessing, and nothing currently asks whether they work.
+
+**What must be true when it is done:** the three targets are in `tests/mutation/targets.js` with the files that claim to pin them, and `npm run mutate` is clean — every survivor either killed by an assertion naming the input that distinguishes it, or carried by an allowance stating what makes it unreachable and **what would make it live again**, in the shape 256's four allowances use.
+⚠️ **Several are genuinely equivalent and the allowance is the right answer, not a cop-out**, and three shapes are already known: a mutant inside an `invDbg` argument (no side effect, no returned field touched); `c && c>0` versus `c || c>0`, which agree for every number and for null; and a loop bound whose extra iteration has an empty inner loop. **Say WHY each is unreachable in terms someone can check**, per this repo's standing rule that a claim of unreachability belongs in an allowance the gate re-checks rather than in a comment nothing re-reads.
+⚠️ **And read `CLAUDE.md`'s rule about reproducing the gate's exact mutation before hand-checking one** — the `key:` line names WHICH occurrence, and a human flipping "the `||`s" is answering a question nobody asked.
+
+**Do after:** nothing.
+
 
 # Dropped or merged
 
@@ -730,7 +754,7 @@ Every prior finding that is not an item above, with one line why, so nothing dis
 **Superseded by the owner's parser reversal (override 2):**
 - Persona queue item 27 ("parser evaluation rows from the paste box, not a fix here"): its three paste-box rows (the `x 6` multiplier, the quantity swallowed into the name, the negative quantity) are D3, D1 and D5 in item 17 and fixtures in the corpus.
 - MAINTENANCE "the protected parser region has no automated guard / ratify 197 / hash pin": the guard that should have existed was a corpus, not a hash; item 17's corpus test and mutation targets replace it, and Tranche 0 records his reversal.
-- MAINTENANCE "an eval harness for the invoice reader": exists as `spike/parser-audit/run.js`; promotion is item 17 and its standing use is item 37.
+- MAINTENANCE "an eval harness for the invoice reader": exists, and item 17 PROMOTED it: it is now `tests/parser-corpus/run.js`, required by `tests/parser-corpus.test.js` and part of `npm test` (batch 256). Its standing use — the real corpus outside the repo, per-supplier onboarding — is item 37.
 - HANDOVER-197's "formula written four times" thread: item 37 (`packPriceOf` through `lineColumns`), measurable now.
 - HANDOVER-175's "supplier FILTER over a 95% empty field": merged into item 62's Products list pass (decide once whether the filter shows when the field is empty).
 

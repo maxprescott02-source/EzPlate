@@ -1,11 +1,18 @@
 #!/usr/bin/env node
 /*
- * spike/parser-audit/run.js - the invoice-parser eval harness (PARSER-AUDIT-2026-09-08).
+ * tests/parser-corpus/run.js - the invoice-parser eval harness (PARSER-AUDIT-2026-09-08).
+ *
+ * ⚠️ THIS IS PART OF `npm test`. It was written at `spike/parser-audit/run.js` during the audit and
+ * MOVED HERE by batch 256, the batch that landed the fix, because it is no longer a spike: it is the
+ * thing that replaced `CLAUDE.md`'s "never edit the parser region" rule. `tests/parser-corpus.test.js`
+ * requires it and fails on any silent-wrong line or any unflagged leak. A directory called `spike`
+ * reads as disposable, and this is now the only mechanism that scores a parser change against known
+ * answers instead of against one invoice somebody looked at.
  *
  * Runs the REAL shipped parser (sliced out of js/app.js exactly as tests/_extract.js does; nothing is
  * copied) over a directory of cases and scores every line against a hand-written truth file.
  *
- *   node spike/parser-audit/run.js --cases spike/parser-audit/fixtures [--cases DIR ...]
+ *   node tests/parser-corpus/run.js [--cases DIR ...]        # defaults to ./fixtures
  *                                  [--products tests/fixtures/base-products.json] [--json out.json]
  *                                  [--verbose] [--csv]
  *
@@ -37,7 +44,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { loadApp, extractFn, extractVar, sliceBetween } = require('../../tests/_extractfn');
+const { loadApp, extractFn, extractVar, sliceBetween } = require('../_extractfn');
 
 function buildSandbox() {
   const src = loadApp();

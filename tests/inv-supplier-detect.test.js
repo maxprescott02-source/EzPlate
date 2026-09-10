@@ -159,6 +159,72 @@ test('v107: a supplier below the heading beats a brand in the letterhead', () =>
     'a supplier value answers "who invoiced this"; a brand only hints at it');
 });
 
+/* ---------- D10 (PARSER-AUDIT-2026-09-08): the SECOND supplier's letterhead ---------- */
+/*
+ * v107 above fixed this for one supplier's layout. The cafe's other weekly supplier prints its
+ * trading name ON THE SAME LINE as the heading, and the whole line is 45 characters — so:
+ *
+ *   the stop loop finds "TAX INVOICE" at index 0, `stop` is 0, and `header` falls back to the first
+ *   eight lines (which is why the trading name is a candidate at all);
+ *   the trading name is then rejected by the <=42 character test, because the heading is in it;
+ *   the guesser walks on and accepts "Credit Terms: 7 Days" — a LABEL WITH ITS VALUE, which the
+ *   v107 rule could not see because that rule matches a whole line of nothing but labels.
+ *
+ * Every pack the user teaches for this supplier is then keyed to "Credit Terms: 7 Days", which is
+ * the exact shape of the v107 defect it was written to end. Two changes: strip the heading words
+ * before MEASURING the candidate, and skip a `Label: value` line.
+ *
+ * The letterhead below is INVENTED, with the real one's shape and length. The repository is public.
+ */
+const SECOND_SUPPLIER = [
+  'COASTAL POULTRY DISTRIBUTORS QLD TAX INVOICE',   // 44 chars: the trading name and the heading
+  '17 Cannery Rd, Yandina QLD 4561',
+  'A.B.N. 41 123 456 789',
+  'Credit Terms: 7 Days',
+  'Invoice No 884120',
+  '13612 FZ CHIPS - S/CUT 10MM GF 6X2KG 3.00 3.00 CTN $29.50 $0.00 $88.50'
+].join('\n');
+
+test('D10: a trading name sharing its line with the heading is read, not measured with it', () => {
+  const detect = detectWith([]);          // unknown supplier: the guesser is the only path
+  assert.equal(detect(SECOND_SUPPLIER), 'COASTAL POULTRY DISTRIBUTORS QLD',
+    'the heading is stripped before the length test — with it, the line is 44 characters and rejected');
+});
+
+test('D10: "Credit Terms: 7 Days" is never the supplier', () => {
+  const detect = detectWith([]);
+  assert.notEqual(detect(SECOND_SUPPLIER), 'Credit Terms: 7 Days',
+    'this is the key every taught pack for this supplier was stored under');
+});
+
+test('D10: a label WITH its value is skipped even when nothing else is readable', () => {
+  const detect = detectWith([]);
+  ['Credit Terms: 7 Days', 'Payment Terms: Net 30', 'Our Ref: AB', 'Delivery Run: North'].forEach(l => {
+    assert.equal(detect(l), '', `"${l}" is a field and its value, not a business name`);
+  });
+});
+
+test('⚠️ D10: "TAX INVOICE" alone never becomes a supplier', () => {
+  // The strip could only be dangerous in one direction: a line that is ONLY the heading strips to
+  // empty, and empty has to fail the [A-Za-z]{3,} test rather than fall through as a name.
+  const detect = detectWith([]);
+  assert.equal(detect('TAX INVOICE\nA.B.N. 41 123 456 789'), '');
+  assert.equal(detect('INVOICE\n17 Cannery Rd'), '');
+});
+
+test('⚠️ D10: a known supplier still outranks the guesser on the same layout', () => {
+  const detect = detectWith([{ id: 'P1', supplier: 'Coastal Poultry' }]);
+  assert.equal(detect(SECOND_SUPPLIER), 'Coastal Poultry',
+    'the known-name pass runs first and returns the name as the user spells it');
+});
+
+test('D10: a business name that legitimately ends in a word like "Invoice" is not over-trimmed', () => {
+  // The strip is anchored to the END and takes the heading wording only, so an ordinary name that
+  // merely CONTAINS one of those letters is untouched.
+  const detect = detectWith([]);
+  assert.equal(detect('Invoicing Solutions Group\n17 Cannery Rd\nTAX INVOICE\nitems'), 'Invoicing Solutions Group');
+});
+
 test('v107: a bare "Supplier:" whose value wrapped is not itself returned as the supplier', () => {
   const detect = detectWith([]);
   assert.equal(detect('Supplier:\nX88123456.ZZZ\nTAX INVOICE'), '',
