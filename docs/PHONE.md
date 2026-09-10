@@ -1,1051 +1,144 @@
 # Phone
 
-Things only a device can settle.
-`/batch` appends here rather than stopping - Max works through it in one session.
+**Five checks. Three to do once, two that wait for a thing you do anyway.**
 
-Each entry: what to check, why a phone is the only judge, and what a failure looks like.
-
-**Reconciled 7 Aug 2026** against every handover's "Needs Max's phone" section (v99–v115) and the Batch 0 audit's Part D inventory.
-The previous version listed four versions and a one-line stub for everything else; v100–v108, v112 and v114 were missing entirely, and the carried backlog had no items in it - only a count.
-Production state below is measured, not assumed.
+⚠️ **This file was 1051 lines and 50 sections on 10 Sep 2026, and Max had never used it once.**
+That is not laziness, it is the file being wrong: most of it was *"look at this redesigned screen and tell me how it feels"*, and by the time anyone read it those screens had been in daily use for a month.
+**A taste question about a screen you use every day has already been answered by you not complaining about it.**
+Keeping it on a list pretended it was open, and the length is what stopped the list being read at all - so the two genuinely dangerous checks buried at the bottom were never done either.
 
 ---
 
-## 210 / v172 - the AI second reader now needs a signed-in session, and only a real device can prove it still works
+## What earns a place here, and it is a HARD test
 
-⚠️ **THIS IS THE ONE THAT COSTS MONEY IF IT IS WRONG, and it is first on purpose.**
-Batch 210 closed a hole where anyone on the internet could POST to `api/parse-invoice` and spend the
-Gemini key. Both AI endpoints now refuse a caller without a live, confirmed session.
-**The gate fails CLOSED**, so if the credential does not reach the server for any reason, the AI check
-silently reports "unavailable" and the deterministic parser stands alone.
+A check belongs in this file only if **a browser agent driving Chromium could not settle it.**
+That agent exists (`flow-tester`), it drives the real app at 380px in both themes, and it is free.
+So the question is never "is this worth checking" - it is **"is a phone the only thing that CAN check it".**
 
-**Why only a device can settle it.** Every automated check in this repo stubs either Supabase or the
-`api/` route. Nothing in `npm test`, the smoke run or Playwright has ever made a real signed-in
-request to a deployed serverless function. The batch's own browser drive could NOT be run either -
-the automation could not inject into the page - so **the end-to-end path has never once been
-executed as a whole.**
+**Only five things pass that test:**
 
-**What to check, signed in, on production after this deploys:**
+| | |
+|---|---|
+| a real file | your invoices and price lists are not in this repo and cannot be |
+| the soft keyboard | Chromium has none, so nothing about what the keyboard covers is testable |
+| the installed PWA | standalone iOS Safari is a different engine from a browser tab |
+| a real network drop, and iOS discarding the app | no harness reproduces the operating system |
+| a real inbox | an email either arrives or it does not |
 
-- **Import an invoice with the AI invoice check ON.** It should behave exactly as it did before:
-  the "Double-checking" panel, then a normal review with an "AI checked" note.
-- **A failure looks like:** the note reads **"AI check unavailable"** every single time, on every
-  invoice, however good the signal. That is the gate refusing Max's own session, and it means the
-  bearer token is not arriving or is not being accepted.
-- **Also check the Dashboard insights.** The Gemini credit line under the insight panel should still
-  appear. If the phrasing never refines and the credit never shows, that is the same failure on the
-  other endpoint.
+**Everything else goes to the agent.** Does a header wrap at 380px, does a button truncate, is a hit target 44px, does a pill overflow, does a dropdown clip, is the contrast AA - **all of that is measurable and none of it is yours.**
+`docs/MAINTENANCE.md` carries the list that came off this file and what to do with it.
 
-**If it fails, it is not urgent and it is not data loss** - the parser and the deterministic insight
-templates are unaffected, and no price is wrong. It is a feature quietly switched off.
+⚠️ **AND `/batch` MAY NOT APPEND HERE FREELY ANY MORE.** That rule is what produced 50 sections: every batch added its own, nothing ever removed one, and no batch is in a position to judge whether the list as a whole is still worth a person's time.
+**A batch that wants to add a check must pass the table above and say which of the five rows it is, in the entry.** If it cannot name one, it is an agent check and it goes to `docs/MAINTENANCE.md`.
+**Six is a smell.** If this file ever holds more than about five live checks, the oldest ones have expired and the fix is to delete them, not to add a sixth.
 
 ---
 
-## 171 / v151 - the bottom bar changed, and there is a More tab now
+# The three to do
 
-**This is the batch you will notice first, because it moves things you tap every day.** Open the app
-and look at the bottom bar before doing anything else.
+## 1. Import an invoice from EACH supplier · about ten minutes · **this is the one that matters**
 
-- **The bar is a different five, in a different order: Dashboard, Menu, Plates, Ingredients, More.**
-  Products has LEFT the bar - it is now under More. The order of the middle three is reversed from
-  what you had (it was Products, Ingredients, Plates, Menu). Both changes are the design package's
-  parity map, which says the phone bar left-to-right must equal the desktop sidebar top-to-bottom.
-  **The old order was the workflow - buy, name, build, sell - and that is what was given up.** The
-  thing only you can judge: after a few days, does reaching for Products under More annoy you, and
-  does the new order fight your muscle memory or stop mattering? A failure is you tapping the wrong
-  tab more than the first day or two.
-- **The gear in the top-right of the header is GONE.** Settings is More → Settings, two taps instead
-  of one. This was a deliberate call and it is the one most likely to be wrong for you specifically,
-  because you are the only person who knows how often you open Settings. **If you find yourself
-  reaching for the top-right corner more than once, say so** - the gear can come back, and the
-  reason it went (two routes to one screen on one platform) is a rule, not a law of physics.
-- **Invoices has a phone home for the first time.** More → Invoices opens the Invoices screen, which
-  until now only existed on desktop. Import invoice on Products still works exactly as before and
-  is unchanged - so there are now two ways in on a phone. Check the screen itself is worth having on
-  the phone at all: it is a dropzone and a "we don't keep a list of past imports yet" note.
-- **Account is reachable from More too**, as well as from the Settings row that already opened it.
-- **Every one of those four screens has a "‹" back arrow at the top-left** that returns to More.
-  Below about 640px wide it is just the arrow with no word beside it; on a wider screen it says
-  "‹ More". That is not a bug - the word was taking the space the Products header needed for its two
-  buttons. **A failure is tapping the arrow and landing somewhere that is not the More list**, or
-  the arrow being too small or too close to the edge for a thumb.
-- **On all four of those screens the More tab is the lit one.** A failure is the bar showing nothing
-  lit at all, which would read as "you are nowhere".
-- **The known rough edge, and it is not new:** at 360px wide (narrower than your phone - some Android
-  phones) the Products header wraps onto two lines. The Ingredients header already did that before
-  this batch for the same reason: two buttons in a header the design allows one in. It is queued as
-  one fix for both. **If your own phone ever shows a header on two lines, say so and which screen** -
-  that would mean the width it happens at is wider than measured.
-- **Both themes.** The More list is four rows on the plain page background with hairlines between
-  them - no card, no container. Check the small grey second line under each name is readable in dark.
+**The parser was rewritten on 10 Sep 2026 (`ezplate-v211`) and one of your two suppliers was wrong on every line before it.**
+Chips were being stored at $0.25/kg against a real $2.46, and the figure moved with how many cartons you happened to buy that week.
+
+**Do the foodservice distributor FIRST.** It is the control: its invoices have always imported correctly, so nothing should change.
+**Pass:** every price the same as last time.
+**Fail:** any price different from the previous import of that product. Say which line.
+
+**Then the poultry and smallgoods supplier.** This is where everything moves.
+**Pass:** most rows arrive already ticked, and **each price matches the Item Price column on the paper in your hand** - per KG where the UOM says KG (bacon, chipolatas, chicken breast, smoked salmon), per carton or bag otherwise.
+**Fail:** a ticked row whose price is not the number printed on the invoice. **Write the line down word for word** - the line text is the whole diagnosis.
+
+**Four things that are NEW and are not faults:**
+
+- **A credit note refuses.** Returned stock comes up asking for a price instead of importing as a purchase. ⚠️ **It explains itself badly** - it says *"unit mismatch"* when it means *"this is a refund"*. Known, filed. **Do not set a pack for a credit line.**
+- **A line the parser cannot add up asks you to type the price** instead of showing a wrong one.
+- **The bread and the beef patties show a longer name.** Their descriptions wrap onto two lines on the invoice and the second half is now joined on. That join is what makes their prices right.
+- **The fuel levy is still one row to dismiss** per import.
+
+**While you are in there, three things that ride along** (each was its own entry on the old list):
+
+- **The supplier name.** It should read as the supplier's trading name, not `Credit Terms: 7 Days` or `Document No:`.
+- **The "AI checked" note** should appear as usual. If it says **"AI check unavailable"** on every invoice however good the signal, the AI second reader is being refused - not urgent, no wrong prices, but say so.
+- **Change a row's match dropdown to another product and back.** The price must not move. *(A defect once divided it by 1.1 on every change - 9% lower each time, with nothing on screen to show it.)*
+
+**Afterwards, look at the price history of two or three of the products you just imported.** It will show a jump the day you import this. **That jump is the fix landing, not a price rise.**
 
 ---
 
-## 170 / v150 - the plate builder fills in the order you actually work
+## 2. Save a plate with no signal, then background the app · five minutes
 
-**Build a plate from nothing on the phone, both themes.** That is the whole item: the search is at
-the TOP of the ingredients card now, the page is two numbered steps ("1 Add ingredients", "2 Name &
-save"), and the plate name and category are both in step 2 rather than in the header and the
-Publishing card. A failure is still reaching past the naming step to find the search, or the two
-step numbers reading as decoration rather than as sequence.
+**Do this:** open the builder, change a plate (add a line or re-portion one), **turn the network off**, tap Save.
+The toast must say it has **not** been saved and the "Saved just now" badge must stay down.
+Then background the app, leave it long enough for iOS to throw the tab away, and reopen.
 
-- **The plate name in the header is static text you cannot tap now.** It used to be the field. The
-  field is in step 2. A failure is reaching for it, nothing happening, and having no sense of where
-  it went.
-- **The header is three rows tall at 380px** - back chevron, then the title, then Save on its own
-  row. It was the same height before, with a field where the title is. A failure is Save sitting far
-  enough down that it reads as part of the page rather than as the bar.
-- **The ingredient dropdown was being cut off and is not any more.** On the shipped v149 build it
-  painted 37px of its 96px, so you saw one and a bit of your matches. Type two letters with a real
-  catalogue behind it and check you get a full list you can scroll.
-- **The Cost card on an unpublished plate is a known empty box.** Below 768 it hides its heading and
-  both figures (the bar underneath carries them) and it has no menus to list yet, so it draws a thin
-  bordered rectangle with nothing in it. Pre-existing since v146, recorded in `docs/MAINTENANCE.md`,
-  not a new fault - but if it reads as broken rather than as empty, say so and it moves up.
+**Pass:** the next time you open the builder it offers *"You were building X. Resume it, or discard?"* and Resume brings your edit back.
+**Fail:** no offer, and the plate is back to how it was before you edited it. That is lost work.
+
+**Then do the same with the network ON**, where the right answer is the opposite: **no offer at all**, because the plate really did save.
+**Fail:** being asked to "resume or discard" a plate that saved cleanly.
+
+**Why a phone:** the failure is iOS discarding the app and the next boot overwriting your plates from the server. Nothing in this repo reproduces the operating system doing that.
 
 ---
 
-## F9 / v148 - Settings is a screen, not a panel
+## 3. The keyboard, and the app cold from the home screen · five minutes
 
-The gear in the header is still the way in and is unchanged. What opens is different: instead of a
-panel with a list of seven sections you tap into one at a time, it is a full screen with all eight
-sections stacked, and you scroll.
+Two things a desktop browser physically cannot show: it has no soft keyboard, and it is not the installed app.
 
-- **There is no Done button any more.** Leaving is tapping another tab, the same as any screen.
-  The thing only you can judge: after changing the target %, does it FEEL saved without a button to
-  press? It is written the moment you type it, and it always was - the old Done button never saved
-  anything, it just closed the panel. But "always was" is not the same as "reads that way on the
-  phone". A failure is hesitating, or going back in to check it stuck.
-- **The "Changes save as you make them" line is desktop-only** (it is in the shared screen header,
-  which hides its subtitle below 768, like every other screen). So the reassurance above is exactly
-  the thing the phone does NOT get. If the point above bothers you, this is the fix and it is one
-  line - say so.
-- **The two AI switches are physically smaller** - the coloured track went from 48x28 to 44x26 on the
-  phone, which is the mock's number. The tappable area around each is deliberately still 44px tall.
-  Tap them with a thumb, not a fingertip. A failure is missing, or having to aim.
-- **Everything that was in the panel is still there**, regrouped: the target % and GST default are
-  under Costing, both AI toggles under AI features, Theme under Appearance, Remembered packs and
-  Tidy lists under Lists, and export/restore/clear under Data. If you go looking for something and
-  cannot find it, that is the finding - name what you were looking for and where you looked.
-- **Tidy lists and Remembered packs open over the screen and close back onto it.** They used to shut
-  Settings and re-open it on the right section. A failure is closing one of them and landing
-  somewhere that is not Settings.
-- **Both themes.** The screen is eight bordered cards with tinted header bands; in dark those bands
-  are a shade lighter than the card. Check nothing reads as a disabled or greyed-out section.
+**The keyboard.** Open the builder, tap the ingredient search, type two letters that match a lot of products (`ch`).
+**Pass:** the whole list of matches sits between the field and the top of the keyboard, and you can reach the last row.
+**Fail:** the bottom rows sit behind the keyboard with no way to scroll to them.
+**Then the sign-in screen** (sign out, or just look at it): the keyboard must not cover the **Sign in** button with no way to scroll to it.
+
+**Cold from the home screen, in dark.** Close the app completely, set the phone to dark, and open the installed icon - not Safari.
+**Pass:** it opens straight into the app already dark, and the title bar at the very top matches.
+**Fail:** a flash of white before dark appears, or a near-black title bar sitting above a white app. **Then scroll well down the Menu list:** the "Menu · *name*" bar should stay pinned at the top with rows sliding under it.
 
 ---
 
-## F8 / v147 - Invoices is a screen, and the upload is three steps
+# The two that wait
 
-**Import a real supplier PDF end to end on the phone, both themes.** This is the batch's whole point
-and the flow you use most.
+## 4. The FIRST time you import a price list · **costs money if wrong**
 
-- **The upload is three panels now: choose, then scanning, then review.** Only one is ever on screen.
-  A failure looks like two of them showing at once, or a blank sheet with nothing on it.
-- **The scanning panel is new** - it says "Reading <your file>" with a moving orange bar underneath.
-  On mobile data after a week idle this is the panel you will sit on longest, and it is the thing an
-  emulator cannot judge. Does the wait read as progress, or as the app having stopped? A failure is
-  reaching for the back button.
-- **The review sheet has a footer bar now: Cancel on the left of the primary, "Confirm N changes" on
-  the right.** On the phone both go full width and stack. Check Confirm is reachable with a thumb
-  after scrolling a long invoice, and that Cancel is not somewhere you would hit it by accident.
-- **The Apply tick has a bigger touch target** - the box looks the same size, but the tappable area
-  around it is now 44px. Tap several of them quickly with a thumb rather than a fingertip. A failure
-  is still having to aim, or hitting the row instead of the box.
-- **Ticking a "new item" line now opens its form for you.** Previously ticking it before opening the
-  form did nothing you could see and could block the whole import at Confirm. A failure is the form
-  opening and then the tick coming off by itself.
-- **The blue intro banner at the top of the import window is gone.** Its promise ("nothing saves
-  until you review") is now printed permanently on the dropzone instead of being dismissible.
-- **The Invoices screen itself is desktop-only for now**, because the sidebar's bottom group is
-  hidden below 1024 and the More screen that gives it a phone home is a queued item. On the phone,
-  Import invoice on the Products screen still opens the upload flow in one tap, exactly as before.
-  **If you land on an Invoices screen on your phone with no tab lit** - which can only happen if you
-  were last on it at desktop width and then reopened on the phone - say so, because that is the edge
-  this batch knowingly left open.
-- **What only a phone can settle:** whether the extra step (scanning) makes the import feel slower
-  than it did, even though nothing extra is being computed. It replaces a filename that used to
-  change in place. A failure is the import feeling longer than it used to.
+Only relevant when you use **Settings → Import product catalogue**, which you have not yet.
+
+**Stop at the mapping step and answer one question: is `LAST PRICE PAID` the price of ONE PACK, or of the WHOLE CARTON?**
+The screen asks, and defaults to one pack.
+
+**Check it against a price you already know before pressing Import.** If chips you know cost about $6.50/kg are showing about $1.08/kg, the answer is "the whole carton" and you switch the radio.
+**Getting this wrong makes every cost in the app wrong by the carton size, and every figure will look completely plausible.** That is why it is asked rather than guessed.
+
+**Same screen, same reason: "The price is" ex-GST or inclusive.** Switch the radio and watch the table - every unit cost must move by about 9%. Leave it on whichever is true of your file.
+
+**Then import the same file a second time.** It must say *"0 new products"* and the product count must **not** double.
 
 ---
 
-## v143 - the Dashboard is rebuilt, and the scope control moved into the header
+## 5. The FIRST time you invite someone · a real inbox
 
-The Dashboard is the last of the five main screens to be rebuilt from the v3 mock. Everything it
-could do before it still does: pick a scope, change the chart range, scrub the trend line, open a
-Dig-in drill-down and come back.
+⚠️ **Do the Supabase dashboard setting first or this cannot pass.** Authentication → URL Configuration: **Site URL** `https://scoopyscosting.vercel.app`, and add `https://scoopyscosting.vercel.app/**` to **Redirect URLs**.
 
-- **The menu-scope dropdown is now in the screen header**, top-right, beside the "Dashboard" title -
-  it used to sit beside the big number. Same control, same ranked list, same sparklines. On a phone
-  it shares that row with the title. **Check it is comfortable to reach and read one-handed at the
-  top of the screen**, and that a long menu name truncates rather than shoving the title.
-- **The trend chart is drawn at its true size now.** On desktop its axis labels and line were being
-  scaled up ~2.7x by a fixed-size drawing box; they render at their intended size at last, so the
-  chart looks noticeably finer and wider. **On the phone this should look essentially unchanged** -
-  that width was always close to correct. Say if the phone chart looks thinner or smaller than it did.
-- **The big 44px food-cost number is the phone's verdict; desktop shows a three-cell strip instead**
-  (average, plates over target, not costed or priced). Only one is ever on screen. Check the phone
-  still leads with the number you want first.
-- **"What needs attention" is now "Needs attention"**, in a bordered card with the Gemini credit in
-  its header bar rather than under the lines. The credit still only appears when Gemini actually
-  phrased a line you can see - **if you ever see it on a line that looks like the app's own plain
-  wording, that is a real bug**, and worth a screenshot.
-- **Dig in is four rows now, not four tiles.** On the phone each row is two lines (the question, then
-  what it points at) with the figure right. Tapping still opens the same list.
-- **A brand-new café's Dashboard now shows a "Cost your first plate" card with a New plate button**,
-  instead of a dash. You will only see this on an empty account - not worth engineering, but if you
-  ever do see it with real data on the screen, that is a bug.
-- **What only a phone can settle:** whether the whole screen still passes the one-glance test. The
-  desktop strip and the phone hero say the same thing in different shapes, and the phone is the one
-  that matters. A failure looks like having to scroll or think before you know whether you are over
-  target.
+⚠️ **EzPlate does not email them.** You invite the address in Account → Team; **you** then tell them to open EzPlate, tap "Been invited?", and sign up with **that exact address**. Supabase sends them one confirmation email after they sign up, and they must click it before their first sign-in works.
+
+**Pass:** the link opens `scoopyscosting.vercel.app` and lands on the "name your café" screen; they then land straight into your café with nothing to accept.
+**Fail:** the link opens `localhost:3000`, or they see *"This account isn't linked to a café yet"* - which usually means a typo in the address you invited, not a bug.
 
 ---
 
-## v142 - Menu is rebuilt, and Delete has moved
+# What came off this file, and why
 
-The Menu tab is a five-column table on desktop and two-line rows on the phone. Everything it could
-do before it still does: tap a row to edit its price, category or menu; search; the category filter;
-the Healthy / Watch / Rework chips; switch menus; New menu; Existing plate.
+Nothing here was thrown away silently.
 
-- **"Delete" has moved out of the menu-switcher row and to the BOTTOM of the screen**, under the
-  list, labelled "Delete this menu". A phone is the only judge of whether that reads as safer (a
-  destructive control no longer sits beside the control you tap most) or as lost (you now scroll a
-  long menu to reach it). A failure looks like you hunting for it, or finding it by accident while
-  scrolling. Say which, because the reasoning cuts both ways and only you use this screen daily.
-- **The row's second line now reads "$3.00 cost, suggested $10.00"** — the phone used to say
-  "$3.00 cost · $9.00 on menu". The price itself moved to the right, above the food-cost pill. Is
-  the suggested price the more useful of the two to have on the line, or do you want the menu price
-  back there? This changed because the mock designs it that way; it is a real change in what the
-  row tells you at a glance.
-- **An amber or red verdict pill wraps onto two lines on a phone** ("42.9% ·" / "well over"), which
-  makes those rows taller than green ones. Deliberate: the alternative was truncating the "suggested
-  $17.40" figure beside it, and a cut-off price is worse than a tall row. Check it does not make a
-  menu of mostly-red plates feel ragged.
-- **The menu name is no longer in the screen header** — the header says "Menu", and the current
-  menu's name is in the switcher control below it, with its food-cost % beside it. On the real
-  catalogue with your real menu names, does that still tell you which menu you are looking at
-  quickly enough?
-- **Two actions still share the mobile header** ("Existing plate" and "New menu"). Same known
-  deviation as Ingredients and Products; it is queued as one question for all three. What is worth
-  reporting is whether the header ever WRAPS to two lines on your phone with your font settings —
-  a spec pins it at 380px, but iOS text scaling is not something a spec can see.
+- **The v3 redesign blocks (v99 through v151, 179, 178, 175/176) are DELETED.** They asked how a redesigned screen *feels* - whether the More tab annoys you, whether you miss the floating "+", whether the new row wording is the more useful of the two. **Those screens have been in daily use since August. You not raising them IS the answer**, and a list that keeps asking is a list that has stopped meaning anything.
+- **Every layout, truncation, wrap, hit-target and contrast check is DELETED from here and filed for the browser agent** in `docs/MAINTENANCE.md`. All of it is measurable at 380px in both themes and none of it needed you.
+- **The VoiceOver check (batch 225) is filed, not deleted.** It is real and genuinely only a device settles it - but you do not use VoiceOver, so pretending it was on your list was the same lie as the rest. It goes on the accessibility item.
+- **The "Carried v82–v98" inventory is DELETED.** It indexed item codes (B1–B9, C1–C8, D1–D2) against screens that have each been rebuilt twice since.
+- **The old "Settled - no phone needed" heading is DELETED.** It sat above live work six times running because `/batch` appended past it, and it told a reader to stop seven sections early - including past two of the costs-money checks.
 
----
+## One thing that is NOT a phone check and has been waiting five weeks
 
-## v140 - Products is rebuilt, and the floating "+" is gone
-
-The Products tab is a five-column table on desktop and two-line rows on the phone. Everything it
-could do before it still does: tap a row to edit a product, search, the category and supplier
-filters and their "Manage list..." doors, and Import invoice.
-
-- **The floating orange "+" in the bottom-right corner is DELETED.** "New product" now lives in the
-  screen header, where Plates and Ingredients already keep theirs. This is the one change you might
-  actively miss: the header scrolls away and the "+" never did, and you have ~400 products to
-  scroll. A failure is finding yourself scrolling back to the top to add a product. Say so if it
-  bites - the design forbids two buttons for one action, but it does not forbid the header sticking.
-- **The row no longer shows the BRAND on the phone.** It reads name, then "Category, Supplier"
-  underneath. The brand is still there on desktop and still in the row's own edit form. It came off
-  because keeping it truncated both: "Apple Slice…" next to "Heinz Wa…", neither readable. A failure
-  is not being able to tell two similar products apart in the list - e.g. two "Baked Beans" rows
-  from different brands. That is the exact case this trade risks, so it is worth a real look at your
-  own catalogue.
-- **"steady" where a price has not moved**, replacing the dash. Same word Ingredients now uses for
-  the same number. A failure is it reading as a status you have to act on rather than "no news".
-- **Two buttons in the header again: "Import" and "New product".** Same question v139 raised on
-  Ingredients, and here it is permanent rather than conditional - so answer it once for both
-  screens. A failure is the pair crowding the title or wrapping to a second line.
-- **"Prices last updated: ..." has left the Products screen.** The same line still shows inside the
-  Import invoice window, which is one tap from that header. Check that is close enough: a failure is
-  wanting to know when you last imported and having to open the import flow to find out.
-- **The supplier column on your real catalogue.** Most of your products have no supplier recorded,
-  so on desktop that column is a lot of dashes. On the phone it simply does not appear. Say if the
-  dashes read as broken rather than as empty.
-
-## v139 - Ingredients is rebuilt too, and it is now five columns
-
-The screen is a table on desktop and two-line rows on the phone. Everything it could do before it
-still does: tap a row to rename it or change the product it links to, the setup wizard, search,
-the category filter and its "Manage list..." door.
-
-- **The meta line on your real catalogue.** Each row now reads "Category, in N plates" under the
-  name. A failure is a category long enough to push the plate count off the line, or a row where
-  both are missing and the line sits empty.
-- **"Last change", not "30-day change".** The mock asked for a 30-day window and the app does not
-  have one - this is the last logged move, which is the same number the dashboard's What moved
-  uses. Check the two agree for an ingredient you know moved recently. If they disagree, that is
-  the invariant breaking and it matters more than the label.
-- **"steady" where a price has not moved.** It used to render nothing at all. A failure is it
-  reading as a status you have to act on rather than as "no news".
-- **Two buttons in the header while setup is live.** "Set up from products" sits next to
-  "New ingredient" on the phone. The mock asks for one action there. A failure is the pair
-  crowding the title or wrapping to a second line - it did exactly that before it was caught, and
-  the fix was measured at desktop only.
-
-## v138 - Plates is the first screen REBUILT from the v3 mock
-
-The Plates tab no longer borrows the Products card styling. It is a two-line list on the phone
-(name, then "category, on Winter Menu", cost right) and a three-column table on desktop.
-Everything else on the screen still works exactly as it did - the row still opens the same
-Add-to-a-menu / Edit / Print / Delete chooser.
-
-- **Read the meta line on the real catalogue, both themes.** Every row is now
-  "category, publish state" under the name. Your plate names are longer than the fixtures.
-  A failure looks like: the name wrapping to three lines, or the meta line truncating the menu
-  name so you cannot tell which menu a plate is on.
-- **"not costed" in the cost column.** It replaces the old dash-plus-"not costed yet" caption.
-  A device is the judge of whether it reads as information at 15px mono, or as an error.
-  (The older "reads as clutter?" question further down this file is about the OLD rendering and
-  is answered by this one - do not answer both.)
-- **The clear ✕ inside the search box.** It is a new element (`.plib-x`) with an invisible 40px
-  hit area rather than the app's shared one. Tap it with a thumb, not a fingertip: a failure is
-  having to aim, or hitting the text field instead and popping the keyboard.
-- **The lowercase meta line.** "Mains, on Winter Menu" is lowercased by CSS (`::first-letter`),
-  not in the text. iOS Safari is the one engine this was not driven in. A failure looks like
-  "Mains, On Winter Menu" - wrong-looking but harmless, so it is worth a glance and nothing more.
-- **The header row.** Title plus one "New plate" button, no subtitle on the phone (the desktop
-  gets "6 plates, 1 not costed, 2 unpublished"). A failure is the button wrapping onto its own
-  line - it did exactly that before it was caught, and only on a narrow screen.
-
-## v136 - dark mode is BACK, and Settings now has a Light / Dark / System control
-
-⚠️ **This reverses what the v132-v135 block below tells you.** That block says dark mode is gone
-and the app should come up light. It was correct when written; the replacement design package
-ships both palettes and the protocol orders both ported, so the condition you set on 9 Aug
-("light only until a designed dark package exists") is **met**, not overruled. Read this block
-first and treat the "dark mode is gone" bullet below as history.
-
-- **Find it:** Settings → General → Theme. Three choices. **System** is the default and follows
-  your phone.
-- **The one thing only your phone can settle: does dark actually read in the kitchen?** The
-  palette is deliberately soft grey (`#232528` canvas, `#1E1F22` sidebar), not black. On an OLED
-  that choice can look washed out where black would look crisp — or it can look right and black
-  would glare at 5am. Every text/background pair was measured against WCAG AA in a real browser,
-  so this is **not** a contrast question; it is a "does it feel right on the real screen" question.
-  Failure: you find yourself squinting, or you switch it back to Light within a day.
-- **The theme must not flash on boot.** The theme is resolved before the first frame paints.
-  Failure: any flash of white before dark appears (or vice versa) when you open the installed PWA
-  cold. That is the single most likely real defect here and an emulator will not show it honestly.
-- **The PWA title bar / status bar should match the app's canvas**, and must follow **your
-  choice**, not the phone's setting. The specific case to try: **set your phone to dark, then
-  choose Light in Settings.** Failure: a near-black title bar sitting above a white app. (This
-  exact bug existed in v132 and again briefly in this batch; it is fixed and pinned, but only a
-  real installed PWA proves the title bar.)
-- **"System" should flip live.** With System selected, change your phone's appearance (or let it
-  switch at sunset) **without reopening the app**. It should follow immediately. Before this batch
-  it only read the setting at boot, which for a once-a-week user meant sitting in the wrong theme
-  for days. Failure: it stays on the old theme until you reopen.
-- **Native controls in dark.** Open a `<select>` — Settings → GST default is the quickest. The
-  popup list should be dark. Failure: a white popup list over the dark app (this is the
-  `color-scheme` fix; iOS Safari is the one that most often ignores it).
-- **The empty-state drawings in dark.** The clearest is the plate builder with no ingredients
-  added. The line art should be visible grey, not a near-invisible dark-on-dark smudge.
-- **Printing while in dark mode.** Print a plate docket with the app in dark. The paper must come
-  out white with black text. Failure: any dark background on the printout.
-
-## v132-v135 - the v3 repaint reached your phone (AUDIT-v135 D2: nobody asked you to look)
-
-- **Every screen now wears the v3 look on the phone too:** white canvas, flat bordered cards, the Geist typeface, and NO dark mode (your call, 9 Aug - light only until a designed dark package exists). The mobile LAYOUTS are unchanged until V9; the paint and type are not.
-  Failure: the typeface renders badly at small sizes on the real screen, contrast suffers on the real OLED in kitchen light, or you simply miss dark mode - all three are device judgements no emulator settles.
-- ~~**If you used dark mode:** it is gone~~ — **SUPERSEDED by the v136 block above, 10 Aug 2026.** Dark returned with the replacement design package. Struck rather than deleted so the reversal is visible: this said dark was gone, and it is not.
-- **The Menu tab at ≥1024 only (iPad landscape):** switcher pills replace the menu dropdown. A 6th menu makes the pills stand down and the dropdown return, with no copy explaining the swap - **say if that reads as breakage** (it is one line of copy or an earlier overflow design if so).
-- **The mobile Menu verdict cell** says "42.9% · over" with no visible word "target" (the column header is hidden on phones; the aria-label carries it). The v133 review flagged it as possibly reading as "42.9% over [something else]". Failure: you misread it even once. V9 is where the fix would land.
-
-## v129 - the dashboard scope dropdown
-
-- **Open the Dashboard and look at the verdict row: the big figure on the left, the "All menus 21.7 ▾" button on the right.**
-  Both state the same number, in the same semantic colour, a few centimetres apart — the mock draws it that way and the pre-push review flagged it as worth a real-screen judgement. On a 380px phone the button wraps under the figure, which may read better or worse than side-by-side.
-  This is a **taste call**, not a defect hunt: does the doubled number read as confirmation ("this is what you're scoped to") or as clutter?
-- **Why only a device settles it:** the duplication is deliberate and correct at desktop width; whether it feels heavy depends on the phone's actual line-wrap and how much the two numbers dominate the card together, which Chromium's 380px emulation renders but cannot judge.
-  Failure: it reads as the same stat shown twice for no reason. If so, say the word and the button can show the name + caret only.
-- **Tap the button, pick a menu, tap elsewhere to dismiss.** The popover should close on an outside tap and never re-open on its own after switching tabs.
-
----
-
-## v119 - the builder takeover goes edge-to-edge
-
-- **Open any plate in the builder and look at the two side edges.**
-  Until now the phone got a full-height, square-cornered sheet that was **24px too narrow** - a 12px strip of dimmed backdrop down each side. It has been that way since v54 and nobody named it; it was found by measuring, not by looking.
-  Chromium at 380px now reports the sheet at the full viewport width in both themes, so this is a **confirmation**, not a diagnosis.
-  Failure: a visible gutter remains on either side; or the opposite direction - content now runs under the rounded display corners, or the × / Save bar collides with the notch or the home indicator.
-- **Why only a device settles it:** the sheet is `min-height:100dvh` and the overlay uses `env(safe-area-inset-*)` padding, and both were previously masked by the 12px inset. `dvh` and the safe-area insets are exactly what a desktop browser cannot reproduce - iOS Safari changes `dvh` as the URL bar retracts.
-  Check it **scrolled to the top and again after scrolling the docket**, and in landscape, where the insets move to the sides.
-- **Same rule covers the ingredient wizard** (`.modal-wiz`). Open it once and check the same two edges.
-
----
-
-## v118 - the plate draft
-
-- **Open a plate, look, close with ×. Then open a different plate.**
-  The old build planted a draft on that second visit and met you with "Unfinished plate — resume or discard?" about a plate you never edited.
-  Chromium says it is fixed at 380px and 1280px, so this is a **confirmation on the real device**, not a diagnosis: it depends on the builder actually closing the way a thumb closes it.
-  Failure: the prompt still appears after a look-only visit, or - the worse direction - it stops appearing after **real** unsaved edits.
-- **The new "Plate changed since" dialog.** Only reachable by editing a plate on one device, leaving a draft, and changing that plate elsewhere before resuming.
-  Hard to stage deliberately; worth a look if it ever appears.
-  Failure: the wording does not make clear which version wins, or "Resume anyway" and "Discard draft" are the wrong way round under a thumb.
-
----
-
-## v115 - the dashboard reframe
-
-**Production now has ONE change-log entry** - a dish removal on 6 Aug ("Bacon & Egg Muffin", −0.17pp).
-So the chart has one marker and a since-line rather than the empty state the handover predicted.
-One marker is a thin test: **make a second change before judging this**, so you can see whether two drops read as a sequence or as noise.
-
-- **The chart with markers and the since-line, 380px, both themes.** Do the drops read as *your* work?
-  That is the entire batch.
-  Failure looks like a drop you cannot connect to anything you did.
-- **The since-line.** Honest, or nagging?
-  It is the one piece of new copy.
-- **The unified ring.** Boot, pull-to-refresh and the invoice wait should read as one thing.
-  Failure: they still feel like three different apps.
-- **The patient boot message** after a genuine week idle - "Still loading, the first open after a break takes a little longer."
-  Honest or annoying?
-  A warm boot never shows it, so this waits for a real gap.
-- **Re-tap smooth scroll and tab-switch scroll.** Chromium could not answer this: it pauses rAF in background tabs.
-  Does iOS Safari fight it?
-- **The chips** - Healthy / Watch / Rework.
-  ⚠️ **Corrected 8 Aug 2026 by the v115 audit: this entry used to read "the dotless chips", which described a state that never shipped.**
-  The dots were removed in v115's first draft and put BACK on Max's own instruction the same day (`HANDOVER-v115.md:227` reverses `:116`).
-  Both the dots (`css/style.css:504`) and the active-chip tint the removal introduced (`:507-510`) ship together.
-  So the question is not whether the idle row is too quiet without dots - it is whether **dots plus a tinted active chip** is one signal too many.
-- **The v115 splash / loading screen.** Rebuilt live on the last shipping batch after being decided three ways in one day (`HANDOVER-v115.md:222` then `:247`, which supersedes it), and it is the first thing a user sees.
-  It also carried a bug only a browser caught - the session flag was set before it was read (`HANDOVER-v115.md:265`).
-  Failure: it flashes on a warm open, or shows twice, or a real week-long gap shows the wrong one of the two states.
-- **Builder rows at 380px.** The overflow from Max's screenshot.
-  Contained in Chromium by measurement; the phone is the judge.
-- **The Gemini insight arrival.** Settles rather than flashes?
-
-## v114 - the extra write
-
-- **Does a plate save feel slower?** Every save now fires one extra INSERT.
-  It is fire-and-forget and never blocks the UI, but on mobile data after a week idle it lands behind the cold-start penalty.
-  If saving feels heavier than it did, this is the first thing to look at.
-
-## v113 - invoice gate and publish guard
-
-- **The invoice wait.** Does the gate read as progress or as the app being stuck?
-  Failure looks like reaching for the back button.
-  This is the batch's one real risk: on mobile data after a week idle the cold start lands *before* the referee even starts.
-- **The timeout path**, hard to provoke deliberately - if Gemini is slow once, check Confirm All comes back and the amber "didn't finish" line is legible.
-- **Publishing a plate normally.** The orphan guard should stay invisible when there is nothing to warn about - production has **0** unlinked dishes (verified 7 Aug), so it should never appear.
-
-## v112 - delete sequencing
-
-- **The delete flow end to end.** Delete a plate that is on a menu; confirm it disappears and stays gone after a reload.
-  This is the fix's whole point.
-- **A failed delete's wording.** Hard to stage deliberately.
-  If you ever see the "…it's still in your Plates library" toast, check the plate really did come back.
-- **Publish → reload → still costed.** Plates tab → Publish → force a reload → the dish still reads as costed on the Menu tab.
-  (This replaces the brief's own check, which pointed at the unreachable `savePlateRestore`.)
-
-## v110 - restore
-
-- **The restore UI has never been seen on a phone.** It is the most destructive button in the app, one tap from Export.
-  Check the confirm copy, the iOS file picker, and whether the boot gate reappearing reads as progress or as a fault.
-- **Does the iOS Safari file picker offer a `.json`?** The hidden-input pattern is the invoice one and works there, but a `.json` `accept` filter is not a PDF one, and iOS is particular about which files it will show.
-- **Does the confirm read as serious enough** - does it FEEL like a stop sign?
-- **How long a real restore takes on mobile data**, with the cold-start penalty landing on top.
-
-## v108 - behavioural, not visual
-
-This block is a different KIND from everything above it.
-None of it can be checked from a container.
-
-- **The cold-start penalty.** First request after idle measured **~1,138 ms** against 79–152 ms warm.
-  With week-long gaps that is the NORMAL case, and it lands on top of the boot gate.
-  Single most important thing to feel.
-  (Supabase waking, not app latency - boot is one `Promise.all`.)
-- **Does the boot gate read as honest, or as broken?** It is the first thing the app shows now.
-- **Does the offline message arrive when the signal actually drops** - not just when `navigator.onLine` says so?
-  That flag is unreliable in installed PWAs, which is why nothing pre-skips on it.
-- **Does a refused product delete explain itself** well enough to act on?
-- **Take a fresh `format: 2` (or 3) export** and keep it.
-  The restore refuses `format: 1` outright, so an older file is not a recovery path.
-
-## v107 - supplier memory
-
-- **Import one Bidfood invoice and check the supplier field reads `Bidfood`.** The whole batch in one action.
-- **Clear the six orphaned taught packs.** Settings → Remembered items → Remove each entry showing "from Document No:".
-  **Verified still there 7 Aug: six rows, supplier `Document No:`** - mayonnaise, two cheese-slice entries, pluto pups, lime cheesecake, spring rolls.
-  The seventh row (`The Fruit Wagon` / avocado tray) is genuine; leave it.
-  The import in the item above re-teaches what it needs.
-
-## v105 - Settings
-
-- **Settings → About wraps to ~3 lines at 380px.** Read it once in situ.
-
-## v104 - Products tab (Opus batch) + the carried C and F blocks
-
-- **Invoice import end-to-end on a real supplier PDF.** This retires the carried block: **C4** add-new dropdown geometry · **C5** form state persistence across rows · **C6** real-PDF parse over mobile data · **C7** catalogue load · **C8** unit-change confirm copy.
-  All need a real file and a real phone.
-- **The compressed `#invIntro` + the CSV placeholder in situ.** One sentence above the Upload button - reassurance at arm's length, or decoration you skip?
-- **Products cards with the new seam/radius.** ~412 products (verified 7 Aug): the tab where an 8px seam either resolves into a rhythm or looks cramped.
-  The most-scrolled list in the app and the batch's main visual risk.
-- **The invoice modal in light mode.** One card tone now - do rows still separate on a bright screen?
-- **iOS modal items F1–F4 (carried).** The invoice modal is their stress case: tallest, most scrollable, the only one that stacks a confirm over itself.
-  If v87's scroll-lock has an iOS edge, this is where it shows.
-
-## v103 - Ingredients tab + the carried D block
-
-⚠️ **The Ingredients tab was redesigned in v124** (cards → one surface of rows, inline drift, loud broken links). The D-block flows still apply; the card descriptions predate the redesign.
-
-- **~~Ingredient cards with~~ Ingredient ROWS (v124) with the price column at 380px.** Long product names now wrap into the space the price vacated - does the column read at arm's length, and do prices scan as one axis down the list?
-- **The two compressed modal hints in situ.** "Follows the linked product." is the tersest line shipped - five-second test it.
-- **D1 (v86 carried):** the strapline in situ.
-- **D2 (v86 carried):** the setup-from-products wizard - progress and done states.
-
-## v102 - Plates tab + the carried B block (the biggest single clearable chunk)
-
-⚠️ **The Plates tab was redesigned in v123** (card grid → one surface of rows) and the builder in v125 (cost panel + docket columns). The B-block FLOWS below are still worth driving; the visual descriptions predate the redesign - judge the new rows/panel on their own terms.
-
-- ~~Plates cards: 16px radius + 8px seam at tablet/desktop widths~~ (superseded by the v123 rows - glance-check the row list instead).
-- Builder popup: no hint under the search (with ingredients); the compressed docket line; the no-ingredients empty state still appears on a fresh install.
-- The Manage-menus modal one-liner in situ.
-- Chip tint on plate cards in dark mode with theme = System (the fixed path).
-- **B1–B9, all on this tab:** B1 draft resume round-trip · B2 re-entry guard (+ no-nag after save) · B3 live margin preview vs Menu row · B4 sticky Save reachable · B5 "Add to a menu" wording · B6 no-match dead-end lands on Ingredients · B7 empty-plate no-match shows message only · B8 unnamed-plate refusal stays put · B9 printed docket copy.
-  **Note on B1/B2 (corrected 9 Aug 2026 by the v125 audit):** the "builder plants a draft just from looking" bug was FIXED in v118 - the v118 block near the top of this file is the current truth.
-  If the resume prompt greets you after a look-only visit, that is a REGRESSION worth reporting, not a known bug to ignore.
-
-## v101 - Settings prose
-
-- Walk all seven Settings sections - the six compressed help lines in situ.
-  Is anything now TOO terse to act on?
-  (Five-second test per section: hide the line, say what the control does.)
-- The Remembered-packs modal without its preamble - open it with real remembered packs; does the list stand alone?
-  (Seven rows today, six of them the orphans above - so this and the v107 clear-out are the same visit.)
-- Account/Team as bare one-line placeholders - still read as "coming", not "broken"?
-
-## v100 - Menu tab + pinch-zoom
-
-- **Pinch-zoom now works - test it against the FIXED chrome** (Max's own rider).
-  Zoom in on each tab and check `.bottomnav` and the builder's sticky Save bar behave sanely under zoom.
-  This is the one place removing `user-scalable=no` can bite, and it is why the attribute existed.
-- Menu cards at 380px: quiet lowercase labels - still scannable in kitchen light, or do the rows blur together without the uppercase?
-- Desktop Menu: section headers without the beige band - do groups still separate?
-- The compressed Add-plate modal line and target meta line in situ (the meta line wraps after "—" at 380px; acceptable pre-existing behaviour, say if it bothers).
-- **E1 (v82 carried):** price a dish in the Add-to-menu dialog, watch the live margin preview, save, confirm the Menu row shows the same number and light.
-
-## v99 - global chrome
-
-- **Dark mode, all four tabs.** Cards no longer cast shadows.
-  Does depth still read on the real OLED, or do panels blend into the page?
-- **Dark bottom nav.** It separates from content by its top border alone now.
-  Still reads as chrome?
-- **Pull-to-refresh in dark.** The puck is shadowless; drag to the threshold and check the ready-ring still announces "release".
-- **Product cards at 380px.** Every card gained a "per kg" line under the price.
-  Density and wrapping on the real catalogue, both themes.
-- **Plates tab.** Uncosted plates say "not costed yet" under the dash - reads as information or as clutter?
-
-## Carried, v82–v98 - what is actually left
-
-The Batch 0 audit inventoried **61 unsigned-off items**.
-Reconciling that inventory against the sections above:
-
-- **Assigned and listed above:** E1 (v100) · B1–B9 (v102) · D1–D2 (v103) · C1–C8 and F1–F4 (v104).
-  Working those version blocks retires them; there is nothing separate to do.
-- **Still unassigned - F5:** the post-service-worker-update boot.
-  Belongs to whichever batch ships next.
-  Check the app comes back cleanly after a deploy rather than half-updated.
-- **Still unassigned - the dashboard block, 29 mobile + 3 desktop.** The single largest remaining chunk, and the UX sequence never covered it. v94–v98's sharpest questions are read-and-react, not build-dependent: the one-glance test, the absence of the compares block, dig-tile tappability, sparkline behaviour, scope restore on reload.
-  Worth one dedicated dashboard session - and it now folds naturally into the v115 block at the top, since that is the same screen.
-- **Struck as superseded, do not test:** A15 (dotted chart fill - deleted) · A29 (dashboard selector - deleted v96) · AD1 (compares strip - deleted v98) · C9 (product bridge - removed v83) · F7 (snackbar - deleted v83).
-- The two sharpest carried items on record: **v87's iOS scroll-lock** (its stress case is the invoice modal, F1–F4 above) and **v90–v92's "so what" test against real insights**.
-
----
-
-## Settled - the v106/v109 pair only, no phone needed
-
-⚠️ **THIS HEADING READ "Settled - checked from here, no phone needed" UNTIL 15 AUG 2026, AND IT WAS TELLING YOU TO STOP READING SEVEN SECTIONS EARLY.**
-The file runs newest-first from the top down to v99, then `Carried`, then this - and then **reverts to chronological append**, because `/batch` adds new sections at the end. The append is right; the heading it appends after was not. **EVERYTHING BELOW THIS SECTION IS ACTIVE AND NEEDS A PHONE.**
-⚠️ **The list of what those sections are is DELETED rather than re-counted, and that is the fix** (2 Sep 2026, AUDIT-v186 C5). It named seven, six more were appended under it, and the heading's own instruction - *"if a later batch appends here and this heading is once again sitting above live work, move the heading rather than the work"* - **was not followed six times running.** Two of the six it stopped naming are this file's own COSTS-MONEY-IF-WRONG class, which is the worst thing an under-counted list can hide.
-**An enumeration that `/batch` appends past is a count that goes stale by construction, and no instruction can fix that** - the same conclusion `CLAUDE.md` reached about the `:not([hidden])` rules and the `cafe*` keys. The sentence in capitals above needs no number and cannot rot; read the headings.
-**What is behind it is not cosmetic.** 193's last entry asks whether `LAST PRICE PAID` is the price of one pack or of the whole carton - *"getting this wrong makes every cost in the app wrong by the carton size, and it will look completely plausible"* - and 186's asks about being signed out, and 192's about password managers and the keyboard, which its handover says a desktop browser cannot show. A reader obeying the old heading saw none of them. **Found by AUDIT-v166 (D1), which ranked it the highest value-per-minute item in the report.**
-**Only these two bullets are settled:**
-
-- **v109: does a price edit land a history point?** Answered.
-  `ing_price_history` held 33 points across 33 products at the v109 baseline; it holds **35 across 35** as of 7 Aug. Points are landing.
-- **v106: re-export and confirm all seven groups.** Superseded by v108's `format: 2`/`3` export request above - the older stamped file is no longer the one that matters.
-
-*(If a later batch appends here and this heading is once again sitting above live work, move the heading rather than the work — the append order is load-bearing and the heading is not.)*
-
-## 175 + 176 / v155-v156 - the shell, Products and the trend
-
-**Added retrospectively on 12 Aug 2026 by the v156 audit.** Neither batch wrote a `docs/PHONE.md`
-section - 172, 173 and 174 each wrote one saying "none", so this is an omission rather than a
-judgement that there was nothing to check. Both batches changed things only a device shows, and
-**176 also shipped without a pre-push review**, so it has had no second reader at all.
-
-- **The `/kg` unit suffix is now smaller and dimmer** on every money row, so the prices scan as a
-  column. A failure looks like the suffix being too faint to read outdoors or at arm's length, or
-  the money column no longer lining up once the suffixes differ in width. Only a real screen in real
-  light settles legibility.
-- **"steady" became a dash** on Products *and* Ingredients. Check a dash reads as "no change" rather
-  than as "missing data" on a small screen - it is a deliberate absence and it should not look like
-  a bug.
-- **The trend gained a card and a real x-axis of dates.** v48's reasoning for having no axis was
-  that the scrub tooltip gives exact dates, which is nothing at all on a phone - this is the fix, so
-  the phone is the only place it can be judged. A failure looks like date labels overlapping,
-  clipping at the card edge, or so few that the axis says nothing.
-- **The active range pill is no longer orange.** Confirm the selected range still reads as selected
-  at a glance; the markers staying orange is deliberate (they mean "you did this").
-- **The install banner was re-docked and restyled secondary**, and the page now reserves its height
-  by setting a class on `<html>` while it is up. ⚠️ **The failure mode is specific and named in the
-  handover: the last table row sitting underneath the banner.** Scroll to the bottom of a long
-  Products list with the banner showing.
-- **The desktop container is left-anchored with `padding:0` and `margin:12`**, which `HANDOVER-176`
-  flags as looking wrong and not being - the visible gutter is three stacked insets totalling 32px.
-  Nothing to check on the phone; noted so a future reader does not "fix" it from a screenshot.
-
-Both themes for all of it. If any of these is wrong, it is a defect in code that is already live.
-
-## F7 / v146 - the builder page
-
-**Drive the whole builder on the phone, both themes.**
-Open a plate from Plates, change a quantity, tap a unit cost to re-price it, add a misc line, save, then publish from the Publishing card.
-A failure looks like: the fixed summary bar covering the last table row, the header wrapping to three lines, Save reachable only by scrolling, or the bar sitting on top of the tab bar instead of above it.
-Only a device settles the bar's clearance - the offset is calculated against the real `.bottomnav` height plus the safe-area inset, and the emulator's inset is zero.
-
-## 178 / v157 - the docket builder, the trend row, the form measure
-
-**The builder's Save moved, and the phone reaches it a different way from the desktop.**
-The header now carries NO action: Save is in the rail's summary panel at >=768, and on a phone it is the sticky bar's own button.
-Drive a whole plate: add ingredients, set a quantity, tap a unit cost, add a misc line, set the menu price, save.
-
-- ⚠️ **Tap Save in the sticky bar WITH the menu-price field still focused.** It must commit on the first tap.
-  A failure looks like nothing happening, then working on a second tap.
-  The bar's button used to be rebuilt on every keystroke, which would swap it between touchstart and touchend; it is static markup now, but the blur-then-tap ordering is browser behaviour and only a device settles it.
-- ⚠️ **Tap the plate name in the breadcrumb header.** It must not zoom the page.
-  It is a real input wearing the title's size, and it deliberately does not override the app-wide 16px `!important` that exists to stop iOS zoom-on-focus.
-- **The install banner and the summary bar have always overlapped** (fixed at 84px and z-index 78, against the bar's 25). The bar now rides 114px while the banner is up. With the install prompt showing, confirm the Save button is fully tappable and nothing sits over it.
-- **The docket's paper is `--surface-2`,** which in dark is DARKER than the page canvas rather than lighter. That is the mock's own choice. Confirm it reads as paper on a table rather than as a hole in the screen.
-- **The tear-off zigzag** is drawn with gradients. Check it does not shimmer or alias badly on a real panel.
-
-Both themes. If any of these is wrong it is a defect in code that is already live.
-
----
-
-## 179 / v158 - the second button in a screen header moved down one line
-
-**Three screens changed shape at the top: Ingredients, Products and Menu.** On each, the header now
-carries the screen name and **one** button; the second button sits in the row of controls directly
-beneath it, pushed to the right.
-
-- **Ingredients: "Set up" is now under the header**, beside/below the search and category filter,
-  instead of next to "New ingredient". This is the screen the change was really for - on your phone
-  that header was **two rows tall** (121px against 69), because your catalogue has hundreds of
-  unlinked products and that is what makes the button appear. It was wrong at 380px, which is your
-  width, and no test could see it because the test data never produces that button.
-  **A failure is the header still looking like two rows, or "Set up" not being on screen at all.**
-- **Products: "Import" is now under the header**, after the two filter dropdowns. Import invoice from
-  the Products screen still works exactly as before - one tap, same modal. **A failure is tapping it
-  and nothing opening**, which is the specific risk of moving a live button between two places.
-- **Menu: "Existing plate" is now under the header**, after the menu switcher and search.
-- **All three still work in one tap** and are driven by the test suite, but a tap in a browser at a
-  narrow window is not a thumb on glass. **What only the phone can settle: whether the button is
-  comfortable where it now is, or whether it reads as part of the filters** - that cost was written
-  down when the home was chosen, and you are the only one who can say whether it matters.
-- **Rotating the phone, or anything that changes the width across ~767px, moves the button live.**
-  Turn the phone sideways on each of the three screens and back again. **A failure is the button
-  disappearing, appearing twice, or landing somewhere other than the header (landscape/wide) or the
-  control row (portrait).**
-- **360px-wide phones are supported from this batch on** (your call, 12 Aug). If you ever open the
-  app on a narrower device than usual, the headers should still be one row.
-
-**The one that would be quiet if it were wrong:** on a *brand-new* café with products but no
-ingredients yet, "Set up" must still be visible under the Ingredients header. That screen hides its
-search and filters when there is nothing to search, and the button lives in that same row now - it is
-deliberately exempt, but it is the kind of thing that only shows up on a genuinely empty account.
-
----
-
-## 186 - you will be signed out, and the phone is where that lands
-
-**READ THIS ONE FIRST: after this deploy, opening EzPlate on any device shows a sign-in screen.**
-That is the batch, not a fault.
-The anon key that shipped in the page could read the whole cafe, and it no longer can - so the app
-asks who you are before it shows anything.
-
-- **Sign in on your phone with the account you made yesterday** (`maxprescott02@gmail.com`).
-  You may need to install the app again from the sign-in screen, or just open the installed one.
-  **A failure is the password being rejected, or signing in and landing straight back on the same
-  screen.** The second one would mean the session is not surviving the reload, and only a real
-  device with a real PWA container can show that - Safari's storage rules for an installed app are
-  not the same as a browser tab's, and nothing in the suite runs there.
-- **Check the keyboard.** The screen is three controls in a centred column: email, password, Sign in.
-  **A failure is the keyboard covering the Sign in button with no way to scroll to it.**
-  This is the one thing about the screen that a desktop browser at a phone-sized window cannot
-  reproduce, because it has no on-screen keyboard.
-- **Then close the app completely and reopen it.** You should go straight in, no sign-in.
-  **A failure is being asked to sign in every time**, which would mean the session token is being
-  cleared on launch and is a real bug rather than a preference.
-- **If a plate was half-built on that device, signing in will ASK you about it first**, exactly as
-  the Account screen has always done: "You were building X. Signing in clears this device, so it will
-  be discarded." **Say yes.** There is no way to keep it - a signed-out browser cannot save anything,
-  so the plate cannot be rescued first, and carrying it across would put it in whichever cafe you
-  sign into. **A failure is being asked and then signing in anyway, or not being asked and the
-  builder later offering a plate you had already discarded.**
-  If you have real unfinished work in the builder right now, **save it before this deploy lands.**
-- **On the desktop machine too, once**, because the sign-in screen now covers the whole window
-  including the left rail - so if anything is off-screen there, there is no nav to escape with.
-
----
-
-## 192 - the sign-up form, and inviting a real second person
-
-Two of these need a phone because they are about the on-screen keyboard and the password manager,
-and one needs a second human. Nothing here is urgent - **no existing behaviour changed for you**,
-so a failure is a new feature not working, never the app breaking.
-
-- **Open the sign-in screen and tap "Been invited? Create your account".** The screen swaps to a
-  sign-up form with the same three controls. Tap "Already have an account? Sign in" to go back.
-  **A failure is both forms showing at once, or the link taking away the only way back.**
-- **Does the password field offer to GENERATE a password?** On the sign-up form it is marked
-  `new-password`, which is what tells iOS Keychain or 1Password to suggest a strong one rather than
-  offering the password you already have saved for EzPlate. This is the entire reason sign-up is a
-  separate form instead of a mode of the sign-in one, and **a desktop browser cannot show it** -
-  only a real device with a real password manager can. **A failure is being offered your EXISTING
-  EzPlate password on the sign-up form**, which would mean the two forms have been collapsed
-  somewhere and the separation bought nothing.
-- **Check the keyboard again, on the sign-up form this time.** Same failure as 186's: the keyboard
-  covering "Create account" with no way to scroll to it. The form is one control taller than the
-  sign-in one, so it is the worse case of the two and 186's pass does not cover it.
-- **Then the real thing, when you actually want to add someone.** Account -> Team. Type their email,
-  tap Invite. The address appears in the list marked "invited", with a Revoke button.
-  ⚠️ **EZPLATE DOES NOT EMAIL THEM. Nothing is sent.** You have to tell them yourself: open EzPlate,
-  tap "Been invited?", and sign up with **that exact address**. The card says so under the form -
-  **a failure is that sentence being missing or wrong**, because without it you would sit waiting
-  for a delivery that was never going to happen.
-  They will get one email, from Supabase, with a confirmation link, **after** they sign up. They must
-  click it before their first sign-in works - an unconfirmed account fails with "Email not
-  confirmed", which reads exactly like a wrong password.
-- **When they open the app after confirming, they should land straight in your cafe.** There is no
-  button to press and nothing for them to accept: the app notices they have an invitation and uses
-  it while it is loading. **A failure is them seeing "This account isn't linked to a cafe yet"** -
-  which would mean the address they signed up with is not the address you invited. Check for a typo
-  before assuming it is broken; that is the one way this fails that is not a bug.
-- **Have them check what they CANNOT do**, since an invitation makes them staff: no Delete on a
-  plate or a menu, the target food cost is read-only, and no Restore backup in Settings. They can
-  still import invoices and edit ingredients, plates and menus.
-
-## 193 - the catalogue importer (Settings -> Import product catalogue, and the Products empty state)
-
-**What it is:** the way a new cafe fills its catalogue from a supplier's CSV export instead of by
-hand, and the way you refresh prices later from a newer export.
-**None of these needs a second person.** All of them need a real file and most need a real phone.
-
-- ⚠️ **THE ONE THAT MATTERS MOST, AND ONLY YOU CAN ANSWER IT: does the supplier portal's Export
-  actually offer CSV?** Accounts -> Reports -> Previous purchases -> Export. The columns were read
-  from the portal on 14 Aug 2026 but **the file was never downloaded**, so nothing in this repo knows
-  what format the button produces. If it only gives a spreadsheet, the importer refuses it by name
-  and tells you to save it as CSV first - which is a legitimate answer, not a bug, but it is worth
-  knowing which one you are in before a customer meets it.
-- ⚠️ **AND THE SECOND ONE, WHICH NO TEST CAN SETTLE: is `LAST PRICE PAID` the price of ONE PACK or
-  of the WHOLE CARTON?** The mapping screen asks, and it defaults to "one pack of the size above".
-  **Import your real file and look at the unit costs in the preview before pressing the button.**
-  If chips you know cost about $6.50/kg are showing about $1.08/kg, the answer is "the whole carton"
-  and you switch the radio. Getting this wrong makes every cost in the app wrong by the carton size,
-  and it will look completely plausible - that is why it is asked rather than guessed.
-  **If you pick "the whole carton" and a row has no units-per-carton, that row is REFUSED rather
-  than guessed at**, and the preview says so by line number. That is deliberate: a missing carton
-  size means the multiplier is unknown, and pricing it as a carton of one would be wrong by exactly
-  the carton size with nothing on screen to show it.
-- **Try it on a phone, with a file from your email.** Tap Import, pick the CSV from Files/Downloads.
-  A failure here is the file picker not offering a CSV that is sitting in your email attachments,
-  which is an iOS Files question rather than an EzPlate one - but it is the real route a cafe owner
-  would take, and nobody has driven it on a device.
-- **Read the mapping screen at 380 with one hand.** Eight dropdowns and two radio buttons is the
-  densest form in the app. A failure is having to zoom, or the keyboard covering the supplier field.
-- **Check the preview table does not need sideways scrolling** on your phone. Four columns of
-  product name, pack, unit cost and new/update. It fits in the browser used for testing; a real
-  device with a different text size may not agree.
-- **Then import the SAME file twice.** The second time it must say "0 new products - N to update"
-  and the product count on the Products screen must NOT double. **A doubled count is the one
-  failure here that costs real work to undo**, and it is the thing the supplier code column exists
-  to prevent.
-
-## 195 / v167 - the pdf.js 4.10.38 upgrade, on YOUR four Bidfood invoices
-
-**This is the only check that matters for this batch, and it is the one no harness here can do.**
-The PDF reader was upgraded from 3.11.174 to 4.10.38 — the version that actually closes CVE-2024-4367
-rather than working around it. Nothing about the invoice screens changed; what changed is the library
-underneath that turns a PDF into text, and how it is loaded.
-
-**It was proved to work** end to end in a real browser — the module loads with its integrity hash
-checked, the worker runs, and text comes back grouped into lines correctly. **But that was proved on a
-synthetic one-page invoice made for the test, not on a real one**, because your Bidfood PDFs are yours
-and are not in this repo. pdf.js 4.x can group text into lines differently from 3.x, and the parser
-downstream reads those lines by position.
-
-- **Import each of your four real Bidfood PDFs**, the same way you normally do.
-- **A failure looks like the parse getting WORSE, not like an error**: fewer rows detected than you
-  expect, a product's description running into the next column, a price landing in the wrong field, or
-  "Couldn't auto-detect priced lines" on a file that used to work. The upload itself doing nothing at
-  all would be the load path failing — that would show as "Could not load the PDF reader".
-- **Compare against what you remember of the last import of the same supplier.** The row count and the
-  matched/new split are the quickest tells.
-- **If a file parses worse than it used to, keep the file** and say which one. That is the whole
-  evidence needed, and rolling back is a one-line version change.
-
----
-
-## v168 (batch 197) — the invoice GST conversion. COSTS MONEY IF WRONG.
-
-⚠️ **This batch shipped WITHOUT a browser drive, and that is stated here rather than left out.** The change is compute-only — no markup, no CSS, no new controls — and it carried 17 unit tests plus three independent reviews. But the flow it touches is the one that turns a supplier PDF into the numbers you price on, and `docs/QUEUE.md`'s own item called it *wrong data, live today*. So it needs eyes on a real import once, on the device.
-
-**Why only a device can settle it:** the whole chain is a file picker, a rendered review table and an input the user can type into. None of that exists in `node --test`, and the Playwright specs do not drive an invoice import.
-
-**What to do — five minutes, on any invoice that says "GST inclusive" or similar:**
-
-1. Import it as normal and stop at the review screen.
-2. Check the note above the table says GST-inclusive prices were converted.
-3. **Pick a line whose product has a taught pack** (Avocado, Cheese Slices, Mayonnaise, Pluto Pups, Spring Rolls — those are the only five). Its price should now be the ex-GST figure, i.e. **about 9% BELOW** what the invoice line prints per unit.
-4. **Change the match dropdown on that row to a different product, then back.** The price must not move. *(This is the one that matters most — the defect found by the second review divided again on every dropdown change, 9% lower each time, and the app's own price-jump flag cannot see it.)*
-5. **Type a pack quantity into the pack box.** The "will be $x" preview and the price field must show the **same** number.
-
-**What a failure looks like:** a price about 10% HIGHER than expected (the conversion did not happen) or about 9% LOWER and dropping each time you touch the dropdown (it happened twice). Neither raises any flag, and both look entirely plausible on screen — that is the whole reason this check exists.
-
-**If it is wrong, do not apply the import.** Say so and it gets fixed before anything is stored.
-
----
-
-## v169 (batch 0e) — the catalogue importer's GST question. COSTS MONEY IF WRONG.
-
-The sibling of v168's check, through the other door. The CSV importer took the price column at face
-value and asked nothing about tax, so a GST-inclusive price list stored every cost 10% high — on the
-ONBOARDING path, where a café has no prior figures to notice it against.
-
-**This one WAS driven in a browser** (380px and desktop, both themes, and four Playwright assertions
-pin the control), so the check below is confirmation on a real file rather than a first look.
-
-**Why only a device can settle it:** the part a browser drive cannot reach is *your* file — whether
-your supplier's export is actually GST-inclusive, and whether the default the screen starts on is the
-right one for it. That is a question about the file, not about the code.
-
-**What to do — three minutes, next time you import a price list:**
-
-1. Import a CSV as normal and stop at the **mapping step**. Do not press Import yet.
-2. Scroll to **"The price is"**, under "The price is for". It starts on your Settings GST default.
-3. **Check a unit cost in the preview against a price you know.** A 10 kg carton at $65 ex-GST is
-   $6.50/kg; the same carton priced GST-inclusive is $5.91/kg.
-4. **Switch the radio and watch the table.** Every unit cost must move by about 9%, and the note
-   under the table must change between "Converted to ex-GST (÷1.10)" and "Treated as ex-GST".
-5. **Leave it on whichever is true of your file**, then import.
-
-**What a failure looks like:** the numbers not moving when you switch the radio (the answer is not
-reaching the maths), or the note disagreeing with the figures. A wrong ANSWER looks like nothing at
-all — every cost 10% out, uniformly, on a screen of plausible per-kg figures. That is why step 3
-compares against a price you already know rather than asking whether it "looks right".
-
-**If the preview and the note ever disagree, do not press Import** — that is the one combination the
-design makes impossible, so it would mean something real is broken.
-
----
-
-## Does the ingredient dropdown clear the on-screen keyboard? (batch 212)
-
-**Only a device can settle this, because no desktop browser has a software keyboard.**
-
-Batch 212 put every floating layer on one placement engine, which caps a dropdown's height to the
-room that actually exists rather than to `45vh`. It measures **`window.innerHeight`**.
-
-⚠️ **On iOS, `window.innerHeight` does NOT shrink when the keyboard opens** — neither does `vh`. Only
-`visualViewport.height` does. So the engine is a strict improvement over the old CSS (it clamps to the
-viewport, flips when there is more room above, and escapes every clipping ancestor) and it may STILL
-draw a list that runs under the keyboard.
-
-Simulating a 420px-tall viewport on the desk proves the clamp works; it cannot prove the number the
-clamp is reading is the one the user can see.
-
-**What to do:** open the builder on the phone, tap the ingredient search, type two letters that match
-many products (e.g. "ch"), and look at the bottom of the list.
-
-**A failure looks like:** the last row or two of the list sitting behind the keyboard with no way to
-scroll to them — the list scrolls internally, so the surplus would simply never come into view.
-**A pass looks like:** the whole list sits between the field and the top of the keyboard, and its last
-row is reachable.
-
-If it fails, the fix is one line — read `visualViewport.height` in preference to `window.innerHeight`
-in `dropBox` — but it is deliberately NOT written blind, because `visualViewport` also reports the
-page being pinch-zoomed, and guessing which of the two a phone is doing is how this gets worse.
-
-## Plate save with no signal, then background the app (batch 221, `ezplate-v181`)
-
-**Do this:** open the builder, edit a plate (add or re-portion a line), turn the network OFF, tap Save.
-The toast must say it has NOT been saved and the "Saved just now" badge must stay down.
-Then background the app, leave it long enough for iOS to discard the tab, and reopen.
-
-**Pass:** the next builder entry offers *"You were building X. Resume it, or discard?"* and Resume brings the edit back.
-**Fail:** no offer, and the plate has reverted to its pre-edit state. That is the defect 221 fixed, and it would mean the fix does not survive a real tab discard.
-
-**Only a device settles it.** The failure mode is iOS discarding the tab and `bootstrapSync` replacing `savedPlates` from the server, which no harness in this repo reproduces - the unit tests prove the draft is retained in storage, not that it survives the operating system.
-
-**Then do the same with the network ON**, where the correct result is the OPPOSITE: no offer at all, because the plate really did save. Getting a "resume or discard?" prompt about a plate that saved cleanly is the other half of what 221 changed, and two of its four defects were exactly that.
-
-## The list rows now say which figure is which — VoiceOver is the only judge (batch 225, `ezplate-v185`)
-
-**Do this, on the phone, with VoiceOver on** (Settings → Accessibility → VoiceOver, or triple-click the side button if it is on the Accessibility Shortcut). Swipe through one row on each of the four list screens — **Menu, Products, Ingredients and Plates** — and listen to what each row announces.
-
-**Pass, on the phone (below 768px):**
-- **Menu** — the name, then *"$2.31 cost, suggested $5.78"*, then *"price $10.00"*, then the verdict. The words "cost" and "suggested" must be said **once each**, not twice.
-- **Ingredients** — the ingredient, then *"unit cost $…"*, then the change, then *", in 9 plates"* — again **"in" once**, not "used in, in".
-- **Products** and **Plates** — *"unit cost $…"* and *"plate cost $…"*.
-
-**A failure looks like** a row saying a word twice — *"$2.31 cost, cost"* or *"used in, in 9 plates"*. That is the one thing no check in this repo can see: the phone prints those words through CSS generated content and the spoken copy is meant to stand down below 768, so a mistake there is **inaudible to every automated test and invisible on screen**. Chromium computes the same names in the Playwright specs and agrees — but Chromium is not VoiceOver, and generated content is the exact thing the two have historically disagreed about.
-
-**Also worth one listen: the Ingredients row used to announce only its name.** It carried `aria-label="Edit <name>"`, which replaces the contents, so none of its figures were spoken at all. That attribute is gone. If an Ingredients row still says nothing but the ingredient's name, the removal did not reach the phone — check the version in Settings → About reads `v185` before concluding anything, since a stale service worker is the likelier cause.
-
-**Only a device settles it** because VoiceOver, not Chromium, is what a person would actually be using, and the whole change is a thing you can only hear.
-
-## The pinned page header in the installed app (batch 231, `ezplate-v190`)
-
-The page header is `position:sticky` now (audit R22): scroll any list and the screen's title bar — on Menu, the title plus the current menu's name — stays pinned at the top instead of scrolling away.
-
-**What this check can and cannot prove, stated up front** (the pre-push review caught the first
-draft promising more): `index.html` ships `apple-mobile-web-app-status-bar-style: default`, and
-under `default` iOS starts the web view BELOW the status bar — `env(safe-area-inset-top)` is 0
-and a clock/notch collision **cannot occur on the current build**. The CSS still offsets by that
-inset as future-proofing for a `black-translucent` switch; nothing today exercises it. So this is
-NOT a "does it clear the notch" check — a pass there would prove nothing.
-
-**Do this, in the INSTALLED app (Home-Screen icon, not Safari):** open Menu, scroll well into the
-list, and look at the top of the screen.
-
-**Pass:** a pinned "Menu · <menu name>" bar is there, fully visible and readable, with rows
-sliding underneath it — i.e. the sticky itself survives real iOS Safari in standalone mode, which
-no harness in this repo runs.
-**Fail:** the bar scrolls away with the page (sticky not honoured), sits partially off-screen, or
-judders while scrolling — rendering-engine behaviour only the device can show.
-
-If the status-bar style is ever changed to `black-translucent`, rewrite this check: at that point
-the inset becomes real and "does the pinned bar clear the clock" becomes the question.
-
-## Batch 233 (`ezplate-v192`) — the R5+R6 touch targets, by thumb
-
-Only a device can settle these because the whole change is INVISIBLE: every measurement a
-harness can make (elementFromPoint hit tests, boundingBoxes) already passed, and the pixels
-are proven unchanged — what no harness measures is whether a real thumb now lands things it
-used to miss, and whether any invisible hit zone STEALS a tap you meant for something else.
-
-**Do this on the phone, normal one-thumb use:**
-- Builder, any plate with a few lines: tap the remove **×** slightly sloppily (a bit left, a
-  bit high). **Pass:** the line goes on a near-miss. **Fail:** you still need aim, OR a tap
-  meant for the unit-price chip removes the line (the two hit boxes meet at the column gap —
-  they must not feel swapped).
-- Same row: tap the dashed **$…/kg ✎** chip a bit above/below its edge — it should open the
-  price edit. Then, with the edit OPEN, tap inside the little input to move the caret.
-  **Fail:** the tap commits/closes the edit instead of placing the caret.
-- Dashboard: tap each trend range button (3M/6M/1Y…) slightly above and below the pill.
-- Settings → About: tap the phone number a little off-line; sign-out gate: the two small
-  links under the sign-in button. **Known, deliberate:** the gate's bottom "Privacy
-  notice" line and the sign-up form's in-label "privacy notice" link are NOT full 44px
-  (29px each — the geometry has no more to give without visibly moving things); they
-  should still feel notably easier than v191.
-
-## v193 — the "‹" back chevron on the four More sub-screens (batch 235)
-
-Only a device can prove a thumb-sized hit feels right; the spec proves geometry, not feel.
-
-**Do this on the phone:** open More → Products (or Settings), and tap the bare **‹** in the
-top-left slightly sloppily — a bit left of it, a bit right of it.
-**Pass:** you land back on More without aiming.
-**Fail:** you still need to hit the glyph itself, or a tap meant for **‹** lands on nothing.
-The hit box is ~44px wide around a 22px control; the widening is invisible on purpose.
-
-## v194/v195 — import a real supplier PDF and confirm nothing moved (batches 236, 237)
-
-Item 12 changed invoice parsing, and **only a real invoice can prove the change is inert on the
-lines you actually import.** Every Bidfood line puts the pack composition BEFORE the purchased
-quantity ("6x2.5kg CTN 8"), which is not the shape the fix touches — so the expected result is
-that nothing whatsoever changes.
-
-**Do this:** import one of your usual PDFs the way you always do, and read the review screen.
-**Pass:** the same rows, the same prices, the same ticks as before — no new "needs attention".
-**Fail:** any row's price differs from what that invoice imported previously, or a row that used
-to apply silently now asks to be priced by hand. Either would mean one of the two gates is matching
-a real line it should not; note the line text verbatim, it is the whole diagnosis.
-
-⚠️ **237 widened what this check covers, so it is worth doing even if you already did the v194 one.**
-Batch 237 also corrects a line whose weight comes from a trailing net-weight column, and its own
-pre-push review found the first cut of that breaking **explicitly rated lines** ("$14.90/kg" with a
-delivered-weight column) — the shape weighed goods like meat actually use. That is fixed and tested,
-but the test fixtures are invented lines; yours are real. **Pay particular attention to any line
-priced per kg with a weight column**, and to whether its price matches the invoice.
-
-## v196 — the sign-up confirmation email, on a real inbox (batch 238)
-
-⚠️ **THIS CHECK IS THE ONLY THING THAT CAN PROVE THE HALF THE REPO CANNOT TEST**, which is why it
-is here rather than in a spec. GoTrue's **Site URL** and **Redirect URLs** live in the Supabase
-dashboard, not in git — no test, grep or review can read them — and GoTrue **silently falls back**
-to the Site URL when a redirect is not allow-listed. So the suite is green either way, and a real
-email is the only signal.
-
-**DO THE DASHBOARD SETTING FIRST or this check cannot pass.** Supabase → Authentication → URL
-Configuration: **Site URL** `https://scoopyscosting.vercel.app`, and add
-`https://scoopyscosting.vercel.app/**` to **Redirect URLs**.
-
-**Do this:** sign up with a fresh address you can read, and click the link in the email.
-**Pass:** it opens `scoopyscosting.vercel.app` and you land on the "name your café" screen.
-**Fail:** it opens `localhost:3000`, or anything with `#error=` still in the address bar — that
-means the dashboard entry did not take, and the client's redirect was ignored without saying so.
-
-**Then click the SAME link a second time.**
-**Pass:** the sign-in screen carries a line saying the link has already been used or expired, and
-telling you to sign in. **Fail:** a bare sign-in form with no explanation — which is the defect this
-batch was reported for.
-
-⚠️ **`maxgrailed820@gmail.com` already exists and is CONFIRMED** (8 Sep 2026, no café yet). It is
-not broken and does not need deleting — it can sign in today. Use a different fresh address for the
-test above, so the confirmation link is a live one.
-
-## v211 — import BOTH suppliers' invoices, and expect one of them to change a great deal (batch 256)
-
-⚠️ **THIS IS THE OPPOSITE OF THE v194/v195 CHECK ABOVE, AND READING IT THE OTHER WAY ROUND WOULD BE
-THE WORST OUTCOME.** Those two asked you to confirm that **nothing moved**. This one changes the
-price of nearly every line from one of your two suppliers, on purpose — so "the numbers are
-different" is the PASS here, and it is a fail only if a number is different from what the **invoice
-itself** says.
-
-**What changed.** The parser used to pick the price of a pack by looking for the first pair of equal
-amounts on the line, and failing that, by taking the last amount. It never once looked at the
-quantity. On the poultry-and-smallgoods supplier's layout, Ordered and Shipped print as two equal
-numbers before the price — so the **quantity was being stored as the price**. Chips came in at
-$0.25/kg against a real $2.46, and the figure moved with how many cartons you happened to buy that
-week. It now multiplies: the price is the column that, times the quantity, gives the line total.
-
-**Why only a device can settle it.** The repo scores fourteen INVENTED invoice layouts on every test
-run and they all pass — but **your six real invoices cannot be tested here.** Their extracted text
-carries the cafe's own details and this repository is public, so only the answer sheets are
-committed, never the invoices. The suite proves no invented layout regressed. It cannot prove yours
-is right, and nothing in this repo ever will.
-
-**Do this, and do BOTH suppliers, in this order:**
-
-1. **The foodservice distributor first** — the one whose invoices have always imported correctly.
-   **Pass:** every row exactly as before. **Fail:** any price different from the previous import of
-   that same product. This supplier is the control, and a change here is a regression.
-2. **The poultry and smallgoods supplier second.** **Pass:** most rows now arrive already ticked,
-   and each price matches the **Item Price** column on the paper in front of you — per KG where the
-   UOM says KG (bacon, chipolatas, chicken breast, smoked salmon), per carton or bag otherwise.
-   Before this you would have seen almost nothing ticked and a wall of price-jump warnings.
-   **Fail:** a ticked row whose price is not the number printed on the invoice. **Write the line
-   down verbatim** — the line text is the whole diagnosis, and a screenshot of the paper row beside
-   the screen row is worth more than any description.
-
-**Four things you will see that are NEW and are not faults:**
-
-- **A credit note refuses.** If an invoice has a credit page (returned stock, a negative quantity),
-  every credited line now comes up asking for a price instead of quietly importing as a purchase.
-  ⚠️ **It currently explains itself badly** — the flag says *"unit mismatch"* and the note says
-  *"Set the pack, or type the price"*, when the honest reason is "this is a refund, don't apply it".
-  That wording is already written down as a follow-up. **Do not set a pack for a credit line.**
-- **A line the parser cannot add up asks you to type the price**, rather than showing a wrong one.
-- **Two products show a longer name than before** — the bread and the beef patties. Their
-  descriptions wrap onto a second line on the invoice, and the second half (which is where the pack
-  size is) is now joined on. That join is what makes their prices right.
-- **The fuel levy still appears as one row to dismiss**, once per import. Unchanged, and known.
-
-**One thing to check that is easy to skip:** after applying, open two or three of the products you
-just imported and look at their **price history**. The old prices in there were wrong, so the graph
-will show a jump the day you import this. That jump is the fix landing, not a price rise — worth
-knowing before it turns up on the Dashboard as drift.
+**Six remembered packs are keyed to a supplier called `Document No:`** - a parser bug fixed long ago left them behind, and they have sat there since 3 August 2026. Measured on production 10 Sep 2026, still six.
+They match nothing and cost nothing; they are just wrong.
+**Settings → Remembered packs → remove each row showing `Document No:`.** Two minutes, on the desktop, whenever. The seventh row (`The Fruit Wagon` / avocado tray) is genuine - leave it.
+*(It sat on the phone list from v107 onward, which is the clearest single example of why that list stopped working: it was never a phone check at all.)*

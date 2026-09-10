@@ -698,7 +698,17 @@ Two sibling series, written by the same function on the same event, with opposit
 ⚠️ **This DELETES production data, so running it is Max's** — the same standing rule as the restore's wipe. Building the surface is not.
 ⚠️ **PRODUCTION CARRIES TWO BAD POINTS, NOT ONE** (measured 10 Sep 2026): `354.4` on the all-menus series at `2026-09-08 09:37:12`, and `30000` on the per-menu series for `MENUmtsh5o3t-1-9v3bvrqw` — a menu that was itself an 8 Sep audit artefact, so that second point is orphaned and renders nowhere. The item named only the first.
 
-## blocked  91 · Staff may not delete a plate, and may delete every product that plate costs from  **[B — a decision nobody made, measured on production 10 Sep 2026]**
+## ~~91 · Staff may not delete a plate, and may delete every product that plate costs from~~  **CLOSED 10 Sep 2026 — the products half shipped in batch 255 (`ezplate-v210`), the taught-pack half was ANSWERED and needs no build**
+
+✅ **Both halves settled, both by Max, both in his own words.**
+- **Plates and products, batch 255:** *"they can do plates but not products, since those can break other plates that arent theres"*, and *"touch it and sort the merge out"* for the half that reversed his own 187 call. Shipped, server and client, verified on staging as a signed-in staff member.
+- **Taught packs, 10 Sep 2026:** ***"yes thjey can delete it"***. **No restriction, so nothing to build.** 255 had inferred the opposite from his stated reason and its pre-push review sent it back on cost grounds — `applyTidy`'s supplier rename re-keys every taught pack and re-keying is delete-then-insert, so gating the table without gating that flow would have made a staff supplier rename half-apply silently. He was asked on exactly those terms and chose to leave it open.
+⚠️ **The answer is written into `20260814_roles_part1.sql`'s own "what staff keep" list**, because that is the list the next person will read, and this item's own instruction said to put it there rather than leave it in a queue file that gets deleted.
+⚠️ **The shape worth keeping, and it is already `CLAUDE.md`'s:** an inference from someone's stated reason is free to make while it costs nothing, and becomes theirs the moment it costs something. Both cuts of this were sound reasoning; only the second one asked what the extension took away, and from whom.
+
+*(Historical body below.)*
+
+## ~~blocked~~  91 · original item
 
 **Raised by AUDIT-v207 §5, out of a question batch 250 handed off.** 250 closed the same shape on the two history series; this is what the rest of the schema looks like when you ask the same question of it.
 

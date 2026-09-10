@@ -65,25 +65,6 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 ⚠️ **Every line number in these items is a POINTER TO GREP, not a fact** — the consolidated file says so of itself, and the blind audit above is why. **Step one of each is the repro**, and "it does not reproduce" deletes the item and says so in the handover.
 *(G1's only [B — wrong number] item, 15, shipped in batch 244; what is left of the group is below. The two headings were folded into one when it went, because a section with a title and no items reads as work nobody has got to.)*
 
-## blocked  91 · May staff delete a TAUGHT PACK? (the products half shipped in 255)  **[B — one sentence, and it now has a COST attached that it did not have this morning]**
-
-**Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 91 — raised by AUDIT-v207 out of a question batch 250 handed off, and measured against `pg_policies` rather than the schema file.
-
-✅ **THE PRODUCTS HALF SHIPPED IN BATCH 255 (`ezplate-v210`).** Max: ***"they can do plates but not products, since those can break other plates that arent theres"***, and *"touch it and sort the merge out"* for the half that reversed 187. Staff may delete a plate; staff may not delete a product. Server and client both, verified on staging as a signed-in staff member.
-
-**Blocked on: MAX, ONE SENTENCE — may staff remove a TAUGHT PACK? It is not free, and this is the part that changed:**
-
-⚠️ **255 built this, on the strength of his stated reason, and the pre-push review sent it back — not because the reasoning is wrong but because of what it COSTS.** A taught pack decides what every future import prices a product at, so removing one reaches other people's plates the same way a product does, one step later. That still looks right.
-
-**What it misses: `applyTidy`'s supplier rename/merge/clear RE-KEYS every taught pack for that supplier, and re-keying is delete-then-insert.** Nothing in that chain — `openTidyManage`, `renderTidyValues`, `openTidy`, `applyTidy` — carries a role check. So with the restriction in place a staff supplier rename would have its DELETE refused, drop the entry from local memory anyway, push the NEW row, toast *"Renamed supplier … on N packs"*, and leave the OLD row on the server to come back at the next boot. **That is `CLAUDE.md`'s own orphaned-taught-pack trap, manufactured by the fix.**
-
-**So the honest question is not "should taught packs be protected" but "is protecting them worth staff losing the ability to rename a supplier"** — because gating the table without gating that flow is the half-apply above, and gating the flow takes away a capability he has never been asked about and which is exactly the kind of tidying staff do.
-
-- **A — leave it open (today's behaviour).** Staff can remove a taught pack and can rename suppliers. **Recommended** unless he wants the protection: the harm is real but indirect, and the capability lost is not.
-- **B — protect taught packs AND make supplier rename owner-only.** One migration plus one gate; they must ship together, and the queue item should say so.
-
-**Everything needed to build B is written down** — the migration is `20260910_staff_deletes.sql`'s reverted block, restored, plus `ownerOnly` on the tidy chain. It is an hour, not a day.
-
 ## next  89 · A `price_history` point cannot be deleted or corrected from the app  **[B — the SERVER half shipped in batch 250; the SURFACE is what is left]**
 
 **Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 89 — split out of 18 by batch 241, which shipped the bound that stops another one being written.
@@ -143,7 +124,8 @@ When Max gives the go: take a fresh export minutes before, write the one-stateme
 
 ## blocked  8 · Contrast: body text and control boundaries, decided ONCE in the tokens  **[B]**
 
-Blocked on: **Max, three rendered options — `docs/decisions/2026-09-02.html`, put to him 2 Sep 2026 (batch 229).** It is a VISUAL decision and app-wide, which is why it went to him rather than being taken: it changes a token every quiet line in the app reads, the look of every switch, and the colour of every destructive button.
+Blocked on: **Max, three rendered options — https://claude.ai/code/artifact/5a83f07b-c74a-492f-a4e5-1efbfc272308 (re-delivered 10 Sep 2026).**
+⚠️ **This pointed at `docs/decisions/2026-09-02.html` for eight days and that is why it was never answered.** Max, 10 Sep 2026: *"the decision file is not a html i cnat use it"* — a file on a disk he does not browse is not a delivery. The options were correct, measured and properly rendered; the channel was wrong. The `decide` skill now forbids `.html` decision files outright, keeps the record as `.md`, and publishes the rendered options as an artifact whose URL goes in the chat message and in this line. It is a VISUAL decision and app-wide, which is why it went to him rather than being taken: it changes a token every quiet line in the app reads, the look of every switch, and the colour of every destructive button.
 
 ⚠️ **THE ITEM'S OWN DIAGNOSIS OF THE BODY-TEXT HALF IS WRONG, and the correction is what the options are built on.** It says the failing token is `.flag-review`. Measured 2 Sep 2026 in a real browser: `.flag-review.pt-explain` overrides the colour to `--muted2`, which is `--text-3`, and **that token clears AA comfortably on a plain surface — 4.82 light, 4.65 dark. It fails only where it is painted on a TINT**, 4.17 / 4.32 on `--danger-bg`. So it is not "a token that is too faint"; it is a token that is fine against three of the app's four backgrounds.
 That matters because it changes the size of the fix: clearing 4.5 on every surface the token touches needs a **4–5% shift** (`#7D7060`→`#776B5C` light, `#908D89`→`#96938F` dark), not the palette rework the item implies. Values solved against **every surface `--text-3` is painted on** — white, `--surface-2`, `--danger-bg` and `--warn-bg` — because it is an app-wide token, so the binding constraint is whichever is worst in each theme (light: `--danger-bg` at 4.50; dark: `--warn-bg` at 4.53).

@@ -188,11 +188,21 @@ If two items genuinely want the same batch, say `Do with:` instead and run them 
 **Write findings down as you go**, with enough context to act on later - but per step 10, a finding defaults to `docs/MAINTENANCE.md` and reaches `docs/QUEUE.md` only by passing the tier test.
 Do not let findings live only in handovers.
 
-## Phone checks accumulate
+## Phone checks do NOT accumulate, and this section said they did until 10 Sep 2026
 
-Do not stop for one.
-Append to `docs/PHONE.md` - the item, why only a device can settle it, and what a failure would look like.
-Max works through it in one session.
+⚠️ **This read *"Do not stop for one. Append to `docs/PHONE.md`. Max works through it in one session."*
+He never did, not once, and the file reached 1051 lines and 50 sections.**
+His words: *"the phone list i have never used bc im lazy, im sure its loaded with shit that doesnt even need testing anymore or could be tested by an agent in browser."*
 
-If something can only be judged on a phone **and** shipping it wrong would be costly, that is a stop condition.
-Otherwise it accumulates.
+**The rule was not wrong about not stopping. It was wrong about appending.** Every batch added a section, nothing ever removed one, and **no single batch is in a position to judge whether the list AS A WHOLE is still worth a person's time** - so the two costs-money-if-wrong checks sat unread under forty sections of "does this redesigned screen feel right".
+
+**A check earns a place in `docs/PHONE.md` only if a browser agent COULD NOT settle it.** The `flow-tester` agent drives the real app at 380px in both themes and it is free, so the question is never "is this worth checking" but **"is a phone the only thing that CAN check it"**. Exactly five things pass: a real file, the soft keyboard, the installed PWA, a real network drop or an iOS tab discard, and a real inbox.
+**Name which of the five, in the entry.** If you cannot, it is an agent check and it goes to `docs/MAINTENANCE.md`.
+
+**The file is capped at about five live checks.** If your entry would be the sixth, the older ones have expired and your job is to delete them, not to add to them - which is a two-minute read of five short sections, not a project.
+
+⚠️ **AND THE EXPIRY RULE, because it is what made forty sections dead:** a check that asks how a shipped screen FEELS is answered by Max using it and not complaining. **Do not write those down at all.** If a design call needs his judgement, it is a `decide` question before it ships, not a phone check after.
+
+If something can only be judged on a phone **and** shipping it wrong would be costly, that is still a stop condition.
+
+**The general shape, and it is not about phones** (`docs/MAINTENANCE.md` carries it): **any file a process APPENDS to needs a stated cap and a stated test for entry, or it converts work into the appearance of work.** `docs/QUEUE.md` has a cap of 20 and a tier test and stays useful; this file had neither.

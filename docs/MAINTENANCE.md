@@ -1188,3 +1188,36 @@ whose last recorded movement predates `v211`, with their stored price, and let h
 show as a large jump on those products' price history and as drift on the Dashboard. `docs/PHONE.md`
 (the `v211` entry) tells him that in advance; if this entry is ever acted on, keep that warning
 somewhere he will read it.
+
+## C — the checks that came off `docs/PHONE.md` (10 Sep 2026, batch 257)
+
+**Max, in his own words: *"the phone list i have never used bc im lazy, im sure its loaded with shit that doesnt even need testing anymore or could be tested by an agent in browser - fix that, id maybe ahve the energy to do like 5 checks or something."***
+
+That file was **1051 lines and 50 sections** and had never once been worked. It is now five checks.
+⚠️ **The diagnosis is not that it was too long. It is that most of it was never a phone check**, and the length is a symptom: `/batch` appended a section per batch, nothing ever removed one, and no single batch was in a position to judge whether the list as a whole was still worth a person's time. Two costs-money-if-wrong checks sat unread at the bottom for weeks because of what was piled on top of them.
+
+**The new rule is in that file's header and is a hard test:** a check belongs there only if a browser agent *could not* settle it — a real file, the soft keyboard, the installed PWA, a real network drop, or a real inbox. A batch adding one must name which. Everything else is below.
+
+### These are AGENT checks — `flow-tester` at 380px and desktop, both themes
+
+None of these needs Max and none ever did. They are listed so the deletion is not silent, and because several are worth one sweep.
+
+- **Header wrap and truncation at 380 and 360:** the Ingredients, Products and Menu headers with two controls; a long menu name beside the Dashboard scope button; a long plate name in a Plates row; a long category pushing the plate count off an Ingredients meta line; a product name plus brand truncating in a Products row.
+- **Overflow and clipping:** the builder's ingredient dropdown drawing its full height; the Menu verdict pill wrapping to two lines; the trend chart's date axis clipping at the card edge; the last table row sitting under the install banner.
+- **Hit targets:** the builder's remove ✕ against the adjacent unit-price chip (they meet at a column gap and must not feel swapped); the trend range pills; the More back chevron; the search clear ✕. Geometry only — `elementFromPoint` and bounding boxes already pass, so what is left is a regression net, not a discovery.
+- **Contrast:** every text/background pair in both themes. Already measured; item 66 owns the two that fail.
+- **Empty and first-run states:** the Cost card's empty box on an unpublished plate below 768; "Set up" staying visible under the Ingredients header on a café with products but no ingredients; the Dashboard's "Cost your first plate" card.
+- **Rotation:** the second header button moving between the header and the control row across ~767px on all three screens.
+
+⚠️ **Several of these have Playwright specs already** (`tests/visual/`), so the honest first step is to grep before writing anything: this list is what the PHONE file was asking a human to eyeball, not a claim that none of it is covered.
+
+### These are REAL device checks that Max will not do, and pretending otherwise was the problem
+
+- **VoiceOver row announcements** (batch 225, `ezplate-v185`). Genuinely only a device settles it: the phone prints "cost" and "suggested" through CSS generated content and the spoken copy is meant to stand down below 768, so a duplicated word is inaudible to every automated test and invisible on screen. Chromium computes the same names and agrees, but Chromium is not VoiceOver. **He does not use VoiceOver.** It belongs on the accessibility item (consolidated 68), not on his list.
+- **Thumb "feel" checks** (batches 233, 235). The entries say so themselves: *"every measurement a harness can make already passed"*. What remained was whether a real thumb lands things it used to miss — which is not a check anyone will ever sit down and do, and it is not a defect report either.
+
+### And the process defect underneath, which is the part worth keeping
+
+**An accumulating list with no consumer is not a backlog, it is a way of feeling like something was written down.**
+`/batch`'s rule was *"do not stop for a phone check, append here"* — correct in isolation, and it had no matching rule that anything ever drains or prunes it. Fifty sections is what that produces in five weeks.
+**The general shape: any file a process APPENDS to needs a stated cap and a stated test for entry, or it converts work into the appearance of work.** `docs/QUEUE.md` has a cap of 20 and a tier test and stays useful; this file had neither. That is the whole difference.
