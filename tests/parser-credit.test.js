@@ -122,11 +122,18 @@ test('⚠️ packPriceOf reads the SAME columns the parser does, or a taught pac
   resolveMatchedPrice(row, { pack_qty: 12, pack_unit: 'kg' }, null);
   assert.ok(row.unitPrice > 2, `a taught pack must not divide the QUANTITY — got ${row.unitPrice}`);
 
-  // and the pair-only fallback, which is what packPriceOf was always right about
-  const pairRow = Object.assign({}, parsePdfLine('Beef Mince 6 x 1kg 60.00 60.00 60.00'));
+  /* ⚠️ AND THE FALLBACK, WITH A FIXTURE WHOSE THREE AMOUNTS DIFFER. The obvious version of this
+     line uses `60.00 60.00 60.00`, and it cannot fail: the repeated pair and the last amount are
+     the same number, so it passes whichever of the two `packPriceOf` returns — roster 184(b), a
+     fixture whose candidates agree cannot tell you which one the code read. Found by the mutation
+     gate, which reported the `p!=null` ternary as surviving once `lineColumns` began short-
+     circuiting past it on every other fixture in the file.
+     At 130.00 the two answers are $10.00/kg and $21.67/kg. */
+  const pairRow = Object.assign({}, parsePdfLine('Beef Mince 6 x 1kg 60.00 60.00 130.00'));
   resolveMatchedPrice(pairRow, { pack_qty: 6, pack_unit: 'kg' }, null);
+  assert.equal(pairRow.priceSource, 'product-pack');
   assert.ok(Math.abs(pairRow.unitPrice - 10) < 0.001,
-    `$60 over a taught 6kg pack on a line with no quantity column — got ${pairRow.unitPrice}`);
+    `the repeated PAIR over a taught 6kg pack, not the line total — got ${pairRow.unitPrice}`);
 });
 
 test('⚠️ END TO END through buildInvRows: a matched credit line reaches the screen unpriced', () => {

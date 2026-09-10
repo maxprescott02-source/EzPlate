@@ -388,7 +388,14 @@ const targets = [
      nothing wrong. Same shape as the setProducts delegate above. */
   { fn: 'packToUnitCost', tests: ['pricing.test.js', 'price-log-paths.test.js', 'catalogue-import.test.js'] },
   { fn: 'unitToBaseFields', tests: ['ingredient-unit.test.js', 'price-log-paths.test.js'] },
-  { fn: 'packPriceOf', tests: ['pack-survives.test.js', 'invoice-gst.test.js'] },
+  /* 256: parser-credit.test.js joins this list because packPriceOf gained a line — it asks
+     `lineColumns` first, so a TAUGHT PACK divides the same price the parser chose rather than the
+     quantity. Neither existing file has a fixture on a quantity-column layout, so nothing pinned
+     the new branch; and the OLD fallback ternary stopped being killed at the same moment, because
+     lineColumns now short-circuits past it on most fixtures. Both are pinned there now, the second
+     with a fixture whose repeated pair and line total DIFFER — the obvious 60/60/60 version cannot
+     tell the two answers apart. */
+  { fn: 'packPriceOf', tests: ['pack-survives.test.js', 'invoice-gst.test.js', 'parser-credit.test.js'] },
   { fn: 'menuMarginPreview', tests: ['menu-margin.test.js'] },
   { fn: 'invGstDetect', tests: ['invoice-gst.test.js'] },
   { fn: 'costAtLines', tests: ['dash-digin.test.js'] },

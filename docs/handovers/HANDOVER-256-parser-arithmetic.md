@@ -114,6 +114,9 @@ Nothing in the diff of `js/app.js` says "two allowances in another file just sto
 The second was a real survivor IN the fix: mutating `buildInvRows`' `basis:r.basis||null` makes `row.basis` always null, so the credit guard never fires and the defect comes straight back, **and all four new credit tests still passed** because every one of them hands the re-pricers a row straight out of `parsePdfLine`.
 Only a test that drives the ASSEMBLY can see an assembly defect, which is the reason `buildInvRows` is a target at all.
 A fifth case now runs the real chain end to end.
+**And a third:** the one-line `packPriceOf` fix both created an unpinned branch and stopped an EXISTING mutant being killed, because `lineColumns` now short-circuits past the old ternary on nearly every fixture in the suite.
+The fallback assertion written for it used `60.00 60.00 60.00`, where the repeated pair and the line total are the same number, so it could not fail either way.
+That is roster 184(b) in a test written that hour by someone who had just read the roster, and only the gate could see it.
 
 **`packPriceOf` being three lines was the surprise that mattered most.**
 The audit filed it as a follow-up and the fix is one line, and without it the headline claim of this whole batch would have been true of the parser and false of the path that outranks it.
