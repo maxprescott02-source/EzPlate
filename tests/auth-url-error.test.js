@@ -34,9 +34,10 @@ function urlApi() {
     "use strict";
     ${extractFn(SRC, 'authUrlParams')}
     ${extractFn(SRC, 'authUrlErrorMessage')}
+    ${extractFn(SRC, 'authUrlOkMessage')}
     ${extractFn(SRC, 'captureAuthUrlError')}
     ${extractFn(SRC, 'authRedirectTo')}
-    return { params: authUrlParams, message: authUrlErrorMessage,
+    return { params: authUrlParams, message: authUrlErrorMessage, ok: authUrlOkMessage,
              capture: captureAuthUrlError, redirect: authRedirectTo };
   `)();
 }
@@ -282,4 +283,57 @@ test('238: authSignUp SENDS it — the real function, against a recording client
       options: { emailRedirectTo: 'https://scoopyscosting.vercel.app/' },
     }]);
   });
+});
+
+/* ---------- 11 Sep 2026: the OTHER half of the same fragment ----------
+ * A dead link has explained itself since 238. A link that WORKED never said anything, and Max found
+ * that running the phone list against a real confirmation email: "works but i dont like that when
+ * you click the supbase link it jsut opens a site for like a sec and then it closes, its not abvious
+ * that the verifcation even worked."
+ *
+ * ⚠️ IT WAS INVISIBLE BECAUSE THE SURFACE DOES NOT EXIST, not because nobody wrote the sentence.
+ * The error paints into `#bgErr`, which lives on the sign-in gate — and a successful confirmation is
+ * exactly the case where the gate never appears, because the fragment carries a session and the app
+ * boots straight past it. So success needed a different surface (a toast), not a different string.
+ */
+
+test('a confirmation link that WORKED says so', () => {
+  const api = urlApi();
+  assert.match(api.ok(api.params('#access_token=abc&type=signup&expires_in=3600')), /Email confirmed/);
+});
+
+test('the other two verify types say what actually happened, not "email confirmed"', () => {
+  const api = urlApi();
+  assert.match(api.ok(api.params('#access_token=abc&type=invite')), /Invitation accepted/);
+  assert.match(api.ok(api.params('#access_token=abc&type=recovery')), /new password/);
+});
+
+test('⚠️ an ordinary session says NOTHING — the claim is only as wide as `type`', () => {
+  /* The assertion that stops this becoming a lie. A token with no `type` is a normal boot, and
+     announcing "email confirmed" there would be a confident claim about something that did not
+     happen — worse than the silence being fixed. */
+  const api = urlApi();
+  assert.equal(api.ok(api.params('#access_token=abc&expires_in=3600')), '');
+  assert.equal(api.ok(api.params('#access_token=abc&type=magiclink')), '', 'an unknown type is not guessed at');
+  assert.equal(api.ok(api.params('')), '');
+  assert.equal(api.ok(null), '');
+});
+
+test('⚠️ no token, no claim — an error fragment must never read as a success', () => {
+  const api = urlApi();
+  assert.equal(api.ok(api.params('#error=access_denied&error_code=otp_expired&type=signup')), '',
+    'type alone is not evidence: the same link that failed carries it too');
+});
+
+test('⚠️ the success reader does not consume the fragment supabase-js needs', () => {
+  /* `authUrlOkMessage` takes a plain object and returns a string. It has no access to `location` and
+     cannot clear anything — which is the property that matters, because clearing `#access_token`
+     would take the session away from the library and the user would land signed OUT after clicking
+     a link that worked. Asserted through `captureAuthUrlError`, which is the function that DOES
+     touch history, and which is already guarded on the token being absent. */
+  const loc = mkLoc({ hash: '#access_token=abc&type=signup' });
+  const api = urlApi();
+  const msg = api.capture(loc.loc, loc.hist);
+  assert.equal(msg, '', 'a successful fragment is not an error');
+  assert.equal(loc.calls.length, 0, 'and nothing rewrote the URL out from under supabase-js');
 });

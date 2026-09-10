@@ -256,6 +256,36 @@ var AUTH_URL_ERR = captureAuthUrlError(
   (typeof history!=='undefined') ? history : null
 );
 
+/* ---- 11 Sep 2026: THE OTHER HALF OF THE SAME FRAGMENT. A dead link has said why since 238; a link
+   that WORKED has never said anything at all. ----
+   Max, running the phone list against a real confirmation email: "works but i dont like that when
+   you click the supbase link it jsut opens a site for like a sec and then it closes, its not abvious
+   that the verifcation even worked."
+   ⚠️ WHY IT WAS INVISIBLE, AND IT IS NOT AN OVERSIGHT SO MUCH AS A SURFACE THAT DOES NOT EXIST.
+   `captureAuthUrlError` paints into `#bgErr`, which lives on the SIGN-IN GATE — and a successful
+   confirmation is precisely the case where the gate never appears, because the fragment carries a
+   session and the app boots straight past it. The error had somewhere to land; success did not.
+   ⚠️ IT READS THE FRAGMENT AND MUST NOT CONSUME IT. supabase-js needs `#access_token` intact to
+   establish the session, so this only LOOKS, and `captureAuthUrlError`'s own clear is already guarded
+   on `!hp.access_token` for the same reason. Nothing here writes to `location`.
+   ⚠️ AND IT CLAIMS ONLY WHAT `type` ACTUALLY SAYS. GoTrue puts `type=signup` in the fragment for a
+   confirmation link, `recovery` for a password reset, `invite` for an invitation. An access token
+   with no `type` is an ordinary session and gets NO message: announcing "email confirmed" on every
+   boot that happens to carry a token would be a confident claim about something that did not happen,
+   which is worse than the silence being fixed. */
+function authUrlOkMessage(p){
+  if(!p || !p.access_token) return '';
+  switch(p.type){
+    case 'signup': return 'Email confirmed. You\u2019re signed in.';
+    case 'invite': return 'Invitation accepted. You\u2019re signed in.';
+    case 'recovery': return 'Signed in. You can set a new password in Account.';
+    default: return '';                                     // an ordinary session says nothing
+  }
+}
+var AUTH_URL_OK = authUrlOkMessage(
+  (typeof location!=='undefined') ? authUrlParams(location.hash) : null
+);
+
 /* ================== Supabase data layer (single source of truth) ==================
    Local storage is kept only as an OFFLINE MIRROR so the app still opens and search
    still works with no signal. On every load we replace the mirror with server data. */
@@ -767,7 +797,9 @@ function bootGate(state, msg){
     _bootGateDone=true; _bootRetrying=false; g.hidden=true;
     g.classList.remove('is-error'); g.classList.remove('is-signin'); g.classList.remove('is-nomember');
     if(o) o.hidden=true; hideForms(); if(bd) bd.hidden=true;
-    if(_bootSlowTimer){ clearTimeout(_bootSlowTimer); _bootSlowTimer=null; } return;
+    if(_bootSlowTimer){ clearTimeout(_bootSlowTimer); _bootSlowTimer=null; }
+    paintAuthUrlOk();                                       // the confirmation link worked — say so, once
+    return;
   }
   /* 186 — NOBODY IS SIGNED IN, and after this batch that is the only way to see a café's data.
      Dropping the anon fallback from `current_business_id()` makes a signed-out visitor answer NULL
@@ -8914,7 +8946,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v212';
+var APP_VERSION='v213';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -9364,6 +9396,17 @@ function paintAuthUrlError(){
   if(_authUrlErrShown || !AUTH_URL_ERR) return;
   _authUrlErrShown=true;
   gateErr(AUTH_URL_ERR);
+}
+/* The success twin. It toasts rather than writing to `#bgErr` because by the time this runs the gate
+   is HIDDEN — that is what `state==='ok'` means — so the only surface left is the app itself.
+   ⚠️ LATCHED like its sibling: `bootGate('ok')` runs again on every re-sync that gets this far, and
+   a message that reappears on a background refresh reads as a second confirmation of something that
+   happened once. */
+var _authUrlOkShown=false;
+function paintAuthUrlOk(){
+  if(_authUrlOkShown || !AUTH_URL_OK) return;
+  _authUrlOkShown=true;
+  if(typeof toast==='function') toast(AUTH_URL_OK);
 }
 
 /* 186 — ONE submit sequence, worn by TWO forms: the Account card's and the boot gate's.
@@ -11916,8 +11959,51 @@ function hasProductStructure(line){
   if(/\d+\s*(?:x|\u00d7|\*)\s*\d/i.test(line)) return true;      // "6 x 2.5", "6 x 6 x ..."
   return false;
 }
+/* A word that only ever appears in a CHARGE, never in something a cafe cooks with. Used for one
+   job: telling "S77 FUEL LEVY 1.00 1.00 EA 1.00 $3.00" from a product, when both carry a quantity.
+   (Max, 11 Sep 2026, after running the phone list against a real import: "fuel levys being caught
+   as an item". It is one review row to dismiss on EVERY import from that supplier, which the parser
+   audit recorded as residual D14 and left — it is an annoyance rather than a wrong number, and an
+   annoyance that recurs weekly is worth a rule.) */
+var INV_CHARGE_WORD=/^(?:fuel|admin|administration|service|handling|cartage|freight|delivery|pallet|environmental|env|min|minimum|order|surcharge|levy|levies|charge|charges|fee|fees|small)$/i;
+function nameIsAllChargeWords(name){
+  var toks=String(name||'').split(/[^A-Za-z]+/).filter(function(t){ return t.length>1; });   // drops codes like "S77" and bare initials
+  if(!toks.length) return false;
+  /* EVERY word, with no exemptions. The first cut treated a UNIT word as neutral — "a unit is
+     evidence of neither" — and that was wrong in the one direction this rule cannot afford.
+     ⚠️ PACKAGING NOUNS ARE UNITS *AND* PRODUCTS. `INV_QTY_UNIT` holds bag, box, carton, tray, roll;
+     a cafe buys all five as things. With them exempt, a name only had to pair one INV_EXCLUDE word
+     with one of them to vanish: measured, `DELIVERY BAG 1 EA 5.00` and `FREIGHT ROLL 1 EA 9.00` —
+     takeaway bags and cling film — were dropped where `main` sent them to review. Found by the
+     pre-push review.
+     ⚠️ AND THE EXEMPTION BOUGHT NOTHING, which is the part that makes removing it easy. `name` is
+     sliced at the FIRST money on the line, so the quantity columns are not in it: the real levy's
+     name is "S77 FUEL LEVY" and "DELIVERY CHARGE 1 EA 8.50" has the name "DELIVERY CHARGE". The
+     unit words the exemption was written for were never there. */
+  for(var i=0;i<toks.length;i++){
+    if(!(INV_CHARGE_WORD.test(toks[i]) || INV_EXCLUDE.test(toks[i]))) return false;
+  }
+  return true;
+}
 function invLineClass(name, fullLine){
   if(!INV_EXCLUDE.test(name||'')) return 'ok';                    // no summary keyword -> normal item
+  /* ⚠️ D14. `hasProductStructure` exists to RESCUE a line that mentions a keyword but is plainly a
+     product ("CHEESE ... 2 x 1kg ... TOTAL 42.58"), and it does that by looking for a quantity. A
+     fuel levy has a quantity — `1.00 EA` — so it was rescued every time and arrived as a review row.
+     The discriminator is not the STRUCTURE, it is the NAME: if every word in it is a charge word,
+     no amount of quantity makes it a thing you cook with.
+     ⚠️ This sits INSIDE the `INV_EXCLUDE` branch on purpose, so it can only ever narrow a line that
+     was already suspected. An ordinary product line never reaches it.
+     ⚠️ AND THE FIRST DRAFT OF THIS COMMENT SAID THE WORST CASE IS "a MISSING review row, which is
+     VISIBLE, rather than a wrong price, which is not" — AND THAT WAS FALSE. The pre-push review went
+     and looked: nothing reconciles the invoice's line count against the rows built from it, so a
+     dropped line leaves no trace on any screen. The summary counts ROWS ("2 matched, 1 needs your
+     eye"), which is a count of what survived. The only record is `invDbg`, behind a flag that is off.
+     That mattered, because the sentence was doing real work — it was the argument for allowing a
+     loose rule, and it was wrong about the consequence it was weighing. `CLAUDE.md` has a section
+     for exactly this shape: a comment whose observation is right and whose disposal of it is not.
+     So the rule is as tight as it can be instead: every word must be a charge word. */
+  if(nameIsAllChargeWords(name)) return 'exclude';
   return hasProductStructure(fullLine||name) ? 'uncertain' : 'exclude';  // keyword + no product shape -> drop
 }
 /* ---- candidate matching: token overlap, top 3 ---- */
@@ -12507,6 +12593,40 @@ function ingPriceHtml(p){
 function prodCategories(){ return Array.from(new Set(PRODUCTS.map(function(p){return p.category;}).filter(Boolean))).sort(); }
 function prodBrands(){ return Array.from(new Set(PRODUCTS.map(function(p){return p.brand;}).filter(Boolean))).sort(); }
 function prodSuppliers(){ return Array.from(new Set(PRODUCTS.map(function(p){return p.supplier;}).filter(Boolean))).sort(); }
+/* ===== 11 Sep 2026, Max, from a real import: a supplier he ALREADY HAS was offered back to him as a
+   new one to create. =====
+   His words: "a supplier that already exists B&E was being suggested to create a new supplier
+   B&E Poultry product - this sort of double up shouldnt be possible it should check first if there
+   is already a matching supplier."
+   The add-new-product form prefills Supplier from the AI's reading of the letterhead, or failing that
+   from `invSupplier`. Neither had ever been compared against the suppliers the cafe already has, so a
+   letterhead that says a little more than his stored spelling ("B&E Poultry" against "B&E") proposed
+   a second one. Suppliers are not a table — they are a string on each product — so a "new supplier"
+   is just a spelling nobody notices until the Products filter has two of them and supplier memory has
+   split its keys down the middle.
+   ⚠️ IT SNAPS TOWARDS WHAT HE ALREADY HAS, NEVER AWAY FROM IT, and that direction is the whole
+   design. An existing name that is a whole-word PREFIX of the candidate wins, because "B&E" is what
+   he typed once and "B&E Poultry" is what a letterhead happened to print. The reverse is never done:
+   an existing "B&E Poultry" is NOT proposed for a candidate of "B&E", because that would be inventing
+   specificity the invoice did not carry.
+   ⚠️ AND IT IS A WHOLE-WORD PREFIX RATHER THAN A SUBSTRING, which is CLAUDE.md's batch-223 lesson
+   about `Rice` matching inside `Rice Noodles`: a bare substring would fold "Bidfood" into "Bidfoods
+   Direct" and any two suppliers sharing an opening word. Longest existing match wins, so when both
+   "Bidfood" and "Bidfood Direct Supply" exist, the longer one takes its own name.
+   The user can still type anything: this changes the PREFILL, not what may be saved. */
+function supplierSnap(cand, existing){
+  var c=normSupplier(cand); if(!c) return cand||'';
+  var list=existing||prodSuppliers(), best=null;
+  for(var i=0;i<list.length;i++){
+    var e=list[i], n=normSupplier(e); if(!n) continue;
+    if(n===c) return e;                                       // same supplier, his spelling
+    // whole-word prefix: "b&e" of "b&e poultry", never "bid" of "bidfood"
+    if(c.length>n.length && c.slice(0,n.length)===n && /[^a-z0-9]/.test(c.charAt(n.length))){
+      if(!best || n.length>normSupplier(best).length) best=e;
+    }
+  }
+  return best!=null ? best : (cand||'');
+}
 
 /* ===== v40 item 3: "Tidy lists" pure core =====
    Categories/brands/suppliers aren't their own tables — they're values on products, and the
@@ -12736,7 +12856,32 @@ function reanchorOpenLayers(){
   var pop=document.querySelector('.dash-menus-pop'), sb=document.getElementById('dashScopeBtn');
   if(pop && sb) anchorDrop(pop, sb, {matchWidth:false, align:'right'});
 }
-(function(){ window.addEventListener('resize',reanchorOpenLayers); window.addEventListener('scroll',reanchorOpenLayers,true); })();   // scroll capture=true catches the modal body scroll
+/* ⚠️ `visualViewport` IS A THIRD SOURCE OF MOVEMENT AND IT IS THE ONLY ONE A PHONE HAS.
+   (11 Sep 2026, Max, from the phone list's check 3: the ingredient list ends up sitting over the
+   text he has just typed into the field.)
+   `resize` and `scroll` cover a desktop window and a scrolling modal body. **Neither fires when an
+   iOS keyboard opens.** `window.innerHeight` does not shrink for the keyboard — `docs/PHONE.md` has
+   recorded that since batch 212 — so there is no `resize`; and when iOS reveals the focused field by
+   panning the VISUAL viewport rather than scrolling the document, there is no `scroll` either. The
+   field moves under the user and the `position:fixed` layer, anchored once at open time, does not
+   follow it.
+   ⚠️ RE-ANCHORING IS THE SAFE USE OF THIS API, AND READING ITS HEIGHT IS NOT — which is why this
+   does the first and still not the second. `docs/PHONE.md` declined to clamp the dropdown's height to
+   `visualViewport.height` blind, because that number also moves when the page is PINCH-ZOOMED and
+   guessing which of the two a phone is doing makes it worse. Re-anchoring needs no such guess: it
+   recomputes from the field's current rect and is correct whatever moved it.
+   ⚠️ AND IT IS UNVERIFIED HERE. No desktop browser has a soft keyboard, so this cannot be driven in
+   any harness this repo owns — the listeners and the recompute are tested, the CAUSE is not. It goes
+   back on the phone list as a re-check rather than being called fixed. */
+(function(){
+  window.addEventListener('resize',reanchorOpenLayers);
+  window.addEventListener('scroll',reanchorOpenLayers,true);   // scroll capture=true catches the modal body scroll
+  var vv=(typeof window!=='undefined') ? window.visualViewport : null;
+  if(vv && typeof vv.addEventListener==='function'){
+    vv.addEventListener('resize',reanchorOpenLayers);
+    vv.addEventListener('scroll',reanchorOpenLayers);
+  }
+})();
 function makeInlineCombo(inpId, dropId, listFn){
   var inp=document.getElementById(inpId), drop=document.getElementById(dropId); if(!inp||!drop) return;
   var state={value:inp.value.trim(), isNew:false, confirmed:!!inp.value.trim()}; niCombos[inpId]=state;
@@ -12838,7 +12983,11 @@ function expandNewItem(i){
     var fName=niFld('name', r.name, true),
         fBrand=niFld('brand', '', false),
         fCat=niFld('cat', '', false),
-        fSup=niFld('sup', (invSupplier||''), !!invSupplier);
+        /* 11 Sep 2026: whatever the AI or the letterhead says, the prefill is snapped to a supplier
+           he already has when one matches — see supplierSnap. Applied to the RESOLVED value rather
+           than to either source, because both produce the same duplicate and a guard on one of them
+           would leave the other open. */
+        fSup=(function(){ var f=niFld('sup', (invSupplier||''), !!invSupplier); var snapped=supplierSnap(f.val); if(snapped!==f.val){ f=Object.assign({}, f, {val:snapped}); } return f; })();
     panel.innerHTML=''
      +'<button type="button" class="x ni-close" aria-label="Close add-new-item form">\u00d7</button>'
      +'<div class="ni-head">Add new item from this invoice line</div>'

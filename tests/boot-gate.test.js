@@ -135,10 +135,21 @@ function makeGate(present, opts) {
        in auth-url-error.test.js; what belongs HERE is the one thing only bootGate can answer:
        whether reaching the sign-in state paints it, and whether reaching it again repaints it. */
     var AUTH_URL_ERR = ${JSON.stringify((opts && opts.urlErr) || '')};
+    /* 11 Sep 2026: the SUCCESS twin, injected the same way and for the same reason. Its wording is
+       pinned in auth-url-error.test.js; what belongs here is whether the 'ok' branch paints it and
+       whether reaching 'ok' a second time repaints it, which only bootGate can answer.
+       The toast is captured rather than run: these tests own no DOM beyond the gate's own nodes, and
+       the observable contract is that the message went out ONCE.
+       (No back-ticks in this comment on purpose - it sits INSIDE a template literal, and the first
+       draft closed the string with one, which reads as a syntax error four lines away.) */
+    var AUTH_URL_OK = ${JSON.stringify((opts && opts.urlOk) || '')};
+    var toast = function(m){ C.toasts = C.toasts || []; C.toasts.push(m); };
     ${extractVar(SRC, 'SIGNIN_MSG')}
     ${extractFn(SRC, 'gateErr')}
     ${extractVar(SRC, '_authUrlErrShown')}
     ${extractFn(SRC, 'paintAuthUrlError')}
+    ${extractVar(SRC, '_authUrlOkShown')}
+    ${extractFn(SRC, 'paintAuthUrlOk')}
     /* 243: the chooser the 'nomember' branch paints. Real, not stubbed — a stub would be written
        from the same belief as the code, which is this repo's most recorded defect. */
     ${extractFn(SRC, 'esc')}
@@ -149,6 +160,7 @@ function makeGate(present, opts) {
     ${extractFn(SRC, 'bootGate')}
     return { bootGate: bootGate, gateErr: gateErr, SIGNIN_MSG: SIGNIN_MSG,
              shown: function(){ return _authUrlErrShown; },
+             okShown: function(){ return _authUrlOkShown; },
              setInvites: function(rows){ return applyPendingInvites(rows); },
              invites: function(){ return _pendingInvites; } };
   `)(nodes, calls, signOutResult);
@@ -160,7 +172,7 @@ function makeGate(present, opts) {
            invites: nodes.bgInvites, invitesNote: nodes.bgInvitesNote, inviteList: nodes.bgInviteList,
            setInvites: api.setInvites, heldInvites: api.invites,
            run: api.bootGate, gateErr: api.gateErr, SIGNIN_MSG: api.SIGNIN_MSG,
-           urlErrShown: api.shown, calls };
+           urlErrShown: api.shown, urlOkShown: api.okShown, calls };
 }
 
 /* ---------------------------------------------------------------------------------------------
@@ -1042,4 +1054,52 @@ test('243: 192’s guard actually fires — the sign-in form is not repainted ov
   g.run('signin');
   assert.strictEqual(g.form.hidden, true, 'the guard returned before re-showing the sign-in form');
   assert.strictEqual(g.msg.textContent, 'Create your account.', 'and before overwriting the wording');
+});
+
+/* ---------- 11 Sep 2026: a confirmation link that WORKED has to say so ----------
+ * Max, running the phone list against a real confirmation email: "works but i dont like that when
+ * you click the supbase link it jsut opens a site for like a sec and then it closes, its not abvious
+ * that the verifcation even worked."
+ *
+ * The wording lives in auth-url-error.test.js against the real `authUrlOkMessage`. What only this
+ * file can answer is the half that made it invisible: the message belongs on the 'ok' branch,
+ * because a successful confirmation is exactly the case where the SIGN-IN GATE never appears — so
+ * `#bgErr`, where the error twin paints, is not on screen and never will be.
+ */
+
+test('the ok branch announces a confirmation that worked', () => {
+  const g = makeGate(true, { urlOk: 'Email confirmed. You’re signed in.' });
+  g.run('ok');
+  assert.deepStrictEqual(g.calls.toasts, ['Email confirmed. You’re signed in.'],
+    'the only surface left once the gate is hidden');
+  assert.strictEqual(g.gate.hidden, true, 'and the gate still goes away');
+});
+
+test('⚠️ it is LATCHED — a re-sync must not re-announce it', () => {
+  /* bootGate('ok') runs again on every re-sync that gets this far. A message that reappears on a
+     background refresh reads as a second confirmation of something that happened once. */
+  const g = makeGate(true, { urlOk: 'Email confirmed. You’re signed in.' });
+  g.run('ok');
+  g.run('ok');
+  g.run('ok');
+  assert.strictEqual(g.calls.toasts.length, 1, 'said once, however many times the branch is reached');
+  assert.strictEqual(g.urlOkShown(), true);
+});
+
+test('⚠️ an ordinary boot says nothing at all', () => {
+  /* The assertion that stops this becoming noise on every launch. With no confirmation in the URL
+     `AUTH_URL_OK` is empty, and the branch must stay silent rather than reaching for a default. */
+  const g = makeGate(true);
+  g.run('ok');
+  assert.strictEqual(g.calls.toasts, undefined, 'no toast was even attempted');
+  assert.strictEqual(g.urlOkShown(), false);
+});
+
+test('the success message never reaches the sign-in gate, and the error never toasts', () => {
+  /* The two are separate surfaces on purpose and neither should wander into the other's: an error
+     belongs where the user can act on it (the gate), a success belongs where they are (the app). */
+  const g = makeGate(true, { urlErr: 'That confirmation link has already been used.', urlOk: 'Email confirmed. You’re signed in.' });
+  g.run('signin');
+  assert.strictEqual(g.err.textContent, 'That confirmation link has already been used.');
+  assert.strictEqual(g.calls.toasts, undefined, 'the signin branch does not announce a success');
 });

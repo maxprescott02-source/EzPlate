@@ -2,6 +2,9 @@
 
 **Five checks. Three to do once, two that wait for a thing you do anyway.**
 
+✅ **IT WORKED. Max ran all five on 11 Sep 2026, the day after it was cut**, and four of the five turned up something real: a fuel levy imported as a product, an existing supplier offered back as a new one, a builder bar floating one home-indicator above the tab bar, and a confirmation link that never said it had worked. All four shipped as `ezplate-v213` the same day.
+**Three of them were invisible to every harness in this repo** — one because `env(safe-area-inset-bottom)` is 0 on a desk, one because no desktop browser has a soft keyboard, and one because the success message paints on a screen that a success never shows. That is the entry test at the top of this file doing exactly what it was written for, on its first run.
+
 ⚠️ **This file was 1051 lines and 50 sections on 10 Sep 2026, and Max had never used it once.**
 That is not laziness, it is the file being wrong: most of it was *"look at this redesigned screen and tell me how it feels"*, and by the time anyone read it those screens had been in daily use for a month.
 **A taste question about a screen you use every day has already been answered by you not complaining about it.**
@@ -54,7 +57,7 @@ Chips were being stored at $0.25/kg against a real $2.46, and the figure moved w
 - **A credit note refuses.** Returned stock comes up asking for a price instead of importing as a purchase. ⚠️ **It explains itself badly** - it says *"unit mismatch"* when it means *"this is a refund"*. Known, filed. **Do not set a pack for a credit line.**
 - **A line the parser cannot add up asks you to type the price** instead of showing a wrong one.
 - **The bread and the beef patties show a longer name.** Their descriptions wrap onto two lines on the invoice and the second half is now joined on. That join is what makes their prices right.
-- **The fuel levy is still one row to dismiss** per import.
+- ~~**The fuel levy is still one row to dismiss** per import.~~ ✅ **FIXED in `ezplate-v213`** after you reported it. A charge whose every word is a charge word is no longer a product, however much it looks like one. **Fail: a real product goes MISSING** — which is the direction this fix can be wrong in, and it is visible, so say which line.
 
 ⚠️ **ONE CAVEAT ON "matches the paper", because it is only true of YOUR two suppliers.** Both of them print **ex-GST** prices, so the stored figure should equal the printed one. **If you ever import an invoice that says GST-inclusive**, a correct import stores about **9% BELOW** the printed per-unit figure, and the note above the table must say the prices were converted. **Matching the paper would then be the FAILURE.**
 *(That was its own section on the old list — the v168 check, "costs money if wrong". It is folded in here rather than kept separate because you have no GST-inclusive supplier to run it against; the day you get one, this paragraph is the check. The wrong-answer symptom is the dangerous part: every cost 10% out, uniformly, on a screen of entirely plausible per-kg figures.)*
@@ -62,6 +65,7 @@ Chips were being stored at $0.25/kg against a real $2.46, and the figure moved w
 **While you are in there, three things that ride along** (each was its own entry on the old list):
 
 - **The supplier name.** It should read as the supplier's trading name, not `Credit Terms: 7 Days` or `Document No:`.
+  ⚠️ **AND ON AN ADD-NEW ROW, CHECK THE SUPPLIER FIELD.** You reported it offering to create **B&E Poultry** when you already have **B&E**. From `ezplate-v213` a prefill that starts with a supplier you already have snaps to YOURS. **Fail: two spellings of one supplier in the Products filter** — or the opposite, a genuinely new supplier being folded into an existing one, which is the direction worth watching.
 - **The "AI checked" note** should appear as usual. If it says **"AI check unavailable"** on every invoice however good the signal, the AI second reader is being refused - not urgent, no wrong prices, but say so.
 - **Change a row's match dropdown to another product and back.** The price must not move. *(A defect once divided it by 1.1 on every change - 9% lower each time, with nothing on screen to show it.)* **Do this on a line whose product has a taught pack** if you can: that is the path the defect lived on, and `ezplate-v211` changed what feeds it.
 
@@ -90,8 +94,9 @@ Then background the app, leave it long enough for iOS to throw the tab away, and
 Two things a desktop browser physically cannot show: it has no soft keyboard, and it is not the installed app.
 
 **The keyboard.** Open the builder, tap the ingredient search, type two letters that match a lot of products (`ch`).
-**Pass:** the whole list of matches sits between the field and the top of the keyboard, and you can reach the last row.
-**Fail:** the bottom rows sit behind the keyboard with no way to scroll to them.
+**Pass:** the list sits BELOW the field, you can still read what you typed, and you can scroll to the last row.
+**Fail:** the list sits over the field and covers your own text.
+⚠️ **RE-CHECK, and this is a fix that could not be tested here.** You reported exactly that on 11 Sep and `ezplate-v213` subscribes the floating layers to `visualViewport`, which is the only event an iOS keyboard produces — `window.resize` does not fire (the height does not shrink) and `scroll` does not fire when iOS pans rather than scrolls, so the list was anchored once when it opened and then the field moved out from under it. **No browser on a desk has a soft keyboard**, so the listeners are tested and the CAUSE is not. If it still covers the field, say so and it needs a different mechanism, not a bigger version of this one.
 **Then the sign-in screen** (sign out, or just look at it): the keyboard must not cover the **Sign in** button with no way to scroll to it.
 
 **Cold from the home screen, in dark.** Close the app completely, set the phone to dark, and open the installed icon - not Safari.
@@ -126,6 +131,7 @@ The screen asks, and defaults to one pack.
 
 **Pass:** the link opens `scoopyscosting.vercel.app` and lands on the "name your café" screen; they then land straight into your café with nothing to accept.
 **Fail:** the link opens `localhost:3000`, or they see *"This account isn't linked to a café yet"* - which usually means a typo in the address you invited, not a bug.
+⚠️ **RE-CHECK: it should now SAY that it worked.** You reported *"it just opens a site for like a sec and then it closes, its not abvious that the verifcation even worked."* From `ezplate-v213` a confirmed link raises **"Email confirmed. You're signed in."** The reason it said nothing before is that the failure message paints on the sign-in gate — which is exactly the screen a successful confirmation skips past. **Fail: it still says nothing**, or it says it on an ordinary launch when you have not clicked a link.
 
 ---
 
