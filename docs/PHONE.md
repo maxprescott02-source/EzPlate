@@ -997,3 +997,55 @@ batch was reported for.
 ⚠️ **`maxgrailed820@gmail.com` already exists and is CONFIRMED** (8 Sep 2026, no café yet). It is
 not broken and does not need deleting — it can sign in today. Use a different fresh address for the
 test above, so the confirmation link is a live one.
+
+## v211 — import BOTH suppliers' invoices, and expect one of them to change a great deal (batch 256)
+
+⚠️ **THIS IS THE OPPOSITE OF THE v194/v195 CHECK ABOVE, AND READING IT THE OTHER WAY ROUND WOULD BE
+THE WORST OUTCOME.** Those two asked you to confirm that **nothing moved**. This one changes the
+price of nearly every line from one of your two suppliers, on purpose — so "the numbers are
+different" is the PASS here, and it is a fail only if a number is different from what the **invoice
+itself** says.
+
+**What changed.** The parser used to pick the price of a pack by looking for the first pair of equal
+amounts on the line, and failing that, by taking the last amount. It never once looked at the
+quantity. On the poultry-and-smallgoods supplier's layout, Ordered and Shipped print as two equal
+numbers before the price — so the **quantity was being stored as the price**. Chips came in at
+$0.25/kg against a real $2.46, and the figure moved with how many cartons you happened to buy that
+week. It now multiplies: the price is the column that, times the quantity, gives the line total.
+
+**Why only a device can settle it.** The repo scores fourteen INVENTED invoice layouts on every test
+run and they all pass — but **your six real invoices cannot be tested here.** Their extracted text
+carries the cafe's own details and this repository is public, so only the answer sheets are
+committed, never the invoices. The suite proves no invented layout regressed. It cannot prove yours
+is right, and nothing in this repo ever will.
+
+**Do this, and do BOTH suppliers, in this order:**
+
+1. **The foodservice distributor first** — the one whose invoices have always imported correctly.
+   **Pass:** every row exactly as before. **Fail:** any price different from the previous import of
+   that same product. This supplier is the control, and a change here is a regression.
+2. **The poultry and smallgoods supplier second.** **Pass:** most rows now arrive already ticked,
+   and each price matches the **Item Price** column on the paper in front of you — per KG where the
+   UOM says KG (bacon, chipolatas, chicken breast, smoked salmon), per carton or bag otherwise.
+   Before this you would have seen almost nothing ticked and a wall of price-jump warnings.
+   **Fail:** a ticked row whose price is not the number printed on the invoice. **Write the line
+   down verbatim** — the line text is the whole diagnosis, and a screenshot of the paper row beside
+   the screen row is worth more than any description.
+
+**Four things you will see that are NEW and are not faults:**
+
+- **A credit note refuses.** If an invoice has a credit page (returned stock, a negative quantity),
+  every credited line now comes up asking for a price instead of quietly importing as a purchase.
+  ⚠️ **It currently explains itself badly** — the flag says *"unit mismatch"* and the note says
+  *"Set the pack, or type the price"*, when the honest reason is "this is a refund, don't apply it".
+  That wording is already written down as a follow-up. **Do not set a pack for a credit line.**
+- **A line the parser cannot add up asks you to type the price**, rather than showing a wrong one.
+- **Two products show a longer name than before** — the bread and the beef patties. Their
+  descriptions wrap onto a second line on the invoice, and the second half (which is where the pack
+  size is) is now joined on. That join is what makes their prices right.
+- **The fuel levy still appears as one row to dismiss**, once per import. Unchanged, and known.
+
+**One thing to check that is easy to skip:** after applying, open two or three of the products you
+just imported and look at their **price history**. The old prices in there were wrong, so the graph
+will show a jump the day you import this. That jump is the fix landing, not a price rise — worth
+knowing before it turns up on the Dashboard as drift.

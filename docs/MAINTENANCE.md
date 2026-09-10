@@ -1155,3 +1155,36 @@ The `menus` read is required now — its error joins the four that raise the boo
 **Why C rather than B:** nothing is stored, nothing is pre-ticked, and the user is stopped. It is a wrong explanation in front of a correct refusal, not a wrong number.
 ⚠️ **It rides whichever batch next opens `renderInvReview` / `flagNeedsAttention`, and it is cheap:** the row already carries the reason, so this is a `basis.kind` read and one more `st-*` case, not new state. **Consolidated item 26** is the natural companion — it is deciding what a `$0.00` line MEANS, which is the same question about the same screen, and both are about a row whose refusal needs its own words.
 ⚠️ **And the general shape, which is why this is written down rather than fixed on sight:** the fix put a NEW reason into the data (`basis.kind`) and reused an OLD label for it. A flag that is true for the wrong reason is this file's own comment trap arriving in UI copy — the observation ("the units do not match") is accurate, and the conclusion it invites ("set the pack") is the wrong action.
+
+### The parser fix stops NEW wrong prices and does not correct the ones already stored
+
+Raised by batch 256 itself, which is the point: item 17 fixed the mechanism, and a mechanism fix is
+not a data fix. Every price one supplier's invoices wrote before `ezplate-v211` was chosen by the
+old rule, so some stored `cost_per_base_unit` values — and the plate costs computed from them — are
+still whatever the wrong parse said.
+
+**Bounded, measured on production 10 Sep 2026, so nobody has to guess how bad it is:**
+
+- `ing_price_history` holds **61 points across 57 distinct products** since 15 Jul 2026. That is
+  every product whose price has EVER moved through `setProducts`, which is the upper bound on what
+  an import can have changed — against **428** products in the catalogue.
+- Not all 57 came from the affected supplier, and not all came from an invoice at all: the catalogue
+  importer writes through the same function.
+- ⚠️ **And the flag was doing most of the work, which is why this is C.** The parser audit measured
+  that the 12% price-jump check against existing history put **34 of the 35 wrong real lines into
+  `review` rather than pre-ticking them** — so for a product that already had a price, Max was shown
+  the number and had to tick it. What the flag could NOT protect is a **new** product, a **new**
+  supplier or a **new** cafe, where there is no history to jump from.
+
+**The natural repair is the next invoice from that supplier**, which now prices correctly and
+overwrites. So this closes itself in a week of ordinary trading, and doing nothing is a legitimate
+answer — but it should be a decision rather than an omission, which is why it is written down.
+⚠️ **Anything that rewrites those stored prices is production data and is MAX'S**, the same standing
+rule as the restore's wipe. **And the honest repair is not a script**: there is no way to tell, from
+a stored number, whether it came from a wrong parse or from Max typing it, so a heal would be
+guessing at exactly the values it claims to fix. The safe version is a REPORT — list the products
+whose last recorded movement predates `v211`, with their stored price, and let him look — not a write.
+⚠️ **The visible symptom, so it is not diagnosed as a price rise:** the first corrected import will
+show as a large jump on those products' price history and as drift on the Dashboard. `docs/PHONE.md`
+(the `v211` entry) tells him that in advance; if this entry is ever acted on, keep that warning
+somewhere he will read it.
