@@ -90,14 +90,22 @@ for (const theme of ['light', 'dark']) {
        the AA floor for large text, caught a real regression without lying either way.
        **That reasoning was right and it has EXPIRED, which is the only honest way a floor like this
        ever moves: the shortfall is fixed, so the placeholder goes.** Queue item 8, Max's answer
-       "nudge the grey a shade": `--text-3` is light #776B5C / dark #96938F, solved against every
-       surface the token is painted on. Re-measured here after the change — **4.50 light, 4.66 dark**,
-       on this element, by the walk below.
-       ⚠️ LIGHT AT 4.50 IS THE BINDING CONSTRAINT OF THE WHOLE PALETTE and it clears by 0.004, so
-       `toBeGreaterThanOrEqual` is doing real work and a further tweak to `--text-3`, `--danger-bg` or
-       anything that changes what this element paints on will go red HERE FIRST. That is the point of
-       the number rather than a reason to soften it: the token was solved to this floor deliberately,
-       and the next person to move it should be made to come and read this. */
+       "nudge the grey a shade": `--text-3` is light #766A5B / dark #96938F, solved against every
+       surface the token is painted on. Re-measured on THIS element after the change:
+       **4.5627 light, 4.6642 dark**, by the walk below.
+       ⚠️ THIS COMMENT CITED #776B5C AND "clears by 0.004" UNTIL THE PRE-PUSH REVIEW READ IT.
+       #776B5C is the value that was REJECTED — its real ratio here is 4.4961, which a probe
+       printing `toFixed(2)` displayed as "4.50", the very bound it was supposed to clear. The
+       shipped token is one step darker and clears by ~0.06, so this assertion is NOT on a
+       hair-trigger and a reader hand-checking it against the old hex would reach the wrong
+       conclusion twice over.
+       **That the stale figure survived into the comment warning about stale figures is the
+       point**: the CSS block beside it says "do not quote a contrast figure at 2dp when the
+       decision is whether it clears a bound", and this comment did exactly that, one file away,
+       in the same change. A number in prose is not checked by anything — only the assertion is.
+       ⚠️ What is real is that light is the BINDING theme for `--text-3`: --danger-bg is the worst
+       surface the token is painted on, so a further tweak to it, to that tint, or to what this
+       element paints on goes red HERE FIRST, which is why the floor is worth its exact value. */
     /* ⚠️ 229 — THE SURFACE IS THE ELEMENT'S OWN BACKGROUND, NOT THE ROW'S TINT, and the walk below
        is what makes that true rather than an accident. A pre-push review traced this element to its
        row (`st-review`, `background:var(--warn-bg)`) and recomputed every figure against that,

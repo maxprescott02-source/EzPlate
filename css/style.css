@@ -174,11 +174,22 @@ html[data-theme="dark"]{ --text-3:#96938F; }
      shadow. His answer was "outline track and knob" over "darken the whole track": the
      switch keeps its soft fill and only the edges gain definition, where a solid mid-grey
      pill would be heavier and would read a little like the switch is doing something when
-     it is off. #98938B measures 3.05 on --surface.
-     ⚠️ LIGHT ONLY. Dark was fixed in v136 (the --knob pair above) and measures 7.87, so it
-     is deliberately left alone — adding an edge there would be a change with no defect
-     behind it. The token is `transparent` in dark rather than absent, so the rule below
-     needs no theme selector of its own.
+     is off. Light #98938B = 3.05 on --surface. Dark #6E7075 = 3.10 on --surface, 3.33 on
+     --surface-2, and still 3.86 against the knob so the two never merge.
+     ⚠️ THIS SAID "LIGHT ONLY, DARK WAS FIXED IN v136 AND MEASURES 7.87" AND THAT WAS A TRUE
+     NUMBER ABOUT THE WRONG PAIR OF COLOURS. Caught by the pre-push review.
+     **7.87 is the KNOB on the TRACK** — the v136 block above says so in as many words — and it
+     answers "can you tell which way it is set". 1.4.11 asks a different question first: **can
+     you see the control at all**, which is the TRACK against the CARD. In dark that is
+     --border-2 #3F4247 on --surface #232528 = **1.52**, the same failure as light's 1.36, in
+     the same control, measured the same way.
+     ⚠️ **AND MAX WAS TOLD DARK WAS FINE**, in the decision he answered, because the figure was
+     carried forward from batch 229 without anyone asking which boundary it described. So this
+     is an EXTENSION of his answer rather than his answer: he chose "outline track and knob"
+     for this exact defect, and it turned out to exist in both themes. The cost is one hairline
+     on dark switches and reversing it is this one token, which is why it was taken rather than
+     deferred — the alternative was shipping a control that fails the criterion this whole
+     change exists for, under a comment claiming it passes.
 
    --danger-ctl-br  THE DESTRUCTIVE BUTTON. His answer was to RAISE it, over leaving it —
      and this is the option that COSTS something, which is why the cost is written here
@@ -197,14 +208,19 @@ html[data-theme="dark"]{ --text-3:#96938F; }
      a CONTROL, 1.4.11 does not reach them, and a grey-brown hairline round a pale pink
      message box is a worse-looking thing than the problem being fixed. So the boundary that
      had to move got a token named for what it is.
-   ⚠️ AND IT IS APPLIED TO BOTH DESTRUCTIVE BUTTONS, WHICH IS THE ITEM'S OWN REQUIREMENT:
+   ⚠️ AND IT IS APPLIED TO ALL THREE DESTRUCTIVE BUTTONS, WHICH IS THE ITEM'S OWN REQUIREMENT:
      "decide ONCE for every bordered control … and if yes do it in the TOKEN, not per
      control — a per-control fix is how two became a pattern nobody can see." The decision
-     measured `.mnu-del` ("Delete this menu"). `.btn.danger` is the second one and was
-     WORSE: it bordered itself with --bad-bg, the tint, which is fainter still. Fixing only
-     the one that was measured would have been the exact mistake that sentence forbids. */
+     measured `.mnu-del` ("Delete this menu"). `.btn.danger` and `#kingModalRemove` are the
+     other two, and both were WORSE: they bordered themselves with --bad-bg, the TINT, at
+     1.16 light / 1.08 dark — an edge that is not visible at all.
+   ⚠️ **IT SAID "BOTH" UNTIL THE PRE-PUSH REVIEW FOUND THE THIRD**, in a comment that had just
+     finished quoting the rule against fixing only the ones you measured. `#kingModalRemove`
+     even carries a v115 comment calling itself a "visible edge at rest" while being set to the
+     tint — a correct intention filed against the wrong value. **Grep the token, not the screens
+     you happen to be thinking about.** */
 :root{ --sw-edge:#98938B; --danger-ctl-br:#A3908E; }
-html[data-theme="dark"]{ --sw-edge:transparent; --danger-ctl-br:#806A65; }
+html[data-theme="dark"]{ --sw-edge:#6E7075; --danger-ctl-br:#806A65; }
 
 /* ---- Ink ON a filled control. NOT in the mock, and that is a defect in the mock rather
    than a gap: it hardcodes `color:#FFFFFF` on its accent-filled and danger-filled buttons
@@ -3310,7 +3326,7 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    button-role card; Remove is the modal's muted destructive action, parked left of Cancel/Save. */
 /* F3 (v139) tombstone: `.king-row`'s cursor and its OUTWARD focus ring moved into §27, which
    insets the ring — an outward one dies in the list container's overflow clip. */
-#kingModalRemove{margin-right:auto;color:var(--bad);border-color:var(--bad-bg)}   /* v115: visible edge at rest (same fix as .btn.ghost) */
+#kingModalRemove{margin-right:auto;color:var(--bad);border-color:var(--danger-ctl-br)}   /* v115 called this "a visible edge at rest" and set it to the TINT: 1.16 light, 1.08 dark. Item 8 makes it true. */
 #kingModalRemove:hover{border-color:var(--bad)}
 /* item 1: the unified pack control's red required mood — same control, mismatch state */
 .pack-teach.pt-required .pt-group{border-color:var(--bad)}
