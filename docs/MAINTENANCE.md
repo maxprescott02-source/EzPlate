@@ -284,7 +284,12 @@ Blocked on upstream, not Max. Check it when a batch next touches the workflow.
 
 ---
 
-## C — `docs/PHONE.md` needs a groom, and Max asked for it (15 Aug 2026)
+## ~~C — `docs/PHONE.md` needs a groom, and Max asked for it (15 Aug 2026)~~  ✅ **DONE, batch 257 (10 Sep 2026) — see the section at the end of this file**
+
+✅ **1051 lines and 50 sections to 144 and 5 checks.** He asked again, directly: *"the phone list i have never used bc im lazy… fix that, id maybe ahve the energy to do like 5 checks or something."* This entry's instinct — *"can claude in chrome do the phone check"* — is now the file's own entry test.
+⚠️ **STRUCK HERE RATHER THAN ONLY MARKED DONE AT THE BOTTOM, which is the point.** The batch wrote its account into a new section at the end of this file and left this entry standing, exactly as `CLAUDE.md`'s *"A DONE-MARK IS NOT A STRIKE"* rule describes — the end a rider batch actually reads is the ENTRY. Caught by the pre-push review. Consolidated item 82 was the same omission in the other file.
+
+*(Historical body below; the measured evidence in it is what the groom was judged against.)*
 
 His words: *"i wonder if we can have claude in chrome do the phone check. id imagine the phone check needs auditing first though as some stuff probably old now."* **The instinct is right and here is the measured evidence, so the next batch to take this does not have to re-derive it.**
 

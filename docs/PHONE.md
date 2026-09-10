@@ -56,11 +56,14 @@ Chips were being stored at $0.25/kg against a real $2.46, and the figure moved w
 - **The bread and the beef patties show a longer name.** Their descriptions wrap onto two lines on the invoice and the second half is now joined on. That join is what makes their prices right.
 - **The fuel levy is still one row to dismiss** per import.
 
+⚠️ **ONE CAVEAT ON "matches the paper", because it is only true of YOUR two suppliers.** Both of them print **ex-GST** prices, so the stored figure should equal the printed one. **If you ever import an invoice that says GST-inclusive**, a correct import stores about **9% BELOW** the printed per-unit figure, and the note above the table must say the prices were converted. **Matching the paper would then be the FAILURE.**
+*(That was its own section on the old list — the v168 check, "costs money if wrong". It is folded in here rather than kept separate because you have no GST-inclusive supplier to run it against; the day you get one, this paragraph is the check. The wrong-answer symptom is the dangerous part: every cost 10% out, uniformly, on a screen of entirely plausible per-kg figures.)*
+
 **While you are in there, three things that ride along** (each was its own entry on the old list):
 
 - **The supplier name.** It should read as the supplier's trading name, not `Credit Terms: 7 Days` or `Document No:`.
 - **The "AI checked" note** should appear as usual. If it says **"AI check unavailable"** on every invoice however good the signal, the AI second reader is being refused - not urgent, no wrong prices, but say so.
-- **Change a row's match dropdown to another product and back.** The price must not move. *(A defect once divided it by 1.1 on every change - 9% lower each time, with nothing on screen to show it.)*
+- **Change a row's match dropdown to another product and back.** The price must not move. *(A defect once divided it by 1.1 on every change - 9% lower each time, with nothing on screen to show it.)* **Do this on a line whose product has a taught pack** if you can: that is the path the defect lived on, and `ezplate-v211` changed what feeds it.
 
 **Afterwards, look at the price history of two or three of the products you just imported.** It will show a jump the day you import this. **That jump is the fix landing, not a price rise.**
 
