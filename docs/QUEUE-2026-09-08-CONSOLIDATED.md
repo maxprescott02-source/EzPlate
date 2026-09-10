@@ -547,9 +547,18 @@ Every item here is something a person sees. Where Max deferred a row on 3 Sep (u
 
 **Test:** `fresh-states.spec.js` asserts one primary per screen in the empty state and that the clear control is hidden with an empty field.
 
-## blocked  66 · Contrast, decided once in the tokens (item 8), plus the Invoices helper that rides it  **[B, three rendered options are with Max]**
+## ~~66 · Contrast, decided once in the tokens (item 8), plus the Invoices helper that rides it~~  **SHIPPED, batch 258, `ezplate-v212`**
 
-Blocked on: **Max's answer to `docs/decisions/2026-09-02.html`** (queue item 8, as written). When it lands, `.invz-s` at 4.04:1 (ui-audit R9) takes the same token answer, and `tests/visual/200-pack-unit.spec.js`'s floor rises in the same change.
+✅ **All three answered 10 Sep 2026 and all three built.** Grey text: *"nudge the grey a shade"* — `--text-3` light `#766A5B`, dark `#96938F`, solved against every surface the token paints on. Off switch: *"outline track and knob"* — new `--sw-edge`. Delete button: *"raise the border to 3.0"*, the option that costs the red, chosen with that written in front of him — new `--danger-ctl-br`.
+⚠️ **He was only reachable on the third attempt, and that is the durable part.** The options went to `docs/decisions/2026-09-02.html` (a file he does not browse), then to an artifact URL (*"i cant open the decisions"*), then to an in-chat question, which he answered immediately. `skills/decide` now forbids `.html` outright and the record is `.md`; the remaining lesson is that **the proven channel is the chat itself.**
+⚠️ **The pre-push review found that DARK failed the same switch test and the decision had told him it did not.** The 7.87 quoted for dark is the KNOB on the TRACK; the boundary 1.4.11 asks about is the TRACK on the CARD, which is 1.52 — the same failure as light's 1.36. The dark edge is therefore an EXTENSION of his answer, labelled as such at the site and reversible in one token. **A number carried forward from another document is a claim, and "which two things does this measure" is the question nobody asked of it.**
+⚠️ **A THIRD destructive control was found by the review** (`#kingModalRemove`, 1.16 light / 1.08 dark, under a v115 comment calling itself "a visible edge at rest"). Grep the token, not the screens you are thinking about.
+✅ **The Invoices helper rode the token exactly as this item said it would, and needed no change of its own.** `.invz-s` is `--muted2`, which aliases to `--text-3`, so it moved with it: **4.506 → 4.931** on the dropzone's resting surface, and **5.024 / 5.389** in dark.
+⚠️ **R9's quoted 4.04 was the HOVER wash, not the resting state**, and it is now 4.416 — improved but still under 4.5, **deliberately**. The DEVIATIONS block has recorded that limit since v132: a `--text-3` dark enough to clear 4.5 on the transient hover lands within a hair of `--text-2` and collapses the three-level text hierarchy the token exists to provide. **Do not "finish the job" here** — that instruction is at the token and it is older than this item.
+
+Blocked on: ~~Max's answer~~ — answered 10 Sep 2026, in chat.
+
+*(Original body: blocked on Max's answer to `docs/decisions/2026-09-02.html`, with `.invz-s` at 4.04:1 (ui-audit R9) taking the same token answer and `tests/visual/200-pack-unit.spec.js`'s floor rising in the same change. All three happened; the floor is 4.5.)*
 
 ---
 
