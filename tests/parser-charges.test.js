@@ -28,6 +28,19 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const { parsePdfLine, pdfTextToRows } = require('./_extract');
+const { loadApp, extractFn, extractVar } = require('./_extractfn');
+
+/* The classifier on its own, so its GUARDS can be asked about directly. Reaching it only through
+   parsePdfLine leaves the empty-name path untestable, because invLineClass never calls it with one. */
+const SRC = loadApp();
+// eslint-disable-next-line no-new-func
+const nameIsAllChargeWords = new Function(`
+  "use strict";
+  ${extractVar(SRC, 'INV_EXCLUDE')}
+  ${extractVar(SRC, 'INV_CHARGE_WORD')}
+  ${extractFn(SRC, 'nameIsAllChargeWords')}
+  return nameIsAllChargeWords;
+`)();
 
 const dropped = (line) => parsePdfLine(line) === null;
 
@@ -119,4 +132,18 @@ test('the levy does not come back through the continuation splice', () => {
   ].join('\n'));
   assert.equal(rows.length, 1, 'the chips only');
   assert.ok(!/LEVY/i.test(rows[0].name), 'and the levy is not glued onto its name');
+});
+
+test('⚠️ a name with no real words is NOT a charge — the empty guard, asked directly', () => {
+  /* Unreachable through `invLineClass`, which only calls this once INV_EXCLUDE has matched, and every
+     one of that regex's alternatives is two or more letters — so a name that reaches it always has a
+     word in it. The guard is a contract on the FUNCTION rather than a live branch at its one call
+     site, and the mutation gate found it unpinned because the only route to it was that call site.
+     It matters in the direction that costs: flipped, a nameless line is a "charge" and is DISCARDED. */
+  assert.equal(nameIsAllChargeWords(''), false);
+  assert.equal(nameIsAllChargeWords('S77 1.00'), false, 'a bare code and a number say nothing either way');
+  assert.equal(nameIsAllChargeWords('1 2 3'), false);
+  assert.equal(nameIsAllChargeWords(null), false);
+  // and the positive case through the same door, so the function is not simply always-false
+  assert.equal(nameIsAllChargeWords('S77 FUEL LEVY'), true);
 });

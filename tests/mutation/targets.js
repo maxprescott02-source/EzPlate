@@ -127,6 +127,14 @@ const targets = [
      scores every price they produce across fourteen layouts and goes red on any silent-wrong. The
      survivors are guards whose inputs — a $-marked quantity, a zero quantity, a percent column — no
      corpus fixture contains, which is exactly what makes them worth their own item. */
+  /* 259 — the two DECISIONS added after Max's phone-list run, both on the list for the same reason:
+     each one silently changes what the app keeps. `nameIsAllChargeWords` decides whether an invoice
+     line is DISCARDED — and its pre-push review proved there is no screen anywhere that says a line
+     was dropped, so a wrong answer here is invisible by construction. `supplierSnap` decides which
+     supplier string gets written onto a new product, and a wrong answer there splits a supplier in
+     two (or merges two into one) with nothing to see until the filter list grows a duplicate. */
+  { fn: 'nameIsAllChargeWords', tests: ['parser-charges.test.js'] },
+  { fn: 'supplierSnap', tests: ['supplier-snap.test.js'] },
   { fn: 'packWeight', tests: ['parser-suffix.test.js', 'parser-corpus.test.js'] },
   { fn: 'packCount', tests: ['parser-count.test.js'] },
   { fn: 'moneyMatches', tests: ['parser-credit.test.js'] },
@@ -781,6 +789,34 @@ const allowedSurvivors = [
       + "packWeight's own multiplier alternatives, so a match at position 0 guarantees factors[0] === k. Measured "
       + 'across spacing, plurals, leading zeros, 3-digit k and both weight orders. No input distinguishes the '
       + 'mutant; the line is null-safety on a protected-region contract, not a live gate.',
+  },
+
+  /* 259 — supplierSnap's loop bound. `i<list.length` -> `i<=list.length`. The extra pass reads
+     `list[list.length]`, which is `undefined`; `normSupplier(undefined)` returns '' and the very next
+     line is `if(!n) continue;`. So the added iteration does nothing at all.
+     PROVED by enumeration rather than argued: 56 candidate/list combinations, including empty lists,
+     duplicate entries, non-matching entries and both orderings of a prefix pair, compared against the
+     unmutated function — identical on every one. The guard stays because `prodSuppliers()` is derived
+     from user data and a loop over it should tolerate a hole, not because the bound is decorative. */
+  {
+    key: 'supplierSnap :: for(var i=0;i<list.length;i++){ :: relational <><= #0',
+    reason: 'The extra iteration reads list[length] = undefined, normSupplier(undefined) is \'\', and the next '
+      + 'line is `if(!n) continue`. Measured over 56 candidate/list combinations against the unmutated '
+      + 'function: identical every time. No input distinguishes the two bounds.',
+  },
+
+  /* 259 — supplierSnap's length test. `c.length>n.length` -> `>=`. The equal-length case is
+     ALREADY GONE by the time this line runs: `if(n===c) return e;` sits four lines above it, so any
+     candidate still in play differs from `n`. Two strings of equal length that differ cannot satisfy
+     `c.slice(0,n.length)===n`, so the `>=` admits nothing the `>` refused.
+     Same enumeration as above; no difference on any of the 56. Kept as `>` because it states the
+     PREFIX relation — n is shorter than c — where a reader looks for it, rather than relying on an
+     earlier return to make a wider test safe. */
+  {
+    key: 'supplierSnap :: if(c.length>n.length && c.slice(0,n.length)===n && /[^a-z0-9]/.test(c.charAt(n.length))){ :: relational >>>= #0',
+    reason: 'The exact-match branch returns four lines earlier, so n !== c here; two equal-length strings that '
+      + 'differ cannot satisfy c.slice(0,n.length)===n. The >= admits nothing. Measured over the same 56 '
+      + 'combinations: identical.',
   },
 
   /* 256 (PARSER-AUDIT) — packWeight's unit guard. `!u || u.cat==='ea'` -> `&&`.

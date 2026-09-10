@@ -85,6 +85,22 @@ test('the LONGEST existing match wins when two could apply', () => {
   assert.equal(snap('Bidfood Direct Supply Pty'), 'Bidfood Direct Supply', 'and the longer prefix beats the shorter');
 });
 
+test('⚠️ LONGEST, not LAST — and this needs an unsorted list to mean anything', () => {
+  /* The test above cannot tell those two rules apart, and the mutation gate is what showed it.
+     `prodSuppliers()` SORTS, and among several prefixes of one candidate the alphabetical order IS
+     increasing length — a prefix always sorts before its own extension. So "keep the longest" and
+     "take the last one seen" agree on every list the app itself can produce, and a mutant that
+     replaces one with the other survives.
+     `supplierSnap` takes the list as an argument precisely so this can be asked properly: handed the
+     same two suppliers in the other order, only the longest-wins rule still answers correctly. */
+  const snap = snapWith([]);   // the catalogue is irrelevant when the list is passed explicitly
+  const unsorted = ['Bidfood Direct Supply', 'Bidfood'];
+  assert.equal(snap('Bidfood Direct Supply Pty', unsorted), 'Bidfood Direct Supply',
+    'the LAST match here is the short one, so last-wins would answer "Bidfood"');
+  assert.equal(snap('Bidfood Direct Supply Pty', ['Bidfood', 'Bidfood Direct Supply']), 'Bidfood Direct Supply',
+    'and the sorted order gives the same answer, which is the point');
+});
+
 test('an unknown supplier is left exactly as it arrived', () => {
   const snap = snapWith(HIS);
   assert.equal(snap('Coastal Poultry Distributors'), 'Coastal Poultry Distributors');
@@ -105,4 +121,17 @@ test('⚠️ KNOWN LIMIT: punctuation spacing is not normalised away', () => {
   const snap = snapWith(HIS);
   assert.equal(snap('B & E Poultry'), 'B & E Poultry',
     'if a real invoice ever prints this, widen normSupplier and change this expectation');
+});
+
+test('⚠️ two suppliers that NORMALISE the same: the first wins, and that is a decision', () => {
+  /* `normSupplier` trims and collapses whitespace, so a product carrying "B&E " and one carrying
+     "B&E" are two distinct strings in `prodSuppliers()` that reduce to one key. A stray trailing
+     space in a supplier field is an ordinary thing to happen.
+     Neither spelling is more correct, so what matters is that the choice is STABLE rather than
+     arbitrary: the first match is kept, which with the sort makes it deterministic. The mutation gate
+     is what showed this was unpinned — flipping the tie-break to "last wins" changed the answer and
+     nothing noticed. */
+  const snap = snapWith([]);
+  assert.equal(snap('B&E Poultry', ['B&E', 'B&E ']), 'B&E', 'the first of two equal-length matches');
+  assert.equal(snap('B&E Poultry', ['B&E ', 'B&E']), 'B&E ', 'and it really is the FIRST, not a favourite spelling');
 });
