@@ -66,11 +66,11 @@ Use it for the GENERATING and never for the delivering.
 same day by measurement. Interactive delivery is allowed, in chat — see the
 section below for exactly how far that goes and what is still untested.**
 
-So: generate with `/design` if it is available, render the options interactively
-into chat, and **also write `docs/decisions/YYYY-MM-DD.html` flat** under the
-rules above - real tokens from `css/style.css`, real copy, real figures, 380px
-and dark, at a realistic phone height. An artboard is a draft; the decision file
-is the record.
+So: generate with `/design` if it is available, **publish the rendered options as
+an ARTIFACT** (see below), and **write `docs/decisions/YYYY-MM-DD.md` flat** as
+the record - real figures, real copy, the options as prose he could answer from
+even with no picture. An artboard is a draft; the file is the record; the
+artifact is the thing he actually looks at.
 
 **If `/design` is not available in the session, hand-build them as before.** It
 is a convenience on the generating side and nothing here depends on it.
@@ -104,9 +104,29 @@ change it.
 
 ## The file — and how he actually answers
 
-`docs/decisions/YYYY-MM-DD.html` when anything in it is rendered; `.md` when it
-is all prose. Standalone, no build step, readable on a phone. Match the app's
-palette so it does not feel foreign.
+⚠️ **NEVER WRITE A `.html` DECISION FILE. HE CANNOT OPEN ONE.** (Max, 10 Sep 2026:
+*"the decision file is not a html i cnat use it"*.) This section said `.html`
+"when anything in it is rendered", and it produced `docs/decisions/2026-09-02.html`
+- three contrast questions, correctly measured, properly rendered, and **sitting
+unanswered for eight days because it is a file on a disk he does not browse.**
+
+**The record is ALWAYS `docs/decisions/YYYY-MM-DD.md`.** Markdown, flat, prose,
+no control - it has to be judgeable on its own and it has to be readable in the
+terminal, in chat, and on GitHub, which is everywhere he actually is.
+
+**The rendered options go to an ARTIFACT**, which is the channel a phone can
+open: publish the page with the `Artifact` tool and **give him the URL in chat**.
+That did not exist when this skill was written, and it is the missing half - a
+visual decision needs somewhere to BE, and "a file in the repo" was never it.
+
+⚠️ **PIN THE SPECIMENS TO LITERAL COLOURS, NOT TOKENS.** An artifact renders in
+the *viewer's* theme, so a swatch built from `var(--x)` shows him whichever
+palette his phone is in - which for a colour decision is the wrong palette half
+the time. The light specimen must stay light on a dark phone. Say so on the page,
+because it looks like a bug otherwise.
+
+Match the app's palette for the page CHROME so it does not feel foreign; read the
+real values out of `css/style.css` rather than approximating them.
 
 **Five decisions or fewer.** Beyond that it is a document, not a task, and it
 will sit unanswered.
@@ -133,9 +153,11 @@ and the 9 Aug failure was the file. **The file has NOT been re-tested.** So:
 - **Render the interactive version INTO CHAT.** Options switchable, one tap each,
   the trade-off line updating with the selection. That is the format he endorsed
   and the channel that is proven.
-- **The file stays flat and stays written.** It is the durable record the
-  `Blocked on:` lines point at, and it must still be judgeable on its own — no
-  control in it, nothing that has to work for the content to read.
+- **The file stays flat, stays written, and is MARKDOWN.** It is the durable
+  record the `Blocked on:` lines point at, and it must still be judgeable on its
+  own — no control in it, nothing that has to work for the content to read.
+- **The artifact URL goes in the chat message AND in the `Blocked on:` line**, so
+  a later batch pointing at the decision points at something he can open.
 - **Do not make opening the file the mechanism.** Post the questions in the same
   chat message: compact, option letters bold, one-line recommendation each, one
   line on what would change it. End with *"reply with the letters, e.g.

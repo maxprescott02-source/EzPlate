@@ -635,9 +635,14 @@ From `docs/MAINTENANCE.md`.
 From `docs/MAINTENANCE.md`.
 **Do with: item 92** — the same job on the three parser functions, split out of 17 by batch 256 with the survivor counts already measured. One batch, one file, one kind of reasoning. And 92's first bullet is this one's own rule arriving again: *do not add the target without doing the work*, because the gate fails on an unresolved survivor and a half-added target cannot ship.
 
-## next  82 · `docs/PHONE.md` needs a groom, and Max asked for it  **[C, 973 lines, 42 sections, one question asked five times, and no handover records the list catching anything]**
+## ~~82 · `docs/PHONE.md` needs a groom, and Max asked for it~~  **SHIPPED, batch 257 — 1051 lines and 50 sections to 144 and 5 checks. No client asset.**
 
-Sort every bullet: dead or superseded → delete with the reason; settled by a Playwright spec → strike and name the spec; a desktop browser can settle it → do it and record the answer (judged strictly; 380px Chromium is not an iPhone); genuinely needs a phone → keep. Merge the five header-wrap bullets into one. Pin a "Costs money if wrong" section at the top (v168 GST conversion, v169 importer GST, 193's carton-vs-pack question, 210's signed-in AI reader, v194/v195's real-PDF import, and item 17's Supplier B import when it ships). Cap the rest at the last three batches. Fix the ordering so it reads one direction. From `docs/MAINTENANCE.md`; the measured evidence is in that entry.
+✅ **He asked for it again directly, in chat, on 10 Sep 2026:** *"the phone list i have never used bc im lazy, im sure its loaded with shit that doesnt even need testing anymore or could be tested by an agent in browser - fix that, id maybe ahve the energy to do like 5 checks or something."*
+Done to that instruction: five checks, three unconditional and two that trigger on a first import / first invite. The deleted checks are filed in `docs/MAINTENANCE.md` — the agent-testable ones with what to grep first, and the two real device checks he will never do (VoiceOver, thumb feel) named as such rather than pretended. `skills/batch`'s "append here" rule is replaced with a hard entry test and a cap of five, which is the defect underneath.
+
+⚠️ **THIS ITEM WAS STILL `next` AFTER THE WORK SHIPPED, AND ITS OWN BODY WAS THE SPEC.** Caught by the pre-push review, not by the batch. The groom was done from the FILE — reading 1051 lines and judging each section — without first checking whether an item already described the job. It did, in one paragraph, and it named the exact contents of the "costs money if wrong" section: *"v168 GST conversion, v169 importer GST, 193's carton-vs-pack question, 210's signed-in AI reader, v194/v195's real-PDF import, and item 17's Supplier B import when it ships."* Four of those six were folded in by coincidence; **v168 was dropped, and reading the item would have caught it.**
+**The transferable half: work arriving from chat still deserves the queue sweep.** `skills/batch` step 1 reads the queue because the loop starts there; a chat instruction skips that step entirely, and the item describing the same work sits unread. **Grep the backlog for the thing you are about to do, whatever asked you to do it.**
+*(And it is `CLAUDE.md`'s own "a done-mark is not a strike" one level up: the entry a future batch acts on is the ITEM, and leaving it `next` would have had `/batch` promote a groom against a file that is now 144 lines.)*
 
 ## blocked  83 · Three skills live outside the repo, so nothing can review or pin them  **[C, `new-branch` told every batch the wrong reviewer rule for three audits running]**
 
@@ -698,7 +703,17 @@ Two sibling series, written by the same function on the same event, with opposit
 ⚠️ **This DELETES production data, so running it is Max's** — the same standing rule as the restore's wipe. Building the surface is not.
 ⚠️ **PRODUCTION CARRIES TWO BAD POINTS, NOT ONE** (measured 10 Sep 2026): `354.4` on the all-menus series at `2026-09-08 09:37:12`, and `30000` on the per-menu series for `MENUmtsh5o3t-1-9v3bvrqw` — a menu that was itself an 8 Sep audit artefact, so that second point is orphaned and renders nowhere. The item named only the first.
 
-## blocked  91 · Staff may not delete a plate, and may delete every product that plate costs from  **[B — a decision nobody made, measured on production 10 Sep 2026]**
+## ~~91 · Staff may not delete a plate, and may delete every product that plate costs from~~  **CLOSED 10 Sep 2026 — the products half shipped in batch 255 (`ezplate-v210`), the taught-pack half was ANSWERED and needs no build**
+
+✅ **Both halves settled, both by Max, both in his own words.**
+- **Plates and products, batch 255:** *"they can do plates but not products, since those can break other plates that arent theres"*, and *"touch it and sort the merge out"* for the half that reversed his own 187 call. Shipped, server and client, verified on staging as a signed-in staff member.
+- **Taught packs, 10 Sep 2026:** ***"yes thjey can delete it"***. **No restriction, so nothing to build.** 255 had inferred the opposite from his stated reason and its pre-push review sent it back on cost grounds — `applyTidy`'s supplier rename re-keys every taught pack and re-keying is delete-then-insert, so gating the table without gating that flow would have made a staff supplier rename half-apply silently. He was asked on exactly those terms and chose to leave it open.
+⚠️ **The answer is written into `20260814_roles_part1.sql`'s own "what staff keep" list**, because that is the list the next person will read, and this item's own instruction said to put it there rather than leave it in a queue file that gets deleted.
+⚠️ **The shape worth keeping, and it is already `CLAUDE.md`'s:** an inference from someone's stated reason is free to make while it costs nothing, and becomes theirs the moment it costs something. Both cuts of this were sound reasoning; only the second one asked what the extension took away, and from whom.
+
+*(Historical body below.)*
+
+## ~~blocked~~  91 · original item
 
 **Raised by AUDIT-v207 §5, out of a question batch 250 handed off.** 250 closed the same shape on the two history series; this is what the rest of the schema looks like when you ask the same question of it.
 

@@ -126,7 +126,7 @@ Each names the context a batch loads once. Items are referenced by their consoli
 **Context:** the bootstrap fatal-read list, the three-valued-guard family, RLS and `as restrictive`, `create or replace` ancestry, PostgREST-as-the-client verification.
 *(This named `ensureDefaultMenu` and its call-site gate until 10 Sep 2026. Batch 246 DELETED both — the `menus` read is fatal now, so there is no branch left to gate. AUDIT-v207 §2a.6.)*
 
-**Items:** 38, 39, ~~40~~ (243), 41, 42, 73, **91** · `docs/QUEUE.md`'s ~~13~~ (242), ~~14~~ (243), ~~15~~ (244) by reference
+**Items:** 38, 39, ~~40~~ (243), 41, 42, 73, ~~91~~ (255 + Max's answer, 10 Sep) · `docs/QUEUE.md`'s ~~13~~ (242), ~~14~~ (243), ~~15~~ (244) by reference
 *(20 was here until 9 Sep 2026 and moved to G1; the reason is at G1.)*
 
 ⚠️ **91 WAS ADDED HERE ON 10 SEP 2026 BY THE PRE-PUSH REVIEW OF THE BATCH THAT RAISED IT — which had just spent a paragraph fixing G1 for the identical omission on item 90, in the same commit.** Batch 252 wrote *"a batch that raises an item routes it in BOTH files, or the group it belongs to silently under-counts"*, added 91 to `docs/QUEUE.md` and the consolidated file, and did not add it here.
@@ -170,7 +170,7 @@ It belongs in G3 on context: it is `as restrictive for delete`, one migration, m
 
 **Context:** Playwright meaning and vacuity, the mutation gate and its targets, staging auth, the persona protocol.
 
-**Items:** 44, 79, 80, 82, 84 (no dependency) · 27, 28, 29 (dependent) · 83 (blocked on Max)
+**Items:** 44, 79, 80, ~~82~~ (257), 84 (no dependency) · 27, 28, 29 (dependent) · 83 (blocked on Max)
 
 **This is the interleave group.** The five no-dependency items ship no client asset and need no version bump, so they fill the time a batch spends waiting on a Tranche 0 answer. 27 is blocked on the staging account and unblocks 28, 29 and fourteen skipped screenshot tests.
 

@@ -25,6 +25,22 @@
 --   deletes dishes rather than menus despite its name (CLAUDE.md warns that the
 --   name lies).
 --
+-- TWO LATER ANSWERS, WRITTEN HERE BECAUSE THIS IS THE LIST PEOPLE COME TO READ
+-- (both are Max's; neither is a re-derivation, so do not re-ask them)
+--   * PLATES moved back to any member, 10 Sep 2026 (batch 255): "they can do
+--     plates but not products, since those can break other plates that arent
+--     theres". Deleting a plate is destructive and it is YOUR OWN work; a cafe
+--     whose staff cost dishes has to let them delete their own mistakes.
+--   * PRODUCTS (`ingredients`) became owner-only in the same breath, and that is
+--     the reversal: a product is the row every plate's cost is computed from.
+--   * TAUGHT PACKS (`supplier_phrases`) STAY OPEN TO ANY MEMBER. Max, 10 Sep
+--     2026, asked as one sentence: "yes thjey can delete it". Batch 255 had
+--     inferred the opposite from his stated reason and its pre-push review sent
+--     it back, because `applyTidy`'s supplier rename RE-KEYS every taught pack
+--     for a supplier and re-keying is delete-then-insert — so restricting the
+--     table would have made a staff supplier rename half-apply silently. He was
+--     asked on those terms and said no restriction. Nothing to build.
+--
 -- WHY RESTRICTIVE POLICIES, AND WHY NOTHING EXISTING IS REWRITTEN
 --   Each of the ten tables carries ONE permissive `for all` tenant policy from
 --   182. `for all` includes DELETE, so the obvious way to restrict deletion is to
