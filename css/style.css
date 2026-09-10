@@ -962,9 +962,20 @@ input.bld-nameinput:focus{background:var(--surface);border-color:var(--accent);b
 .bld-actions{display:flex;flex-wrap:wrap;gap:8px}
 .bld-actions .btn{flex:1 1 auto}
 
-/* ---- §6's sticky mobile summary bar, above the tab bar ---- */
+/* ---- §6's sticky mobile summary bar, above the tab bar ----
+   ⚠️ THE SAFE-AREA INSET IS NOT ADDED HERE, AND IT WAS UNTIL 11 SEP 2026. This read
+   `calc(var(--bottomnav-h, 64px) + env(safe-area-inset-bottom))` and that DOUBLE-COUNTS the inset:
+   `.bottomnav` sets `padding-bottom:env(safe-area-inset-bottom)` on itself, and `--bottomnav-h` is
+   published from that element's `getBoundingClientRect().height`, which INCLUDES its padding. So the
+   bar was docked one whole home-indicator above the tab bar — about 34px on Max's phone — leaving a
+   transparent band with the page scrolling through it between the bar and the nav.
+   ⚠️ INVISIBLE ON EVERY DESKTOP BROWSER, which is why no spec caught it and why it took a real
+   device: `env(safe-area-inset-bottom)` is 0 there, so the wrong expression and the right one give
+   the same answer. Reported by Max with a screenshot, 11 Sep 2026, from the phone list's own check 3.
+   The FALLBACK still adds it, and must: 64px is a guess at the bar's height that does not include
+   any inset, so the pre-publish state needs what the measured value already carries. */
 .bld-bar{
-  position:fixed;left:0;right:0;bottom:calc(var(--bottomnav-h, 64px) + env(safe-area-inset-bottom));
+  position:fixed;left:0;right:0;bottom:var(--bottomnav-h, calc(64px + env(safe-area-inset-bottom)));
   z-index:25;display:flex;align-items:center;gap:var(--sp-4);flex-wrap:wrap;
   padding:10px var(--sp-4);background:var(--surface);border-top:1px solid var(--border);
 }
