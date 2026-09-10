@@ -83,14 +83,29 @@ for (const theme of ['light', 'dark']) {
     /* The message is the whole remedy, so it has to be READABLE in both themes. Not a denylist
        against one wrong colour — roster entry 190 is exactly that mistake — but a contrast floor
        measured against the surface it is actually painted on.
-       ⚠️ THE FLOOR HERE IS 3.0, NOT 4.5, AND THAT IS A RECORDED SHORTFALL RATHER THAN THE STANDARD.
-       Measured on this branch: 4.17 light, 4.32 dark. `.flag-review` is the app's own review-flag
-       colour, worn by every explain line on this screen and shipped for many versions, so raising it
-       is an app-wide palette change and `CLAUDE.md` requires those to be surgical and one screen at a
-       time — it is filed in docs/MAINTENANCE.md with these numbers. Asserting 4.5 here would leave a
-       red test that says nothing new every run; asserting 4.17 would pin the shortfall as intended.
-       3.0 is the AA floor for large text and UI components, so this still catches a real regression
-       (someone painting it at 2:1) without either lying. */
+       ⚠️ THE FLOOR IS 4.5 SINCE 10 SEP 2026, AND IT WAS 3.0 BEFORE THAT AS A RECORDED SHORTFALL.
+       The old note said: 4.17 light / 4.32 dark measured, `.flag-review` is app-wide so raising it is
+       a palette change `CLAUDE.md` requires to be surgical, asserting 4.5 would leave a permanently
+       red test that says nothing new and asserting 4.17 would pin the shortfall as intended — so 3.0,
+       the AA floor for large text, caught a real regression without lying either way.
+       **That reasoning was right and it has EXPIRED, which is the only honest way a floor like this
+       ever moves: the shortfall is fixed, so the placeholder goes.** Queue item 8, Max's answer
+       "nudge the grey a shade": `--text-3` is light #766A5B / dark #96938F, solved against every
+       surface the token is painted on. Re-measured on THIS element after the change:
+       **4.5627 light, 4.6642 dark**, by the walk below.
+       ⚠️ THIS COMMENT CITED #776B5C AND "clears by 0.004" UNTIL THE PRE-PUSH REVIEW READ IT.
+       #776B5C is the value that was REJECTED — its real ratio here is 4.4961, which a probe
+       printing `toFixed(2)` displayed as "4.50", the very bound it was supposed to clear. The
+       shipped token is one step darker and clears by ~0.06, so this assertion is NOT on a
+       hair-trigger and a reader hand-checking it against the old hex would reach the wrong
+       conclusion twice over.
+       **That the stale figure survived into the comment warning about stale figures is the
+       point**: the CSS block beside it says "do not quote a contrast figure at 2dp when the
+       decision is whether it clears a bound", and this comment did exactly that, one file away,
+       in the same change. A number in prose is not checked by anything — only the assertion is.
+       ⚠️ What is real is that light is the BINDING theme for `--text-3`: --danger-bg is the worst
+       surface the token is painted on, so a further tweak to it, to that tint, or to what this
+       element paints on goes red HERE FIRST, which is why the floor is worth its exact value. */
     /* ⚠️ 229 — THE SURFACE IS THE ELEMENT'S OWN BACKGROUND, NOT THE ROW'S TINT, and the walk below
        is what makes that true rather than an accident. A pre-push review traced this element to its
        row (`st-review`, `background:var(--warn-bg)`) and recomputed every figure against that,
@@ -117,7 +132,7 @@ for (const theme of ['light', 'dark']) {
       const [a, b] = [lum(fg), lum(bg)].sort((x, y) => y - x);
       return (a + 0.05) / (b + 0.05);
     });
-    expect(cr, `the explanation must stay legible in ${theme} — see the note above about the 4.5 shortfall`).toBeGreaterThanOrEqual(3.0);
+    expect(cr, `the explanation must stay legible in ${theme} — AA body text is 4.5 and --text-3 was solved to exactly that; see the note above`).toBeGreaterThanOrEqual(4.5);
     expect(errs).toEqual([]);
   });
 }

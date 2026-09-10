@@ -47,7 +47,7 @@ G1's twelve alongside the six already there is eighteen — **under the cap, so 
 **One description, in one file.** Copying twelve bodies would both blow `docs/QUEUE.md` past the size that got it split at 979 lines, and leave two descriptions of one item to drift apart — which is the failure this whole file is written to avoid.
 
 ⚠️ **PROMOTION MUST RESOLVE TRANCHE 0 DEPENDENCIES, AND ITEM 17 IS WHY THIS IS A RULE.** Three groups are gated on something only Max can do, and **those gates live in the consolidated file's Tranche 0 section, not in any item's `Blocked on:` line.** Promote item 17 without checking, and `/batch` — which does not stop for approval, correctly — takes an item whose entire premise is a reversal that may not have been written yet, and **edits the protected parser region without authority.** `CLAUDE.md` Tier 1 still forbids that, and reversing his own call is his alone.
-**So at promotion, walk Tranche 0 and mark every dependent item `blocked` with the Tranche 0 line named in plain language.** ~~The three live gates today: the **written parser reversal** (G2 entire)~~ — ✅ **THE PARSER REVERSAL IS IN WRITING, 10 Sep 2026 (Max: "its lifted"), so G2 IS NO LONGER GATED**; see `docs/decisions/2026-09-10.md` question 1 and `CLAUDE.md`'s parser-region section. The two live gates left: the **staging account** (G7's 27, 28, 29), the **tokens decision** (G5's 66). A gate that is satisfied gets the item promoted `next` and the check recorded in the handover.
+**So at promotion, walk Tranche 0 and mark every dependent item `blocked` with the Tranche 0 line named in plain language.** ~~The three live gates today: the **written parser reversal** (G2 entire)~~ — ✅ **THE PARSER REVERSAL IS IN WRITING, 10 Sep 2026 (Max: "its lifted"), so G2 IS NO LONGER GATED**; see `docs/decisions/2026-09-10.md` question 1 and `CLAUDE.md`'s parser-region section. ~~The two live gates left: the staging account (G7's 27, 28, 29), the tokens decision (G5's 66).~~ **The TOKENS DECISION is answered (10 Sep 2026, in chat) and 66 shipped in batch 258.** One live gate left: the **staging account** (G7's 27, 28, 29). A gate that is satisfied gets the item promoted `next` and the check recorded in the handover.
 
 ### How the next session knows what is left, after the context that made this plan is gone
 
@@ -154,7 +154,7 @@ It belongs in G3 on context: it is `as restrictive for delete`, one migration, m
 
 **Items:** 47, 49, 50, 56, 59, 61, 62, 63, 64, 65, 68, 75
 
-**Blocked members:** 66 (needs Max's answer to the tokens decision, queue item 8) and 85 (his priority call). Both drop out until answered; the rest do not wait on them.
+**Blocked members:** ~~66~~ (answered 10 Sep 2026, SHIPPED batch 258) and 85 (his priority call). 85 drops out until answered; the rest do not wait on it.
 
 **Warning specific to this group:** a green pre-push hook is not a green suite — the hook does not run Playwright, and these items change whether controls exist. Run `npx playwright test` before pushing.
 
