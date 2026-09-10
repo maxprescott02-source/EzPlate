@@ -1048,7 +1048,13 @@ const allowedSurvivors = [
      what produces equivalent mutants on the outer layer. Each was still proved by ENUMERATION over
      the inputs where the two operators actually disagree, because the pattern is not the proof. */
   {
-    key: "resolveMatchedPrice :: if(product && product.pack_qty>0 && product.pack_unit){        // 1) the product's taught pack wins :: relational >>>= #0",
+    /* ⚠️ THE KEY MOVED IN BATCH 256 AND THE REASONING DID NOT. The guard gained a `!credit &&`
+       clause (a credit note is not a purchase, whatever pack the user taught), which rewrites the
+       line and therefore the mutant's key — so the gate correctly reported the old one STALE. The
+       `>` -> `>=` mutant is the same mutant on the same subexpression and the enumeration below
+       still holds. The NEW clause is not allowed here and does not need to be: its own mutants are
+       killed by tests/parser-credit.test.js. */
+    key: "resolveMatchedPrice :: if(!credit && product && product.pack_qty>0 && product.pack_unit){        // 1) the product's taught pack wins :: relational >>>= #0",
     reason: 'pack_qty>0 -> pack_qty>=0 admits the values that coerce to zero — 0, -0, "", "0", null, false, '
       + 'an empty array — and derivePackPrice refuses every one of them on its own first line '
       + '(`var qty=parseFloat(packQty); if(!(qty>0)) return null`), so `if(d)` is false and no source is '
@@ -1059,7 +1065,8 @@ const allowedSurvivors = [
       + 'looks for it, one line above the arithmetic, rather than in a callee.',
   },
   {
-    key: 'resolveMatchedPrice :: if(!chosen && mem && parseFloat(mem.qty)>0){                    // 2) then supplier memory for this phrase :: relational >>>= #0',
+    // Key re-anchored in batch 256 for the same reason as the entry above: the line gained `!credit &&`.
+    key: 'resolveMatchedPrice :: if(!credit && !chosen && mem && parseFloat(mem.qty)>0){         // 2) then supplier memory for this phrase :: relational >>>= #0',
     reason: 'parseFloat yields a number or NaN, and NaN is false under both operators, so the two differ '
       + 'only where mem.qty parses to 0 or -0. For those the mutant enters the memory block and the '
       + 'INNER `q>0` two lines down — the same expression again — turns it straight back, leaving '

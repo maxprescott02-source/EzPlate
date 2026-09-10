@@ -162,5 +162,18 @@ this batch made on purpose** — consolidated item 92, with the survivor counts 
 recording that an independent reader reached the same conclusion the split was reasoned from, and
 that finding 2 landed precisely in the gap the split leaves.
 
+### One consequence of the fix, caught by the gate rather than by reading
+
+Adding `!credit &&` to `resolveMatchedPrice`'s two precedence guards rewrote those lines, so the two
+written allowances keyed to them came back as **STALE ALLOWANCE** — the gate's own check that an
+allowance which is no longer needed is as much a failure as a survivor with none. Both were
+re-anchored to the new keys rather than deleted: the mutants are the same `>` -> `>=` on the same
+subexpression and the enumerations that justified them still hold. The NEW clause needs no allowance
+— its mutants are killed by `tests/parser-credit.test.js`.
+**Worth recording because the gate caught a second-order effect of a fix, which is the thing a
+reader cannot see:** nothing in the diff of `js/app.js` says "two allowances in another file just
+stopped matching".
+
 **After the fixes: `npm test` 2167 pass / 0 fail; corpus 63 right / 2 silent-wrong / 0 unflagged
-leaks; `--products` pre-ticked-wrong 0; `node -c` clean.**
+leaks; `--products` pre-ticked-wrong 0; `node -c` clean; full mutation gate clean with every
+survivor carrying a written allowance.**
