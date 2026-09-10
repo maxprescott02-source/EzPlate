@@ -63,9 +63,22 @@ function routed(md, n) {
 const CONSOLIDATED_FROM = 16;
 
 test('252: every item in QUEUE.md is routed in QUEUE-GROUPS.md', () => {
-  const items = queueItemNumbers(QUEUE).filter((n) => parseInt(n, 10) >= CONSOLIDATED_FROM);
-  assert.ok(items.length >= 3,
-    'sanity: the queue must still be parseable as consolidated items, or this passes by finding none');
+  const all = queueItemNumbers(QUEUE);
+  const items = all.filter((n) => parseInt(n, 10) >= CONSOLIDATED_FROM);
+  /* ⚠️ THE SANITY FLOOR COUNTS ALL ITEMS, NOT CONSOLIDATED ONES, AND IT USED TO COUNT THE LATTER.
+     It read `items.length >= 3` and went RED in batch 256 for a reason that was not a defect: the
+     queue held exactly three consolidated items, 256 shipped one of them, and two is not three. The
+     floor was calibrated against a working set that is MEANT to drain — the refill exists precisely
+     so this number goes to zero and is filled again — so it was asserting the queue's contents when
+     it meant to assert that the file is still PARSEABLE.
+     That is the difference the floor now respects: `all` measures whether the heading format still
+     yields items at all (the thing that would make the real assertion below vacuous), and the >=16
+     filter is scope, which is allowed to be empty. A group whose items have all shipped is the
+     success case, not a failure. */
+  assert.ok(all.length >= 3,
+    'sanity: the queue must still be parseable as items at all, or the check below finds none and '
+    + 'passes for that reason. Counting only consolidated items would go red the day a group drains, '
+    + 'which is the state the refill step exists to produce.');
   const missing = items.filter((n) => !routed(GROUPS, n));
   assert.deepStrictEqual(missing, [],
     'these items exist in the working set and in no group — the refill reads QUEUE-GROUPS.md, so a '

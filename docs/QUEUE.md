@@ -56,24 +56,6 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
-## next  17 · The invoice parser prices by repetition and position, and is wrong on every Supplier B line  **[A, 36 of 41 real lines silently wrong, measured 8 Sep against six real invoices]**
-
-**Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 17. **Promoted here on 9 Sep 2026 by batch 240 ALREADY BLOCKED, which is the point of promoting it** — it is the largest open defect in the backlog and it was invisible to `/batch` while sitting in a group nobody had reached.
-
-✅ **UNBLOCKED 10 Sep 2026. Max: *"its lifted"*** (`docs/decisions/2026-09-10.md`, question 1). **The same sentence RATIFIES batch 197's edit**, which the question said it would and which `docs/MAINTENANCE.md` had been asking through two audits.
-**All four documents now agree** — `CLAUDE.md`'s parser-region section is rewritten, this file's standing-rules line says the protection is lifted, `docs/QUEUE-GROUPS.md` no longer gates G2, and `docs/MAINTENANCE.md` records 197 as ratified.
-⚠️ **What is NOT lifted, because it was never his rule: the two `tests/_extract.js` anchors** — `var INV_EXCLUDE=` and `function unitLabelFor(` — are load-bearing STRINGS. Disturb either and `sliceBetween` silently returns a different span or an empty one, and every test built on it asserts about the wrong text while staying green. Edit inside them freely; change them only alongside that file.
-⚠️ **And the hash-pin question is DISSOLVED rather than deferred.** A hash pin detects an edit nobody authorised; edits are authorised now, so it would fail on every legitimate change. **A CORPUS replaces it** — which this repo had already concluded in the consolidated backlog — and building that corpus is part of this item, not a follow-up.
-
-`CLAUDE.md` Tier 1 says *"never edit anything inside it"* and names four never-touch functions. `docs/QUEUE-2026-09-08-CONSOLIDATED.md`'s owner-override block says the protection **is lifted** and attributes that to him on 8 Sep. That file's own Tranche 0 lists *getting the reversal in writing* as still outstanding. `docs/QUEUE-GROUPS.md` blocks the whole G2 group on it. **Four documents, three positions, and no decision file.**
-
-⚠️ **AND THE REGION HAS ALREADY BEEN EDITED ONCE, in batch 197** — `docs/MAINTENANCE.md` has been asking whether that edit is ratified since 28 Aug 2026, through two audits. **His sentence ratifies it or it does not, in the same breath.**
-
-**Why this could not be taken under standing authority:** reversing a decision he made himself is his alone, and the only evidence of the reversal is a batch's summary of a chat — *chat cannot see this repo* is this project's oldest rule about exactly that class of claim.
-**If the answer is YES**, `CLAUDE.md` Tier 1 and this file's standing-rules line get edited under standing authority, batch 197 is ratified, and G2 can be promoted. **If NO**, this stays blocked and the parser fix needs a design that works from outside the region — which is a different item, not this one.
-
----
-
 # Promoted 9 Sep 2026 — group G1, the costing core
 
 **These came from `docs/QUEUE-2026-09-08-CONSOLIDATED.md` by promotion, per `docs/QUEUE-GROUPS.md`.** They are referenced, not copied: **the full item — mechanism, sites, acceptance, the test that pins it — is in the consolidated file under the number given, and that file is the one to read before planning.** One description, in one place.

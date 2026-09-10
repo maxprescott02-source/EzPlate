@@ -17,7 +17,7 @@
 | Group | Items | Batches, est. | What drives the count |
 |---|---|---|---|
 | G1 | 12 | ~3 | 16 is a production data heal on its own |
-| G2 | 4 | ~2 | 17 is fourteen sub-defects, a corpus test and eight new mutation targets |
+| G2 | 4 (17 SHIPPED, 92 raised) | ~2 | 17 was fourteen sub-defects, a corpus test and eight mutation targets — it took a batch and a half, and 92 is the half |
 | G3 | 7 + 3 by ref | ~4 | 13, 14 and 15 are a batch each |
 | G4 | 5 | ~1–2 | mechanical, one file |
 | G5 | 12 | **~6–9** | the design law, below |
@@ -107,15 +107,16 @@ Each names the context a batch loads once. Items are referenced by their consoli
 ⚠️ **BOTH WERE STALE BY 10 SEP 2026** (AUDIT-v207 §2a.5). **88's is discharged** — batch 249 shipped the surface that asks him, so the answer is a click rather than a stop. **18's has MOVED and GROWN**: 18 is struck and the deletion is item 89's, batch 250 shipped the server half that makes it possible at all, and the count is **two** bad points rather than one (`354.4` all-menus, `30000` on an orphaned per-menu series).
 **Stops for Max, live:** **89's** two history points, once its client surface ships — deleting production data, so his every time.
 
-### G2 · The invoice parser — `js/app.js` INV region, `tests/`, `spike/`
+### G2 · The invoice parser — `js/app.js` INV region, `tests/`, `tests/parser-corpus/`
 
-**Context:** the region between `var INV_EXCLUDE=` and `function unitLabelFor(`; `parsePdfLine`, `firstPairPrice`, `packWeight`, `packCount`, `moneyMatches`, `rankCandidates`, `invFixRow`, `invGstDetect`, `invSupplierDetect`; the spike harness, its six real invoices and their truth files.
+**Context:** the region between `var INV_EXCLUDE=` and `function unitLabelFor(`; `parsePdfLine`, `firstPairPrice`, `packWeight`, `packCount`, `moneyMatches`, `rankCandidates`, `invFixRow`, `invGstDetect`, `invSupplierDetect`; the eval harness at `tests/parser-corpus/` (moved out of `spike/` by batch 256 and now part of `npm test`), its fourteen synthetic layouts, and the six real invoices' truth files, which stay in `spike/parser-audit/real-truth/` because their extracted text carries the cafe's own details and cannot be committed.
 
-**Items:** 17, 26, 37 · rider 71
+**Items:** ~~17~~ (SHIPPED, batch 256, `ezplate-v211`), 26, 37, **92** · rider 71
 
-**Blocked on:** Max putting the parser-region reversal in writing (Tranche 0). **Item 17 has no authority to exist without it** — `CLAUDE.md` Tier 1 still says never edit inside the region, and reversing his own call is his alone.
+**Blocked on:** ~~Max putting the parser-region reversal in writing (Tranche 0).~~ ✅ **NOTHING. He wrote it on 10 Sep 2026 (*"its lifted"*) and 17 shipped the same day.**
 
-**Why its own batch:** 17 is fourteen sub-defects with a patch, a corpus test and eight new mutation targets. It is a batch, not an item. 26 and 37 are its immediate neighbours and should be decided in the same frame.
+**Why its own batch:** 17 was fourteen sub-defects with a patch, a corpus test and eight new mutation targets. It was a batch, not an item — **and it turned out to be a batch and a HALF**, which is the part worth keeping now the item is struck. 256 shipped the fix, the corpus and five of the eight targets, and split the other three out as item 92 because adding them reports 34 survivors and the gate fails on any survivor with no written allowance. 26, 37 and 92 are its immediate neighbours and load the same context.
+⚠️ **The context line above is now partly wrong and is corrected here rather than left to rot: the harness is NO LONGER in `spike/`.** `run.js` and its fourteen fixtures moved to `tests/parser-corpus/` and are part of `npm test`. What is still in `spike/parser-audit/` is the audit's own tooling — `extract-pdf.mjs`, `real-truth/`, and a `proposed.patch` that has now been APPLIED and must not be applied again.
 
 ~~**Also in this batch:** add `spike/` to `.vercelignore`. It is untracked today, and the moment it is committed it is served from the production origin.~~
 ✅ **BOTH HALVES WERE FALSE when AUDIT-v197 checked them, 9 Sep 2026.** `spike/` is TRACKED and `.vercelignore:33` already lists it, with a comment dated the commit that first tracked it. **The wasted work is not the cost worth naming — the wrong conclusion is.** A batch reading this would believe the production origin is currently serving the spike directory and go hunting a leak that does not exist.

@@ -5237,7 +5237,24 @@ function invSupplierDetect(text){
        through to here, and without this would be returned as a supplier literally named "Supplier:".
        Matching is whole-line, so a real business ("Page Brothers", "Account Foods") is untouched. */
     if(/^(?:(?:document|invoice|order|purchase|customer|account|delivery|docket|consignment|reference|ref|page|date|our|your|route|tax|no|number|supplier|vendor|sold|distributed|from|by|to|ship|bill)\b[\s.#:—–-]*)+$/i.test(L)) continue;
-    if(/[A-Za-z]{3,}/.test(L) && L.length<=42){ invDbg('[supplier] header business name:', L); return clean(L); }
+    /* PARSER-AUDIT D10: a LABEL WITH ITS VALUE, where the value carries no long number. "Credit
+       Terms: 7 Days" has no digit run of three, no address word and is not a bare label, so it
+       passed every filter above and became the supplier key for a real distributor's every taught
+       pack. The rule above deliberately matches whole-line and could not see it. A trading name
+       does not carry a colon; blank is the safe answer, because rememberSupplierPhrase refuses to
+       store without a supplier. (Strategy 1 has already had its go at `Supplier: X` forms, over a
+       wider window than this one, so nothing that should be read as a label:value is lost here.) */
+    if(/^[A-Za-z][A-Za-z&'\/. ]{0,30}:\s*\S/.test(L)) continue;
+    /* PARSER-AUDIT D10: a letterhead that SHARES ITS LINE with the heading. On one real supplier's
+       layout the extractor yields "<TRADING NAME> TAX INVOICE" as line 0 — so the stop loop finds
+       the heading at index 0, `header` falls back to the first eight lines (which is why this line
+       is here at all), and the trading name is then thrown away for being 45 characters. Strip the
+       heading words before MEASURING. A line that is only the heading strips to empty and fails the
+       [A-Za-z]{3,} test below, so this cannot turn "TAX INVOICE" itself into a supplier. Only the
+       invoice wording is stripped: the other heading word, `statement`, is already thrown out
+       wholesale by the address/number filter above, so a second arm here would be dead. */
+    var Lh=L.replace(/[\s|,;–—-]*\b(?:tax\s+)?invoice\b\s*$/i,'').trim();
+    if(/[A-Za-z]{3,}/.test(Lh) && Lh.length<=42){ invDbg('[supplier] header business name:', Lh); return clean(Lh); }
   }
   invDbg('[supplier] could not identify \u2014 left blank'); return '';   // no guess
 }
@@ -8897,7 +8914,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v210';
+var APP_VERSION='v211';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -11822,7 +11839,7 @@ function syncThemeToggle(pref){
 function invDbg(){ if(window.EZ_INV_DEBUG && window.console) try{console.log.apply(console, arguments);}catch(e){} }
 function invGstDetect(text){
   var t=(text||'').toLowerCase();
-  if(/gst\s*incl|incl[a-z]*\s*gst|inc\.?\s*gst|includes?\s+gst|inclusive of gst/.test(t)) return {mode:'inc', note:'GST-inclusive prices detected \u2014 converted to ex-GST (\u00f71.10) for storage.'};
+  if(/gst\s*\(?\s*incl|incl[a-z]*\s*gst|inc\.?\s*gst|includes?\s+gst|inclusive of gst/.test(t)) return {mode:'inc', note:'GST-inclusive prices detected \u2014 converted to ex-GST (\u00f71.10) for storage.'};
   if(/gst\s*excl|excl[a-z]*\s*gst|ex\.?\s*gst|plus\s+gst|excludes?\s+gst|exclusive of gst/.test(t)) return {mode:'ex', note:'GST-exclusive prices detected.'};
   // ITEM 6 (v35): the invoice didn't say. Fall back to the Settings default rather than
   // silently assuming ex-GST. An explicit statement above always wins over the default.
@@ -11917,9 +11934,13 @@ function rankCandidates(invName){
     var shorter=Math.min(inv.length, pk.length)||1;         // overlap / meaningful tokens in the shorter string
     var score=Math.min(1, overlap/shorter);
     if(inv[0] && ps[inv[0]] && inv[0].length>=4) score=Math.max(score,0.6);   // one strong content word (e.g. "hoki") is enough
-    scored.push({id:p.id, coverage:score});
+    scored.push({id:p.id, coverage:score, overlap:overlap, size:pk.length});
   });
-  scored.sort(function(a,b){ return b.coverage-a.coverage; });
+  /* PARSER-AUDIT D9: coverage is normalised by the SHORTER token set, so a one-word product
+     ("Mayonnaise", Kewpie) scores 1.0 against every line containing that word and TIES with the
+     right product ("Mayonnaise Aioli Squeeze Bottle"); a stable sort then hands the tie to whichever
+     came first in PRODUCTS. Break ties on how much of the LINE the product explains. */
+  scored.sort(function(a,b){ return (b.coverage-a.coverage) || (b.overlap-a.overlap) || (b.size-a.size); });
   return scored.slice(0,3);
 }
 function buildInvRows(rawRows){
@@ -11938,7 +11959,12 @@ function buildInvRows(rawRows){
     var top=cands.length?cands[0].coverage:0;
     var addNew=(top<0.3);                                          // <0.3 -> no confident match -> Add New
     var tier=top>=0.6?'hi':(top>=0.3?'mid':'lo');                  // >=0.6 confident, 0.3-0.59 possible
+    /* ⚠️ `basis` IS CARRIED ONTO THE ROW AND THAT IS LOAD-BEARING, not bookkeeping. It is the only
+       thing that says WHY the parser refused a line, and the two re-pricers below decide whether to
+       overrule that refusal — so dropping it here (which is what this object did until batch 256)
+       silently un-refuses every credit line that has a taught pack. `invFixRow` reads it too. */
     var row={name:r.name, raw:r.raw||r.name, unitPrice:up, unit:(r.unit||'auto'), rawUnit:(r.unit||'auto'),
+            basis:r.basis||null,
             needManual:(!!r.needManual || up==null), uncertain:!!r.uncertain, cands:cands,
             bestId:(addNew?null:(cands.length?cands[0].id:null)),
             conf:top, tier:tier, addNew:addNew, newItem:null, remembered:false};
@@ -11972,8 +11998,11 @@ function buildInvRows(rawRows){
 }
 /* ---- structured price extraction ---- */
 function moneyMatches(line){
-  var re=/\$?\s*(\d{1,3}(?:,\d{3})*\.\d{2}|\d+\.\d{2})\b/g, m, arr=[];
-  while((m=re.exec(line))!==null){ arr.push({val:parseFloat(m[1].replace(/,/g,'')), idx:m.index, end:re.lastIndex}); }
+  /* PARSER-AUDIT D1/D5: each amount also records whether it wore a $ and whether it was negative.
+     val/idx/end are unchanged for every existing caller; a sign is only "negative" when the minus is
+     glued to the $ or the digits ("-2.00", "$-59.00"), so a dash in a name ("Bread - 4.50") is not. */
+  var re=/(-(?=\$?\d))?(\$)?\s*(-(?=\d))?(\d{1,3}(?:,\d{3})*\.\d{2}|\d+\.\d{2})\b/g, m, arr=[];
+  while((m=re.exec(line))!==null){ arr.push({val:parseFloat(m[4].replace(/,/g,'')), idx:m.index, end:re.lastIndex, dollar:!!m[2], neg:!!(m[1]||m[3])}); }
   return arr;
 }
 function firstPairPrice(monies){   // first adjacent pair of equal money values = the per-pack (unit) price column, e.g. "52.12 52.12" or qty-1 "$20.00 $20.00"
@@ -11989,11 +12018,43 @@ function normalizePhrase(s){       // stable key for "how this supplier writes t
   return s.replace(/\s+/g,' ').trim();
 }
 function packPriceOf(raw){         // the price of one pack from a raw invoice line
+  /* ⚠️ THIS FUNCTION IS D1 A SECOND TIME, ON THE PATH THAT OUTRANKS THE PARSER, and fixing the
+     parser alone would have left it. (Batch 256, prompted by its pre-push review reproducing the
+     credit-note defect and the taught-pack price landing at $0.25/kg beside it.)
+     `firstPairPrice`, then the LAST amount, is exactly the rule `parsePdfLine` no longer uses: on
+     a layout printing "3.00 3.00 CTN ... $29.50 $88.50" the pair is the QUANTITY, and on a layout
+     with a quantity column and no repeated price the last amount is the price TIMES the quantity.
+     It matters more here than in the parser, not less: `resolveMatchedPrice` puts a taught pack
+     ABOVE the parser's own answer, so a product the user has taught was still being priced by the
+     defect while every untaught product beside it came out right — and a taught pack is, by
+     definition, a product the user cared enough about to correct once already.
+     Measured on production, 10 Sep 2026: 23 of 431 products carry a taught pack, plus 7 remembered
+     supplier phrases; every one of them imports through this line.
+     **It asks `lineColumns` — the SAME function the parser asks** — rather than repeating the
+     arithmetic, so the two can never disagree about what one pack cost. That is this repo's
+     standing rule about a second reader of a decision: extract it, do not restate it.
+     The old chooser stays as the fallback for every line that does not add up, which is what it
+     was always right about: a repeated price column with no quantity anywhere. */
+  var col=lineColumns(raw||''); if(col) return col.price;
   var m=moneyMatches(raw||''); if(!m.length) return null;
   var p=firstPairPrice(m); return (p!=null)?p:m[m.length-1].val;
 }
+/* ⚠️ A CREDIT LINE IS NOT A PURCHASE AT A STRANGE PRICE, AND EVERY PATH THAT RE-DERIVES A PRICE
+   FROM `row.raw` HAS TO KNOW THAT — not just the parser that first refused it.
+   (Batch 256, found by the pre-push review of the batch that added the refusal. `CLAUDE.md`'s
+   "an exemption is scoped to the CLAIM that justified it" trap, arriving from the other end: a
+   REFUSAL is scoped to the function that made it, and the writes downstream never asked why.)
+   `parsePdfLine` refuses a line carrying any negative amount and says so in `basis.kind`. But
+   `resolveMatchedPrice` and `applySupplierMemory` re-price off `row.raw` through `packPriceOf`,
+   which reads the digits and drops the sign — so on the real credit page of a real 25/08 invoice,
+   `-2.00 -2.00 CTN $29.50 $-59.00` gives `firstPairPrice` **2**, and a taught 12kg pack turns the
+   refusal into **$0.1667/kg with `needManual:false`**. Measured, not reasoned.
+   ⚠️ The precedence rule is right and is NOT what changed: a pack the user taught still outranks
+   the parser. What it may not outrank is the line not being a purchase at all. */
+function invRowIsCredit(row){ return !!(row && row.basis && row.basis.kind==='credit'); }
 function applySupplierMemory(row, mem){   // re-derive unit price from a remembered pack {qty, unit}; never touches a row that already parsed
   if(!row || !mem || !row.needManual) return row;
+  if(invRowIsCredit(row)) return row;      // a remembered pack does not make a refund a purchase
   var pack=packPriceOf(row.raw||row.name); var qty=parseFloat(mem.qty);
   if(pack==null || !(qty>0)) return row;
   var u=(mem.unit||'ea').toLowerCase(), unitPrice, unit;
@@ -12028,11 +12089,20 @@ function derivePackPrice(raw, packQty, packUnit){          // product's OWN pack
 }
 function resolveMatchedPrice(row, product, mem){
   var chosen=null;
-  if(product && product.pack_qty>0 && product.pack_unit){        // 1) the product's taught pack wins
+  /* The credit refusal, see invRowIsCredit above. Skipping branches 1 and 2 lands on branch 3,
+     which returns `needManual` for a row the parser already refused — so the row asks, which is
+     what it did before either of these two got hold of it. This is deliberately NOT a fourth
+     `chosen` source: nothing new is decided here, a decision made upstream is simply not overruled.
+     ⚠️ It guards the FUNCTION rather than its call sites because there are two callers and the
+     second (`invSelChanged`, when the user picks a product by hand) wants the same answer: choosing
+     a product for a refund does not turn it into a purchase. A guard at one call site would have
+     left the other open, which is this file's own most-repeated shape. */
+  var credit=invRowIsCredit(row);
+  if(!credit && product && product.pack_qty>0 && product.pack_unit){        // 1) the product's taught pack wins
     var d=derivePackPrice(row.raw||row.name, product.pack_qty, product.pack_unit);
     if(d) chosen={unitPrice:d.unitPrice, unit:d.unit, source:'product-pack', needManual:false};
   }
-  if(!chosen && mem && parseFloat(mem.qty)>0){                    // 2) then supplier memory for this phrase
+  if(!credit && !chosen && mem && parseFloat(mem.qty)>0){         // 2) then supplier memory for this phrase
     var pack=packPriceOf(row.raw||row.name), q=parseFloat(mem.qty);
     if(pack!=null && q>0){
       var mu=(mem.unit||'ea').toLowerCase(), unit, up;
@@ -12077,6 +12147,67 @@ function explicitUnitPrice(line){                                  // "$6.20/kg"
   else {cat='ea';factor=1;}
   return {unitPrice:val*factor, unit:cat};
 }
+/* PARSER-AUDIT D1/D2: the quantity, unit-price and extension columns of one line, found by their
+   ARITHMETIC (q x P = T, T to the right of P, q to the left) rather than by position or by repetition.
+   The old chooser took the first adjacent pair of equal amounts, which on any layout that prints
+   "Ordered Shipped" as 2-decimal numbers is the QUANTITY ("3.00 3.00 CTN ... $29.50 $88.50" -> $3.00
+   a carton), and otherwise took the line total, which on every layout with a qty column and no
+   repeated price column is the unit price TIMES the quantity. Measured: 36 of 41 lines on five real
+   invoices were stored wrong by exactly the purchased quantity, unflagged.
+   A number is a quantity candidate unless it is glued to a unit ("2.5kg"), sits right of an "x"
+   ("6 x 1kg"), wears a $, is negative, or is followed by %. Preference: a $-marked price over a bare
+   one, the nearest quantity to the price, the rightmost price; a candidate whose three amounts are
+   all equal is skipped (q=1 lines make "1.00 1.00 1.00" satisfy 1x1=1 and say nothing).
+   Returns null when nothing adds up, so the caller can refuse to guess. */
+var INV_QTY_UNIT=/^(kg|kgs|g|gr|gram|grams|l|lt|ltr|litre|liter|ml|ea|each|unit|units|pcs?|pce|pieces?|bunch|bunches|pun|punnets?|cans?|tins?|btls?|bottles?|jars?|tubs?|trays?|bags?|drums?|pk|pkt|packs?|packets?|box|boxes|ctns?|cartons?|cases?|blk|bkt|pail|sleeves?|doz|dozen|loaf|loaves|roll|rolls)\b/i;
+var INV_COUNT_NOUN=/^(ea|each|unit|units|pcs?|pce|pieces?|bunch|bunches|pun|punnets?|cans?|tins?|btls?|bottles?|jars?|tubs?|drums?|loaf|loaves|roll|rolls)$/i;
+function lineColumns(line){
+  line=line||'';
+  var monies=moneyMatches(line); if(monies.length<2) return null;
+  var nums=[], re=/\d+(?:\.\d+)?/g, m;
+  while((m=re.exec(line))!==null){
+    var s=m.index, e=re.lastIndex, before=line.slice(0,s), after=line.slice(e);
+    if(/\$\s*$/.test(before) || /-$/.test(before)) continue;                 // a $ amount or a negative is never a quantity
+    if(/[x\u00d7*]\s*$/i.test(before)) continue;                             // the right side of "6 x 1kg" is pack composition
+    if(/^\s*%/.test(after) || /^(?:kg|kgs|g|gr|gram|grams|l|lt|ltr|litre|liter|ml|mm|cm|oz)\b/i.test(after)) continue;   // glued unit: "2.5kg", "100MM"
+    var wa=/^\s+([a-z]+)\b/i.exec(after), wb=/(?:^|\s)([a-z]+)\s+$/i.exec(before), unit=null;   // wb: a STANDALONE word ("kg 1.135"), never the tail of "1.2kg 3"
+    if(wa && INV_QTY_UNIT.test(wa[1])) unit=wa[1].toLowerCase();
+    else if(wb && /^(kg|kgs|l|lt|ltr|litre|liter)$/i.test(wb[1])) unit=wb[1].toLowerCase();   // "kg 1.135" (weight word BEFORE the figure)
+    nums.push({val:parseFloat(m[0]), idx:s, end:e, unit:unit, unitEnd:(wa&&unit?e+wa[0].length:e)});
+  }
+  var best=null;
+  for(var i=0;i<monies.length-1;i++){
+    var P=monies[i]; if(!(P.val>0) || P.neg) continue;
+    for(var j=i+1;j<monies.length;j++){
+      var T=monies[j]; if(T.neg) continue;
+      for(var k=nums.length-1;k>=0;k--){
+        var q=nums[k]; if(!(q.val>0) || q.end>P.idx) continue;
+        if(q.val===P.val && P.val===T.val) continue;                             // 1 x 1.00 = 1.00 says nothing
+        /* ⚠️ THE SLACK IS TIED TO THE PRICE, NOT TO THE QUANTITY, and it was the other way round in
+           this batch's first cut (`0.01*q.val+0.006`). Found by the pre-push review.
+           Scaling by q makes the tolerance grow without bound on exactly the lines where a wrong
+           price costs most — a café buying consumables in the hundreds. Measured: at q=200 the slack
+           is $2.006, so `WIDGET 200 UNIT $5.00 $5.01 $1000.00` accepted **5.01** and then preferred
+           it over the correct 5.00 for being the rightmost $ amount; at q=300 a total 50c off an
+           exact multiple confirmed anyway, `needManual:false`.
+           Rounding does not work like that. A printed extension is out by at most half a cent, and a
+           printed rate by at most half a cent PER UNIT — so the honest bound at high q is the one
+           thing this must not do, because it would swallow real errors. Tying it to the price keeps
+           a cent of rate rounding plus the extension's own, and when it is too tight the line simply
+           does not add up and the row ASKS, which is the direction this whole function exists for.
+           Measured before changing: all four candidate tolerances (q-scaled, half-q-scaled,
+           P-scaled and a flat 0.006) score the corpus identically at 63 right / 2 silent-wrong /
+           0 unflagged leaks — so the loose version was never earning anything on any layout here,
+           and only the two repros above could tell them apart. */
+        if(Math.abs(q.val*P.val-T.val) > 0.01*P.val+0.006) continue;
+        var cand={price:P.val, dollar:P.dollar, priceIdx:P.idx, qty:q.val, qtyIdx:q.idx, qtyEnd:q.unitEnd, qtyUnit:q.unit, total:T.val};
+        if(!best || (cand.dollar&&!best.dollar) || (cand.dollar===best.dollar && cand.priceIdx>=best.priceIdx)) best=cand;
+        break;                                                                   // nearest quantity to this price wins
+      }
+    }
+  }
+  return best;
+}
 /* nested pack weight: "6 x (22 x 120g)" -> total kg/L. Multiplies every "N x"/"N of" before the final weight/volume unit. */
 function packWeight(line){
   // Find the LAST weight/volume unit + its number = the per-unit weight (e.g. "2.5kg").
@@ -12091,17 +12222,25 @@ function packWeight(line){
   var mult=1, mm, factors=[],
       mr=/(\d+(?:\.\d+)?)\s*(?:x|\u00d7|\*|of\b|per\b|,|ctns?\b|cartons?\b|cases?\b|boxe?s?\b|packe?t?s?\b|sleeves?\b|trays?\b|bags?\b)/gi;
   while((mm=mr.exec(prefix))!==null){ var v=parseFloat(mm[1]); if(v>0){ mult*=v; factors.push(v); } }
+  /* PARSER-AUDIT D3: a multiplier AFTER the weight - "2.26KG X 6", "700G/UNIT 6 UNITS/CTN",
+     "600G/UNIT 6UNITS/CTN". Only the x-form and the N-units form count; a bare number after the
+     weight ("1kg 10 5.62", Bidfood's qty column) is left alone. */
+  var suffix=line.slice(last.index+last[0].length),
+      sm=/^\s*(?:\/\s*(?:unit|units|ea|each|pce?s?|piece|pkt|pack|portion)\b\s*)?(?:(?:x|\u00d7|\*)\s*(\d+(?:\.\d+)?)\b|(\d+(?:\.\d+)?)\s*(?:x\b|units?\b|ea\b|each\b|pcs?\b|pce\b|pieces?\b|pk\b|pkt\b|packs?\b|per\b))/i.exec(suffix);
+  if(sm){ var sv=parseFloat(sm[1]||sm[2]); if(sv>0){ mult*=sv; factors.push(sv); } }
   var qtyInCat=mult*unitNum*u.f;                                    // total weight in kg (or L)
   invDbg('[packWeight] structure:', {line:line, orderedX_packQty:factors, unitWeight:unitNum+last[2], multiplied:factors.concat([unitNum]).join(' x ')+' = '+(mult*unitNum)+' '+last[2], totalWeight:qtyInCat+(u.cat==='l'?' L':' kg')});
   return {qtyInCat:qtyInCat, cat:u.cat, factors:factors, unitNum:unitNum};
 }
 /* per-unit counts: dozen / each / portions, with optional "N x" multiplier chain */
 function packCount(line){
-  var mult=1, any=false, mm, mr=/(\d+(?:\.\d+)?)\s*[a-z]*\s*(?:x|\u00d7|\*|of)\s*/gi;
+  /* PARSER-AUDIT: the multiplier must be FOLLOWED BY A NUMBER. Without the lookahead a supermarket
+     receipt's taxable marker ("... 9.00 *") read as "9 x" and divided the price by nine. */
+  var mult=1, any=false, mm, mr=/(\d+(?:\.\d+)?)\s*[a-z]*\s*(?:x|\u00d7|\*|of)\s*(?=\d)/gi;
   while((mm=mr.exec(line))!==null){ mult*=parseFloat(mm[1]); any=true; }
   var doz=line.match(/(\d+(?:\.\d+)?)\s*(doz|dozen)\b/i);
   if(doz) return (any?mult:1)*parseFloat(doz[1])*12;
-  var ct=line.match(/(\d+)\s*(ea|each|unit|units|pcs|pce|piece|pieces|portion|portions|sleeve|sleeves)\b/i);
+  var ct=line.match(/(\d+)\s*(ea|each|unit|units|pcs|pce|piece|pieces|portion|portions|sleeve|sleeves|pk|pkt|pack|packs|packet|packets)\b/i);   // PARSER-AUDIT: "48 pack", "6PK"
   if(ct) return (any?mult:1)*parseFloat(ct[1]);
   var sc=line.match(/\b(\d{2,4})'?s\b/i);                          // shorthand pack count e.g. "400s" / "105s" (2-4 digits + optional apostrophe + s)
   if(sc) return (any?mult:1)*parseFloat(sc[1]);
@@ -12118,25 +12257,75 @@ function parsePdfLine(line){
   if(name.length<2) name=line.replace(/[\s,;:@\-]+$/,'').trim();   // qty-first layouts: keep the whole line as the name
   var cls=invLineClass(name, line); if(cls==='exclude'){ invDbg('[parsePdfLine] EXCLUDED (summary/footer line):', line); return null; }
   var unc=(cls==='uncertain');
+  function manual(why){ return {name:name, unitPrice:null, unit:'auto', needManual:true, uncertain:unc, raw:line, basis:{kind:why}}; }
+  /* PARSER-AUDIT D5: a negative quantity or amount is a credit, a return or a reversal. It is never a
+     purchase price, and on a credit note the unit-price column is usually not what it looks like. */
+  if(monies.some(function(mo){ return mo.neg; })) return manual('credit');
   var ex=explicitUnitPrice(line);                                 // 1) explicit unit price wins
-  if(ex){ invDbg('[parsePdfLine] explicit unit price:', {name:name, unitPrice:ex.unitPrice, unit:ex.unit}); return {name:name, unitPrice:ex.unitPrice, unit:ex.unit, needManual:false, uncertain:unc, raw:line}; }
-  // Per-PACK price: columnar invoices repeat the Unit Price / Price columns ("52.12 52.12"); simple invoices
-  // repeat the qty-1 unit price as the line total ("$20.00 $20.00"). The first adjacent equal pair is the price
-  // of ONE pack. Using it (not the last money / line total) is what stops qty>1 lines being multiplied by qty.
-  var total=monies[monies.length-1].val;                          // last money = line total
-  var packPrice=firstPairPrice(monies); if(packPrice==null) packPrice=total;
-  var aps=line.match(/\b(\d{2,4})'s\b/i);                          // 1b) explicit apostrophe-s pack count e.g. "105'S", "400'S" -> N pieces per pack
+  if(ex){ invDbg('[parsePdfLine] explicit unit price:', {name:name, unitPrice:ex.unitPrice, unit:ex.unit}); return {name:name, unitPrice:ex.unitPrice, unit:ex.unit, needManual:false, uncertain:unc, raw:line, basis:{kind:'explicit'}}; }
+  /* PARSER-AUDIT D1/D2: the price of ONE pack is the column that, times the quantity, gives the
+     extension - lineColumns finds it. Only when nothing adds up does the old repeated-pair rule run,
+     and a line with several amounts that neither pair nor add up is refused rather than priced from
+     its total (the total is the price times the quantity, on every layout that prints a quantity). */
+  var col=lineColumns(line), packPrice, packText=name, kind;
+  if(col){ packPrice=col.price; kind='columns';
+    if(col.qtyIdx<name.length) packText=(name.slice(0,col.qtyIdx)+' '+name.slice(Math.min(col.qtyEnd,name.length))).replace(/\s+/g,' ').trim();   // the purchased quantity is not part of the pack
+  } else {
+    packPrice=firstPairPrice(monies);
+    if(packPrice!=null) kind='pair';
+    else if(monies.length===1){ packPrice=monies[0].val; kind='single'; }
+    else return manual('unbalanced');
+  }
+  var basis={kind:kind, packPrice:packPrice, qty:(col?col.qty:null), qtyUnit:(col?col.qtyUnit:null)};
+  function done(up, unit, extra){ var r={name:name, unitPrice:up, unit:unit, needManual:false, uncertain:unc, raw:line, basis:basis}; if(extra) for(var k in extra) basis[k]=extra[k]; return r; }
+  /* D2: a quantity column in kilograms or litres means the price is per kilogram or litre - the pack
+     in the name (the 2.5kg the bacon comes in) is what was delivered, not what was priced. A
+     fractional quantity on a weighed line ("5.12" of a "2 x 2.5kg" bacon) is the same case with the
+     unit word on the header row instead of the line. */
+  if(col && col.qtyUnit && /^(kg|kgs|l|lt|ltr|litre|liter)$/.test(col.qtyUnit)){ var qc=unitCat(col.qtyUnit); return done(packPrice, qc.cat, {perQtyUnit:true}); }
+  var wName=packWeight(packText);
+  if(col && col.qty%1!==0 && wName && !col.qtyUnit) return done(packPrice, wName.cat, {perQtyUnit:true, weight:wName});
+  // an explicit count comes BEFORE a weight when the line carries both: "105'S ... 1.5kg" is 105
+  // slices and "600G 15X1 DOZEN" is 180 eggs. The bare "105S" form keeps today's precedence
+  // (weight first; tests/inv-chain.test.js pins that reading) - see the audit's residuals.
+  var aps=packText.match(/\b(\d{2,4})'s\b/i);                      // 1b) explicit apostrophe-s pack count e.g. "105'S", "400'S" -> N pieces per pack
   if(aps){ var apc=parseFloat(aps[1]);
     if(apc>0){ invDbg('[parsePdfLine] APOSTROPHE-S count:', {name:name, count:apc, packPrice:packPrice, perUnit:'$'+(packPrice/apc).toFixed(4)+'/unit'});
-      return {name:name, unitPrice:packPrice/apc, unit:'ea', needManual:false, uncertain:unc, raw:line}; } }
-  var w=packWeight(line);                                         // 2) derive $/kg or $/L from the pack price and the pack's weight/volume
-  if(w && w.qtyInCat>0){ var upw=packPrice/w.qtyInCat; invDbg('[parsePdfLine] WEIGHT calc:', {name:name, packPrice:packPrice, lineTotal:total, totalWeight:w.qtyInCat+(w.cat==='l'?' L':' kg'), pricePerUnit:'$'+upw.toFixed(4)+'/'+(w.cat==='l'?'L':'kg')}); return {name:name, unitPrice:upw, unit:w.cat, needManual:false, uncertain:unc, raw:line}; }
-  var c=packCount(line);                                          //    or $/unit from the pack price and the per-pack count
-  if(c && c>0) return {name:name, unitPrice:packPrice/c, unit:'ea', needManual:false, uncertain:unc, raw:line};
-  return {name:name, unitPrice:null, unit:'auto', needManual:true, uncertain:unc, raw:line};   // 3) ambiguous
+      return done(packPrice/apc, 'ea', {count:apc}); } }
+  if(/\d\s*(?:doz|dozen|pk|pkt|packs?)\b/i.test(packText)){ var cd=packCount(packText); if(cd&&cd>0) return done(packPrice/cd, 'ea', {count:cd}); }   // "15X1 DOZEN", "12PK 700G", "6 pack"
+  var w=wName;                                                    // 2) derive $/kg or $/L from the pack price and the pack's weight/volume, read from the NAME (the money columns are not pack description)
+  if(w && w.qtyInCat>0){ var upw=packPrice/w.qtyInCat; invDbg('[parsePdfLine] WEIGHT calc:', {name:name, packPrice:packPrice, totalWeight:w.qtyInCat+(w.cat==='l'?' L':' kg'), pricePerUnit:'$'+upw.toFixed(4)+'/'+(w.cat==='l'?'L':'kg')}); return done(upw, w.cat, {weight:w}); }
+  var c=packCount(packText);                                      //    or $/unit from the pack price and the per-pack count
+  if(c && c>0) return done(packPrice/c, 'ea', {count:c});
+  if(col && col.qtyUnit && INV_COUNT_NOUN.test(col.qtyUnit)) return done(packPrice, 'ea', {perQtyUnit:true});   // "24 EACH Avocado $1.85": the column says what one is
+  return manual('ambiguous');                                     // 3) ambiguous
 }
+/* PARSER-AUDIT D4: a wrapped description. Several layouts print the second half of a description
+   on its own money-less line ("60*120G ANGEL BAY 72361", "UNITS/CTN TIP TOP 9323"), and the pack
+   size is often on that half. One such line, directly under a row, that carries no summary word, no
+   column-header word and no page marker, is spliced into the row's name AHEAD of the money columns
+   and the row is re-priced. The row's raw stays the original line: it is the supplier-memory key. */
+/* ⚠️ `\bsummar` was added by batch 256, NOT by the audit's patch, and it is worth saying which:
+   the audit's own comment claims this list carries "no summary word" and its own test spec asks for
+   a summary line to be refused, and neither this regex nor INV_EXCLUDE contained one. "Summary of
+   Supplies" is the heading that directly follows the last table row on page 2 of a real supplier's
+   invoice — exactly the position a continuation is looked for — so it was joined onto that row's
+   name. Found by writing the test the audit asked for rather than by reading the patch. */
+var INV_CONT_STOP=/\*{3,}|\bpage\b|\bcontinued\b|\bcarried\b|\bsummar|\bdescription\b|\bqty\b|\bquantity\b|\bprice\b|\bcode\b|\bdate\b|\bterms\b|\bcustomer\b|\bdeliver|\bsold\b|[:@]/i;
 function pdfTextToRows(text){
-  var rows=[]; (text||'').split(/\n/).forEach(function(raw){ var r=parsePdfLine(raw); if(r) rows.push(r); });
+  var rows=[], last=null;
+  (text||'').split(/\n/).forEach(function(raw){
+    var r=parsePdfLine(raw);
+    if(r){ rows.push(r); last=r; return; }
+    var t=(raw||'').trim();
+    if(last && t && t.length<=60 && /[A-Za-z]{2,}/.test(t) && !moneyMatches(t).length && !INV_EXCLUDE.test(t) && !INV_CONT_STOP.test(t)){
+      var lm=moneyMatches(last.raw), cut=lm.length?lm[0].idx:last.raw.length;
+      var joined=(last.raw.slice(0,cut).replace(/\s+$/,'')+' '+t+' '+last.raw.slice(cut)).trim();
+      var r2=parsePdfLine(joined);
+      if(r2){ r2.raw=last.raw; r2.cont=t; rows[rows.length-1]=r2; }
+    }
+    last=null;
+  });
   return rows;
 }
 function unitLabelFor(row){
@@ -12245,13 +12434,28 @@ function invFixRow(row){
      So the branch is asked, not inferred, and it is asked with the PARSER'S OWN function — the
      same rule as `invPackWeight` one level up. */
   if(explicitUnitPrice(row.raw||'')) return row;                  // the line states its own rate: no pack-weight basis exists to correct
-  var wr=packWeight(row.raw||'');                                 // what priced the row
-  if(!wr) return row;
-  var w=invPackWeight(row);                                       // what the pack itself says
-  if(!w){ row.needManual=true; return row; }                      // priced off a weight that is not in the name at all: pack size unknown, ask
-  if(w.cat!==wr.cat){ row.needManual=true; return row; }          // different basis: the unit is wrong too, and a silent flip is unnoticeable
-  if(w.qtyInCat!==wr.qtyInCat) row.unitPrice=row.unitPrice*(wr.qtyInCat/w.qtyInCat);   // A: re-base onto the pack's own weight
-  // B, and it runs on the corrected price: the guard and the arithmetic now read the same weight
+  /* PARSER-AUDIT: a row priced by `lineColumns` knows its purchased quantity — the quantity token
+     is removed from the pack text BEFORE the weight is read — so nothing here applies to it. */
+  if(row.basis && (row.basis.kind==='columns' || row.basis.perQtyUnit)) return row;
+  /* ⚠️ 237's RE-BASE (branch A) IS RETIRED HERE, and deleting a price correction deserves its
+     reasons written down rather than a commit message.
+     It existed because `packWeight` was asked about the RAW LINE, so a trailing net-weight column
+     ("... 60.00 60.00 60.00 6.0kg") became the pack's unit weight and the row was priced off 36kg
+     instead of 6kg — an order of magnitude, silently. `parsePdfLine` now reads the weight off the
+     NAME, which is the same thing `invPackWeight` reads, so `row.basis.weight` and `invPackWeight(row)`
+     are not merely equal in practice: they are THE SAME CALL ON THE SAME STRING. A correction that
+     compares a value with itself can never fire, and the two guards beside it ("no weight in the
+     name", "a different weight category") are unreachable for the same reason.
+     Measured before deleting, not reasoned about: 68 parsed rows across the fourteen corpus layouts,
+     zero reaching the comparison with the two weights disagreeing (the probe is in the batch's
+     handover). `tests/inv-row-fix.test.js` pins the identity that makes this dead, so a future
+     change that reintroduces a raw-line read goes RED here rather than quietly needing a branch
+     that is no longer there.
+     What SURVIVES is 236's fold-undo below, which corrects a different thing — a purchased quantity
+     folded into the pack by the multiplier chain — and which is still live for the repeated-pair
+     fallback, where the parser has no quantity column to tell it otherwise. */
+  var w=invPackWeight(row);                                       // the pack as the NAME describes it
+  if(!w) return row;
   var m=/^\s*(\d{1,3})\s*(?:ctns?|cartons?|cases?|boxe?s?)\b/i.exec(row.raw||'');
   if(!m) return row;
   var k=parseInt(m[1],10); if(!(k>=2)) return row;

@@ -228,7 +228,11 @@ The obvious lever is that the gate re-runs a target's whole declared test-file s
 
 **What 221 DID pin, so this entry is not mistaken for total silence:** `tests/plate-draft-save.test.js` executes the real function and pins the draft-versus-write contract, proved by reverting the fix and watching three of its five tests go red.
 
-### An eval harness for the invoice reader
+### ~~An eval harness for the invoice reader~~  ✅ **BUILT AND IN `npm test`, batch 256 (`ezplate-v211`), consolidated item 17**
+
+✅ **The deterministic half is DONE and it is the half this entry said was missing.** `tests/parser-corpus/run.js` slices the real parser out of `js/app.js` and scores fourteen invoice layouts line by line against hand-written truth; `tests/parser-corpus.test.js` fails the suite on any silent-wrong price or any unflagged non-product row, and was proved to go RED against the shipped parser and green against the fix. The score IS comparable across two commits, which is what this entry asked for: **30 right / 31 silent-wrong before, 63 / 2 after**.
+⚠️ **TWO HALVES OF THIS ENTRY ARE STILL OPEN and they are consolidated item 37, not this file.** (1) The REAL corpus — Max's own invoices — stays outside the repo because the extracted text carries the cafe's details and the repository is public; only the truth files are committed, at `spike/parser-audit/real-truth/`. **So a green corpus test means "no synthetic layout regressed", never "the real invoices are right".** (2) Nothing measures the SECOND READER: the harness runs the deterministic path only, and this entry's requirement of stored model responses replayed offline is untouched. **Read the strike as covering the parser and not the prompt.**
+
 The invoice path is the app's highest-stakes surface and its only AI one, and **there is no way to tell whether a parser or prompt change made it better or worse.** `tests/invoice-gate.test.js` and `tests/inv-gemini-merge.test.js` pin specific decisions on hand-written inputs; neither measures accuracy over a corpus. So every change to `resolveMatchedPrice`, the taught-pack precedence or the Gemini prompt is judged by whether the unit tests still pass and whether one invoice looked right.
 Requirements: a set of real invoices with expected line/price/pack outcomes, and a score comparable across two commits. It must run **offline against stored model responses** — re-calling Gemini per run would make the score non-deterministic and cost money.
 Out of scope: changing the parser or the prompt. This is measurement; acting on what it measures is separate.
@@ -970,7 +974,11 @@ and update this entry rather than the gap silently changing status.
 
 Filed here per the tier test: none of these would stop, embarrass or hurt a paying customer at launch. The first is the exception in spirit and is flagged for Max rather than queued, because it turns on a decision he owns.
 
-### ⚠️ The protected parser region has NO automated guard, and was edited once without one
+### ~~⚠️ The protected parser region has NO automated guard, and was edited once without one~~  ✅ **BOTH HALVES CLOSED — the ratification 10 Sep 2026 (Max), the GUARD by batch 256**
+
+✅ **The missing mechanism now exists and is not a hash.** `tests/parser-corpus.test.js` scores the region against 130 lines of known answers on every `npm test` run, and five of the region's functions are mutation targets. This entry's own diagnosis — *"the strongest invariant in `CLAUDE.md` is the only one with no test behind it"* — is answered by measuring what the region DOES rather than pinning what its text IS.
+⚠️ **Three of the eight targets the audit asked for are NOT on the list** (`parsePdfLine`, `lineColumns`, `rankCandidates`, 34 survivors between them): consolidated item 92, to run with item 81.
+
 
 **FOR MAX — this is a rule of his and the audit is reporting, not deciding.**
 `CLAUDE.md` says *"Never edit anything inside it. If a fix seems to require it, stop and tell Max — solve outside the region."* **Batch 197 edited inside it** (commit `f259c5c`, PR #198): one line removed, 25 added. Verified twice by hand at AUDIT-v176.
@@ -1133,3 +1141,50 @@ The `menus` read is required now — its error joins the four that raise the boo
 - **`api/_insight.js` can drop template numbers, and the prompt and test claim it cannot.** ⚠️ UNMEASURED. Claim: the candidate number skeleton is only required to be a **subsequence**, so a candidate that invents no number can omit both `18%` and `5 plates` and pass — template *"Beef, up 18% across 5 plates, is most of it"* against candidate *"Beef is the main pressure point."* Claimed sites `api/_insight.js:31-35, 190-213, 263-297`. **`api-insight.test.js:89-94` is named as false confidence: its "forbids changing numbers" assertion checks the prohibition WORDING, not that the validator prevents removal.** That is roster entry 183(a) — an assertion that greps prose written by the same person in the same hour saying the same words. **The implementation's own comments acknowledge omission as permissible**, so this is also a comment/behaviour disagreement, and the honest fix may be to correct the prompt and the test rather than the validator.
 - ~~**The insight validator cannot see an inverted RECOMMENDATION.**~~ **ALREADY FILED, above, under its own heading.** The reviewer found it independently, without the rulebook, and called `tests/insight-parity.test.js` *"intentionally the opposite of protection"* — which is exactly what that test says about itself: *"THE RESIDUAL, PINNED AS A KNOWN GAP RATHER THAN LEFT TO BE REDISCOVERED … this test asserts the CURRENT truth so that the day someone closes the gap, this test goes red and makes them come here and say so."* **Recorded because the pin worked exactly as designed on a reader who had never seen this file**, which is the only evidence that mechanism has ever had. No action.
 - **The publish guard's invariant is false on a reachable error path.** Rides the batch that reproduces the fictional-menu bullet at the TOP of this section (not queue item 12, the carton parser), since it is the same code. The publishing code relies on a non-empty `menusList` meaning menus the server has; the bootstrap path above puts an unsaved generated menu in that list. **Fix the comment in the same change as the behaviour, not separately** — a corrected comment beside uncorrected code is the failure this file has recorded most often.
+
+## C — from batch 256's browser check (10 Sep 2026)
+
+### A CREDIT line is refused correctly and EXPLAINED wrongly — it says "unit mismatch"
+
+**Measured in Chromium, light and dark, 380px and 1456px**, driving the real chain (`pdfTextToRows` → `invFixRow` → `buildInvRows` → `renderInvReview`) over the real credit line from a 25/08 invoice: `13612 FZ CHIPS … LAND -2.00 -2.00 CTN $29.50 $-59.00`.
+
+**The behaviour is right and is not in question.** The row comes back `needManual:true`, `unitPrice:null`, not pre-ticked, with an empty price field. That is batch 256 / consolidated item 17 doing exactly what it set out to do: a credit is not a purchase, and before the fix this line was stored as a purchase at $0.17/kg with nothing raised.
+
+**What is wrong is the WORDING.** `parsePdfLine` records `basis.kind === 'credit'` — the row knows precisely why it refused — and nothing surfaces it. The row inherits the generic flag pill **"unit mismatch"** and the generic explain line *"Set the pack, or type the price"*, plus the paragraph about the product being measured per kg. All of that is literally true (the row's unit is `auto` against a kg product) and none of it is the reason. A user reading it will go and set a pack for a line that is a **refund**, and the honest instruction is "this is a credit — do not apply it".
+
+**Why C rather than B:** nothing is stored, nothing is pre-ticked, and the user is stopped. It is a wrong explanation in front of a correct refusal, not a wrong number.
+⚠️ **It rides whichever batch next opens `renderInvReview` / `flagNeedsAttention`, and it is cheap:** the row already carries the reason, so this is a `basis.kind` read and one more `st-*` case, not new state. **Consolidated item 26** is the natural companion — it is deciding what a `$0.00` line MEANS, which is the same question about the same screen, and both are about a row whose refusal needs its own words.
+⚠️ **And the general shape, which is why this is written down rather than fixed on sight:** the fix put a NEW reason into the data (`basis.kind`) and reused an OLD label for it. A flag that is true for the wrong reason is this file's own comment trap arriving in UI copy — the observation ("the units do not match") is accurate, and the conclusion it invites ("set the pack") is the wrong action.
+
+### The parser fix stops NEW wrong prices and does not correct the ones already stored
+
+Raised by batch 256 itself, which is the point: item 17 fixed the mechanism, and a mechanism fix is
+not a data fix. Every price one supplier's invoices wrote before `ezplate-v211` was chosen by the
+old rule, so some stored `cost_per_base_unit` values — and the plate costs computed from them — are
+still whatever the wrong parse said.
+
+**Bounded, measured on production 10 Sep 2026, so nobody has to guess how bad it is:**
+
+- `ing_price_history` holds **61 points across 57 distinct products** since 15 Jul 2026. That is
+  every product whose price has EVER moved through `setProducts`, which is the upper bound on what
+  an import can have changed — against **428** products in the catalogue.
+- Not all 57 came from the affected supplier, and not all came from an invoice at all: the catalogue
+  importer writes through the same function.
+- ⚠️ **And the flag was doing most of the work, which is why this is C.** The parser audit measured
+  that the 12% price-jump check against existing history put **34 of the 35 wrong real lines into
+  `review` rather than pre-ticking them** — so for a product that already had a price, Max was shown
+  the number and had to tick it. What the flag could NOT protect is a **new** product, a **new**
+  supplier or a **new** cafe, where there is no history to jump from.
+
+**The natural repair is the next invoice from that supplier**, which now prices correctly and
+overwrites. So this closes itself in a week of ordinary trading, and doing nothing is a legitimate
+answer — but it should be a decision rather than an omission, which is why it is written down.
+⚠️ **Anything that rewrites those stored prices is production data and is MAX'S**, the same standing
+rule as the restore's wipe. **And the honest repair is not a script**: there is no way to tell, from
+a stored number, whether it came from a wrong parse or from Max typing it, so a heal would be
+guessing at exactly the values it claims to fix. The safe version is a REPORT — list the products
+whose last recorded movement predates `v211`, with their stored price, and let him look — not a write.
+⚠️ **The visible symptom, so it is not diagnosed as a price rise:** the first corrected import will
+show as a large jump on those products' price history and as drift on the Dashboard. `docs/PHONE.md`
+(the `v211` entry) tells him that in advance; if this entry is ever acted on, keep that warning
+somewhere he will read it.

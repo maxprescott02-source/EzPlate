@@ -29,7 +29,7 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
-const { loadApp, extractFn } = require('./_extractfn');
+const { loadApp, extractFn, extractVar } = require('./_extractfn');
 
 const SRC = loadApp();
 
@@ -152,19 +152,31 @@ test('v38: a row with no taught pack and no typed qty writes nothing', () => {
 
 /* ---------------------------------------------------------------------------
  * 2. REUSE — the next invoice must price off the taught pack. (The eggs-case
- *    analogue, pinned with the real cheese line.) resolveMatchedPrice is
- *    protected: read and tested here, never edited.
+ *    analogue, pinned with the real cheese line.)
+ *    ⚠️ THIS BLOCK'S COMMENT SAID `resolveMatchedPrice` IS "protected: read and tested here, never
+ *    edited". That protection was LIFTED by Max on 10 Sep 2026 and the function WAS edited, in
+ *    batch 256, to stop a credit note being priced as a purchase. The line is corrected rather than
+ *    deleted because the reason it was written still holds: this is the function this repo has
+ *    recorded the most defects in, and a wrong change here is invisible — a mispriced line looks
+ *    exactly like a correctly priced one.
+ *    ⚠️ AND THE SANDBOX BELOW IS WHY A HAND-PICKED FUNCTION LIST IS A LIABILITY: adding one
+ *    dependency to a shipped function breaks every private sandbox that names its callees by hand,
+ *    with a ReferenceError rather than a wrong answer. That is the loud failure and it is fine.
+ *    The quiet one to watch for is a sandbox that STUBS what it is missing.
  * ------------------------------------------------------------------------- */
 
 // eslint-disable-next-line no-new-func
 const pricing = new Function(`
   "use strict";
   function invDbg(){}
+  ${extractVar(SRC, 'INV_QTY_UNIT')}
   ${extractFn(SRC, 'moneyMatches')}
+  ${extractFn(SRC, 'lineColumns')}
   ${extractFn(SRC, 'firstPairPrice')}
   ${extractFn(SRC, 'packPriceOf')}
   ${extractFn(SRC, 'unitCatCategory')}
   ${extractFn(SRC, 'derivePackPrice')}
+  ${extractFn(SRC, 'invRowIsCredit')}
   ${extractFn(SRC, 'resolveMatchedPrice')}
   return { resolveMatchedPrice: resolveMatchedPrice, derivePackPrice: derivePackPrice, packPriceOf: packPriceOf };
 `)();

@@ -101,6 +101,37 @@ const targets = [
      depend on, and the defect this batch's review found was two of them disagreeing about it. */
   { fn: 'invFixRow', tests: ['inv-row-fix.test.js'] },
   { fn: 'invPackWeight', tests: ['inv-row-fix.test.js'] },
+  /* 256 (PARSER-AUDIT) — THE PARSER REGION ITSELF, seven functions, and this list's own sentence is
+     why they are here: "a function that is not a target has never been asked the question."
+     NOT ONE of them had ever been asked. They are the functions that decide what number gets stored
+     from an invoice, they had been protected from editing rather than measured, and on 8 Sep 2026
+     that bill arrived: 36 of 41 lines on five real invoices priced wrong with no flag raised.
+     The protection was lifted on 10 Sep, which makes this list part of what replaces it — with the
+     corpus (`tests/parser-corpus.test.js`, 130 lines of known answers) and the per-batch --products
+     numbers in the handover. A rule that forbids editing measures nothing; these two do.
+     ⚠️ `packWeight` names TWO files, and that is not belt-and-braces. The corpus file scores whole
+     layouts end to end and would notice a mutant that moves any of 66 prices; the unit file pins
+     the one arithmetic the function is responsible for. Listing only the corpus would leave "which
+     function was wrong" unanswerable; listing only the unit file would let a mutant that breaks a
+     layout nobody wrote a unit case for survive.
+
+     ⚠️ FIVE OF THE AUDIT'S EIGHT ARE HERE AND THREE ARE NOT, AND THE THREE MISSING ARE THE
+     IMPORTANT ONES — `parsePdfLine`, `lineColumns` and `rankCandidates`. That is a SPLIT, recorded
+     so it cannot read as an oversight: adding them reports 34 survivors between them (16, 11 and 7,
+     counted on this commit), and every one needs either a new assertion or a written allowance a
+     reader can disagree with. That is a body of work the size of this batch's tests again, and the
+     gate FAILS on an unresolved survivor, so a half-added target is not a thing that can ship.
+     They are consolidated item 92, with the counts, so the next batch starts from a measured list
+     rather than rediscovering it.
+     What is NOT missing in the meantime is a net over those two functions: `tests/parser-corpus.test.js`
+     scores every price they produce across fourteen layouts and goes red on any silent-wrong. The
+     survivors are guards whose inputs — a $-marked quantity, a zero quantity, a percent column — no
+     corpus fixture contains, which is exactly what makes them worth their own item. */
+  { fn: 'packWeight', tests: ['parser-suffix.test.js', 'parser-corpus.test.js'] },
+  { fn: 'packCount', tests: ['parser-count.test.js'] },
+  { fn: 'moneyMatches', tests: ['parser-credit.test.js'] },
+  { fn: 'firstPairPrice', tests: ['parser-columns.test.js', 'inv-row-fix.test.js'] },
+  { fn: 'pdfTextToRows', tests: ['parser-wrap.test.js'] },
   // ── The guards. `isFinite('')` is TRUE, so these are the lines a blank field walks through. ──
   /* 193: this was `setProduct`, and it MOVED rather than gained a sibling. setProducts is the
      implementation and setProduct is now a one-line delegate to it — and a one-line delegate yields
@@ -357,7 +388,14 @@ const targets = [
      nothing wrong. Same shape as the setProducts delegate above. */
   { fn: 'packToUnitCost', tests: ['pricing.test.js', 'price-log-paths.test.js', 'catalogue-import.test.js'] },
   { fn: 'unitToBaseFields', tests: ['ingredient-unit.test.js', 'price-log-paths.test.js'] },
-  { fn: 'packPriceOf', tests: ['pack-survives.test.js', 'invoice-gst.test.js'] },
+  /* 256: parser-credit.test.js joins this list because packPriceOf gained a line — it asks
+     `lineColumns` first, so a TAUGHT PACK divides the same price the parser chose rather than the
+     quantity. Neither existing file has a fixture on a quantity-column layout, so nothing pinned
+     the new branch; and the OLD fallback ternary stopped being killed at the same moment, because
+     lineColumns now short-circuits past it on most fixtures. Both are pinned there now, the second
+     with a fixture whose repeated pair and line total DIFFER — the obvious 60/60/60 version cannot
+     tell the two answers apart. */
+  { fn: 'packPriceOf', tests: ['pack-survives.test.js', 'invoice-gst.test.js', 'parser-credit.test.js'] },
   { fn: 'menuMarginPreview', tests: ['menu-margin.test.js'] },
   { fn: 'invGstDetect', tests: ['invoice-gst.test.js'] },
   { fn: 'costAtLines', tests: ['dash-digin.test.js'] },
@@ -411,7 +449,14 @@ const targets = [
      twelve are killed in inv-chain.test.js §5, and TWO of them were reachable only after the
      harness stopped stubbing flagNeedsAttention as a no-op. A no-op stub of a real, pure function
      makes "delete the call" and "keep the call" the same program — see the note in tests/_extract.js. */
-  { fn: 'buildInvRows', tests: ['invoice-gst.test.js', 'inv-chain.test.js'] },
+  /* 256: parser-credit.test.js joins the list because it pins something the other two cannot see —
+     that buildInvRows CARRIES `basis` onto the row it builds. The parser's refusal of a credit line
+     lives in `basis.kind`, and the two re-pricers below read it; drop it here and the refusal is
+     discarded one line before anything can act on it, silently. The gate found exactly that: every
+     credit assertion in that file passed against the mutant, because they all hand the re-pricers a
+     row straight from parsePdfLine, which of course still has its basis. Only a test that drives the
+     ASSEMBLY can see an assembly defect — which is why buildInvRows is a target at all. */
+  { fn: 'buildInvRows', tests: ['invoice-gst.test.js', 'inv-chain.test.js', 'parser-credit.test.js'] },
   /* 0c (batch 203): `supplier-memory.test.js` ALONE, and the two files this line USED to name are
      the finding rather than an oversight — the same shape as costFromLines above, on a second
      function. `invoice-gst.test.js` and `pack-survives.test.js` were the declared tests while the
@@ -738,6 +783,72 @@ const allowedSurvivors = [
       + 'mutant; the line is null-safety on a protected-region contract, not a live gate.',
   },
 
+  /* 256 (PARSER-AUDIT) — packWeight's unit guard. `!u || u.cat==='ea'` -> `&&`.
+     Both halves are unreachable, and MEASURED rather than argued: the twelve unit words this
+     function's own regex can capture are `kg kgs g gr gram grams l lt ltr litre liter ml`, and
+     `unitCat` was called with each of them — every one returns an object, and every one returns
+     cat 'kg' or 'l'. So `!u` is never true and `u.cat==='ea'` is never true, and no input reaches
+     the difference between the two operators. (The mutant would THROW on a null u, which is the
+     one thing this line exists to prevent, so it is not equivalent in principle — only in reach.)
+     Kept rather than deleted for the same reason `invPackWeight`'s guard is kept: `unitCat` is a
+     separate function this one does not own, and a line that assumes another function's return is
+     never null is how a parser crashes on an invoice nobody has seen.
+     ⚠️ DELETE THIS ALLOWANCE the day the weight regex above gains a unit word — 'ea', 'pk', 'ctn'
+     and 'box' are all in unitCat's own 'ea' branch, so widening the regex by one word makes the
+     second half of this guard live in the same commit. */
+  {
+    key: "packWeight :: var u=unitCat(last[2]); if(!u||u.cat==='ea'){ return null; } :: logical ||>&& #0",
+    reason: "Unreachable, measured: the regex one line above can only capture kg/kgs/g/gr/gram/grams/l/lt/ltr/"
+      + "litre/liter/ml, and unitCat returns a non-null {cat:'kg'|'l'} for all twelve. So !u is never true and "
+      + "u.cat==='ea' is never true, and no input distinguishes || from &&. Null-safety on another function's "
+      + "contract; becomes live the day the weight regex gains one of unitCat's 'ea' words.",
+  },
+
+  /* 256 (PARSER-AUDIT) — packWeight's DEBUG STRING. The `u.cat==='l' ? ' L' : ' kg'` that survives
+     is inside the argument to `invDbg`, which is a no-op unless `window.EZ_INV_DEBUG` is set by
+     hand in a browser console. The mutant changes a word in a log line and nothing else: it does
+     not touch `qtyInCat`, `cat`, `factors` or `unitNum`, which are the whole of what this function
+     returns. There is no observable difference for any caller or any test to assert.
+     ⚠️ This is the shape to be careful with, so it is spelled out rather than waved through: a
+     mutant "inside a log call" is only equivalent while the log call has no side effect and its
+     ARGUMENTS have none either. Here the argument is an object literal of already-computed values,
+     so evaluating it changes nothing. A log line that computed something, or called something,
+     would not qualify. */
+  {
+    key: "packWeight :: invDbg('[packWeight] structure:', {line:line, orderedX_packQty:factors, unitWeight:unitNum+last[2], multiplied:factors.concat([unitNum]).join(' x ')+' = '+(mult*unitNum)+' '+last[2], totalWeight:qtyInCat+(u.cat==='l'?' L':' kg')}); :: equality ===>!== #0",
+    reason: 'The mutated ternary picks the unit WORD in a debug log line, inside an invDbg call that is a no-op '
+      + 'unless EZ_INV_DEBUG is set by hand. Its argument is an object literal of already-computed values with no '
+      + 'side effects, and none of the four returned fields is touched. Nothing observable differs.',
+  },
+
+  /* 256 (PARSER-AUDIT) — invFixRow's fold-undo TOLERANCE. `<= k` -> `< k` on the confirmed arm.
+     The arm it guards is unreachable now that `lineColumns` exists, and the reason is an ordering
+     between two tolerances rather than a claim about one line:
+       · the confirmed arm needs `k x P` to land within about (k + 0.5) cents of T, where k is a
+         leading bare integer followed by a container noun (`^(\d{1,3})\s*(ctns?|cartons?|cases?|
+         boxe?s?)`), P is a repeated amount and T is the last amount on the line;
+       · every one of those is exactly what `lineColumns` looks for. k is a valid quantity candidate
+         (no $, no minus, not the right side of an "x", and a SPACE before the noun so it is not a
+         glued unit), P is a positive amount and T is an amount to its right — and lineColumns'
+         tolerance, `0.01*q + 0.006`, is one tenth of a cent LOOSER than this one. So anything this
+         arm would confirm, lineColumns confirmed first, `basis.kind` is 'columns', and invFixRow
+         returned four lines earlier.
+     Measured, not argued: 66 lines built from k in 2..12 across six real per-carton prices, every
+     one with T set to exactly k x P — all 66 came back 'columns'; none reached this line.
+     What is still LIVE is the `else`: a fold whose arithmetic does NOT confirm is flagged rather
+     than guessed at, and `tests/inv-row-fix.test.js` pins that arm in both kg and litres.
+     ⚠️ DELETE THIS ALLOWANCE the day lineColumns narrows its tolerance, stops treating a leading
+     integer as a quantity candidate, or is bypassed for this row shape — the arm is a real
+     correction again the moment any of those moves, and the gate is what will say so. */
+  {
+    key: "invFixRow :: if(Math.round(Math.abs(k*P - T)*100) <= k){ row.unitPrice=row.unitPrice*k; }  // confirmed: P per carton, weight per k cartons :: relational <=>< #0",
+    reason: 'The confirmed arm is unreachable: every line whose k x P = T is priced by lineColumns first (k is a '
+      + 'valid quantity candidate there, and its tolerance 0.01*q+0.006 is looser than this one), so basis.kind is '
+      + "'columns' and invFixRow returns before this line. Measured over 66 exactly-confirming lines, k in 2..12 "
+      + 'across six real per-carton prices: none reached it. The else arm — refuse rather than guess — is live and '
+      + 'is pinned in kg and in litres.',
+  },
+
   /* 215 — gemPhrasingOk's fact-set loop bound. `j < allowed.length` -> `j <= allowed.length` adds one
      iteration that reads `allowed[allowed.length]`, which is `undefined` for every input this
      function can receive: `allowed` is built immediately above by pushing only values for which
@@ -951,7 +1062,13 @@ const allowedSurvivors = [
      what produces equivalent mutants on the outer layer. Each was still proved by ENUMERATION over
      the inputs where the two operators actually disagree, because the pattern is not the proof. */
   {
-    key: "resolveMatchedPrice :: if(product && product.pack_qty>0 && product.pack_unit){        // 1) the product's taught pack wins :: relational >>>= #0",
+    /* ⚠️ THE KEY MOVED IN BATCH 256 AND THE REASONING DID NOT. The guard gained a `!credit &&`
+       clause (a credit note is not a purchase, whatever pack the user taught), which rewrites the
+       line and therefore the mutant's key — so the gate correctly reported the old one STALE. The
+       `>` -> `>=` mutant is the same mutant on the same subexpression and the enumeration below
+       still holds. The NEW clause is not allowed here and does not need to be: its own mutants are
+       killed by tests/parser-credit.test.js. */
+    key: "resolveMatchedPrice :: if(!credit && product && product.pack_qty>0 && product.pack_unit){        // 1) the product's taught pack wins :: relational >>>= #0",
     reason: 'pack_qty>0 -> pack_qty>=0 admits the values that coerce to zero — 0, -0, "", "0", null, false, '
       + 'an empty array — and derivePackPrice refuses every one of them on its own first line '
       + '(`var qty=parseFloat(packQty); if(!(qty>0)) return null`), so `if(d)` is false and no source is '
@@ -962,7 +1079,8 @@ const allowedSurvivors = [
       + 'looks for it, one line above the arithmetic, rather than in a callee.',
   },
   {
-    key: 'resolveMatchedPrice :: if(!chosen && mem && parseFloat(mem.qty)>0){                    // 2) then supplier memory for this phrase :: relational >>>= #0',
+    // Key re-anchored in batch 256 for the same reason as the entry above: the line gained `!credit &&`.
+    key: 'resolveMatchedPrice :: if(!credit && !chosen && mem && parseFloat(mem.qty)>0){         // 2) then supplier memory for this phrase :: relational >>>= #0',
     reason: 'parseFloat yields a number or NaN, and NaN is false under both operators, so the two differ '
       + 'only where mem.qty parses to 0 or -0. For those the mutant enters the memory block and the '
       + 'INNER `q>0` two lines down — the same expression again — turns it straight back, leaving '

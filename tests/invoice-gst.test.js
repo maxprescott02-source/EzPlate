@@ -97,6 +97,19 @@ test('invGstDetect still routes an unclear invoice through the Settings default'
   assert.equal(invGstDetect('All prices ex GST').mode, 'ex');
 });
 
+test('D8 (PARSER-AUDIT): "GST (included)" is inclusive, brackets and all', () => {
+  /* A Square invoice prints the tax basis as "GST (included)". The detector matched `gst\s*incl`
+     and the bracket sat in between, so the whole document was read as EX-GST and every price on it
+     stored 10% high — silently, because a plausible price is exactly what a 10% error looks like.
+     Measured on the synthetic Square layout: 4 of 4 lines wrong before, 4 of 4 right after. */
+  setInvState({ gstDefault: 'ex' });   // the default must not be what answers here
+  assert.equal(invGstDetect('Subtotal $285.86  GST (included) $31.44  Total $317.30').mode, 'inc');
+  assert.equal(invGstDetect('GST (incl.) $12.00').mode, 'inc');
+  assert.equal(invGstDetect('GST (inclusive) $12.00').mode, 'inc');
+  // and the bracket must not turn the OPPOSITE statement inclusive
+  assert.equal(invGstDetect('GST (excluded) $31.44').mode, 'ex', 'excl still reads as exclusive');
+});
+
 test('0c: an invoice that says NOTHING follows the Settings default — in BOTH directions', () => {
   /* The surviving mutant was `return (gstDefault==='inc')` flipped to `!==`, and it survived because
      this file only ever exercised invoices that STATE their tax basis. The fallback is the whole

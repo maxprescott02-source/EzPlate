@@ -25,7 +25,7 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
-const { parsePdfLine, invFixRow } = require('./_extract.js');
+const { parsePdfLine, invFixRow, invPackWeight } = require('./_extract.js');
 
 const parse = (line) => invFixRow(parsePdfLine(line));
 
@@ -108,7 +108,12 @@ test('12b: a trailing net-weight column is RE-BASED onto the pack, not divided b
   // says 6 x 1kg and two cartons were bought, so the truth is $10.00/kg — and BOTH corrections
   // have to run, in order, to get there: re-base 0.42 -> 5.00, then undo the fold 5.00 -> 10.00.
   const l = '2 CTN Beef Mince 6 x 1kg 60.00 60.00 120.00 12.0kg';
-  assertClose(parsePdfLine(l).unitPrice, 0.4167, 'precondition: the parser alone is an order of magnitude out');
+  /* PARSER-AUDIT: the parser now reads the pack off the NAME with the purchased quantity removed
+     (lineColumns found 2 x 60.00 = 120.00), so it is right on its own and invFixRow has nothing to
+     do. The outcome is what is pinned; the old precondition (parser alone at $0.42) is gone. */
+  const bare = parsePdfLine(l);
+  assertClose(bare.unitPrice, 10, 'the parser prices off the pack in the name');
+  assert.equal(bare.basis.kind, 'columns', 'and it knows which column was the quantity');
   const r = parse(l);
   assertClose(r.unitPrice, 10, 'the pack\'s own weight prices the row');
   assert.equal(r.needManual, false);
@@ -118,7 +123,7 @@ test('12b alone: a trailing weight with no leading quantity is still re-based', 
   // No "k CTN" prefix, so only the basis correction applies: 6 x 1kg = 6kg for $60 = $10/kg,
   // where the trailing "6.0kg" had made it 36kg and $1.67.
   const l = 'Beef Mince 6 x 1kg 60.00 60.00 60.00 6.0kg';
-  assertClose(parsePdfLine(l).unitPrice, 1.6667, 'precondition: wrong before');
+  assert.equal(parsePdfLine(l).basis.kind, 'pair', 'no quantity on the line: the repeated-pair rule priced it');
   const r = parse(l);
   assertClose(r.unitPrice, 10, 'right after');
   assert.equal(r.needManual, false);
@@ -135,11 +140,10 @@ test('a weight that exists ONLY outside the name is FLAGGED — the pack size is
   // trailing column and there is nothing to re-base onto. Guessing a pack size is the defect;
   // the row asks instead. (Before 12b this passed through silently at $2.50/kg.)
   const l = '2 CTN Beef Mince 60.00 60.00 120.00 12.0kg';
-  const bare = parsePdfLine(l);
-  assert.equal(bare.unit, 'kg', 'precondition: the parser did derive a weight price here');
   const r = parse(l);
   assert.equal(r.needManual, true, 'flagged for a human');
-  assert.equal(r.unitPrice, bare.unitPrice, 'and its price is left as parsed, not invented');
+  assert.equal(r.unitPrice, null, 'and no price is invented from a column that is not the pack');
+  assert.equal(r.unit, 'auto', 'no pack, no unit');
 });
 
 test('a DIFFERENT weight category is flagged, and never silently switches the unit', () => {
@@ -147,11 +151,13 @@ test('a DIFFERENT weight category is flagged, and never silently switches the un
   // token. Correcting the number while leaving the unit would be an ml->g style basis flip, which
   // CLAUDE.md records as impossible to notice on any screen — so this one goes to a human.
   const l = 'Sauce 6 x 500ml 30.00 30.00 60.00 3.0kg';
-  const bare = parsePdfLine(l);
+  /* PARSER-AUDIT: the trailing 3.0kg is a delivered-weight column, not pack description, and the
+     parser no longer reads it: 6 x 500ml for $30 is $10/L. The invariant that survives is the
+     unit - it must be the NAME's category, never the column's. */
   const r = parse(l);
-  assert.equal(r.needManual, true, 'flagged');
-  assert.equal(r.unit, bare.unit, 'the unit is NOT rewritten');
-  assert.equal(r.unitPrice, bare.unitPrice, 'and neither is the price');
+  assert.equal(r.unit, 'l', 'the unit is the pack\'s category, never the trailing column\'s');
+  assertClose(r.unitPrice, 10, '$30 over 3L');
+  assert.equal(r.needManual, false);
 });
 
 test('the ^ anchor is load-bearing: a mid-line "k CTN" must never trigger a rebase', () => {
@@ -194,7 +200,9 @@ test('a single-amount line already divides the total by the full weight — unto
 });
 
 test('a mid-line quantity never matches — only a line-leading "k <container>" is the shape', () => {
-  const r = parse('Beef Mince 2 x 6 x 1kg 60.00 60.00 120.00');
+  /* PARSER-AUDIT: with a 120.00 total the leading 2 IS the purchased quantity (2 x 60 = 120) and the
+     old fixture contradicted itself; at 60.00 the 2 is composition and the parser's reading stands. */
+  const r = parse('Beef Mince 2 x 6 x 1kg 60.00 60.00 60.00');
   // 2 is pack composition here (2×6×1kg = 12kg per the pack notation), not a purchased qty:
   // the parser's own answer stands, whatever it is, and the rebase must not touch it.
   assertClose(r.unitPrice, 5, 'composition factors are the parser’s call');
@@ -237,4 +245,47 @@ test('rows the parser already flagged are not touched', () => {
   const flagged = { unitPrice: 5, unit: 'kg', needManual: true, raw: '2 CTN Beef Mince 6 x 1kg 60.00 60.00 120.00', name: '2 CTN Beef Mince 6 x 1kg' };
   const r = invFixRow({ ...flagged });
   assert.equal(r.unitPrice, 5, 'a needManual row is the reviewer’s, not the rebase’s');
+});
+
+/* ---------- PARSER-AUDIT (batch 256): what is left of this function, and why ---------- */
+/*
+ * ⚠️ BRANCH A — the trailing-net-weight re-base that item 12b added — IS GONE, and these three
+ * tests are what the deletion rests on. It compared "the weight that priced the row" against "the
+ * weight the pack's NAME describes", and `parsePdfLine` now reads the pack off the name, so the two
+ * are the same call on the same string and the comparison can never disagree with itself.
+ * The identity is asserted below rather than assumed: if a future change makes the parser read a
+ * weight off the raw line again, THAT is what goes red here, and it goes red loudly enough to send
+ * the reader to this comment before they wonder where the correction went.
+ *
+ * What survives is 236's fold-undo, which corrects a different thing, and whose live arm is the
+ * REFUSAL: a leading "2 CTN" folded into the pack weight, on a line whose arithmetic does not
+ * confirm the reading, is flagged rather than guessed at.
+ */
+
+test('PARSER-AUDIT: the two weights invFixRow used to compare are the SAME call on the SAME string', () => {
+  // This is the identity that makes branch A dead. It is one assertion and it is load-bearing.
+  const row = parsePdfLine('Beef Mince 6 x 1kg 60.00 60.00 60.00 6.0kg');
+  assert.equal(row.basis.kind, 'pair', 'the fallback path — the only one that still reaches the tail');
+  assert.deepEqual(row.basis.weight, invPackWeight(row),
+    'the weight that PRICED the row and the weight the NAME describes are one value; branch A compared it with itself');
+  assert.ok(!/6\.0kg/.test(row.name), 'because the name stops at the first money, so the trailing column is not in it');
+});
+
+test('PARSER-AUDIT: a LITRE row still reaches the fold check — the unit guard names two units', () => {
+  /* 12 x 1L in 2 cartons is 24L, and $45 against a $95 total does not confirm 2 x 45. The row is
+     refused. If the entry guard stopped naming 'l', this row would sail past unflagged, and a
+     folded litre pack is exactly as silent as a folded kilogram one. */
+  const r = parse('2 CTN Oil Canola Spray 12 x 1L 45.00 45.00 95.00');
+  assert.equal(r.unit, 'l');
+  assert.equal(r.needManual, true, 'the arithmetic does not confirm the carton reading, so it asks');
+});
+
+test('PARSER-AUDIT: a line stating its own rate is still exempt, and the exemption still matters', () => {
+  /* The guard was added for branch A, which is now gone — so it needs its own reason to exist, and
+     it has one: without it this row reaches the fold check ("2 CTN", 2 folded, three amounts, a
+     repeated pair, and 2 x 60 nowhere near 95) and is flagged for review it does not need. The
+     price is stated on the line; there is no pack-weight basis to correct or to doubt. */
+  const r = parse('2 CTN Pork Belly 6 x 1kg $14.90/kg 60.00 60.00 95.00');
+  assertClose(r.unitPrice, 14.90, 'the rate the line states');
+  assert.equal(r.needManual, false, 'and no manual review manufactured by a correction that does not apply');
 });
