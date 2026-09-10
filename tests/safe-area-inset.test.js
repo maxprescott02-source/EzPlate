@@ -103,27 +103,74 @@ test('the check can fail — the defective expression is rejected', () => {
  * field by panning the VISUAL viewport rather than scrolling the document, no
  * `scroll` either. Both listeners existed and neither could fire.
  *
- * ⚠️ THIS IS A SOURCE ASSERTION FOR THE SAME REASON AS THE ONES ABOVE, and the
- * reason is worth repeating rather than cross-referencing: no browser this
- * project can automate has a soft keyboard, so the CAUSE cannot be reproduced in
- * any harness here. What is checkable is that the app subscribes to the only API
- * that reports it. Whether it actually fixes his screen is on the phone list.
+ * ⚠️ THE CAUSE IS UNTESTABLE HERE AND THE WIRING IS NOT, AND THE FIRST DRAFT OF
+ * THIS FILE TREATED THEM AS ONE. No browser this project can automate has a soft
+ * keyboard, so iOS panning the visual viewport cannot be reproduced — but the
+ * subscription is just a function that registers listeners, and a fake window
+ * with a recording addEventListener runs it and proves each handler reaches
+ * `reanchorOpenLayers`. A regex proves only that a string sits in a file.
+ * Whether it fixes his screen is still on the phone list.
  * ------------------------------------------------------------------------- */
 const APP = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
 const APP_CODE = APP.replace(/\/\*[\s\S]*?\*\//g, '');
 
-test('⚠️ open layers re-anchor on visualViewport, not just on resize and scroll', () => {
-  const block = /window\.addEventListener\('resize',reanchorOpenLayers\)[\s\S]{0,900}?\}\)\(\);/.exec(APP_CODE);
+/* ⚠️ THIS RUNS THE SUBSCRIPTION RATHER THAN GREPPING IT, AND THE FIRST DRAFT ONLY GREPPED IT.
+   The pre-push review made the distinction that matters: the CAUSE (iOS panning the visual viewport
+   for a keyboard) genuinely cannot be reproduced in any browser this project can automate — but the
+   WIRING can. A fake window with a recording `addEventListener` proves the handler is registered AND
+   that invoking it reaches `reanchorOpenLayers`; a regex only ever proves a string is in a file.
+   The file said "no soft keyboard, so this must be a source assertion", which conflated the two, and
+   only the first half was true. Roster 167/172/195 is exactly that conflation. */
+function runSubscription() {
+  const block = /\(function\(\)\{\s*window\.addEventListener\('resize',reanchorOpenLayers\)[\s\S]*?\}\)\(\);/.exec(APP_CODE);
   assert.ok(block, 'the re-anchor subscription block must still be findable — if it moved, update this test');
-  const src = block[0];
+  const calls = [];
+  const win = {
+    addEventListener: (type, fn, capture) => calls.push({ on: 'window', type, fn, capture: !!capture }),
+    visualViewport: {
+      addEventListener: (type, fn) => calls.push({ on: 'visualViewport', type, fn })
+    }
+  };
+  let ran = 0;
+  // eslint-disable-next-line no-new-func
+  new Function('window', 'reanchorOpenLayers', block[0])(win, () => { ran++; });
+  return { calls, ran: () => ran };
+}
 
-  assert.match(src, /window\.addEventListener\('scroll',reanchorOpenLayers,true\)/,
-    'the capture-phase scroll listener catches a scrolling modal body');
-  assert.match(src, /visualViewport/,
-    'the ONLY event source an iOS keyboard produces — without it a layer anchored at open time never '
-    + 'follows the field the keyboard pushed away from under it');
-  assert.match(src, /vv\.addEventListener\('resize',reanchorOpenLayers\)/);
-  assert.match(src, /vv\.addEventListener\('scroll',reanchorOpenLayers\)/);
+test('⚠️ open layers re-anchor on visualViewport, not just on resize and scroll', () => {
+  const { calls } = runSubscription();
+  const on = (o, t) => calls.find((c) => c.on === o && c.type === t);
+
+  assert.ok(on('window', 'resize'), 'a desktop window resize');
+  const sc = on('window', 'scroll');
+  assert.ok(sc && sc.capture === true, 'capture-phase, so a scrolling modal body is caught too');
+
+  assert.ok(on('visualViewport', 'resize'),
+    'the ONLY event source an iOS keyboard produces — window.innerHeight does not shrink for it');
+  assert.ok(on('visualViewport', 'scroll'),
+    'and the pan iOS uses to reveal a focused field, which fires no window scroll at all');
+});
+
+test('⚠️ every registered handler actually reaches reanchorOpenLayers', () => {
+  /* The half a regex cannot see. A subscription that registers four listeners pointing at the wrong
+     function, or at a stale copy, matches the same source text and is completely broken. */
+  const { calls, ran } = runSubscription();
+  assert.equal(calls.length, 4, 'four subscriptions: window resize + scroll, visualViewport resize + scroll');
+  calls.forEach((c) => c.fn());
+  assert.equal(ran(), 4, 'each one re-anchors');
+});
+
+test('the subscription survives a browser with no visualViewport, and registers the other two', () => {
+  /* jsdom and older Safari have none. A bare subscription would throw at boot and take the rest of
+     the file's top-level initialisation with it. */
+  const block = /\(function\(\)\{\s*window\.addEventListener\('resize',reanchorOpenLayers\)[\s\S]*?\}\)\(\);/.exec(APP_CODE);
+  const calls = [];
+  const win = { addEventListener: (type, fn) => calls.push(type) };   // no visualViewport at all
+  assert.doesNotThrow(() => {
+    // eslint-disable-next-line no-new-func
+    new Function('window', 'reanchorOpenLayers', block[0])(win, () => {});
+  });
+  assert.deepEqual(calls, ['resize', 'scroll'], 'the two it can register, and no attempt at the others');
 });
 
 test('⚠️ it does not READ visualViewport.height, which is the part deliberately not done', () => {
@@ -136,9 +183,4 @@ test('⚠️ it does not READ visualViewport.height, which is the part deliberat
     'if you are adding this deliberately, delete the assertion and say why in docs/PHONE.md');
 });
 
-test('the visualViewport subscription is guarded for browsers without it', () => {
-  const block = /var vv=[\s\S]{0,400}?\}\)\(\);/.exec(APP_CODE);
-  assert.ok(block, 'the guard must be findable');
-  assert.match(block[0], /if\(vv && typeof vv\.addEventListener==='function'\)/,
-    'jsdom and older Safari have no visualViewport; a bare subscription would throw at boot');
-});
+

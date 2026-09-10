@@ -16,9 +16,14 @@
  * THE DISCRIMINATOR IS THE NAME, NOT THE STRUCTURE. If every real word in the name is a charge word,
  * no amount of quantity makes it a thing you cook with.
  *
- * ⚠️ THE RULE ONLY EVER NARROWS A LINE `INV_EXCLUDE` ALREADY MATCHED, which is what makes it cheap
- * to be wrong about. An ordinary product line returns 'ok' before reaching it. The worst case is a
- * MISSING review row — visible, and reportable — rather than a wrong price, which is not.
+ * ⚠️ THE RULE ONLY EVER NARROWS A LINE `INV_EXCLUDE` ALREADY MATCHED. An ordinary product line
+ * returns 'ok' before reaching it.
+ * ⚠️ AND THE SENTENCE THAT USED TO FOLLOW THAT ONE WAS FALSE, WHICH IS WHY THE RULE IS AS TIGHT AS
+ * IT IS. It said the worst case is "a MISSING review row — visible, and reportable — rather than a
+ * wrong price, which is not". The pre-push review went and looked: **nothing reconciles the
+ * invoice's line count against the rows built from it**, so a dropped line leaves no trace on any
+ * screen. The summary counts what SURVIVED. That sentence was the argument for allowing a loose
+ * rule, and it was wrong about the consequence it was weighing.
  */
 const test = require('node:test');
 const assert = require('node:assert');
@@ -31,13 +36,41 @@ test('the real fuel levy, verbatim from a real invoice, is not a product', () =>
     'this is the row Max dismissed on every import');
 });
 
-test('the other charges that wear a quantity go too', () => {
+test('the other charges on a real columnar line go too', () => {
+  /* `name` is sliced at the FIRST money, so on a real invoice line — which has an Ordered column, a
+     Shipped column and several amounts — the name is the description alone. That is the shape these
+     assert. */
   assert.ok(dropped('FREIGHT 1.00 EA 12.00'));
-  assert.ok(dropped('DELIVERY CHARGE 1 EA 8.50'), 'a UNIT word in the name is evidence of neither');
-  assert.ok(dropped('MIN ORDER SURCHARGE 1 EA 15.00'));
+  assert.ok(dropped('S99 DELIVERY SURCHARGE 1.00 1.00 EA 1.00 $8.50 $0.00 $8.50'));
+  assert.ok(dropped('MIN ORDER CHARGE 1.00 1.00 EA 1.00 $15.00 $0.00 $15.00'));
 });
 
-test('⚠️ THE BOUNDARY: a charge word that INV_EXCLUDE does not know is still a row', () => {
+test('⚠️ THE SECOND BOUNDARY: a quantity that leaks into the NAME stops the rule, and that is the safe direction', () => {
+  /* On a line with only ONE money value the name runs past the quantity — "DELIVERY CHARGE 1 EA 8.50"
+     has the name "DELIVERY CHARGE 1 EA", and `EA` is not a charge word, so the rule declines.
+     ⚠️ THE FIRST CUT EXEMPTED UNIT WORDS TO CATCH EXACTLY THIS, AND THAT EXEMPTION WAS THE BUG.
+     `INV_QTY_UNIT` holds bag, box, carton, tray, roll — which a cafe buys as THINGS. With them
+     exempt, a name only had to pair one INV_EXCLUDE word with one of them to vanish: `DELIVERY BAG`
+     and `FREIGHT ROLL` were both dropped, silently. So the rule requires every word to be a charge
+     word, and the cost is that a charge on a single-money line stays a review row.
+     That is the right way round: an extra row to dismiss is an annoyance, and a missing product is a
+     price that never lands. */
+  assert.ok(!dropped('DELIVERY CHARGE 1 EA 8.50'), 'the quantity is inside the name here');
+  assert.ok(!dropped('MIN ORDER SURCHARGE 1 EA 15.00'));
+});
+
+test('⚠️ A CAFE BUYS BAGS, BOXES, TRAYS AND ROLLS — none of them may vanish', () => {
+  /* The regression the pre-push review found, and the reason the unit exemption is gone. Every one
+     of these is a real thing on a real foodservice invoice, and every one was dropped with NO trace
+     on any screen: nothing reconciles the invoice's line count against the rows built from it, so a
+     dropped line is not "a missing row you would notice" — it is silence. */
+  for (const line of ['DELIVERY BAG 1 EA 5.00', 'FREIGHT ROLL 1 EA 9.00',
+                      'DELIVERY TRAY 2 EA 12.00', 'BOX OF FREIGHT LABELS 1 EA 4.00']) {
+    assert.ok(!dropped(line), `${line} is a product, not a fee`);
+  }
+});
+
+test('THE FIRST BOUNDARY: a charge word that INV_EXCLUDE does not know is still a row', () => {
   /* This asserts a LIMIT rather than a feature, and it is here because the first draft of this file
      asserted the opposite and went red. `invLineClass` returns 'ok' before reaching the new rule
      unless INV_EXCLUDE matched, and INV_EXCLUDE has no `cartage` or `fee`. So the charge vocabulary

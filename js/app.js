@@ -11969,14 +11969,21 @@ var INV_CHARGE_WORD=/^(?:fuel|admin|administration|service|handling|cartage|frei
 function nameIsAllChargeWords(name){
   var toks=String(name||'').split(/[^A-Za-z]+/).filter(function(t){ return t.length>1; });   // drops codes like "S77" and bare initials
   if(!toks.length) return false;
-  var charge=0;
+  /* EVERY word, with no exemptions. The first cut treated a UNIT word as neutral — "a unit is
+     evidence of neither" — and that was wrong in the one direction this rule cannot afford.
+     ⚠️ PACKAGING NOUNS ARE UNITS *AND* PRODUCTS. `INV_QTY_UNIT` holds bag, box, carton, tray, roll;
+     a cafe buys all five as things. With them exempt, a name only had to pair one INV_EXCLUDE word
+     with one of them to vanish: measured, `DELIVERY BAG 1 EA 5.00` and `FREIGHT ROLL 1 EA 9.00` —
+     takeaway bags and cling film — were dropped where `main` sent them to review. Found by the
+     pre-push review.
+     ⚠️ AND THE EXEMPTION BOUGHT NOTHING, which is the part that makes removing it easy. `name` is
+     sliced at the FIRST money on the line, so the quantity columns are not in it: the real levy's
+     name is "S77 FUEL LEVY" and "DELIVERY CHARGE 1 EA 8.50" has the name "DELIVERY CHARGE". The
+     unit words the exemption was written for were never there. */
   for(var i=0;i<toks.length;i++){
-    var t=toks[i];
-    if(INV_CHARGE_WORD.test(t) || INV_EXCLUDE.test(t)){ charge++; continue; }
-    if(INV_QTY_UNIT.test(t)) continue;              // a UNIT word is evidence of neither: "DELIVERY CHARGE 1 EA" is still a charge
-    return false;                                  // any real word that is not a charge means a product
+    if(!(INV_CHARGE_WORD.test(toks[i]) || INV_EXCLUDE.test(toks[i]))) return false;
   }
-  return charge>0;                                 // and never drop a name made of nothing but units
+  return true;
 }
 function invLineClass(name, fullLine){
   if(!INV_EXCLUDE.test(name||'')) return 'ok';                    // no summary keyword -> normal item
@@ -11986,9 +11993,16 @@ function invLineClass(name, fullLine){
      The discriminator is not the STRUCTURE, it is the NAME: if every word in it is a charge word,
      no amount of quantity makes it a thing you cook with.
      ⚠️ This sits INSIDE the `INV_EXCLUDE` branch on purpose, so it can only ever narrow a line that
-     was already suspected. An ordinary product line never reaches it, which is what makes the rule
-     cheap to be wrong about: the worst case is a MISSING review row, which is visible, rather than a
-     wrong price, which is not. */
+     was already suspected. An ordinary product line never reaches it.
+     ⚠️ AND THE FIRST DRAFT OF THIS COMMENT SAID THE WORST CASE IS "a MISSING review row, which is
+     VISIBLE, rather than a wrong price, which is not" — AND THAT WAS FALSE. The pre-push review went
+     and looked: nothing reconciles the invoice's line count against the rows built from it, so a
+     dropped line leaves no trace on any screen. The summary counts ROWS ("2 matched, 1 needs your
+     eye"), which is a count of what survived. The only record is `invDbg`, behind a flag that is off.
+     That mattered, because the sentence was doing real work — it was the argument for allowing a
+     loose rule, and it was wrong about the consequence it was weighing. `CLAUDE.md` has a section
+     for exactly this shape: a comment whose observation is right and whose disposal of it is not.
+     So the rule is as tight as it can be instead: every word must be a charge word. */
   if(nameIsAllChargeWords(name)) return 'exclude';
   return hasProductStructure(fullLine||name) ? 'uncertain' : 'exclude';  // keyword + no product shape -> drop
 }
