@@ -12842,7 +12842,32 @@ function reanchorOpenLayers(){
   var pop=document.querySelector('.dash-menus-pop'), sb=document.getElementById('dashScopeBtn');
   if(pop && sb) anchorDrop(pop, sb, {matchWidth:false, align:'right'});
 }
-(function(){ window.addEventListener('resize',reanchorOpenLayers); window.addEventListener('scroll',reanchorOpenLayers,true); })();   // scroll capture=true catches the modal body scroll
+/* ⚠️ `visualViewport` IS A THIRD SOURCE OF MOVEMENT AND IT IS THE ONLY ONE A PHONE HAS.
+   (11 Sep 2026, Max, from the phone list's check 3: the ingredient list ends up sitting over the
+   text he has just typed into the field.)
+   `resize` and `scroll` cover a desktop window and a scrolling modal body. **Neither fires when an
+   iOS keyboard opens.** `window.innerHeight` does not shrink for the keyboard — `docs/PHONE.md` has
+   recorded that since batch 212 — so there is no `resize`; and when iOS reveals the focused field by
+   panning the VISUAL viewport rather than scrolling the document, there is no `scroll` either. The
+   field moves under the user and the `position:fixed` layer, anchored once at open time, does not
+   follow it.
+   ⚠️ RE-ANCHORING IS THE SAFE USE OF THIS API, AND READING ITS HEIGHT IS NOT — which is why this
+   does the first and still not the second. `docs/PHONE.md` declined to clamp the dropdown's height to
+   `visualViewport.height` blind, because that number also moves when the page is PINCH-ZOOMED and
+   guessing which of the two a phone is doing makes it worse. Re-anchoring needs no such guess: it
+   recomputes from the field's current rect and is correct whatever moved it.
+   ⚠️ AND IT IS UNVERIFIED HERE. No desktop browser has a soft keyboard, so this cannot be driven in
+   any harness this repo owns — the listeners and the recompute are tested, the CAUSE is not. It goes
+   back on the phone list as a re-check rather than being called fixed. */
+(function(){
+  window.addEventListener('resize',reanchorOpenLayers);
+  window.addEventListener('scroll',reanchorOpenLayers,true);   // scroll capture=true catches the modal body scroll
+  var vv=(typeof window!=='undefined') ? window.visualViewport : null;
+  if(vv && typeof vv.addEventListener==='function'){
+    vv.addEventListener('resize',reanchorOpenLayers);
+    vv.addEventListener('scroll',reanchorOpenLayers);
+  }
+})();
 function makeInlineCombo(inpId, dropId, listFn){
   var inp=document.getElementById(inpId), drop=document.getElementById(dropId); if(!inp||!drop) return;
   var state={value:inp.value.trim(), isNew:false, confirmed:!!inp.value.trim()}; niCombos[inpId]=state;
