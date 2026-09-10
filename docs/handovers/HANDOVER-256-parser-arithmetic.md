@@ -108,10 +108,12 @@ That is `CLAUDE.md`'s citation trap arriving in a patch rather than a comment: t
 The working set is MEANT to drain — the refill step exists to produce exactly that — so shipping item 17 took it from three to two and the guard fired with nothing wrong.
 The floor now counts items at all, which is what it meant.
 
-**The gate caught a second-order effect of a fix.**
-Adding `!credit &&` to two guards rewrote those lines, so the two written allowances keyed to them came back STALE.
+**The gate caught two second-order effects of the fix, and the second one mattered.**
+Adding `!credit &&` to two guards rewrote those lines, so the two written allowances keyed to them came back STALE; both were re-anchored rather than deleted, since the mutants and the enumerations behind them are unchanged.
 Nothing in the diff of `js/app.js` says "two allowances in another file just stopped matching".
-Both were re-anchored rather than deleted; the mutants and the enumerations behind them are unchanged.
+The second was a real survivor IN the fix: mutating `buildInvRows`' `basis:r.basis||null` makes `row.basis` always null, so the credit guard never fires and the defect comes straight back, **and all four new credit tests still passed** because every one of them hands the re-pricers a row straight out of `parsePdfLine`.
+Only a test that drives the ASSEMBLY can see an assembly defect, which is the reason `buildInvRows` is a target at all.
+A fifth case now runs the real chain end to end.
 
 **`packPriceOf` being three lines was the surprise that mattered most.**
 The audit filed it as a follow-up and the fix is one line, and without it the headline claim of this whole batch would have been true of the parser and false of the path that outranks it.

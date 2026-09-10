@@ -442,7 +442,14 @@ const targets = [
      twelve are killed in inv-chain.test.js §5, and TWO of them were reachable only after the
      harness stopped stubbing flagNeedsAttention as a no-op. A no-op stub of a real, pure function
      makes "delete the call" and "keep the call" the same program — see the note in tests/_extract.js. */
-  { fn: 'buildInvRows', tests: ['invoice-gst.test.js', 'inv-chain.test.js'] },
+  /* 256: parser-credit.test.js joins the list because it pins something the other two cannot see —
+     that buildInvRows CARRIES `basis` onto the row it builds. The parser's refusal of a credit line
+     lives in `basis.kind`, and the two re-pricers below read it; drop it here and the refusal is
+     discarded one line before anything can act on it, silently. The gate found exactly that: every
+     credit assertion in that file passed against the mutant, because they all hand the re-pricers a
+     row straight from parsePdfLine, which of course still has its basis. Only a test that drives the
+     ASSEMBLY can see an assembly defect — which is why buildInvRows is a target at all. */
+  { fn: 'buildInvRows', tests: ['invoice-gst.test.js', 'inv-chain.test.js', 'parser-credit.test.js'] },
   /* 0c (batch 203): `supplier-memory.test.js` ALONE, and the two files this line USED to name are
      the finding rather than an oversight — the same shape as costFromLines above, on a second
      function. `invoice-gst.test.js` and `pack-survives.test.js` were the declared tests while the

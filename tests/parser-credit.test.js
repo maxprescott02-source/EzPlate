@@ -128,3 +128,31 @@ test('⚠️ packPriceOf reads the SAME columns the parser does, or a taught pac
   assert.ok(Math.abs(pairRow.unitPrice - 10) < 0.001,
     `$60 over a taught 6kg pack on a line with no quantity column — got ${pairRow.unitPrice}`);
 });
+
+test('⚠️ END TO END through buildInvRows: a matched credit line reaches the screen unpriced', () => {
+  /* THE THREE TESTS ABOVE CALL THE RE-PRICERS DIRECTLY, AND THAT LEAVES A GAP THE MUTATION GATE
+     FOUND: `buildInvRows` has to CARRY `basis` onto the row it builds, or the refusal the parser
+     made is thrown away one line before anything can read it. Break that single `basis:r.basis||null`
+     and every assertion above still passes, because they hand `resolveMatchedPrice` a row straight
+     from `parsePdfLine` which of course still has its basis.
+     So this one drives the real chain the review screen drives — rank, match, resolve, GST, flag —
+     and asserts on what the user would actually be shown. */
+  const { setInvState, buildInvRows, getInvRows, pdfTextToRows } = require('./_extract');
+  setInvState({
+    invGst: { mode: 'ex', note: '' },
+    PRODUCTS: [{ id: 'CHIPS', description: 'Chips Straight Cut 10mm Gluten Free', brand: 'Garden',
+                 unit: 'kg', base_unit: 'kg', cost_per_base_unit: 2.40, pack_qty: 12, pack_unit: 'kg' }]
+  });
+  buildInvRows(pdfTextToRows([PURCHASE, CREDIT].join('\n')));
+  const rows = getInvRows();
+  assert.equal(rows.length, 2, 'both lines reach the screen');
+
+  const buy = rows[0], credit = rows[1];
+  assert.equal(buy.needManual, false, 'the purchase is priced');
+  assert.ok(Math.abs(buy.unitPrice - 2.4583) < 0.001, `the purchase off its taught pack — got ${buy.unitPrice}`);
+
+  assert.equal(credit.unitPrice, null, 'the credit arrives with NO price, through the whole chain');
+  assert.equal(credit.needManual, true, 'and asking, so it can never be pre-ticked');
+  assert.equal(credit.basis && credit.basis.kind, 'credit',
+    'the reason survives onto the row — this is the assertion that dies if buildInvRows drops basis');
+});

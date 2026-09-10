@@ -174,6 +174,16 @@ subexpression and the enumerations that justified them still hold. The NEW claus
 reader cannot see:** nothing in the diff of `js/app.js` says "two allowances in another file just
 stopped matching".
 
+### And the gate found a REAL survivor in the fix, which the four new credit tests could not
+
+`buildInvRows` carries `basis` onto the row it builds, and mutating that one `basis:r.basis||null`
+made `row.basis` always null — so the credit guard never fires and the whole finding-1 defect comes
+straight back. **Every credit assertion written for the fix still passed**, because all four hand
+`resolveMatchedPrice` a row straight out of `parsePdfLine`, which of course still has its basis.
+Only a test that drives the ASSEMBLY can see an assembly defect, which is the reason `buildInvRows`
+is a mutation target at all. A fifth case now runs the real chain end to end and asserts on what the
+screen would show; `parser-credit.test.js` joins that target's declared file list.
+
 **After the fixes: `npm test` 2167 pass / 0 fail; corpus 63 right / 2 silent-wrong / 0 unflagged
 leaks; `--products` pre-ticked-wrong 0; `node -c` clean; full mutation gate clean with every
 survivor carrying a written allowance.**
