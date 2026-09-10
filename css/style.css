@@ -138,9 +138,73 @@ html[data-theme="dark"]{
      #908D89 = 4.65 / 4.99 / 4.00, the symmetric correction to the light one.
    --danger light  mock #C63C33 = 4.44 on its own tint. #C0392F = 5.43 / 4.70 (v132's
      value, re-decided against the NEW mock rather than carried over silently).
-   Dark --danger/--warn/--good/--accent all pass as shipped; they are NOT overridden. */
-:root{ --text-3:#7D7060; --danger:#C0392F; }
-html[data-theme="dark"]{ --text-3:#908D89; }
+   Dark --danger/--warn/--good/--accent all pass as shipped; they are NOT overridden.
+
+   ⚠️ --text-3 MOVED AGAIN ON 10 SEP 2026, and the values above are the PREVIOUS ones kept
+   for their reasoning rather than as the live figures. Queue item 8, Max's answer: "nudge
+   the grey a shade". The two above clear 4.5 on white and on --surface-2 and were never
+   measured against a TINT — and a tinted row (--danger-bg / --warn-bg on a flagged invoice
+   line) is darker than either, so the same token fell to 4.17 light / 4.32 dark exactly
+   where it matters most: the copy that explains why a row needs attention.
+     light #7D7060 -> #766A5B   dark #908D89 -> #96938F
+   Solved against EVERY surface this token is painted on — white, --surface-2, --danger-bg
+   and --warn-bg — so the binding constraint is whichever is worst per theme:
+     light  5.2724 / 4.9308 / 4.5627 / 4.7886   (worst: --danger-bg)
+     dark   5.0243 / 5.3888 / 4.6642 / 4.5286   (worst: --warn-bg)
+   ⚠️ FOUR DECIMAL PLACES, AND THAT IS NOT PEDANTRY — IT IS THE WHOLE STORY OF THIS VALUE.
+   The light token was first set to #776B5C, whose worst surface measures 4.4961. It was
+   REPORTED as 4.50 because the probe printed `toFixed(2)`, which rounds 4.4961 UP to the
+   floor it was supposed to be clearing. The token never cleared it; the display did.
+   `tests/visual/200-pack-unit.spec.js` caught it on the first run after its floor was
+   raised — measuring the real element rather than the palette, which is exactly what that
+   spec's own comment says it exists to do, and it was right about a value written by the
+   person who had just read the comment.
+   **Do not quote a contrast figure at 2dp when the decision is whether it clears a bound.**
+   #766A5B is the next step down and clears by 0.06 rather than by a rounding error.
+   ⚠️ The hover limit above SURVIVES and is unchanged in kind: do not darken further to
+   chase the transient wash, for the reason already given. */
+:root{ --text-3:#766A5B; --danger:#C0392F; }
+html[data-theme="dark"]{ --text-3:#96938F; }
+
+/* ---- The two CONTROL BOUNDARIES, queue item 8, Max 10 Sep 2026. WCAG 1.4.11 asks 3:1 for
+   the visual boundary of a control, and these were the app's two failures.
+
+   --sw-edge  THE OFF SWITCH. Measured 1.36: a cream track (--border-2 #E3DCCF) on a white
+     card, with a WHITE knob on it, so the only thing telling the two apart was a drop
+     shadow. His answer was "outline track and knob" over "darken the whole track": the
+     switch keeps its soft fill and only the edges gain definition, where a solid mid-grey
+     pill would be heavier and would read a little like the switch is doing something when
+     it is off. #98938B measures 3.05 on --surface.
+     ⚠️ LIGHT ONLY. Dark was fixed in v136 (the --knob pair above) and measures 7.87, so it
+     is deliberately left alone — adding an edge there would be a change with no defect
+     behind it. The token is `transparent` in dark rather than absent, so the rule below
+     needs no theme selector of its own.
+
+   --danger-ctl-br  THE DESTRUCTIVE BUTTON. His answer was to RAISE it, over leaving it —
+     and this is the option that COSTS something, which is why the cost is written here
+     rather than in a commit message: at 3:1 the border is #A3908E, which is no longer PINK.
+     It goes grey-brown, so the button loses the colour that says "dangerous" at a glance in
+     exchange for an edge nobody was struggling to see. He was told that in those words and
+     chose it. The button's own red LABEL is unaffected and still measures 5.43.
+     Light #A3908E = 3.03 on --surface. Dark #806A65 = 3.05 on #232528.
+     ⚠️ The dark value was GUESSED at #7A6560 first and MEASURED at 2.82 — under the floor this
+     whole change exists to clear. It was solved against the real surface in a real browser, which
+     is this block's own standing instruction ("contrast here is computed, never quoted") and the
+     reason the instruction is worth obeying even when you are the one writing the fix.
+   ⚠️ IT IS A NEW TOKEN RATHER THAN A CHANGE TO --danger-br, AND THAT IS THE WHOLE CARE IN
+     THIS CHANGE. --danger-br is read by three TINTED MESSAGE BOXES (.bld-warn.bv-red,
+     .envbadge, .acct-err) and --danger-border by the offline .sync-banner. None of those is
+     a CONTROL, 1.4.11 does not reach them, and a grey-brown hairline round a pale pink
+     message box is a worse-looking thing than the problem being fixed. So the boundary that
+     had to move got a token named for what it is.
+   ⚠️ AND IT IS APPLIED TO BOTH DESTRUCTIVE BUTTONS, WHICH IS THE ITEM'S OWN REQUIREMENT:
+     "decide ONCE for every bordered control … and if yes do it in the TOKEN, not per
+     control — a per-control fix is how two became a pattern nobody can see." The decision
+     measured `.mnu-del` ("Delete this menu"). `.btn.danger` is the second one and was
+     WORSE: it bordered itself with --bad-bg, the tint, which is fainter still. Fixing only
+     the one that was measured would have been the exact mistake that sentence forbids. */
+:root{ --sw-edge:#98938B; --danger-ctl-br:#A3908E; }
+html[data-theme="dark"]{ --sw-edge:transparent; --danger-ctl-br:#806A65; }
 
 /* ---- Ink ON a filled control. NOT in the mock, and that is a defect in the mock rather
    than a gap: it hardcodes `color:#FFFFFF` on its accent-filled and danger-filled buttons
@@ -2613,7 +2677,7 @@ svg .ax{font-size:11px;fill:var(--text2);paint-order:stroke;stroke:var(--surface
 .tp-dot{stroke-width:22px;touch-action:manipulation}
 /* item 1: dark-mode fixes for hardcoded colours introduced in v22/v23 */
 /* v39: tobuilder colour removed here too — .mi-btn.tobuilder (near .an-empty) is now the single quiet rule for both themes */
-.btn.danger{color:var(--bad);border-color:var(--bad-bg)}
+.btn.danger{color:var(--bad);border-color:var(--danger-ctl-br)}   /* item 8: bordered itself with the TINT, which is fainter than .mnu-del's 1.40 was */
 .btn.danger:hover{background:var(--bad);color:var(--on-bad);border-color:var(--bad)}
 /* item 6 UI: the before/after preview — the user sees exactly what will be written */
 .pt-preview{font-size:var(--fs-xs);font-weight:600;color:var(--accent-ink);margin-top:4px;min-height:1em;font-variant-numeric:tabular-nums}
@@ -3104,9 +3168,12 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    specificity (single class in and out of the media query). */
 .switch{position:relative;display:inline-flex;align-items:center;flex:0 0 auto;min-height:44px;cursor:pointer}
 .switch input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
-.switch-track{position:relative;display:block;width:38px;height:22px;border-radius:var(--radius-pill);background:var(--border2);transition:background var(--t-med) var(--ease)}
-.switch-track::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:var(--knob);box-shadow:0 1px 2px var(--knob-cast);transition:transform var(--t-med) var(--ease),background var(--t-med) var(--ease)}
-.switch input:checked + .switch-track{background:var(--accent)}
+/* item 8: the 1px edges are what make an OFF switch visible in light — see --sw-edge.
+   `*{box-sizing:border-box}` is global, so both keep their outer size and the checked
+   translateX below is unaffected; the knob's visible fill shrinks by 2px, not the control. */
+.switch-track{position:relative;display:block;width:38px;height:22px;border-radius:var(--radius-pill);background:var(--border2);border:1px solid var(--sw-edge);transition:background var(--t-med) var(--ease)}
+.switch-track::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:var(--knob);border:1px solid var(--sw-edge);box-shadow:0 1px 2px var(--knob-cast);transition:transform var(--t-med) var(--ease),background var(--t-med) var(--ease)}
+.switch input:checked + .switch-track{background:var(--accent);border-color:transparent}   /* ON was never the defect: --accent IS the boundary */
 /* the knob becomes ink ON the accent track, which is what keeps it legible in dark, where
    --accent is light and a light knob would vanish into it (1.98:1) */
 .switch input:checked + .switch-track::after{transform:translateX(16px);background:var(--on-accent)}
@@ -3371,7 +3438,12 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    button reads as flashing solid red on press. Where hover isn't a real pointer state, neutralise the
    danger hover fill back to the resting outline. Resting styling and desktop (real-hover) fill unchanged. */
 @media (hover:none){
-  .btn.danger:hover{background:transparent;color:var(--bad);border-color:var(--bad-bg)}
+  /* ⚠️ item 8: this restores the RESTING border, so it has to name the resting token. It said
+     --bad-bg, which WAS the resting value — so leaving it would have silently reverted the new
+     3:1 boundary on every touch device the moment the button was tapped, on the one screen size
+     that matters most here. The rule is a reset; a reset that hardcodes what it is resetting TO
+     stops being one the day that value moves. */
+  .btn.danger:hover{background:transparent;color:var(--bad);border-color:var(--danger-ctl-br)}
 }
 /* item 6: the always-visible × clear affordance reaches the two modal SEARCH boxes that lacked it —
    the ingredient modal's product-link search (Max's report) and the "add existing dish" picker. Both
@@ -4761,7 +4833,7 @@ html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 80px)}
 .mnu-del{
   display:inline-flex;align-items:center;margin:var(--sp-2) var(--sp-5) var(--sp-6);
   font:inherit;font-size:13px;font-weight:500;min-height:44px;padding:8px 12px;cursor:pointer;
-  border:1px solid var(--danger-border);border-radius:var(--radius-ctl);
+  border:1px solid var(--danger-ctl-br);border-radius:var(--radius-ctl);   /* item 8: 3.03, not 1.40 */
   background:var(--surface);color:var(--bad);
 }
 @media (hover:hover) and (pointer:fine){ .mnu-del:hover{background:var(--bad-bg)} }
