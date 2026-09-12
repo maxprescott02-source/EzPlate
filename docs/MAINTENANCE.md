@@ -1247,3 +1247,21 @@ Batch 251 added it (as `teamWriteLanded`) after a blocked DELETE on `business_in
 It deletes by `(recorded_at, menu_id)` and `price_history`'s index on those columns is **not unique**, so the key is a convention rather than a constraint.
 Measured on production 12 Sep 2026: **zero** pairs occur twice, and `mergeSeries` collapses same-millisecond rows into one point before the user sees them - so removing both is what the screen offered, and the behaviour is right today.
 **The entry exists because the guarantee is external to the database.** If a future batch adds a second writer to that table, or relaxes `mergeSeries`, this delete starts removing more than the confirm named, silently. A unique constraint would make it a fact rather than an observation; adding one is a migration and needs the existing rows checked first, which is why it is not done on sight.
+
+## C — from batch 261 (12 Sep 2026)
+
+### The pack division has four copies; they are measured identical and a test now says so
+
+**Not a defect today, and the entry exists so the next reader does not re-derive the measurement.**
+`derivePackPrice`, `applySupplierMemory`, `resolveMatchedPrice`'s branch 2 and `packToUnitCost` each carry "pack price + pack size -> unit price".
+`tests/pack-arithmetic.test.js` runs all four over 8 line shapes x 8 pack shapes and asserts they agree: **48 answers, 16 mutual refusals, 0 disagreements**, proved to go red by diverging one copy's gram factor.
+
+**Extracting the shared core is the tidy-up.** It was deliberately not done in 261: it touches four shipped functions on the money path **and about fourteen test sandboxes** that extract one of them and would throw `ReferenceError` without the new dependency — a large diff for zero behaviour change. The standing test already buys what the merge would buy, which is that they cannot drift apart unnoticed.
+
+**Two things the merge must decide rather than absorb, both pinned in that test:**
+- **`packToUnitCost` labels a count `unit` where the other three say `ea`.** Same number. Both spellings are deliberate — the product form and the catalogue preview say "per unit", the invoice path says "ea" — so the shared core should return the number and leave each caller its own vocabulary.
+- **`packToUnitCost` guards with `isNaN(price)` where the others use `isFinite`**, so it alone accepts an infinite price, and it compares `unit==='kg'` **without lowercasing**, so an uppercase stored unit would take the count branch. **Neither is reachable** (measured: `catNum` strips the exponent, Chromium sanitises `1e400` to `''`, and all 23 non-null `pack_unit` rows on production are lowercase) — but a merge picks one guard, and picking the stricter one is a real change in an unreachable case that should be stated rather than slipped in.
+**The casing one is a 1000x error in `cost_per_base_unit`** if it is ever reached: an uppercase unit misses every branch and lands on the count branch, so a kilogram price is stored as a per-unit price.
+⚠️ **This paragraph claimed BOTH were "pinned in that test" when only the Infinity one was** — the casing divergence was prose, in both this file and the consolidated queue. Caught by batch 261's pre-push review, which read the test instead of the claim; the second pin was added in the same batch, so the sentence is now true. **It is left written out because a comment asserting coverage a test does not have is this repo's most-recorded defect, and it was committed here by the batch whose entire subject was measuring rather than asserting.**
+
+**Ride it with whichever batch next opens that region for another reason**, per this file's rule.

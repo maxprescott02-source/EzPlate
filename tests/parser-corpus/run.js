@@ -14,7 +14,15 @@
  *
  *   node tests/parser-corpus/run.js [--cases DIR ...]        # defaults to ./fixtures
  *                                  [--products tests/fixtures/base-products.json] [--json out.json]
- *                                  [--verbose] [--csv]
+ *                                  [--verbose]
+ *
+ * ⚠️ THIS HEADER ADVERTISED A `--csv` FLAG THAT HAS NEVER EXISTED. The argv loop below has four
+ * cases and an else that treats anything unrecognised as a CASE DIRECTORY, so `--csv` did not warn
+ * or fall back — it crashed with ENOENT trying to scandir '--csv'. Found by batch 261's pre-push
+ * review, after 261's own docs repeated the claim as an instruction to a future reader.
+ * The verification that missed it is worth naming: a grep for `--[a-z]*` over this file matched the
+ * flag IN THIS COMMENT, which is `CLAUDE.md` roster 183(a) — a grep over source searches PROSE as
+ * well as CODE — biting inside the check run to avoid exactly that. Read the parser, not the header.
  *
  * A case is  NAME.txt  +  NAME.truth.json  side by side in the cases directory.
  *   NAME.txt        the text the app would see. For a PDF that is what extractPdfText() yields

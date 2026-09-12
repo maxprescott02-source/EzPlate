@@ -75,10 +75,25 @@ test('252: every item in QUEUE.md is routed in QUEUE-GROUPS.md', () => {
      yields items at all (the thing that would make the real assertion below vacuous), and the >=16
      filter is scope, which is allowed to be empty. A group whose items have all shipped is the
      success case, not a failure. */
+  /* ⚠️ AND WHAT IT ACTUALLY ENFORCES IS NOT WHAT THE PARAGRAPH ABOVE SAYS, which is worth writing
+     down rather than renumbering. The comment calls this a parseability floor; a file holding TWO
+     items parses perfectly well, so at `>= 3` this is still an assertion about CONTENTS — 256 moved
+     what it counts and left it counting.
+     It is kept, because the thing it really catches is worth catching and nothing else does:
+     `/batch` step 10 can finish an item, leave the working set with nothing unblocked, and hand over
+     in a state where the next run has no work to take. That is exactly what happened in batch 261,
+     which shipped item 37, dropped the queue to two BLOCKED items, and was stopped by this line.
+     So the message now names the refill instead of parseability. Both readings are true of the
+     assertion; only one of them tells the next reader what to do when it goes red. */
   assert.ok(all.length >= 3,
-    'sanity: the queue must still be parseable as items at all, or the check below finds none and '
-    + 'passes for that reason. Counting only consolidated items would go red the day a group drains, '
-    + 'which is the state the refill step exists to produce.');
+    'ONE of two things, and check which before acting. (1) The likely one: the working set has been '
+    + 'drained without a refill. `/batch` refills from the first group in docs/QUEUE-GROUPS.md that '
+    + 'still has tier-A or tier-B items — a group whose survivors are all tier C is finished for '
+    + "promotion, because docs/QUEUE.md holds A and B only. Promote the next group's items rather "
+    + 'than lowering this floor. (2) The one that would send you the wrong way: queueItemNumbers() '
+    + 'has stopped matching the heading format, so the real assertion below is finding nothing and '
+    + "passing for that reason. Open docs/QUEUE.md and count the '## ' headings by eye — if there "
+    + 'are three or more, it is (2) and the regex is the defect.');
   const missing = items.filter((n) => !routed(GROUPS, n));
   assert.deepStrictEqual(missing, [],
     'these items exist in the working set and in no group — the refill reads QUEUE-GROUPS.md, so a '
