@@ -1266,7 +1266,7 @@ Measured on production 12 Sep 2026: **zero** pairs occur twice, and `mergeSeries
 
 **Ride it with whichever batch next opens that region for another reason**, per this file's rule.
 
-## C — from batch 261's item 46 (13 Sep 2026)
+## C — from batch 262 (item 46, 13 Sep 2026)
 
 ### `fresh-states.spec.js` asserts the Menu secondary's label on a HIDDEN element, so it cannot see how it renders
 
@@ -1279,9 +1279,9 @@ That is `CLAUDE.md`'s *"a comment can record the defect correctly and file it un
 
 ### `v143-dashboard.spec.js`'s two layout assertions were exact float equality, and flaked one run in four
 
-✅ **FIXED in 261** and recorded here because the SHAPE will recur: `getBoundingClientRect()` returns floats, and `toBe` on them is a promise about subpixel rounding that no browser makes. Measured on an unmodified main: 3 passes and 1 failure in four runs, with `Expected: 707.2685546875, Received: 707.25` - eighteen-thousandths of a pixel.
+✅ **FIXED in 262** and recorded here because the SHAPE will recur: `getBoundingClientRect()` returns floats, and `toBe` on them is a promise about subpixel rounding that no browser makes. Measured on an unmodified main: 3 passes and 1 failure in four runs, with `Expected: 707.2685546875, Received: 707.25` - eighteen-thousandths of a pixel.
 
-⚠️ **The cost is not the flake, it is the misattribution.** 261's Playwright run went red there on a diff that touched no Dashboard code, and the honest first reading of a red test is *"my change broke this"*. A batch can lose an hour before it thinks to run the same test on `main`.
+⚠️ **The cost is not the flake, it is the misattribution.** 262's Playwright run went red there on a diff that touched no Dashboard code, and the honest first reading of a red test is *"my change broke this"*. A batch can lose an hour before it thinks to run the same test on `main`.
 **So: when a Playwright assertion goes red on a diff that cannot plausibly reach it, run it three or four times on a clean `main` BEFORE investigating your own change.**
 
 Both assertions now use `toBeCloseTo(x, 0)` - within half a pixel - and the tolerance was proved to still catch a real regression rather than assumed: making the credit taller than its band turns it red at 44.5 against 73. **Any other `toBe` on a `getBoundingClientRect()` value in `tests/visual/` is the same defect waiting**; they are not swept here because each one needs its own tolerance argued from what it is protecting.

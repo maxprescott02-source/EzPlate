@@ -427,13 +427,13 @@ test('v45 item 4 / F4: primaries say one thing at every width; secondaries still
   await page.locator('.navbtn[data-tab="analysis"]').click();
   await page.waitForTimeout(300);
   // v100: reconciled with the v86 dish→plate terminology pass — the app said "Existing plate" from
-  // then until 261, which gave it a verb; this pin was stale once before (red on unmodified main
+  // then until 262, which gave it a verb; this pin was stale once before (red on unmodified main
   // from v86 to v99), which is why it carries its history.
   // F5 (v142): Menu is converted, so the "+" goes the way it went on every other converted screen
   // (the mock's buttons carry no plus). The WORDS stay put at both widths, which is the assertion
   // that matters here: the mock's own "Add existing plate" wrapped the 380px header onto two lines,
   // and a label that changes between breakpoints is exactly what §7 forbids.
-  /* 261 (item 46): the label was the NOUN "Existing plate" — the item's one "a button labelled with
+  /* 262 (item 46): the label was the NOUN "Existing plate" — the item's one "a button labelled with
      a noun" site. It is the verb "Add plate" now, at BOTH widths, which is what the note above
      requires: the mock's "Add existing plate" wrapped this header onto two lines at 380px.
      ⚠️ AND THIS ASSERTION CANNOT SEE WHAT ITS OLD MESSAGE CLAIMED. In a FRESH state there are no
@@ -441,7 +441,7 @@ test('v45 item 4 / F4: primaries say one thing at every width; secondaries still
      Playwright's innerText() on a hidden node returns the raw text, not the rendered text. So it
      never observed a `.btn-noun` collapse, and the old message ("it already fits") named a
      rendered-width property the assertion had no way to measure.
-     A first cut of 261 gave the button a `.btn-noun` and asserted the collapsed form here; it went
+     A first cut of 262 gave the button a `.btn-noun` and asserted the collapsed form here; it went
      red for exactly this reason, which is how the gap was found. The label carries no span now, so
      there is nothing to collapse and the assertion means what it says: the words are these words.
      Filed in docs/MAINTENANCE.md — pinning the RENDERED label needs a spec with a menu in it. */

@@ -1,6 +1,6 @@
 /*
  * 214-empty-menu-action.spec.js — `docs/QUEUE.md` item 6, first half: the Menu screen offered
- * "Existing plate" before there was any plate to add.
+ * "Existing plate" (relabelled "Add plate" in 262) before there was any plate to add.
  *
  * WHY IT MATTERED. At zero costed plates the button sat in the Menu header — and below 768 it moves
  * into `#menuSwitchRow` (`data-mobile-home`), where it wrapped onto its own row and read as an

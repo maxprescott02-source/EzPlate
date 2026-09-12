@@ -1,5 +1,5 @@
 /*
- * tests/verbs.test.js (261, queue item 46) — ONE VERB PER INTENT.
+ * tests/verbs.test.js (262, queue item 46) — ONE VERB PER INTENT.
  *
  * Every modal footer and header action was labelled by the batch that built it, so the app had five
  * save verbs, three delete verbs, two import verbs and one button labelled with a noun. The table
@@ -57,6 +57,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
+const { extractFn } = require('./_extractfn');
 
 const root = path.join(__dirname, '..');
 /* HTML comments are stripped for the same reason `terminology.test.js` strips JS ones: a grep over
@@ -130,6 +131,38 @@ test('"Upload" is gone as an import verb', () => {
      SEVENTH import control added later by a batch that never read this file. Kept alongside the
      equalities, not instead of them. */
   assert.ok(!/Upload invoice/.test(html), 'the app has one import word and it is "Import"');
+});
+
+/* ⚠️ THE RUNTIME HALF, AND IT EXISTS BECAUSE THE STATIC HALF ABOVE MISSED A REGRESSION THIS BATCH
+   SHIPPED. `labelOf()` reads `index.html`. `setEditMode()` — called by `openMenuEdit`, the only way
+   the edit-menu-item modal opens — used to overwrite `#editSave` with "Save changes" on every open,
+   so the table above was green about markup no user ever sees. Caught by the pre-push review.
+   These tests run the REAL opener functions against a fake document and read the label back, which
+   is the only way to see an override. `CLAUDE.md`'s standing rule: a test that greps a function's
+   source has proved something about the text of the function. */
+function labelAfter(openerSrc, call, initial) {
+  const els = {};
+  const el = (id) => (els[id] = els[id] || { id, textContent: initial[id] !== undefined ? initial[id] : '', style: {} });
+  Object.keys(initial).forEach(el);
+  const doc = { getElementById: (id) => el(id), querySelector: () => null };
+  // eslint-disable-next-line no-new-func
+  new Function('document', `"use strict"; ${openerSrc}\n${call}`)(doc);
+  const out = {};
+  Object.keys(initial).forEach((id) => { out[id] = el(id).textContent; });
+  return out;
+}
+
+test('setEditMode does NOT overwrite the edit modal\'s commit label', () => {
+  /* The regression itself. `setEditMode` restored the labels for the first of two modes; the second
+     has been dead since v55, and two of its three writes said exactly what the markup says — so the
+     one that CONTRADICTED the markup looked like the others. Running it is what tells them apart. */
+  const src = extractFn(app, 'setEditMode');
+  const after = labelAfter(src, 'setEditMode();', { editSave: 'Save', editTitle: 'Edit menu item' });
+  assert.equal(after.editSave, 'Save', 'the markup owns this label — nothing may write it on open');
+  assert.equal(after.editTitle, 'Edit menu item', 'and this one');
+  /* Belt and braces on the mechanism rather than the value: no textContent write survives in there
+     at all. If a later batch reintroduces one, this names the rule rather than the string. */
+  assert.ok(!/textContent\s*=/.test(src), 'setEditMode writes no label at all any more');
 });
 
 test('kingModalSave is dual-purpose, so it is labelled from the SAME flag as the Remove button', () => {

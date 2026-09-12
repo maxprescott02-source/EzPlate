@@ -6,7 +6,7 @@
  * same left slot and the same shared sizing on all four screens.
  *
  * R7 (≤767): one control-stack rhythm — the search is a full-width line of its own, the filters
- * are the line under it, and a rehomed secondary action ("Existing plate", "Import") JOINS that
+ * are the line under it, and a rehomed secondary action (the Menu's "Add plate", Products' "Import") JOINS that
  * group instead of floating alone right-aligned on an orphan row.
  *
  * What is deliberately NOT pinned: exact y positions (the header above these rows is someone
@@ -145,7 +145,7 @@ for (const w of [390, 767]) {
 test('R7 @390: the rehomed actions JOIN the control group instead of floating alone', async ({ page }) => {
   await boot(page, 390);
 
-  /* Menu: "Existing plate" shares the picker's line — the audit measured it alone at y250 with
+  /* Menu: the secondary (now "Add plate") shares the picker's line — the audit measured it alone at y250 with
      the select ending at y188, a right-aligned orphan. The picker's 160px flex-basis is what
      makes them fit (160 + 8 + the 121px button inside a 334px content box); see css §31. */
   await page.evaluate((t) => window.showTab(t), 'analysis');

@@ -381,7 +381,7 @@ test('revealing the Gemini credit shifts nothing below it', async ({ page }) => 
      unmodified main it failed roughly one run in four with `Expected: 707.2685546875, Received:
      707.25` — an eighteen-thousandth of a pixel, from subpixel layout rounding that has nothing to
      do with what the test is about.
-     Found by batch 261, whose own Playwright run went red here on a change that touched no
+     Found by batch 262, whose own Playwright run went red here on a change that touched no
      Dashboard code at all. That is the dangerous shape: a flaky assertion does not read as flaky,
      it reads as YOUR diff breaking something, and the cost is a batch spent hunting it. Confirmed
      pre-existing by running the same test four times on a clean main (3 pass, 1 fail).
