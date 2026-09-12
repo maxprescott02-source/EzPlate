@@ -1285,3 +1285,17 @@ That is `CLAUDE.md`'s *"a comment can record the defect correctly and file it un
 **So: when a Playwright assertion goes red on a diff that cannot plausibly reach it, run it three or four times on a clean `main` BEFORE investigating your own change.**
 
 Both assertions now use `toBeCloseTo(x, 0)` - within half a pixel - and the tolerance was proved to still catch a real regression rather than assumed: making the credit taller than its band turns it red at 44.5 against 73. **Any other `toBe` on a `getBoundingClientRect()` value in `tests/visual/` is the same defect waiting**; they are not swept here because each one needs its own tolerance argued from what it is protecting.
+
+### `226-bottom-stack.spec.js` slept 300ms through a transform instead of waiting for it
+
+✅ **FIXED in 262**, and recorded because it is the second flaky-Playwright shape this batch hit and the two fail in opposite ways.
+
+The helper set `.toast.show` and then `setTimeout(…, 300)` - a bet that 300ms outlasts the transition. True on an idle machine, false under the full suite's parallel workers, and **CI's runner is more contended than a laptop**. Measured: two viewports failed with `gap 4.5` against a derived 12.5, because the toast was sampled **8px short of its final position**; it passed 3 times out of 3 in isolation and on a full run of clean `main`.
+
+⚠️ **THE TELL IS THAT EVERY OTHER FIGURE IN THE PAYLOAD WAS EXACTLY RIGHT.** `clear`, `dock`, `bodyPad`, `barBottom` and the banner's own rect all matched the derivation to the pixel; only the animated element was wrong. **A mid-animation sample therefore reads as a LAYOUT defect rather than a timing one**, because the assertion is about geometry - which is how it costs a batch an afternoon.
+
+**The fix is to poll until the rect stops moving**, capped so a genuinely stuck transition still fails rather than hangs (`CLAUDE.md`: a hang is a third outcome and nothing here calls it a failure). Proved to still catch a real regression rather than assumed: shortening the toast's clearance to 2px turns it red at `gap 2.5`.
+
+**Any other fixed `setTimeout` waiting on a transition in `tests/visual/` is the same defect waiting.** They are not swept here because each needs to know which element's settling it is waiting for.
+
+⚠️ **And the meta-lesson, which cost more than either flake: `v143-dashboard` and this one BOTH reddened on a diff that could not reach them**, and the honest first reading of a red test is *"my change broke this"*. **Run a suspect spec three times in isolation AND once as part of a full run on clean `main` before investigating your own diff** - the two differ, and this one only fails in the second.

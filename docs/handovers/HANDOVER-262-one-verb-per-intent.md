@@ -52,6 +52,7 @@ Item 46 is struck in both files and the three remaining G4 items (57, 58, 60) ke
 
 - **`fresh-states.spec.js` asserts the Menu secondary's label on a HIDDEN element.** In a fresh state there are no menus and no eligible plates, so `updateMenuAddDishBtn` hides the button - and Playwright's `innerText()` on a hidden node returns the raw text rather than the rendered text. The assertion has therefore never observed anything about layout, while its message said *"it already fits"*. Pinning the rendered label needs a spec with a menu in it, which is a fixture rather than a one-line change.
 - ✅ **`v143-dashboard.spec.js` compared `getBoundingClientRect()` floats with `toBe`** and flaked one run in four. Fixed here; recorded because the shape will recur.
+- ✅ **`226-bottom-stack.spec.js` slept 300ms through a transform** instead of waiting for it, and failed only under the full suite's parallel workers. Fixed by polling until the rect settles, capped so a stuck transition still fails rather than hangs.
 
 ## New docs/PHONE.md items
 
@@ -81,11 +82,15 @@ I gave the Menu button the app's `.btn-noun` collapse; the 380px assertion then 
 The cause is that the button is `hidden` in a fresh state, and **`innerText()` on a hidden node ignores the `display:none` on the span**.
 So an assertion that has been green for many versions, whose message names a rendered-width property, has only ever been reading `textContent`.
 
-**And a flaky test cost more than its flake.**
-`v143-dashboard.spec.js` went red on a diff that touches no Dashboard code, with a delta of **eighteen-thousandths of a pixel**.
-The honest first reading of that is *"my change broke this"*, and the cost is the time spent proving otherwise.
-It flakes on an unmodified `main` one run in four, measured.
-**When a Playwright assertion reddens on a diff that cannot plausibly reach it, run it a few times on a clean `main` before investigating your own change.**
+**TWO flaky tests cost more than their flakes, and they fail in opposite ways.**
+`v143-dashboard.spec.js` compared layout floats with `toBe` and went red with a delta of **eighteen-thousandths of a pixel** - it flakes on an unmodified `main` one run in four, in isolation.
+`226-bottom-stack.spec.js` slept 300ms through a toast's transform and went red with the toast **8px short of its final position** - it passes 3/3 in isolation and on a full run of clean `main`, and failed only inside a full run on the branch.
+**So the two need DIFFERENT checks, which is the transferable part:** run a suspect spec three times in isolation AND once as part of a full run on clean `main`, because this pair proves neither alone is sufficient.
+⚠️ **AND A THIRD RUN PRODUCED FOUR MORE FAILURES THAT WERE NONE OF MY BUSINESS EITHER.** Four unrelated specs, and the run took **42.6 minutes against the usual nine**. `uptime` said load average **17.3** - I had run four full suites back to back, so the machine was starving its own workers.
+On a settled machine the same tree passes 478/0 in 8.9 minutes.
+**So: check the WALL CLOCK and the load average before reading a Playwright result at all.** A run that takes five times as long is not a result, and four unrelated timing failures at once is the signature - a real regression does not spread itself across four specs that share no code.
+
+⚠️ **And in both of the real flakes, every other number in the payload was exactly right** - which is what makes a timing failure read as a geometry defect, since the assertion is about geometry. The honest first reading of a red test is *"my change broke this"*, and that reading cost this batch most of its time.
 
 **The regression I shipped was invisible to 2240 green tests, and a browser drive of the actual modal would have caught it in ten seconds.**
 I drove every label I changed by reading them out of the live DOM - and reading a label is not the same as OPENING the thing that shows it.
