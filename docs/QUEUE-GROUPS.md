@@ -114,7 +114,9 @@ Each names the context a batch loads once. Items are referenced by their consoli
 
 **Context:** the region between `var INV_EXCLUDE=` and `function unitLabelFor(`; `parsePdfLine`, `firstPairPrice`, `packWeight`, `packCount`, `moneyMatches`, `rankCandidates`, `invFixRow`, `invGstDetect`, `invSupplierDetect`; the eval harness at `tests/parser-corpus/` (moved out of `spike/` by batch 256 and now part of `npm test`), its fourteen synthetic layouts, and the six real invoices' truth files, which stay in `spike/parser-audit/real-truth/` because their extracted text carries the cafe's own details and cannot be committed.
 
-**Items:** ~~17~~ (SHIPPED, batch 256, `ezplate-v211`), 26, 37, **92** · rider 71
+**Items:** ~~17~~ (SHIPPED, batch 256, `ezplate-v211`) · ~~37~~ (SHIPPED, batch 261 — the procedure and the measurement; **93** carries the two halves that need the real PDFs) · 26, **92**, **93** · rider 71
+
+⚠️ **G2 HAS NO TIER-A OR TIER-B ITEMS LEFT as of batch 261**, so it is finished as a source of queue items in the same way G1 is: 26, 92 and 93 are all C and `docs/QUEUE.md` holds A and B only. **The next group with promotable items is the current one** — 261 opened G4.
 
 **Blocked on:** ~~Max putting the parser-region reversal in writing (Tranche 0).~~ ✅ **NOTHING. He wrote it on 10 Sep 2026 (*"its lifted"*) and 17 shipped the same day.**
 
@@ -145,7 +147,7 @@ It belongs in G3 on context: it is `as restrictive for delete`, one migration, m
 
 **Context:** the four object nouns and the forbidden fifth, the naming inversion, the verb table, the `.scr-sub` rule.
 
-**Items:** 46, 57, 58, 60, 78 · the copy half of 51
+**Items:** 46, 57, 58, 60 (**all four promoted to `docs/QUEUE.md` by batch 261's refill**) · 78 (C, rides) · the copy half of 51
 
 **Why one batch:** every one of these is a decided vocabulary applied in one pass across one file. Done separately, each batch re-derives the table and they drift.
 

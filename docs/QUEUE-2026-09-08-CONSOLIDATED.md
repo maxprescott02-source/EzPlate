@@ -292,7 +292,25 @@ Point the existing watchman at the nightly output directory; a missing or empty 
 
 Two clients, two mailboxes, one run, zero cross-contamination in storage paths, mapping rows and pages. Promote to A on the second client. **Do after:** 33.
 
-## next  37 · The parser corpus becomes the standing eval: real corpus outside the repo, per-supplier onboarding, the second reader replayed offline, and `packPriceOf` on the same arithmetic  **[B, without it the next parser change is judged by one invoice looked at]**
+## ~~37 · The parser corpus becomes the standing eval~~  **SHIPPED, batch 261 — the procedure and the measurement. The two halves that need the real PDFs are item 93.**
+
+✅ **`docs/PARSER-CORPUS.md` is the procedure**: where each corpus lives and why only one can be committed, how to onboard a supplier (extract with `extract-pdf.mjs`, hand-write the truth from the PDF and never from the parser's output), the two runs and what each can see, and the two numbers a parser batch reports before and after.
+✅ **The external-corpus run needed no code** — `run.js --cases DIR` already worked; it was proved against a scratch directory rather than assumed.
+✅ **THE FOUR COPIES ARE MEASURED IDENTICAL** and the measurement is now standing, at `tests/pack-arithmetic.test.js`: 8 real line shapes x 8 pack shapes, 48 answers, 16 mutual refusals, **0 disagreements**. It was proved to go red by diverging one copy's gram factor.
+
+⚠️ **THE ITEM NAMED THE WRONG FOUR, and the count being right by coincidence is the part worth keeping.** It lists `packPriceOf`, `derivePackPrice`, `applySupplierMemory` and `lineColumns`. Measured:
+- **`packPriceOf` and `lineColumns` are a DIFFERENT computation** (a line in, one pack's price out) and were **already unified by batch 256**, which is this bullet's own primary instruction and had shipped before the item was promoted. Nothing was left to merge there.
+- **The computation that really is duplicated is the DIVISION** (pack price + pack size -> unit price), and it has four copies, **two of which the item does not name**: `resolveMatchedPrice`'s branch 2, which carries it inline a second time, and `packToUnitCost`, which serves the product form and the catalogue importer.
+That is `CLAUDE.md`'s *"an item that names a behaviour without naming its sites is an item whose list is already wrong"*, and a batch that had merely COUNTED would have agreed with the item and merged the wrong pair.
+
+⚠️ **THE MERGE ITSELF WAS NOT DONE, AND THAT IS A DECISION RATHER THAN A SHORTFALL.** The bullet says *"measure that the four are identical **before merging them**"* — the measurement is the obligation, the merge is conditional on it. Extracting the shared core touches four shipped functions on the money path **and about fourteen test sandboxes**, which would each need the new dependency added or throw `ReferenceError`; that is a large diff for zero behaviour change, in the same PR as a new document. **The standing test already catches drift** — it is what a merge would have bought — so the merge is routed to `docs/MAINTENANCE.md` as the tidy-up it is.
+
+**Two real divergences were found and NEITHER is reachable, both measured rather than reasoned:**
+- `packToUnitCost` guards with `isNaN(price)` where the other three use `isFinite`, so it alone accepts an **infinite** price. Both entry points block it first: `catNum` strips every character outside `[0-9.-]` (so `1e400` lands as 1400, not Infinity), and Chromium sanitises `1e400` and `1e309` in a `type="number"` field to `''`.
+- `packToUnitCost` compares `unit==='kg'` **without lowercasing**, unlike the other three, so an uppercase stored unit would take the count branch — a 1000x error. Measured on production: all 23 non-null `pack_unit` values are lowercase, and both writers supply lowercase.
+Both are pinned in the test so the eventual merge has to choose deliberately rather than silently.
+
+**The original item, for the record:**
 
 - **Where the real corpus lives:** outside the repo in the owner's own folder (the extracted text carries the café's details); the truth files are committed (`spike/parser-audit/real-truth/`), the text is regenerated from the PDFs by `spike/parser-audit/extract-pdf.mjs` (needs `pdfjs-dist@4.10.38` from a directory outside the repo via `PDFJS_DIR`). Write the procedure into `docs/STAGING.md` or a `docs/PARSER-CORPUS.md`: each new supplier gets one invoice extracted, one hand-written truth file, and its score in the handover.
 - **Two numbers per parser batch:** silent-wrong on the real corpus and on the synthetic set, before and after; a change that moves either the wrong way does not ship.
@@ -302,6 +320,18 @@ Two clients, two mailboxes, one run, zero cross-contamination in storage paths, 
 - **Residuals to decide, both in the fixtures:** units-vs-weight with no unit word (needs a header-driven column model; the next thing this harness should build) and a container capacity beside a bare count (`750ML 500S`; making the bare `NNNs` count beat the weight changes the `105S` reading `tests/inv-chain.test.js` pins).
 
 ~~**Do after:** 17.~~ ✅ **SATISFIED — 17 shipped in batch 256 (`ezplate-v211`), and the line is struck per `/batch`'s sweep rule.** **PROMOTED to `docs/QUEUE.md` by batch 260's refill**, which opened G2: G1 has no tier-A or tier-B items left.
+
+## next  93 · The two halves of the parser eval that need the real invoices  **[C — both are blocked on files that are not in this repository, and neither is wrong today]**
+
+**Split out of item 37 by batch 261**, which shipped the procedure and the measurement. These two are separated because **no test in this repo can run them**: the real invoices' extracted text carries the café's details and cannot be committed, so both are exercised by hand against Max's own folder.
+
+**1 — the AI second reader is not replayed.** `run.js --products` reports what the app would pre-tick from the parser and the catalogue alone. On a real import the Gemini referee also votes, so **the pre-ticked-wrong number the harness prints is a lower bound** on what the review screen would actually show. Store real Gemini responses for the corpus cases and replay them offline, so the number means what the doc says it means. `docs/PARSER-CORPUS.md` states the gap at its own site.
+
+**2 — D12, the extractor never sorts a line's items by x.** `extractPdfText` groups items by `Math.round(transform[5])` and joins them in content-stream order, which is why the unit-of-measure column lands at the START of page-1 lines and the END of page-2 lines on the real Supplier A invoice. Sorting by `transform[4]` within a y-group puts it where it prints.
+⚠️ **It moves every line of every layout at once**, so it must be done with the real corpus in place and the before/after printed for both corpora. A synthetic-only green would prove nothing: the fixtures were written FROM the current extractor's output, so they already agree with it.
+
+**What must be true when finished:** the `--products` number includes the referee's vote; the x-sort is either shipped with both corpora's before/after in the handover, or declined in writing with the measurement that declined it.
+**Do after:** nothing in this file. It needs **Max's invoice PDFs on the machine running it** — which is not a queue dependency, it is a file that has to be present.
 
 ## next  38 · A signed-in caller of the AI endpoints is still unbounded  **[B, C only while the tier is free; the practice offer is a paid tier]**
 
