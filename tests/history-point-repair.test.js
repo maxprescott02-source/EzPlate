@@ -201,14 +201,99 @@ test('⚠️ avgBefore is captured BEFORE the write, and equals avgAfter', () =>
   assert.match(body, /avgBefore:avgBefore,\s*avgAfter:avgBefore/, 'the same figure both sides: nothing moved');
 });
 
-test('the row is owner-only AND conditional, and both halves are asked', () => {
+/* Runs the REAL `syncHistFixRow` against a fake document, with `badHistoryPoints` and `isOwner`
+   stubbed to the two answers under test. Returns what the row and the button ended up saying.
+   ⚠️ THE FIRST CUT OF THE TEST BELOW GREPPED THIS FUNCTION'S SOURCE for `badHistoryPoints()` and
+   `isOwner()` and asserted nothing else — so flipping `!n || !isOwner()` to `!n || isOwner()`, which
+   shows the control to exactly the staff it exists to hide it from and hides it from every owner,
+   left it green. Both literals are still in the source either way. That is roster 167(a) in
+   `CLAUDE.md`: a presence assertion cannot see a negation, and the guard IS the negation.
+   The server still refuses the delete, so the data was never at risk; what would have shipped is a
+   dead control, which is the thing the design protocol forbids and the reason the guard exists. */
+function syncRow(hasPoints, owner) {
+  const row = { hidden: null }, btn = { textContent: null };
+  const doc = { getElementById(id){ return id === 'setHistFixRow' ? row : id === 'setHistFix' ? btn : null; } };
+  new Function('document', 'badHistoryPoints', 'isOwner', `
+    "use strict";
+    ${extractFn(SRC, 'syncHistFixRow')}
+    syncHistFixRow();
+  `)(doc, () => new Array(hasPoints).fill({}), () => owner);
+  return { hidden: row.hidden, label: btn.textContent };
+}
+
+/* =============================================================================================
+ * A BUTTON KEYED TO A POSITION NAMES A DIFFERENT READING ONCE THE LIST MOVES
+ *
+ * Found by 260's pre-push review. The first cut put `data-i="<index>"` on each Remove button and
+ * looked the point up as `badHistoryPoints()[i]` at click time. Recomputing the list was right; the
+ * INDEX was not. `bootstrapSync` can reassign the series while this modal sits open — an `online`
+ * event is enough — and index 2 then names a different reading than the one written into the
+ * confirm the user just read. Being told one thing and deleting another is the worst shape a
+ * confirm can have, and it is silent: both readings are bad ones, so the list still looks right.
+ * ========================================================================================== */
+function byIdentity(state, t, menuId) {
+  const ph = state.priceHistory || [], mh = state.menuHistory || {}, ml = state.menusList || [];
+  return new Function('priceHistory', 'menuHistory', 'menusList', 't', 'menuId', `
+    "use strict";
+    ${extractVar(SRC, 'FOOD_COST_SANE_MAX')}
+    ${extractFn(SRC, 'ptMs')}
+    ${extractFn(SRC, 'badHistoryPoints')}
+    ${extractFn(SRC, 'badPointByIdentity')}
+    return badPointByIdentity(t, menuId);
+  `)(ph, mh, ml, t, menuId);
+}
+
+test('a reading is found by WHAT IT IS, so a re-sync cannot redirect the button', () => {
+  /* Two bad readings on two different series. The fixture deliberately gives them the SAME
+     timestamp and different menus, and then the SAME menu and different timestamps, because a
+     fixture whose candidates agree cannot tell you which half the code read — CLAUDE.md roster
+     184(b). Either half alone would pass on a fixture that varied both at once. */
+  const state = {
+    priceHistory: [{ t: '2026-09-01T00:00:00.000Z', v: 900 }, { t: '2026-09-02T00:00:00.000Z', v: 800 }],
+    menuHistory: { m1: [{ t: '2026-09-01T00:00:00.000Z', v: 700 }] },
+    menusList: [{ id: 'm1', name: 'Lunch' }],
+  };
+  const allMenus = byIdentity(state, '2026-09-01T00:00:00.000Z', '');
+  const lunch = byIdentity(state, '2026-09-01T00:00:00.000Z', 'm1');
+  assert.equal(allMenus.v, 900, 'same timestamp, no menu: the all-menus series');
+  assert.equal(lunch.v, 700, 'same timestamp, menu m1: a different reading entirely');
+  assert.equal(byIdentity(state, '2026-09-02T00:00:00.000Z', '').v, 800, 'same series, other day');
+});
+
+test('the all-menus series matches whether the DOM hands back null or an empty string', () => {
+  /* The series carries `menuId: null`; `getAttribute('data-menu')` hands back '' for the same
+     reading. They are one series and must resolve to one point. */
+  const state = { priceHistory: [{ t: '2026-09-01T00:00:00.000Z', v: 900 }] };
+  assert.ok(byIdentity(state, '2026-09-01T00:00:00.000Z', ''), 'empty string');
+  assert.ok(byIdentity(state, '2026-09-01T00:00:00.000Z', null), 'and null');
+});
+
+test('a reading that is already gone resolves to nothing rather than to a neighbour', () => {
+  /* The click path repaints on null. Returning the wrong point here is the defect; returning the
+     FIRST point would pass a test that only ever asked for one that exists. */
+  const state = { priceHistory: [{ t: '2026-09-01T00:00:00.000Z', v: 900 }] };
+  assert.equal(byIdentity(state, '2026-09-09T00:00:00.000Z', ''), null, 'removed in another tab');
+  assert.equal(byIdentity(state, '2026-09-01T00:00:00.000Z', 'm1'), null, 'right day, wrong series');
+});
+
+test('the row is owner-only AND conditional, and the guard is EVALUATED, not grepped', () => {
   /* `price_history` refuses a non-owner DELETE on the server since batch 250, so offering staff a
      button whose every press fails is the dead control the design protocol forbids. Two conditions
-     with two owners, so whichever runs last has to re-ask the other. */
-  const body = extractFn(SRC, 'syncHistFixRow');
-  assert.match(body, /badHistoryPoints\(\)/, 'is there anything to review');
-  assert.match(body, /isOwner\(\)/, 'and may this person review it');
+     with two owners, so whichever runs last has to re-ask the other.
+     All four combinations, because a guard with two terms has one visible case and three that are
+     only reachable by asking for them. */
+  assert.equal(syncRow(2, true).hidden, false, 'an owner with bad readings is the one case that shows');
+  assert.equal(syncRow(2, false).hidden, true, 'staff never sees it, however many readings are bad');
+  assert.equal(syncRow(0, true).hidden, true, 'an owner with nothing to review sees nothing');
+  assert.equal(syncRow(0, false).hidden, true, 'and neither does staff');
   assert.match(extractFn(SRC, 'applyRoleUi'), /syncHistFixRow/, 'a role change re-decides the row');
+});
+
+test('the button counts the readings, and only once there is more than one', () => {
+  /* "Review (3)" tells an owner the size of the job before they open it; "Review (1)" is noise, and
+     the singular case is the common one. */
+  assert.equal(syncRow(3, true).label, 'Review (3)');
+  assert.equal(syncRow(1, true).label, 'Review', 'no count on a single reading');
 });
 
 /* =============================================================================================

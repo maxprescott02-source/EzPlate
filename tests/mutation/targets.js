@@ -139,6 +139,14 @@ const targets = [
      and the insight facts, which is why the test asserts it reuses FOOD_COST_SANE_MAX rather than
      carrying a number of its own. */
   { fn: 'badHistoryPoints', tests: ['history-point-repair.test.js'] },
+  /* syncHistFixRow: added by 260's own pre-push review, which found the test for it asserting that
+     the source CONTAINS `isOwner()` — true of `!isOwner()` and of `isOwner()` alike, so the guard
+     could be inverted and stay green. The test now evaluates the function across all four
+     combinations; this is what asks the question every time instead of once. */
+  { fn: 'syncHistFixRow', tests: ['history-point-repair.test.js'] },
+  /* badPointByIdentity: the whole change is a comparison that must use BOTH halves of the key, so
+     an `&&` becoming an `||` here restores the wrong-reading-deleted bug the review found. */
+  { fn: 'badPointByIdentity', tests: ['history-point-repair.test.js'] },
   { fn: 'nameIsAllChargeWords', tests: ['parser-charges.test.js'] },
   { fn: 'supplierSnap', tests: ['supplier-snap.test.js'] },
   { fn: 'packWeight', tests: ['parser-suffix.test.js', 'parser-corpus.test.js'] },

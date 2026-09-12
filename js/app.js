@@ -4951,9 +4951,21 @@ function dbPushMenuHistory(iso, v, menuId){ pushWrite(function(){ return SUPA.fr
    `recorded_at, avg_food_cost_pct, menu_id`, and a point is `{t, v}`. Adding the id would change what
    `bootstrapSync` puts in memory, which is a change to the BACKUP FORMAT (`buildBackup` dumps live
    objects verbatim) and would owe a `stamp.format` bump under CLAUDE.md's row-boundary rule — a large
-   price for a delete key. The natural key is unique in practice because `logHistory`'s hourly dedup
-   admits one point per series per hour; if two ever shared a timestamp they are the same reading
-   written twice, and removing both is the right answer anyway.
+   price for a delete key.
+   ⚠️ THE FIRST DRAFT JUSTIFIED THE KEY WITH "logHistory's hourly dedup admits one point per series
+   per hour", AND THAT IS NOT WHAT THAT GUARD DOES. Caught by the pre-push review, which went and
+   read it: the condition is `Math.abs(last.v-v)<0.05 && elapsed<3600000`, so it suppresses a point
+   whose VALUE has barely moved — a reading that moves by 0.05 or more inside the hour writes a
+   second point quite legitimately. Nothing in the database enforces uniqueness on
+   `(recorded_at, menu_id)` either: the index there is not unique.
+   That is CLAUDE.md's citation trap — a justification naming a mechanism whose actual condition
+   nobody checked, which reads as settled precisely BECAUSE it cites something.
+   **The key is still right, for a better reason.** Two rows would have to share the same
+   MILLISECOND, and if they ever did `mergeSeries` has already collapsed them into ONE point on the
+   way in — it dedups on `ptMs`. So the user is looking at a single reading, cannot distinguish the
+   rows behind it, and "remove this reading" can only coherently mean all of them. Deleting both is
+   the answer that matches what the screen offered them.
+   Measured on production rather than argued: ZERO `(recorded_at, menu_id)` pairs occur twice.
    ⚠️ AND IT ROUND-TRIPS EXACTLY BECAUSE EVERY ROW WAS WRITTEN BY `pointToRow`, which stores
    `new Date(t).toISOString()` — always three decimal places. A `timestamptz` can hold microseconds,
    and a row finer than a millisecond could never be matched by a key rebuilt from epoch ms. Measured
@@ -6636,6 +6648,19 @@ function syncHistFixRow(){
   var b=document.getElementById('setHistFix');
   if(b) b.textContent='Review'+(n>1?(' ('+n+')'):'');
 }
+/* Finds a bad reading by WHAT IT IS rather than by where it sat in the last render — see the
+   comment in `renderHistFixList`. It is a named function rather than four lines inline so that it
+   can be tested and mutated: the whole point of the change is a comparison that must use BOTH
+   halves of the key, and an `&&` quietly becoming an `||` here puts the wrong-reading-deleted bug
+   straight back. `menuId` is compared through `String(x||'')` because the all-menus series carries
+   null and the DOM hands back '', which are the same series and must match. */
+function badPointByIdentity(t, menuId){
+  var want=String(menuId||''), pts=badHistoryPoints();
+  for(var i=0;i<pts.length;i++){
+    if(String(pts[i].t)===String(t) && String(pts[i].menuId||'')===want) return pts[i];
+  }
+  return null;
+}
 function renderHistFixList(){
   var list=document.getElementById('histFixList'), msg=document.getElementById('histFixMsg');
   if(!list) return;
@@ -6650,12 +6675,22 @@ function renderHistFixList(){
     return '<div class="hf-row">'
       +'<span class="hf-txt"><span class="hf-nm">'+esc(historyPointScopeLabel(p.menuId))+'</span>'
       +'<span class="hf-meta">'+esc(historyPointWhen(p))+' \u00b7 '+esc(String(Math.round(p.v*10)/10))+'%</span></span>'
-      +'<button class="btn danger hf-rm" type="button" data-i="'+i+'">Remove</button>'
+      +'<button class="btn danger hf-rm" type="button" data-t="'+esc(String(p.t))+'" data-menu="'+esc(String(p.menuId||''))+'">Remove</button>'
       +'</div>';
   }).join('');
+  /* ⚠️ THE BUTTON CARRIES THE POINT'S IDENTITY, NOT ITS POSITION IN THE LIST, and the first cut
+     carried `data-i` — caught by the pre-push review. `badHistoryPoints()` is recomputed at click
+     time, correctly, but an INDEX into a list is only meaningful against the list it was rendered
+     from: `bootstrapSync` can reassign the series while this modal sits open (an `online` event is
+     enough), and index 2 then names a different reading than the one whose name is on the confirm.
+     The user would be told one thing and delete another, which is the worst shape a confirm can
+     have. Identity survives the array being rebuilt; a position does not. */
   Array.prototype.forEach.call(list.querySelectorAll('.hf-rm'), function(b){
     b.onclick=function(){
-      var p=badHistoryPoints()[parseInt(b.dataset.i,10)]; if(!p) return;
+      var p=badPointByIdentity(b.getAttribute('data-t'), b.getAttribute('data-menu'));
+      /* Gone already — another tab removed it, or a re-sync dropped it. Repaint rather than act on
+         a reading that is no longer there, and say nothing: nothing went wrong. */
+      if(!p){ renderHistFixList(); return; }
       /* The confirm NAMES the point — which series, which day, what it reads — because that is the
          whole of what the user is being asked to judge, and an "are you sure?" that does not say
          WHICH reading is a question nobody can answer correctly. */
