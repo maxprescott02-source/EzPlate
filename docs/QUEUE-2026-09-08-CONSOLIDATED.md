@@ -308,7 +308,7 @@ That is `CLAUDE.md`'s *"an item that names a behaviour without naming its sites 
 **Two real divergences were found and NEITHER is reachable, both measured rather than reasoned:**
 - `packToUnitCost` guards with `isNaN(price)` where the other three use `isFinite`, so it alone accepts an **infinite** price. Both entry points block it first: `catNum` strips every character outside `[0-9.-]` (so `1e400` lands as 1400, not Infinity), and Chromium sanitises `1e400` and `1e309` in a `type="number"` field to `''`.
 - `packToUnitCost` compares `unit==='kg'` **without lowercasing**, unlike the other three, so an uppercase stored unit would take the count branch — a 1000x error. Measured on production: all 23 non-null `pack_unit` values are lowercase, and both writers supply lowercase.
-Both are pinned in the test so the eventual merge has to choose deliberately rather than silently.
+Both are pinned in `tests/pack-arithmetic.test.js` so the eventual merge has to choose deliberately rather than silently — **the casing one only after the pre-push review found this sentence claiming a pin that did not exist.**
 
 **The original item, for the record:**
 

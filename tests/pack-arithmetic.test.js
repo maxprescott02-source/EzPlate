@@ -30,11 +30,21 @@
  *   - ONE nominal difference: `packToUnitCost` labels a count 'unit' where the other three say
  *     'ea'. Same number, different word, and the merge has to keep both because they are read by
  *     different screens;
- *   - ONE real divergence that is NOT reachable: `packToUnitCost` guards with `isNaN(price)` where
- *     the others use `isFinite`, so it alone accepts an INFINITE price. Both of its entry points
- *     block that before it is called — `catNum` strips every non-numeric character, and Chromium's
- *     number input sanitises `1e400` and `1e309` to '' (measured, not reasoned). It is pinned below
- *     as the unreachable-but-real case it is, so the extraction cannot quietly change it either way.
+ *   - TWO real divergences, both in `packToUnitCost`, and NEITHER reachable today:
+ *       (a) it guards with `isNaN(price)` where the others use `isFinite`, so it alone accepts an
+ *           INFINITE price — blocked at both entry points, because `catNum` strips every character
+ *           outside [0-9.-] and Chromium's number input sanitises `1e400` and `1e309` to '';
+ *       (b) it compares `unit==='kg'` WITHOUT lowercasing, unlike the other three, so an uppercase
+ *           unit falls through to the count branch — a 1000x error in `cost_per_base_unit`.
+ *           Blocked because every writer produces lowercase, measured on production.
+ *     Both are pinned below as the unreachable-but-real cases they are, so the extraction has to
+ *     CHOOSE rather than absorb them.
+ *
+ * ⚠️ (b) WAS PROSE ONLY IN THE FIRST CUT, while `docs/MAINTENANCE.md` and the consolidated queue
+ * both said "both pinned in that test". Caught by the pre-push review, which read the test rather
+ * than the claim. A comment asserting coverage a test does not have is this repo's single
+ * most-recorded defect — committed here in the batch whose entire subject is measuring rather than
+ * asserting, which is the argument for the second reader in one line.
  */
 const test = require('node:test');
 const assert = require('node:assert');
@@ -172,6 +182,48 @@ test('packToUnitCost alone accepts an infinite price, and nothing can reach it',
 
   const stripped = String('1e400').replace(/[$\s,]/g, '').replace(/[^0-9.\-]/g, '');
   assert.equal(stripped, '1400', "catNum's strip removes the exponent rather than passing Infinity");
+});
+
+test('packToUnitCost alone does not lowercase the unit, and that is a 1000x divergence', () => {
+  /* ⚠️ THIS TEST EXISTS BECAUSE THE FIRST CUT OF THIS FILE DID NOT HAVE IT, WHILE TWO DOCS SAID IT
+     DID. `docs/MAINTENANCE.md` and the consolidated queue both claimed "both pinned in that test",
+     and only the Infinity one was — the casing divergence was prose. Caught by the pre-push review,
+     which read the test instead of the claim.
+     That is this repo's single most-recorded defect class (a comment asserting coverage a test does
+     not have) committed in the same batch whose whole subject is measuring rather than asserting.
+
+     The divergence itself: the other three copies do `(unit||'ea').toLowerCase()` before comparing;
+     `packToUnitCost` compares `unit==='kg'` raw, so an uppercase unit misses every branch and falls
+     to the COUNT branch — `$14.90 / 2` per unit instead of per kilogram, a 1000x error in
+     `cost_per_base_unit`, silent and plausible on screen.
+
+     ⚠️ IT IS PINNED AS-IS RATHER THAN FIXED, and the assertion below therefore records behaviour
+     that is WRONG. That is deliberate and is the same treatment the Infinity case gets: measured on
+     production 12 Sep 2026, all 23 non-null `pack_unit` rows are lowercase, and both writers (the
+     product form's `<select>`, whose option values are literally lowercase, and `catUnit`, which
+     lowercases and maps through `CAT_UNITS`) can only produce lowercase. Fixing an unreachable case
+     would ship a client asset and a version bump for a change nobody can observe.
+     **What this test buys is that the eventual merge of the four copies has to CHOOSE.** Lowercasing
+     inside the shared core is almost certainly right; it must be a decision with this test updated
+     in the same commit, not a silent side effect of tidying. */
+  const price = 14.9;
+  const lower = api.packToUnitCost(2, 'kg', price);
+  const upper = api.packToUnitCost(2, 'KG', price);
+
+  assert.equal(lower.base_unit, 'g', 'lowercase takes the weight branch');
+  assert.equal(upper.base_unit, 'ea', 'UPPERCASE falls through to the count branch — the divergence');
+  assert.equal(upper.cost_per_base_unit / lower.cost_per_base_unit, 1000,
+    'and the gap is exactly 1000x, which is what makes it invisible: the number stays plausible');
+
+  /* The other three are handed the same uppercase unit and are unmoved, which is the half that
+     makes this a DIVERGENCE rather than a shared quirk. Without this the test would pass if every
+     copy were equally broken. */
+  const raw = 'BEEF MINCE 5.42 KG 14.90 80.76';
+  for (const [name, fn] of COPIES) {
+    if (name === 'packToUnitCost') continue;
+    assert.deepStrictEqual(fn(raw, { qty: 2, unit: 'KG' }), fn(raw, { qty: 2, unit: 'kg' }),
+      `${name} lowercases, so upper and lower agree`);
+  }
 });
 
 test('packPriceOf and lineColumns are the OTHER computation, and 256 already unified them', () => {

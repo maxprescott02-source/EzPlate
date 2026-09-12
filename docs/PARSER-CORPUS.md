@@ -41,7 +41,8 @@ With `--products` the full `buildInvRows` chain runs against a real catalogue an
 A line can be wrong-and-flagged (a human is asked) or wrong-and-ticked (the number is stored).
 Only the second costs money, and only the `--products` run can see it.
 
-`--json out.json` writes the scores for diffing; `--verbose` prints every line; `--csv` is the same table as CSV.
+`--json out.json` writes the scores for diffing and `--verbose` prints every line.
+⚠️ **There is no `--csv`**, whatever `run.js`'s header used to say. The argv loop has four cases and an `else` that treats anything unrecognised as a **case directory**, so an unknown flag does not warn — it crashes trying to read a directory named after your typo. Both ends were corrected in batch 261.
 
 ---
 
