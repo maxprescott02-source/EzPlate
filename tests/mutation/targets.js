@@ -133,6 +133,20 @@ const targets = [
      was dropped, so a wrong answer here is invisible by construction. `supplierSnap` decides which
      supplier string gets written onto a new product, and a wrong answer there splits a supplier in
      two (or merges two into one) with nothing to see until the filter list grows a duplicate. */
+  /* 260 (item 89) — the selector behind a DESTRUCTIVE surface. It decides which stored readings are
+     offered for deletion, so a mutant that widens it puts real history one tap from gone and one
+     that narrows it makes the repair unreachable. Its bound is shared with the average, the chart
+     and the insight facts, which is why the test asserts it reuses FOOD_COST_SANE_MAX rather than
+     carrying a number of its own. */
+  { fn: 'badHistoryPoints', tests: ['history-point-repair.test.js'] },
+  /* syncHistFixRow: added by 260's own pre-push review, which found the test for it asserting that
+     the source CONTAINS `isOwner()` — true of `!isOwner()` and of `isOwner()` alike, so the guard
+     could be inverted and stay green. The test now evaluates the function across all four
+     combinations; this is what asks the question every time instead of once. */
+  { fn: 'syncHistFixRow', tests: ['history-point-repair.test.js'] },
+  /* badPointByIdentity: the whole change is a comparison that must use BOTH halves of the key, so
+     an `&&` becoming an `||` here restores the wrong-reading-deleted bug the review found. */
+  { fn: 'badPointByIdentity', tests: ['history-point-repair.test.js'] },
   { fn: 'nameIsAllChargeWords', tests: ['parser-charges.test.js'] },
   { fn: 'supplierSnap', tests: ['supplier-snap.test.js'] },
   { fn: 'packWeight', tests: ['parser-suffix.test.js', 'parser-corpus.test.js'] },
@@ -292,10 +306,14 @@ const targets = [
   // claimState: a wrong 'joined' re-syncs forever behind a spinner, a wrong 'none' leaves an
   // invited person staring at "ask the café owner to add this account" after they were added.
   { fn: 'claimState', tests: ['invites-client.test.js'] },
-  // teamWriteLanded: the measured silent no-op. A blocked DELETE on business_invites returns HTTP
-  // 200 having changed NOTHING (191's rehearsal, as staff), so `!res.error` is not a landing — a
-  // mutant that loosens this reports a revoke that did not happen, with the row still live.
-  { fn: 'teamWriteLanded', tests: ['invites-client.test.js'] },
+  /* writeLanded: the measured silent no-op. A blocked DELETE on business_invites returns HTTP 200
+     having changed NOTHING (191's rehearsal, as staff), so `!res.error` is not a landing — a mutant
+     that loosens this reports a revoke that did not happen, with the row still live.
+     ⚠️ RENAMED FROM `teamWriteLanded` IN 260, and it now guards a SECOND caller: the history-point
+     delete hit the identical shape, measured in a browser against production while signed out — no
+     error, the reading gone from the screen, a change-log entry written for it, and the row still
+     there. Two callers make the mutants below matter twice as much, not half as much. */
+  { fn: 'writeLanded', tests: ['invites-client.test.js', 'history-point-repair.test.js'] },
   /* ⚠️ TWO TARGETS WERE DELETED HERE IN 209 AND THIS NOTE IS WHY, because a shorter list looks like
      a weakened gate. `authSignUpGated` and `authInvitePending` were the invitation gate on sign-up,
      described here as "the ONE thing standing between invited people may sign up and self-service

@@ -6,7 +6,7 @@
  * built was reachable from the app. This file pins the half that reaches it.
  *
  * WHAT THESE RUN. The real shipped functions, brace-extracted from js/app.js — claimState,
- * teamWriteLanded, normEmail, loadTeam, renderTeam, submitInvite, revokeInvite, gateMode — against
+ * writeLanded, normEmail, loadTeam, renderTeam, submitInvite, revokeInvite, gateMode — against
  * a DOM stub and a fake Supabase client. The only things faked are the network boundary and the
  * DOM. Nothing here re-implements a shipped decision, which is CLAUDE.md's twenty-incident rule.
  *
@@ -151,7 +151,7 @@ function teamHarness(opts) {
     ${extractFn(SRC, 'teamInviteHtml')}
     ${extractFn(SRC, 'renderTeam')}
     ${extractFn(SRC, 'teamErr')}
-    ${extractFn(SRC, 'teamWriteLanded')}
+    ${extractFn(SRC, 'writeLanded')}
     ${extractFn(SRC, 'dbInviteMember')}
     ${extractFn(SRC, 'dbRevokeInvite')}
     ${extractFn(SRC, 'loadTeam')}
@@ -192,7 +192,7 @@ function teamHarness(opts) {
     };
     return {
       loadTeam: loadTeam, renderTeam: renderTeam, submitInvite: submitInvite,
-      revokeInvite: revokeInvite, teamWriteLanded: teamWriteLanded, normEmail: normEmail,
+      revokeInvite: revokeInvite, writeLanded: writeLanded, normEmail: normEmail,
       data: function(){ return teamData; },
       setData: function(d){ teamData = d; }
     };
@@ -200,20 +200,20 @@ function teamHarness(opts) {
   return { api, D, S };
 }
 
-test('teamWriteLanded: HTTP 200 with NO rows is a FAILURE, not a success', () => {
+test('writeLanded: HTTP 200 with NO rows is a FAILURE, not a success', () => {
   /* ⚠️ THE MEASURED DEFECT, not a hypothetical one. 191's rehearsal recorded it on this exact
      table: as staff, `DELETE /business_invites` returned HTTP 200 having changed NOTHING, with the
      row still there afterwards. `pushWrite` reports `res.error`, and there is no error to report —
      so without this the sync pill goes green, the toast says it worked, the list repaints without
      the row, and the invitation is still live. An anon UPDATE/DELETE does the same (CLAUDE.md). */
   const { api } = teamHarness();
-  assert.equal(api.teamWriteLanded({ data: [{ id: 'i1' }], error: null }), true, 'a row came back');
-  assert.equal(api.teamWriteLanded({ data: [], error: null }), false,
+  assert.equal(api.writeLanded({ data: [{ id: 'i1' }], error: null }), true, 'a row came back');
+  assert.equal(api.writeLanded({ data: [], error: null }), false,
     'HTTP 200 with an empty array is the silent no-op — it must not read as success');
-  assert.equal(api.teamWriteLanded({ data: null, error: null }), false, 'and neither does no body at all');
-  assert.equal(api.teamWriteLanded({ error: { message: 'x' } }), false, 'an error is obviously not a landing');
-  assert.equal(api.teamWriteLanded(null), false);
-  assert.equal(api.teamWriteLanded(undefined), false);
+  assert.equal(api.writeLanded({ data: null, error: null }), false, 'and neither does no body at all');
+  assert.equal(api.writeLanded({ error: { message: 'x' } }), false, 'an error is obviously not a landing');
+  assert.equal(api.writeLanded(null), false);
+  assert.equal(api.writeLanded(undefined), false);
 });
 
 test('loadTeam does not ask the server anything on behalf of staff', () => {

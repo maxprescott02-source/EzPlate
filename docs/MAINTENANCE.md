@@ -1226,3 +1226,24 @@ None of these needs Max and none ever did. They are listed so the deletion is no
 **An accumulating list with no consumer is not a backlog, it is a way of feeling like something was written down.**
 `/batch`'s rule was *"do not stop for a phone check, append here"* — correct in isolation, and it had no matching rule that anything ever drains or prunes it. Fifty sections is what that produces in five weeks.
 **The general shape: any file a process APPENDS to needs a stated cap and a stated test for entry, or it converts work into the appearance of work.** `docs/QUEUE.md` has a cap of 20 and a tier test and stays useful; this file had neither. That is the whole difference.
+
+## C — from batch 260's pre-push review and browser drive (12 Sep 2026)
+
+### Every `pushWrite` caller except two reads an absent error as a successful write
+
+⚠️ **`writeLanded` exists because the same silent no-op bit twice, and both times it was found by driving the app rather than by any test.**
+Batch 251 added it (as `teamWriteLanded`) after a blocked DELETE on `business_invites` returned HTTP 200 with no error; batch 260 hit it again on `price_history`, signed out, where a delete reported success, repainted the screen, wrote a change-log entry saying the reading was gone, and **left the row untouched**.
+`CLAUDE.md` states the mechanism outright - *"an anon UPDATE or DELETE returns 204 with NO error and touches nothing"* - and the only way to tell the two apart is `.select()` plus a length check, which is what `writeLanded` is.
+
+**Two call sites use it. Every other `pushWrite` caller in `js/app.js` treats `!res.error` as proof the write landed**, and for an UPDATE or DELETE filtered by RLS that is exactly the case where it is false.
+
+**Why this is C and not B:** nothing is known to be broken. The two paths that were measured are the two that are fixed, and the rest are mostly INSERTs, where a blocked write does raise. It is a sweep across dozens of call sites with an unknown hit rate, which is a batch of its own rather than a rider.
+
+**What it would take, and the order matters:** enumerate every `.update(` and `.delete(` reaching Supabase, decide for each whether a zero-row result is a failure or a legitimate no-op (some are - deleting a row that is already gone is fine), and only then add the check. **A blanket `writeLanded` would turn every harmless no-op into a false alarm**, which is the direction that gets a guard disabled.
+**And any test for it has to exercise the BLOCKED path**, not the happy one: the whole defect is that both return 200.
+
+### `dbDeleteHistoryPoint` has no DB-side uniqueness behind its natural key
+
+It deletes by `(recorded_at, menu_id)` and `price_history`'s index on those columns is **not unique**, so the key is a convention rather than a constraint.
+Measured on production 12 Sep 2026: **zero** pairs occur twice, and `mergeSeries` collapses same-millisecond rows into one point before the user sees them - so removing both is what the screen offered, and the behaviour is right today.
+**The entry exists because the guarantee is external to the database.** If a future batch adds a second writer to that table, or relaxes `mergeSeries`, this delete starts removing more than the confirm named, silently. A unique constraint would make it a fact rather than an observation; adding one is a migration and needs the existing rows checked first, which is why it is not done on sight.

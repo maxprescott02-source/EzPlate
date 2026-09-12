@@ -102,7 +102,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=213">
+<link rel="stylesheet" href="css/style.css?v=214">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -979,6 +979,21 @@
               </div>
               <button class="btn stg-ctl" id="setLinkOrphans" type="button">Link</button>
             </div>
+            <!-- 260 (item 89): HIDDEN unless the app is already working around a stored reading, and
+                 owner-only because `price_history` refuses a non-owner DELETE since batch 250. Same
+                 hidden discipline as the two rows above, including the `.stg-row:not([hidden])` the
+                 CSS needs at BOTH breakpoints or a single-class display rule beats the UA's [hidden].
+                 ⚠️ The verb is REVIEW, not "fix" or "remove": the row opens a list and each reading is
+                 removed one at a time, by a person who has read what it says. The two rows above can
+                 honestly promise what their one button does; this one cannot, because which readings
+                 are junk is the judgement being asked for. -->
+            <div class="stg-row" id="setHistFixRow" hidden>
+              <div class="stg-text">
+                <span class="stg-lbl">Check odd food-cost readings</span>
+                <p class="stg-help">Some stored readings are too high to be real, usually from a price typed wrong and since corrected. They are left out of your average already, but they still flatten the trend chart. Review them and remove any that are wrong.</p>
+              </div>
+              <button class="btn stg-ctl" id="setHistFix" type="button">Review</button>
+            </div>
             <div class="stg-row">
               <div class="stg-text">
                 <span class="stg-lbl">Export backup</span>
@@ -1571,6 +1586,27 @@
   </div>
 </div>
 
+<!-- 260 (item 89): the readings above the sane bound, each removable on its own.
+     ⚠️ IT DOES NOT REUSE `.ad-list`/`.ad-item`, AND THE FIRST CUT DID. That family is a PICKER: the
+     whole row IS the control (`border:0`, `cursor:pointer`, `flex-direction:column`), so a button
+     placed inside one stretches to full width and a destructive action ends up the largest thing on
+     the row. Driven in a browser is how that showed — the DOM check said "2 rows" and was happy.
+     Bending `.ad-item` to suit this screen was the other option and is the one `docs/QUEUE.md`'s
+     design law warns about by name: that family is worn by the add-dish and plate-heal pickers, and
+     changing it here changes them. So this is its own small family, `.hf-*`. -->
+<div class="modal-overlay" id="histFixModal" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="histFixTitle">
+    <div class="mhead"><h3 id="histFixTitle">Odd food-cost readings</h3><button class="x" id="histFixClose" type="button" aria-label="Close">&times;</button></div>
+    <div class="mbody">
+      <p id="histFixMsg" class="confirm-msg"></p>
+      <div id="histFixList" class="hf-list" role="group" aria-labelledby="histFixTitle"></div>
+    </div>
+    <div class="mfoot">
+      <button class="btn ghost" id="histFixDone" type="button">Done</button>
+    </div>
+  </div>
+</div>
+
 <!-- Edit ingredient modal -->
 <div class="modal-overlay" id="ingModal" aria-hidden="true">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ingModalTitle">
@@ -1835,7 +1871,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=213"></script>
+<script src="js/app.js?v=214"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —

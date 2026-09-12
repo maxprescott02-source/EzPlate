@@ -368,9 +368,9 @@ test('F9: renderSettingsTab primes every control the modal used to prime on open
   const mk = () => ({ value: '', checked: false, textContent: '' });
   ['setCogsInput', 'setGstDefault', 'setVersion', 'setAiInvoiceChk', 'setAiSuggestChk']
     .forEach(id => { els[id] = mk(); });
-  let themeSynced = 0, healSynced = 0;
+  let themeSynced = 0, healSynced = 0, histSynced = 0;
   const run = new Function('els', 'state', `
-    const { cogsPct, gstDefault, APP_VERSION, aiInvoiceCheck, aiSuggestions, syncThemeSeg, syncHealRow } = state;
+    const { cogsPct, gstDefault, APP_VERSION, aiInvoiceCheck, aiSuggestions, syncThemeSeg, syncHealRow, syncHistFixRow } = state;
     const document = { getElementById: id => els[id] || null };
     ${extractFn(APP, 'renderSettingsTab')}
     renderSettingsTab();
@@ -380,6 +380,7 @@ test('F9: renderSettingsTab primes every control the modal used to prime on open
     aiInvoiceCheck: true, aiSuggestions: true,
     syncThemeSeg: () => { themeSynced++; },
     syncHealRow: () => { healSynced++; },
+    syncHistFixRow: () => { histSynced++; },
   });
   assert.equal(els.setCogsInput.value, 31, 'the target % comes from memory, not the markup default');
   assert.equal(els.setGstDefault.value, 'inc', 'the GST default comes from memory');
@@ -391,6 +392,11 @@ test('F9: renderSettingsTab primes every control the modal used to prime on open
   // render that stopped calling it would leave item 16's fix permanently unreachable, with the
   // markup present and nothing on screen — the same silent shape the whole test is about.
   assert.equal(healSynced, 1, 'the older-plate-lines row is decided on every render');
+  /* 260 (item 89): #setHistFixRow ships `hidden` for the same reason and has the same single
+     un-hider, so the same silent shape applies — markup present, nothing on screen, the repair
+     unreachable. It is asserted alongside its sibling rather than in a file of its own, because the
+     thing being pinned is renderSettingsTab's contract, not the row's. */
+  assert.equal(histSynced, 1, 'the odd-readings row is decided on every render too');
 });
 
 /* …and that showTab is what calls it. Priming that exists but is never invoked is the same bug with

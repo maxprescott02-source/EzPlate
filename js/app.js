@@ -364,8 +364,9 @@ function errText(err){ return (err && (err.message||err.error_description||err.e
      dishes (`customMenu`)          -> dbPushMenu / dbDeleteMenu             [menu_items]
      menus (`menusList`)            -> dbUpsertMenuRecord / dbDeleteMenuRecord  [menus]
      plates (`savedPlates`)         -> dbPushPlate / dbDeletePlate           [plates]
-     food-cost history              -> dbPushHistory           [price_history]
-     per-menu history               -> dbPushMenuHistory       [menu_price_history, menu_id set]
+     food-cost history              -> dbPushHistory           [price_history, menu_id null]
+     removing one food-cost reading -> dbDeleteHistoryPoint    [price_history, owner only]
+     per-menu history               -> dbPushMenuHistory       [price_history, menu_id set]
      per-dish sell price            -> dbPushMenuPrice         [menu_price_history]
      per-product cost               -> dbPushIngPrices via saveIngLog        [ing_price_history]
      supplier memory                -> dbPushSupplierPhrase / dbDeleteSupplierPhrase [supplier_phrases]
@@ -1369,6 +1370,10 @@ function applyRoleUi(){
      renderSmemList rebuilds that list every time it opens, so its own render owns them. */
   var idl=document.getElementById('ingDelete'); if(idl) idl.hidden=!owner;
   var rr=document.getElementById('setRestoreRow'); if(rr) rr.hidden=!owner;
+  /* 260 (item 89): owner-only for the same reason as the restore row above — the server refuses a
+     non-owner DELETE on `price_history`. `syncHistFixRow` owns the OTHER half of the condition (is
+     there anything to review) and re-asks this one, so whichever of the two runs last is right. */
+  if(typeof syncHistFixRow==='function') syncHistFixRow();
   /* The target is made READ-ONLY rather than hidden, unlike the three destructive buttons, and
      the difference is the point. A Delete button carries no information, so removing it costs
      nothing. This row carries the NUMBER that drives every suggested price and every good/bad
@@ -4755,9 +4760,22 @@ var changeLogSupported = true;
    since-line picks the newest entry that has one, so an invoice would reset the "since you last
    acted" clock every time a supplier raised a price. See the note at its call site; the figures are
    omitted to keep it off two surfaces, not because none exists. */
+/* 260 (item 89) — `history_point_removed` joins this list. `menu_change_log` records WHAT MAX DID,
+   and editing the history is the most consequential thing he can do to it: a series the user can
+   silently prune is a different artefact from one they cannot.
+   ⚠️ IT IS DELIBERATELY INERT IN BOTH DASHBOARD READERS, and that is correct rather than an
+   oversight. `recentChangeRows` needs a COST delta and this moves no cost; `trendMarkers` needs
+   `avgBefore > avgAfter` and this moves no average either, because the headline is computed from
+   PLATES and not from the stored series. So it lands in the log, where the audit trail is, and draws
+   nothing — which is honest, since nothing about what the café costs has changed.
+   ⚠️ AND THE COMMENT IS HERE RATHER THAN INSIDE THE ARRAY, which is not a style preference:
+   `tests/change-log.test.js`'s census parses this literal by splitting its body on commas, so a
+   block comment between the entries silently becomes several bogus "kinds". The first cut put it
+   inline and the census caught it — roster 183(a) again, prose inside something that gets parsed. */
 var CHANGE_KINDS = ['plate_created','plate_edited','plate_deleted','plate_relinked',
                     'ingredient_repointed','ingredient_deleted','invoice_applied',
-                    'dish_added','dish_linked','dish_price','dish_moved','dish_removed','menu_deleted'];
+                    'dish_added','dish_linked','dish_price','dish_moved','dish_removed','menu_deleted',
+                    'history_point_removed'];
 /* Client-generated, like every other id in this app (SP*, um*, MENU*, K*). That is what makes a restore
    exactly idempotent: an entry carries its own identity into the backup file and back out, so the server
    can `on conflict (id) do nothing` rather than guess at a natural key. The counter breaks ties within a
@@ -4923,6 +4941,132 @@ function dishesOverTarget(){                                         // dishes w
 }
 function dbPushHistory(iso, v){ pushWrite(function(){ return SUPA.from('price_history').insert(pointToRow(iso, v, 'avg_food_cost_pct')); }, 'price history'); }
 function dbPushMenuHistory(iso, v, menuId){ pushWrite(function(){ return SUPA.from('price_history').insert(pointToRow(iso, v, 'avg_food_cost_pct', 'menu_id', menuId)); }, 'menu price history'); }
+/* 260 (item 89) — REMOVE one stored food-cost reading. Owner-only on the server since batch 250.
+   ⚠️ IT RETURNS THE WRITE, which is not tidiness: `CLAUDE.md`'s data-write rules say a `dbDelete*`
+   helper that swallows its promise cannot be sequenced by anyone, and the caller here gates both the
+   in-memory removal AND the change-log entry on this settling. A point removed from memory on a write
+   that failed comes straight back at the next boot, which is the silent half.
+   ⚠️ IT DELETES BY THE NATURAL KEY — `recorded_at` plus `menu_id` — rather than by row id, and that
+   is a deliberate choice with a cost worth naming. The id is not in memory: `bootstrapSync` selects
+   `recorded_at, avg_food_cost_pct, menu_id`, and a point is `{t, v}`. Adding the id would change what
+   `bootstrapSync` puts in memory, which is a change to the BACKUP FORMAT (`buildBackup` dumps live
+   objects verbatim) and would owe a `stamp.format` bump under CLAUDE.md's row-boundary rule — a large
+   price for a delete key.
+   ⚠️ THE FIRST DRAFT JUSTIFIED THE KEY WITH "logHistory's hourly dedup admits one point per series
+   per hour", AND THAT IS NOT WHAT THAT GUARD DOES. Caught by the pre-push review, which went and
+   read it: the condition is `Math.abs(last.v-v)<0.05 && elapsed<3600000`, so it suppresses a point
+   whose VALUE has barely moved — a reading that moves by 0.05 or more inside the hour writes a
+   second point quite legitimately. Nothing in the database enforces uniqueness on
+   `(recorded_at, menu_id)` either: the index there is not unique.
+   That is CLAUDE.md's citation trap — a justification naming a mechanism whose actual condition
+   nobody checked, which reads as settled precisely BECAUSE it cites something.
+   **The key is still right, for a better reason.** Two rows would have to share the same
+   MILLISECOND, and if they ever did `mergeSeries` has already collapsed them into ONE point on the
+   way in — it dedups on `ptMs`. So the user is looking at a single reading, cannot distinguish the
+   rows behind it, and "remove this reading" can only coherently mean all of them. Deleting both is
+   the answer that matches what the screen offered them.
+   Measured on production rather than argued: ZERO `(recorded_at, menu_id)` pairs occur twice.
+   ⚠️ AND IT ROUND-TRIPS EXACTLY BECAUSE EVERY ROW WAS WRITTEN BY `pointToRow`, which stores
+   `new Date(t).toISOString()` — always three decimal places. A `timestamptz` can hold microseconds,
+   and a row finer than a millisecond could never be matched by a key rebuilt from epoch ms. Measured
+   on production rather than assumed: 396 rows, **zero** finer than a millisecond. If that ever stops
+   being true the delete matches nothing — which, since `.select()` landed, now SAYS so instead of
+   quietly reporting success.
+   ⚠️ `.is('menu_id', null)` FOR THE ALL-MENUS SERIES, NEVER `.eq(..., null)` — PostgREST renders the
+   second as `menu_id=eq.null`, which matches NOTHING in SQL, so the delete would report success and
+   remove nothing. That is the shape CLAUDE.md records as the worst kind: an anon UPDATE or DELETE
+   returning 204 with no error and touching nothing. */
+/* 260 (item 89) — THE READINGS THE APP ALREADY KNOWS ARE NOT READINGS.
+   Pure, so a test can run the real thing. Walks both food-cost series — `priceHistory` is the
+   all-menus one and `menuHistory` is the per-menu map, and BOTH live in the `price_history` table,
+   the second with `menu_id` set — and returns every point above the bound batch 241 established.
+   ⚠️ IT REUSES `FOOD_COST_SANE_MAX` AND DOES NOT INVENT A SECOND THRESHOLD. That constant already
+   decides which plates are excluded from the average, from the over-target count, from the insight
+   facts and from the Dig-in ranking, and which readings the trend clamps to the top of its scale. A
+   separate number here would mean the screen could apologise for a reading this row would not offer
+   to remove, or the reverse — two answers to one question, which is the defect this file records
+   more than any other.
+   ⚠️ AND THAT IS THE WHOLE SELECTION RULE, deliberately: a point INSIDE the band is a real reading of
+   a real state, even if the price behind it was later corrected. Offering the whole series for
+   deletion would turn a measurement into an opinion and put every genuine point one tap from gone. */
+function badHistoryPoints(){
+  var out=[];
+  (typeof priceHistory!=='undefined' ? priceHistory : []).forEach(function(p){
+    if(p && typeof p.v==='number' && isFinite(p.v) && p.v>FOOD_COST_SANE_MAX) out.push({t:p.t, v:p.v, menuId:null});
+  });
+  var mh=(typeof menuHistory!=='undefined' && menuHistory) ? menuHistory : {};
+  Object.keys(mh).forEach(function(id){
+    (mh[id]||[]).forEach(function(p){
+      if(p && typeof p.v==='number' && isFinite(p.v) && p.v>FOOD_COST_SANE_MAX) out.push({t:p.t, v:p.v, menuId:id});
+    });
+  });
+  return out.sort(function(a,b){ return ptMs(a)-ptMs(b); });
+}
+/* What a point is OF, in words, for the confirm and the list. A per-menu point names its menu; a menu
+   that no longer exists says so rather than printing a raw id, because the commonest reason a point
+   is bad in the first place is that the menu behind it was an artefact. */
+function historyPointScopeLabel(menuId){
+  if(!menuId) return 'All menus';
+  var m=(typeof menusList!=='undefined' && menusList||[]).filter(function(x){ return x && x.id===menuId; })[0];
+  return m && m.name ? m.name : 'a menu that no longer exists';
+}
+/* The same date wording the trend's own scrub tooltip uses, so a point named in the confirm reads the
+   way it reads on the chart it came from. */
+function historyPointWhen(p){
+  var ms=ptMs(p);
+  return isFinite(ms) && ms ? new Date(ms).toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}) : 'an unknown date';
+}
+function historyPointLabel(p){
+  if(!p) return '';
+  return historyPointScopeLabel(p.menuId)+' \u00b7 '+historyPointWhen(p)+' \u00b7 '+(Math.round(p.v*10)/10)+'%';
+}
+function dbDeleteHistoryPoint(iso, menuId){
+  return pushWrite(function(){
+    var q=SUPA.from('price_history').delete().eq('recorded_at', (typeof iso==='string'?iso:new Date(iso).toISOString()));
+    return (menuId ? q.eq('menu_id', menuId) : q.is('menu_id', null)).select();   // see writeLanded: no body, no proof
+  }, 'removing a history reading');
+}
+/* 260 (item 89) — remove ONE reading, end to end. The order is the whole of it.
+   ⚠️ THE SERVER GOES FIRST AND MEMORY WAITS FOR IT. `pushWrite` drops writes silently when fully
+   offline (CLAUDE.md's standing gap), so a point spliced out of memory optimistically comes back at
+   the next boot with nothing to say it ever left — the app would show it gone, the café would see it
+   return a week later, and no toast in between. So nothing local changes until the delete settles.
+   ⚠️ AND THE LOG IS GATED ON THE SAME PROMISE, through `logChangeIfSaved`, for batch 247's reason:
+   an entry for an intervention that did not happen is worse than no entry, because the audit trail is
+   the one artefact nobody can check against anything else.
+   `avgBefore` is captured before anything moves, per the standing rule, even though it cannot move
+   here — the headline is computed from PLATES, so removing a stored reading leaves it untouched. It
+   is passed honestly rather than omitted: the pair says "this changed no cost", which is true and is
+   what stops the entry drawing a marker it has not earned. */
+function removeHistoryPoint(t, menuId, done){
+  var ms=ptMs({t:t});
+  var iso=(typeof t==='string') ? t : new Date(ms).toISOString();
+  var avgBefore=computeAvgFoodCost();
+  var write=dbDeleteHistoryPoint(iso, menuId||null);
+  return Promise.resolve(write).then(function(r){
+    if(!r || r.error) return false;                       // pushWrite has already toasted the real error
+    /* ⚠️ AND AN EMPTY RESULT IS A FAILURE TOO, which an error check alone cannot see. MEASURED in a
+       browser against production while signed out: the delete returned no error, the reading
+       disappeared from the screen, a change-log entry was written saying it had been removed — and
+       the row was still there. RLS had refused it silently, which is exactly what CLAUDE.md says a
+       blocked write does. Nothing was lost; what was wrong was the app's ACCOUNT of what happened,
+       which on this surface is the whole product. `writeLanded` is the shared predicate. */
+    if(!writeLanded(r)){ toast('That reading could not be removed.'); return false; }
+    var gone=function(p){ return ptMs(p)===ms; };
+    if(menuId){
+      if(menuHistory && menuHistory[menuId]) menuHistory[menuId]=menuHistory[menuId].filter(function(p){ return !gone(p); });
+    } else {
+      priceHistory=priceHistory.filter(function(p){ return !gone(p); });
+    }
+    logChangeIfSaved(write, 'history_point_removed', {
+      menuIds: menuId?[menuId]:[], avgBefore:avgBefore, avgAfter:avgBefore,
+      detail:{ removedAt:iso, scope:menuId||'all' }
+    });
+    repaintDashboardIfVisible();
+    if(typeof done==='function') done();
+    return true;
+  }, function(){ return false; });
+}
 /* v89: one aggregator, two callers. scope===DASH_ALL (or falsy) is the all-menus figure; any other
    scope is a menu id and narrows to that menu's dishes.
 
@@ -6489,6 +6633,82 @@ function runBarePidHeal(){
    older plates, because this recomputes on every Settings render.
    `hidden` + the `.stg-row:not([hidden])` guard the CSS already carries at both breakpoints —
    without it a single-class display rule beats the UA's [hidden] and the row stays visible. */
+/* 260 (item 89) — the Settings row and its list. Shown only while the app is already working around
+   a stored reading, which is the same discipline as the two repair rows beside it: a permanent row
+   for a condition that is usually absent is clutter.
+   ⚠️ THE ROW IS ALSO OWNER-ONLY, and that is enforced in `applyRoleUi` rather than here, because
+   `price_history` refuses a non-owner DELETE on the server since batch 250 — offering staff a button
+   whose every press fails is the dead control the design protocol forbids. Two conditions, two
+   owners: this function answers "is there anything to review", `applyRoleUi` answers "may this person
+   review it", and the row is shown only when both say yes. */
+function syncHistFixRow(){
+  var row=document.getElementById('setHistFixRow'); if(!row) return;
+  var n=badHistoryPoints().length;
+  row.hidden = !n || !isOwner();
+  var b=document.getElementById('setHistFix');
+  if(b) b.textContent='Review'+(n>1?(' ('+n+')'):'');
+}
+/* Finds a bad reading by WHAT IT IS rather than by where it sat in the last render — see the
+   comment in `renderHistFixList`. It is a named function rather than four lines inline so that it
+   can be tested and mutated: the whole point of the change is a comparison that must use BOTH
+   halves of the key, and an `&&` quietly becoming an `||` here puts the wrong-reading-deleted bug
+   straight back. `menuId` is compared through `String(x||'')` because the all-menus series carries
+   null and the DOM hands back '', which are the same series and must match. */
+function badPointByIdentity(t, menuId){
+  var want=String(menuId||''), pts=badHistoryPoints();
+  for(var i=0;i<pts.length;i++){
+    if(String(pts[i].t)===String(t) && String(pts[i].menuId||'')===want) return pts[i];
+  }
+  return null;
+}
+function renderHistFixList(){
+  var list=document.getElementById('histFixList'), msg=document.getElementById('histFixMsg');
+  if(!list) return;
+  var pts=badHistoryPoints();
+  if(msg){
+    msg.textContent = pts.length
+      ? ('These readings are above '+FOOD_COST_SANE_MAX+'%, which is a food cost no plate really has. They are already left out of your average; removing one takes it off the trend chart too.')
+      : 'Nothing left to review — every stored reading is in a sensible range.';
+  }
+  if(!pts.length){ list.innerHTML='<p class="hint">All clear.</p>'; syncHistFixRow(); return; }
+  list.innerHTML=pts.map(function(p, i){
+    return '<div class="hf-row">'
+      +'<span class="hf-txt"><span class="hf-nm">'+esc(historyPointScopeLabel(p.menuId))+'</span>'
+      +'<span class="hf-meta">'+esc(historyPointWhen(p))+' \u00b7 '+esc(String(Math.round(p.v*10)/10))+'%</span></span>'
+      +'<button class="btn danger hf-rm" type="button" data-t="'+esc(String(p.t))+'" data-menu="'+esc(String(p.menuId||''))+'">Remove</button>'
+      +'</div>';
+  }).join('');
+  /* ⚠️ THE BUTTON CARRIES THE POINT'S IDENTITY, NOT ITS POSITION IN THE LIST, and the first cut
+     carried `data-i` — caught by the pre-push review. `badHistoryPoints()` is recomputed at click
+     time, correctly, but an INDEX into a list is only meaningful against the list it was rendered
+     from: `bootstrapSync` can reassign the series while this modal sits open (an `online` event is
+     enough), and index 2 then names a different reading than the one whose name is on the confirm.
+     The user would be told one thing and delete another, which is the worst shape a confirm can
+     have. Identity survives the array being rebuilt; a position does not. */
+  Array.prototype.forEach.call(list.querySelectorAll('.hf-rm'), function(b){
+    b.onclick=function(){
+      var p=badPointByIdentity(b.getAttribute('data-t'), b.getAttribute('data-menu'));
+      /* Gone already — another tab removed it, or a re-sync dropped it. Repaint rather than act on
+         a reading that is no longer there, and say nothing: nothing went wrong. */
+      if(!p){ renderHistFixList(); return; }
+      /* The confirm NAMES the point — which series, which day, what it reads — because that is the
+         whole of what the user is being asked to judge, and an "are you sure?" that does not say
+         WHICH reading is a question nobody can answer correctly. */
+      askConfirm('Remove this reading?',
+        historyPointLabel(p)+'. This takes it off your trend chart for good. Nothing else changes — your average already ignores it.',
+        'Remove', function(){
+          closeConfirm();
+          b.disabled=true;
+          removeHistoryPoint(p.t, p.menuId, function(){ toast('Reading removed.'); }).then(function(ok){
+            b.disabled=false;
+            if(ok) renderHistFixList();
+          });
+        });
+    };
+  });
+}
+function openHistFix(){ renderHistFixList(); show('histFixModal'); }
+function closeHistFix(){ hide('histFixModal'); }
 function syncHealRow(){
   var row=document.getElementById('setHealRow');
   // no typeof guard on the two arrays: both are top-level `var`s assigned at parse, so a "what if
@@ -8946,7 +9166,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v213';
+var APP_VERSION='v214';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -9296,7 +9516,18 @@ function dbRevokeInvite(id){
 }
 /* Both writes answer the same question — did a row actually change — and both have to, for the
    silent-no-op reason at the top of this section. One reader so they cannot drift. */
-function teamWriteLanded(res){ return !!(res && !res.error && res.data && res.data.length); }
+/* ⚠️ DID THE WRITE ACTUALLY LAND — a question `res.error` cannot answer.
+   `CLAUDE.md`: "an anon UPDATE or DELETE returns 204 with NO error and touches nothing. A caller
+   checking only for an error would believe it had written." An RLS refusal and a filter that matched
+   no rows both arrive as a clean success with an empty body.
+   ⚠️ IT WAS `teamWriteLanded` AND IS NOW GENERAL, renamed in 260 rather than copied. It was written
+   for the invite flow in 191 and the identical question came up on the history-point delete — and a
+   second implementation of a predicate is written from the same belief as the first and agrees with
+   it right up to the day it does not, which is this file's most-recorded defect. One name, one
+   answer, for every write that can be silently refused.
+   The caller must ask for the rows: PostgREST only returns a body on a `.select()`, so a helper that
+   omits it makes this permanently false. */
+function writeLanded(res){ return !!(res && !res.error && res.data && res.data.length); }
 
 async function submitInvite(){
   var inp=document.getElementById('teamEmail'), btn=document.getElementById('teamAdd');
@@ -9319,7 +9550,7 @@ async function submitInvite(){
   if(btn) btn.disabled=false;
   /* pushWrite has already toasted a real error. This adds the case it cannot see — a write the
      server accepted and silently applied to nothing. */
-  if(!teamWriteLanded(res)){
+  if(!writeLanded(res)){
     if(!(res && res.error)) teamErr('That invitation was not saved. Only the café owner can invite someone.');
     return;
   }
@@ -9339,7 +9570,7 @@ function revokeInvite(id){
     'Revoke', async function(){
       teamErr('');
       var res=await dbRevokeInvite(id);
-      if(!teamWriteLanded(res)){
+      if(!writeLanded(res)){
         if(!(res && res.error)) teamErr('That invitation was not revoked. Only the café owner can revoke one.');
         return;
       }
@@ -9690,6 +9921,7 @@ function renderSettingsTab(){
   var as=document.getElementById('setAiSuggestChk'); if(as) as.checked=aiSuggestions;    // v81
   syncThemeSeg();                                                                       // v136
   syncHealRow();                                                                        // 239: item 16's row shows only while it has work
+  syncHistFixRow();                                                                     // 260: item 89's row, same discipline
 }
 /* 171 tombstone: `openSettings()` is DELETED. It was a one-line alias for showTab('settings'),
    kept while the header gear needed a handler to bind; the gear is gone and both surviving routes
@@ -10393,6 +10625,9 @@ function clearCacheAndRefresh(){
   on('setSmemOpen',openSmem);                                    // v71 item 5 moved remembered packs here
   on('setHealLines',runBarePidHeal);                             // 239 (item 16): the legacy bare-pid heal
   on('setLinkOrphans',openOrphanPicker);                         // 249 (item 88): the lines that heal refuses
+  on('setHistFix',openHistFix);                                  // 260 (item 89): the stored readings above the sane bound
+  on('histFixClose',closeHistFix);
+  on('histFixDone',closeHistFix);
   on('orphanLinkClose',closeOrphanPicker); on('orphanLinkCancel',closeOrphanPicker);
   on('orphanLinkSkip',orphanSkip);
   /* Delegated off the list, like every other `.ad-item` picker: the rows are rebuilt for each
@@ -14976,7 +15211,7 @@ edCat=makeCatCombo('ed_cat','ed_catDrop','ed_catNew',edCatState);
 // used to carry (it is deliberately not backdrop-dismissable, because an accidental tap must not
 // throw away a plate in progress) is moot — a page has no backdrop. `plateActionsModal` left this
 // list with the chooser.
-['menuModal','invModal','confirmModal','editModal','delChoiceModal','manageMenusModal','plateHealModal','orphanLinkModal'].forEach(function(id){var m=document.getElementById(id);if(m)m.addEventListener('mousedown',function(e){if(e.target===m)hide(id);});});
+['menuModal','invModal','confirmModal','editModal','delChoiceModal','manageMenusModal','plateHealModal','orphanLinkModal','histFixModal'].forEach(function(id){var m=document.getElementById(id);if(m)m.addEventListener('mousedown',function(e){if(e.target===m)hide(id);});});
 /* v137 (F1b): ONE Escape handler for every modal in the app, closing the TOP LAYER ONLY.
    It replaces a hard-coded list of 8 ids plus two single-modal listeners. See topOverlay() /
    closeTopOverlay() for why the layer is derived from the DOM rather than named.
