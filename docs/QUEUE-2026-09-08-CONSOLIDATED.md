@@ -301,7 +301,7 @@ Two clients, two mailboxes, one run, zero cross-contamination in storage paths, 
 - **The second reader:** store real Gemini responses for the corpus and replay them offline (the original `docs/MAINTENANCE.md` requirement), so the `--products` pre-tick numbers include what the referee does.
 - **Residuals to decide, both in the fixtures:** units-vs-weight with no unit word (needs a header-driven column model; the next thing this harness should build) and a container capacity beside a bare count (`750ML 500S`; making the bare `NNNs` count beat the weight changes the `105S` reading `tests/inv-chain.test.js` pins).
 
-**Do after:** 17.
+~~**Do after:** 17.~~ ✅ **SATISFIED — 17 shipped in batch 256 (`ezplate-v211`), and the line is struck per `/batch`'s sweep rule.** **PROMOTED to `docs/QUEUE.md` by batch 260's refill**, which opened G2: G1 has no tier-A or tier-B items left.
 
 ## next  38 · A signed-in caller of the AI endpoints is still unbounded  **[B, C only while the tier is free; the practice offer is a paid tier]**
 
@@ -695,7 +695,14 @@ Blocked on: **Max's priority call.** From `docs/MAINTENANCE.md`'s "Displaced" se
 ⚠️ **THE PRE-PUSH REVIEW FOUND A CRITICAL AND IT IS WORTH READING BEFORE TOUCHING ANY BATCHED `logChange`.** `logChange` defaults an omitted `avgAfter` to a LIVE `computeAvgFoodCost()`, evaluated when that plate's write SETTLES — after every plate in the batch has been mutated. With one `avgBefore` read before the loop, all N entries carried the whole batch's movement, and `trendMarkers` sums `drop` per calendar day, so a two-plate choice drew **twice** the real fall. The remedy is the invoice repoint loop's pattern, which exists for exactly this and says so at its site: measure the pair around each plate's OWN mutation so the entries compose in sequence.
 
 
-## next  89 · A `price_history` point cannot be deleted or corrected from the app  **[B — the SERVER half shipped in batch 250; what is left is the surface]**
+## ~~89 · A `price_history` point cannot be deleted or corrected from the app~~  **SHIPPED — server half batch 250 (`ezplate-v209`), client surface batch 260 (`ezplate-v214`)**
+
+✅ **Settings → Review removes a bad reading, and it names it first.** Owner-only on the client AND on the server, conditional on there being anything to review, confirmed by date and value, and recorded in the change log as `history_point_removed`.
+⚠️ **DELETE ONLY — CORRECTING A POINT WAS DELIBERATELY NOT BUILT**, and the acceptance's "delete **or** correct" is satisfied rather than dodged. A stored reading is an observation of what the menu cost that day; re-writing one to a number the user types is a worse artefact than removing it, because the series then contains a figure nothing ever measured. Removing a typo leaves a gap, which is honest.
+⚠️ **THE ITEM NAMED THE WRONG TABLE FOR THE SECOND SERIES.** It asks for `price_history` / `menu_price_history`; the per-menu FOOD-COST points live in **`price_history` with `menu_id` set**, and `menu_price_history` is the DISH-price log (`menuPriceLog`), a different series that no bad-reading bound applies to. One table covers both, so the surface is complete as built. A stale comment in `js/app.js` saying otherwise was corrected in the same batch.
+⚠️ **MAX'S TWO PRODUCTION POINTS ARE STILL THERE.** The feature exists so he can remove them; deleting production data is his, every time.
+
+**The original item, for the record:**
 
 **Split out of item 18 by batch 241**, which shipped the bound that stops another one being written and deliberately did not build this. The two are different in kind: the bound is arithmetic, this is a destructive write surface.
 
