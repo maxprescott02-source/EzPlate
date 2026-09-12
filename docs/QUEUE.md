@@ -65,24 +65,6 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 ⚠️ **Every line number in these items is a POINTER TO GREP, not a fact** — the consolidated file says so of itself, and the blind audit above is why. **Step one of each is the repro**, and "it does not reproduce" deletes the item and says so in the handover.
 *(G1's only [B — wrong number] item, 15, shipped in batch 244; what is left of the group is below. The two headings were folded into one when it went, because a section with a title and no items reads as work nobody has got to.)*
 
-## next  46 · One verb per intent  **[B — a Stripe-grade app has one word per action]**
-
-**Full item:** `docs/QUEUE-2026-09-08-CONSOLIDATED.md` item 46. **Promoted by batch 261's refill, which opened G4** — G1 and G2 have no tier-A or tier-B items left.
-
-**Problem:** every modal footer and header action was labelled by the batch that built it, so nothing shares a vocabulary. **Five save verbs, three delete verbs, two import verbs**, and one button labelled with a noun.
-
-**Requirements:** decide the table ONCE and apply it in one pass.
-- **Create** is "Add …"; **edit** is "Save"; the builder keeps "Save plate" only if both of its save controls agree.
-- **"Delete"** for destroying the object; **"Remove"** only for taking a thing off a list it still exists outside of (`.mm-remove`, a dish leaving a menu, is genuinely a remove).
-- **One import word** across the Products header, the Invoices header and the modal title.
-- `#menuAddDishBtn` reads "Existing plate" — rename it to what happens. **Placement is item 54 and is out of scope.**
-
-⚠️ **The item lists its sites WITH LINE NUMBERS in `index.html`, and they will have moved.** Grep the ids; `CLAUDE.md`'s own header says so, and seven of eleven recent batches found their item's enumeration short at execution. **Count the sites before planning off the list.**
-**Out of scope:** `marginLightWord`'s vocabulary (answered in F8, do not reopen) and anything that changes what a control DOES.
-**Some wording is Max's to approve — propose the lines in the handover rather than stopping.**
-
----
-
 ## next  57 · One casing system and one product identity line  **[B — the same object in two typographic voices one click apart]**
 
 **Full item:** consolidated item 57.

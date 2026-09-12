@@ -376,8 +376,20 @@ test('revealing the Gemini credit shifts nothing below it', async ({ page }) => 
     below: document.querySelector('.dash-row2').getBoundingClientRect().top,
   }));
   expect(after.hidden, 'the credit is revealed from the section, not the line host').toBe(false);
-  expect(after.band, 'the header band does not grow').toBe(before.band);
-  expect(after.below, 'and nothing below it moves').toBe(before.below);
+  /* ⚠️ toBeCloseTo, NOT toBe, AND THE REASON IS MEASURED RATHER THAN DEFENSIVE. These are
+     getBoundingClientRect() floats, and exact equality on them made this test FLAKY: on an
+     unmodified main it failed roughly one run in four with `Expected: 707.2685546875, Received:
+     707.25` — an eighteen-thousandth of a pixel, from subpixel layout rounding that has nothing to
+     do with what the test is about.
+     Found by batch 261, whose own Playwright run went red here on a change that touched no
+     Dashboard code at all. That is the dangerous shape: a flaky assertion does not read as flaky,
+     it reads as YOUR diff breaking something, and the cost is a batch spent hunting it. Confirmed
+     pre-existing by running the same test four times on a clean main (3 pass, 1 fail).
+     Precision 0 means "within half a pixel". The property being asserted is that revealing the
+     credit does not PUSH THE PAGE DOWN — a real regression here moves the row by a line of text,
+     tens of pixels, so nothing this test exists to catch can hide under the tolerance. */
+  expect(after.band, 'the header band does not grow').toBeCloseTo(before.band, 0);
+  expect(after.below, 'and nothing below it moves').toBeCloseTo(before.below, 0);
 });
 
 /* ============================================================================================

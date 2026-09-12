@@ -1265,3 +1265,23 @@ Measured on production 12 Sep 2026: **zero** pairs occur twice, and `mergeSeries
 ⚠️ **This paragraph claimed BOTH were "pinned in that test" when only the Infinity one was** — the casing divergence was prose, in both this file and the consolidated queue. Caught by batch 261's pre-push review, which read the test instead of the claim; the second pin was added in the same batch, so the sentence is now true. **It is left written out because a comment asserting coverage a test does not have is this repo's most-recorded defect, and it was committed here by the batch whose entire subject was measuring rather than asserting.**
 
 **Ride it with whichever batch next opens that region for another reason**, per this file's rule.
+
+## C — from batch 261's item 46 (13 Sep 2026)
+
+### `fresh-states.spec.js` asserts the Menu secondary's label on a HIDDEN element, so it cannot see how it renders
+
+**Found by a first cut of item 46 going red for the right reason.** The Menu header's `#menuAddDishBtn` was given the app's `.btn-noun` collapse and the spec was updated to assert the shortened form; it failed with the FULL text at a 380px viewport.
+
+**The mechanism is worth keeping even though that label no longer collapses.** In a fresh state there are no menus and no eligible plates, so `updateMenuAddDishBtn` sets `hidden` on the button - and **Playwright's `innerText()` on a hidden node returns the raw text rather than the rendered text.** So the assertion has never observed anything about layout, while its message said *"it already fits"*, which is a rendered-width claim.
+That is `CLAUDE.md`'s *"a comment can record the defect correctly and file it under the wrong consequence"*, in an assertion message rather than a comment: the string being asserted was right, and what the message said it proved was not.
+
+**What it would take:** a spec that drives the Menu screen **with a menu and a costed plate in it**, so the button is actually displayed, and then asserts the rendered label at 380 and at desktop. That is a fixture, not a one-line change, which is why it is filed rather than done - and the label it would pin is currently the same at both widths, so nothing is unprotected today. **It becomes worth building the moment any Menu-header control takes a `.btn-noun` again.**
+
+### `v143-dashboard.spec.js`'s two layout assertions were exact float equality, and flaked one run in four
+
+✅ **FIXED in 261** and recorded here because the SHAPE will recur: `getBoundingClientRect()` returns floats, and `toBe` on them is a promise about subpixel rounding that no browser makes. Measured on an unmodified main: 3 passes and 1 failure in four runs, with `Expected: 707.2685546875, Received: 707.25` - eighteen-thousandths of a pixel.
+
+⚠️ **The cost is not the flake, it is the misattribution.** 261's Playwright run went red there on a diff that touched no Dashboard code, and the honest first reading of a red test is *"my change broke this"*. A batch can lose an hour before it thinks to run the same test on `main`.
+**So: when a Playwright assertion goes red on a diff that cannot plausibly reach it, run it three or four times on a clean `main` BEFORE investigating your own change.**
+
+Both assertions now use `toBeCloseTo(x, 0)` - within half a pixel - and the tolerance was proved to still catch a real regression rather than assumed: making the credit taller than its band turns it red at 44.5 against 73. **Any other `toBe` on a `getBoundingClientRect()` value in `tests/visual/` is the same defect waiting**; they are not swept here because each one needs its own tolerance argued from what it is protecting.

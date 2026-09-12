@@ -5344,7 +5344,7 @@ function renderSmemList(){
   box.innerHTML=ids.map(function(id){ var e=supplierMem[id]; var ul=e.unit==='ea'?'units':e.unit==='l'?'L':e.unit==='ml'?'mL':e.unit;
     return '<div class="smem-row" data-id="'+esc(id)+'"><div class="smem-main"><div class="smem-sentence">'+esc(cap(e.phrase_norm))+' \u2014 from '+esc(e.supplier)+'</div></div>'
       +'<span class="smem-eq">=</span><span class="smem-qty-ro">'+esc(String(e.qty))+' '+esc(ul)+'</span>'
-      +'<button type="button" class="smem-del">Remove</button></div>';
+      +'<button type="button" class="smem-del">Delete</button></div>';   // 261: it destroys the taught pack, so it is a Delete — Remove is for leaving a list you survive
   }).join('');
   box.querySelectorAll('.smem-row').forEach(function(row){
     var id=row.getAttribute('data-id');
@@ -5358,7 +5358,7 @@ function renderSmemList(){
        reaches other people's plates by the same route a product delete does, one step later.
        Owner-only on the server as of 10 Sep 2026 — reasoned from Max's stated reason rather than
        named by him, and recorded as an inference in the migration header. */
-    row.querySelector('.smem-del').addEventListener('click', function(){ delete supplierMem[id]; dbDeleteSupplierPhrase(id); renderSmemList(); toast('Removed'); });
+    row.querySelector('.smem-del').addEventListener('click', function(){ delete supplierMem[id]; dbDeleteSupplierPhrase(id); renderSmemList(); toast('Deleted'); });
   });
 }
 function openSmem(){ renderSmemList(); show('smemModal'); }
@@ -6262,6 +6262,15 @@ function openKingModal(kid){
   }
   var remEl=document.getElementById('kingModalRemove');              // v44 item 6b: Remove lives in the modal, edit mode only
   if(remEl) remEl.style.display=isEdit?'':'none';
+  /* 261 (item 46) — THE COMMIT BUTTON IS DUAL-PURPOSE AND CARRIED ONE STATIC WORD. `saveKingModal`
+     branches on `kingEditId`: create, or rename/repoint an existing ingredient. The markup said
+     "Save" for both, so the create path used the edit vocabulary — the one case in the app where
+     one control had to say two different things and said neither.
+     The item did not name this site; it was found by counting the verbs rather than reading the
+     list. `isEdit` is already computed above for the Remove button, so the two answers come from
+     one source and cannot drift. */
+  var saveEl=document.getElementById('kingModalSave');
+  if(saveEl) saveEl.textContent=isEdit?'Save':'Add ingredient';
   kingSyncSave();
   show('kingModal');
 }
@@ -9166,7 +9175,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v214';
+var APP_VERSION='v215';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI

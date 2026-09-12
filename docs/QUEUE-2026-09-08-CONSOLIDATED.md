@@ -381,7 +381,24 @@ Blocked on: **Max pasting a Google Cloud OAuth client id and secret into the Sup
 
 Every item here is something a person sees. Where Max deferred a row on 3 Sep (ui-audit R8, R10, R11, R13, R14, R15, R16), including it below is a re-ask under override 3, and it says so; his call stands until he changes it.
 
-## next  46 · One verb per intent: five save verbs, three delete verbs, two import verbs, and a button whose label is a noun  **[B, a Stripe-grade app has one word per action]**
+## ~~46 · One verb per intent~~  **SHIPPED, batch 261, `ezplate-v215`**
+
+✅ **The table is decided and applied in one pass, and `tests/verbs.test.js` pins all 23 controls BY EQUALITY** (roster 190: "not the wrong word" is a guess about every wrong word there could be).
+Opener `New <object>` · commit `Add <object>` · join a list `Add to menu` · edit `Save` · destroy `Delete <object>` · leave a list `Remove from <list>` · one import word, `Import`.
+
+⚠️ **THREE SITES WERE NOT IN THIS ITEM'S LIST**, found by counting the verbs across all 103 labelled buttons rather than by reading the enumeration:
+- **`#kingModalSave` is DUAL-PURPOSE.** `saveKingModal` branches on `kingEditId`, and the markup carried one static "Save" — so the CREATE path wore the edit vocabulary. It is now labelled from `isEdit`, the same flag that decides whether Remove is shown, so the two cannot disagree about which mode the modal is in.
+- **`#delChoiceMenuOnly` said "Delete from menu only" while KEEPING the plate** — its own toast says *"plate kept"*. Meanwhile `#kingModalRemove` said "Remove" while destroying an ingredient outright. **The two were on opposite wrong sides of the same line**, which is why the split is now stated as *what survives*, not *how bad it feels*.
+- **The import verbs are SIX sites, not three.**
+
+⚠️ **DELIBERATELY NOT CHANGED, and pinned so a later pass does not "finish the job" wrongly:**
+- **`#ed_delete` keeps "Delete item".** "Menu item" is the surviving FIFTH noun that `CLAUDE.md` says is awaiting its own brief; the alternatives are a forbidden noun ("dish") or a wrong one ("plate" — it deletes the menu row, not the plate).
+- **`#delChoiceAll` keeps "Delete everything".** It means two things by design: with a plate it deletes the plate, without one it only removes the menu row. Its own code says so, and "Delete plate" would be a lie in the second case.
+- **`#bgUpBtn` / `#bgCafeBtn` keep "Create account" / "Create my café"** — onboarding, not app objects.
+
+⚠️ **THE ONE LABEL THAT DIFFERS FROM THIS ITEM'S PROPOSAL: `#menuAddDishBtn` is "Add plate", not "Add plate to menu".** `fresh-states.spec.js` records that the mock's "Add existing plate" WRAPPED the 380px Menu header onto two lines, and this button's rule is that its words stay put at both widths. "to menu" is the redundant half anyway — `css/style.css` states the app's own reason for the `.btn-noun` idiom in as many words: *the tab already names the thing*.
+
+**The original item, for the record:**
 
 **Mechanism:** every modal footer and header action was labelled at the batch that built it; nothing shared the vocabulary. Decide the table once and apply it in one pass; keep commentary in the handover.
 
