@@ -1311,6 +1311,25 @@ body.scroll-locked{position:fixed;left:0;right:0}
 .ad-nm{font-weight:700;font-size:15px}
 .ad-meta{font-size:12px;color:var(--muted2)}
 .ad-empty{padding:16px;text-align:center;color:var(--muted2);font-size:var(--fs-base)}
+/* 260 (item 89) — the odd-readings list. Its own family rather than `.ad-*`, because those rows ARE
+   the control (whole row tappable, no border, column layout) and this one CONTAINS one. Putting a
+   button inside an `.ad-item` stretches it to full width and makes a destructive action the largest
+   thing on the row; bending `.ad-item` instead would change the add-dish and plate-heal pickers that
+   wear it, which `docs/QUEUE.md`'s design law names as a family not to delete or alter on a grep. */
+.hf-list{max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:10px}
+.hf-row{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-4);padding:11px 13px;border-bottom:1px solid var(--border)}
+.hf-row:last-child{border-bottom:0}
+.hf-txt{display:flex;flex-direction:column;gap:2px;min-width:0}
+.hf-nm{font-weight:700;font-size:15px;color:var(--text)}
+/* tabular-nums so a column of readings lines up, and the figure is the thing being judged */
+.hf-meta{font-size:12px;color:var(--muted2);font-variant-numeric:tabular-nums}
+.hf-rm{flex:0 0 auto;min-height:44px}
+/* the phone: the row stacks, and the button goes full width because at that size it is the only
+   thing in its line rather than competing with the text beside it */
+@media (max-width:560px){
+  .hf-row{flex-direction:column;align-items:stretch;gap:var(--sp-2)}
+  .hf-rm{width:100%}
+}
 /* invoice match candidate chips — the real choices, visible immediately */
 .cand-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:2px}
 .cand-chip{padding:7px 11px;border:1px solid var(--border2);border-radius:999px;font-size:12px;font-weight:600;background:var(--surface);color:var(--text);cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;-webkit-touch-callout:none;transition:background var(--t-fast) var(--ease),border-color var(--t-fast) var(--ease),color var(--t-fast) var(--ease),transform var(--t-fast) var(--ease)}   /* touch-callout:none keeps a long-press from firing the iOS selection menu on this tappable chip. v72: motion on the .sel state change + tap press. */
