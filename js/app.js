@@ -5344,7 +5344,7 @@ function renderSmemList(){
   box.innerHTML=ids.map(function(id){ var e=supplierMem[id]; var ul=e.unit==='ea'?'units':e.unit==='l'?'L':e.unit==='ml'?'mL':e.unit;
     return '<div class="smem-row" data-id="'+esc(id)+'"><div class="smem-main"><div class="smem-sentence">'+esc(cap(e.phrase_norm))+' \u2014 from '+esc(e.supplier)+'</div></div>'
       +'<span class="smem-eq">=</span><span class="smem-qty-ro">'+esc(String(e.qty))+' '+esc(ul)+'</span>'
-      +'<button type="button" class="smem-del">Remove</button></div>';
+      +'<button type="button" class="smem-del">Delete</button></div>';   // 261: it destroys the taught pack, so it is a Delete — Remove is for leaving a list you survive
   }).join('');
   box.querySelectorAll('.smem-row').forEach(function(row){
     var id=row.getAttribute('data-id');
@@ -5358,7 +5358,7 @@ function renderSmemList(){
        reaches other people's plates by the same route a product delete does, one step later.
        Owner-only on the server as of 10 Sep 2026 — reasoned from Max's stated reason rather than
        named by him, and recorded as an inference in the migration header. */
-    row.querySelector('.smem-del').addEventListener('click', function(){ delete supplierMem[id]; dbDeleteSupplierPhrase(id); renderSmemList(); toast('Removed'); });
+    row.querySelector('.smem-del').addEventListener('click', function(){ delete supplierMem[id]; dbDeleteSupplierPhrase(id); renderSmemList(); toast('Deleted'); });
   });
 }
 function openSmem(){ renderSmemList(); show('smemModal'); }
@@ -6262,6 +6262,15 @@ function openKingModal(kid){
   }
   var remEl=document.getElementById('kingModalRemove');              // v44 item 6b: Remove lives in the modal, edit mode only
   if(remEl) remEl.style.display=isEdit?'':'none';
+  /* 261 (item 46) — THE COMMIT BUTTON IS DUAL-PURPOSE AND CARRIED ONE STATIC WORD. `saveKingModal`
+     branches on `kingEditId`: create, or rename/repoint an existing ingredient. The markup said
+     "Save" for both, so the create path used the edit vocabulary — the one case in the app where
+     one control had to say two different things and said neither.
+     The item did not name this site; it was found by counting the verbs rather than reading the
+     list. `isEdit` is already computed above for the Remove button, so the two answers come from
+     one source and cannot drift. */
+  var saveEl=document.getElementById('kingModalSave');
+  if(saveEl) saveEl.textContent=isEdit?'Save':'Add ingredient';
   kingSyncSave();
   show('kingModal');
 }
@@ -9166,7 +9175,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v214';
+var APP_VERSION='v215';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -14663,7 +14672,8 @@ function eligibleDishes(){                                         // costed pla
   // 222: "costed" here is the same question the Plates library and the Menu row now ask
   return savedPlates.filter(function(sp){ return plateFullyCosted(sp) && costFromLines(sp.lines)>0; });
 }
-/* 214 — "Existing plate" was offered before it could do anything. At zero costed plates the button
+/* 214 — the Menu secondary (then "Existing plate", "Add plate" since 262) was offered before it
+   could do anything. At zero costed plates the button
    sat in the Menu header (and, below 768, wrapped onto its own row under it, reading as an orphan)
    and opened a modal whose entire content was "No costed plates found. Build and save a plate
    first." A control that can only ever explain why it is useless is one the screen should not be
@@ -14949,11 +14959,21 @@ function setEditMode(){
   var cf=document.getElementById('ed_catField'), pf=document.getElementById('ed_priceField');
   var mf=document.getElementById('ed_menuField');
   var dr=document.getElementById('ed_deleteRow');
-  var save=document.getElementById('editSave'), title=document.getElementById('editTitle');
-  var nlab=document.querySelector('label[for="ed_name"]');
   if(cf)cf.style.display=''; if(pf)pf.style.display=''; if(mf)mf.style.display='';
   if(dr)dr.style.display='';
-  if(save)save.textContent='Save changes'; if(title)title.textContent='Edit menu item'; if(nlab)nlab.textContent='Menu item name *';
+  /* 262 (item 46) — THE THREE textContent LINES THAT WERE HERE ARE GONE, and the reason is the
+     whole of why this function still existed. They restored the labels for the FIRST of the two
+     modes described above, and the second has been dead since v55. Two of them wrote exactly what
+     `index.html` already says ("Edit menu item", "Menu item name *"), so they were invisible; the
+     third wrote "Save changes" over the markup's button.
+     ⚠️ That made this the sibling of the `kingModalSave` defect THIS BATCH WAS FIXING, and it was
+     worse: `setEditMode` is called by `openMenuEdit`, which is the only way this modal opens, so the
+     relabel in `index.html` could never reach the screen. The static markup said one thing and every
+     real user saw another. Caught by the pre-push review, after `tests/verbs.test.js` — which reads
+     `index.html` and does not execute `js/app.js` — went green on markup nobody ever sees.
+     The lesson is not "check for overrides", it is that A LABEL HAS ONE OWNER. The markup owns
+     these three now; a mode that needs different words would set them from its own branch, which is
+     what the dead mode actually did. */
 }
 function onEditSave(){ saveMenuEdit(); }
 function openDelChoice(id,nm){
@@ -15116,7 +15136,7 @@ document.getElementById('invParse').addEventListener('click',parseInvoice);
       if(f) handleInvFile(f);
     });
   });
-  var ub=document.getElementById('invUploadBtn'); if(ub) ub.addEventListener('click',openInv);   // the screen header's primary — the mock's §3.6 "Upload invoice"
+  var ub=document.getElementById('invUploadBtn'); if(ub) ub.addEventListener('click',openInv);   // the screen header's primary — the mock's §3.6 "Upload invoice", which 262 relabelled to "Import invoice" (one import word; the id keeps its name)
 })();
 document.getElementById('invClose').addEventListener('click',closeInv);
 /* 193 — the catalogue importer's wiring, the same shape as the invoice one above and for the same

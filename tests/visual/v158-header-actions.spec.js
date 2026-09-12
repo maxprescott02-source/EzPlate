@@ -149,7 +149,7 @@ test('380: each rehomed action still opens what it opened, in one tap', async ({
 
   await gotoTab(page, 'analysis');
   await page.locator('#menuAddDishBtn').click();
-  await expect(page.locator('#addDishModal'), 'Existing plate still opens the add-dish modal').toBeVisible();
+  await expect(page.locator('#addDishModal'), 'the Menu secondary still opens the add-dish modal').toBeVisible();
   await page.keyboard.press('Escape');
   await page.waitForTimeout(200);
 

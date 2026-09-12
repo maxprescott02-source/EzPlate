@@ -102,7 +102,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=214">
+<link rel="stylesheet" href="css/style.css?v=215">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -552,7 +552,7 @@
              chosen: `tests/visual/v142-menu.spec.js` pins the header to one row at both. -->
         <!-- 179: below 768 this moves into #menuSwitchRow, the row F5's R5 note below already chose
              as the home for what the mobile mock's header could not carry. Same home, one item later. -->
-        <button id="menuAddDishBtn" type="button" class="plib-btn2" data-mobile-home="menuSwitchRow">Existing plate</button>
+        <button id="menuAddDishBtn" type="button" class="plib-btn2" data-mobile-home="menuSwitchRow">Add plate</button>
         <button id="menuNewBtn" type="button" class="btn primary">New menu</button>
       </div>
       <!-- The mock's §3.2 control row says "switcher left, search right", and this row DEVIATES
@@ -628,7 +628,7 @@
            footer as §2's destructive outline button — the same shape §3.8 gives Delete-workspace, and
            it takes a destructive control out from beside the most-clicked one (a v134 review worry the
            old row patched around with `margin-left:auto`). updateMenuDelBtn still owns its visibility. -->
-      <button id="menuDelBtn" type="button" class="mnu-del">Delete this menu</button>
+      <button id="menuDelBtn" type="button" class="mnu-del">Delete menu</button>
     </div>
   </div><!-- /tab-analysis (LABEL: Menu) -->
 
@@ -779,7 +779,7 @@
         <h2>Invoices</h2>
         <span class="scr-sub">Imports update product prices automatically</span>
         <span class="scr-gap"></span>
-        <button class="btn primary" id="invUploadBtn" type="button">Upload invoice</button>
+        <button class="btn primary" id="invUploadBtn" type="button">Import invoice</button>
       </div>
       <!-- the mock's §3.6 dropzone. A real drop target AND a browse button: it feeds the same
            #invFile → handleInvFile path the modal uses, so there is one parse route, not two. -->
@@ -1274,7 +1274,7 @@
         <div class="field full"><label class="chk"><input id="f_food" type="checkbox" checked> Food item (appears in ingredient search)</label></div>
       </div>
     </div>
-    <div class="mfoot"><button class="btn ghost" id="mCancel" type="button">Cancel</button><button class="btn primary" id="mSave" type="button">Add new product</button></div>
+    <div class="mfoot"><button class="btn ghost" id="mCancel" type="button">Cancel</button><button class="btn primary" id="mSave" type="button">Add product</button></div>
   </div>
 </div>
 <div class="toast" id="toast" role="status"></div>
@@ -1344,7 +1344,7 @@
      without your review" permanently, which is what the banner said and then let you hide. -->
 <div class="modal-overlay" id="invModal" aria-hidden="true">
   <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="invModalTitle">
-    <div class="mhead"><h3 id="invModalTitle">Upload invoice</h3><button class="x" id="invClose" type="button" aria-label="Close">&times;</button></div>
+    <div class="mhead"><h3 id="invModalTitle">Import invoice</h3><button class="x" id="invClose" type="button" aria-label="Close">&times;</button></div>
     <div class="mbody">
       <!-- step 1 — choose -->
       <div class="inv-step" id="invStepChoose">
@@ -1496,7 +1496,7 @@
       <!-- v100 prose cull: "New menus start empty…" hint removed — the Menu tab's empty state
            already says "Publish a plate from the Plates tab to see it here" (pinned) -->
     </div>
-    <div class="mfoot"><button class="btn ghost" id="newMenuCancel" type="button">Cancel</button><button class="btn primary" id="newMenuSave" type="button">Create menu</button></div>
+    <div class="mfoot"><button class="btn ghost" id="newMenuCancel" type="button">Cancel</button><button class="btn primary" id="newMenuSave" type="button">Add menu</button></div>
   </div>
 </div>
 
@@ -1530,7 +1530,7 @@
       <!-- v112: #ed_plateActions ("Restore to Menu" / "Permanently delete") removed — it was only ever
            shown by the orphan-plate edit mode, which no click path could reach. See setEditMode in app.js. -->
     </div>
-    <div class="mfoot"><button class="btn ghost" id="editCancel" type="button">Cancel</button><button class="btn primary" id="editSave" type="button">Save changes</button></div>
+    <div class="mfoot"><button class="btn ghost" id="editCancel" type="button">Cancel</button><button class="btn primary" id="editSave" type="button">Save</button></div>
     <div class="edit-delete-row" id="ed_deleteRow"><a class="del-link" id="ed_delete" role="button" tabindex="0">Delete item</a></div>
   </div>
 </div>
@@ -1542,7 +1542,7 @@
     <div class="mbody"><p id="delChoiceMsg" class="confirm-msg"></p></div>
     <div class="mfoot del-choice-foot">
       <button class="btn ghost" id="delChoiceCancel" type="button">Cancel</button>
-      <button class="btn" id="delChoiceMenuOnly" type="button">Delete from menu only</button>
+      <button class="btn" id="delChoiceMenuOnly" type="button">Remove from menu</button>
       <button class="btn primary" id="delChoiceAll" type="button">Delete everything</button>
     </div>
   </div>
@@ -1627,7 +1627,7 @@
         </div>
       </div>
     </div>
-    <div class="mfoot ig-foot"><button class="btn danger ghost" id="ingDelete" type="button">Delete</button><span class="mfoot-spacer"></span><button class="btn ghost" id="ingCancel" type="button">Cancel</button><button class="btn primary" id="ingSave" type="button">Save changes</button></div>
+    <div class="mfoot ig-foot"><button class="btn danger ghost" id="ingDelete" type="button">Delete product</button><span class="mfoot-spacer"></span><button class="btn ghost" id="ingCancel" type="button">Cancel</button><button class="btn primary" id="ingSave" type="button">Save</button></div>
   </div>
 </div>
 
@@ -1656,7 +1656,7 @@
       </div>
       <div id="king_alts" class="king-alts" style="display:none"></div>
     </div>
-    <div class="mfoot"><button class="btn ghost king-remove" id="kingModalRemove" type="button" style="display:none">Remove</button><button class="btn ghost" id="kingModalCancel" type="button">Cancel</button><button class="btn primary" id="kingModalSave" type="button" disabled>Save</button></div>
+    <div class="mfoot"><button class="btn ghost king-remove" id="kingModalRemove" type="button" style="display:none">Delete ingredient</button><button class="btn ghost" id="kingModalCancel" type="button">Cancel</button><button class="btn primary" id="kingModalSave" type="button" disabled>Save</button></div>
   </div>
 </div>
 
@@ -1871,7 +1871,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=214"></script>
+<script src="js/app.js?v=215"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —

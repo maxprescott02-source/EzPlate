@@ -65,7 +65,22 @@ async function raise(page, { iosHint = false, toast = true } = {}) {
     if (toast) {
       el.classList.add('show');
       el.textContent = 'Couldn’t save product — no database connection';
-      await new Promise((r) => setTimeout(r, 300));   // the toast transitions its transform in
+      /* ⚠️ WAIT FOR THE TRANSFORM TO SETTLE, DO NOT SLEEP THROUGH IT. This was `setTimeout(…, 300)`,
+         which is a bet that 300ms is longer than the animation — true on an idle machine and false
+         under the full suite's parallel workers. Batch 262 caught it: at 380 and 768 the gap came
+         out 4.5 instead of the derived 12.5, because the toast was sampled 8px short of its final
+         position. Every other figure in the payload (`clear`, `dock`, the banner rect) was exactly
+         right, which is what makes a mid-animation sample read as a LAYOUT defect rather than a
+         timing one — the assertion is about geometry, so the failure looks like geometry.
+         Polling until the rect stops moving costs nothing when the animation is already done, and
+         the cap means a genuinely stuck transition still fails rather than hanging. */
+      let last = null, still = 0;
+      for (let i = 0; i < 120 && still < 3; i++) {
+        await new Promise((r) => requestAnimationFrame(r));
+        const now = el.getBoundingClientRect().bottom;
+        still = (last !== null && Math.abs(now - last) < 0.01) ? still + 1 : 0;
+        last = now;
+      }
     }
     const R = (n) => { const b = n.getBoundingClientRect(); return { l: b.left, r: b.right, t: b.top, b: b.bottom, h: b.height }; };
     const inst = document.getElementById('installBanner');

@@ -426,13 +426,26 @@ test('v45 item 4 / F4: primaries say one thing at every width; secondaries still
   expect((await page.locator('#importBtn').innerText()).trim(), 'the SECONDARY still shortens — the idiom survives where the room is tight').toBe('Import');
   await page.locator('.navbtn[data-tab="analysis"]').click();
   await page.waitForTimeout(300);
-  // v100: reconciled with the v86 dish→plate terminology pass — the app has said "Existing plate"
-  // since then; this pin was stale (red on unmodified main from v86 to v99).
+  // v100: reconciled with the v86 dish→plate terminology pass — the app said "Existing plate" from
+  // then until 262, which gave it a verb; this pin was stale once before (red on unmodified main
+  // from v86 to v99), which is why it carries its history.
   // F5 (v142): Menu is converted, so the "+" goes the way it went on every other converted screen
   // (the mock's buttons carry no plus). The WORDS stay put at both widths, which is the assertion
   // that matters here: the mock's own "Add existing plate" wrapped the 380px header onto two lines,
   // and a label that changes between breakpoints is exactly what §7 forbids.
-  expect((await page.locator('#menuAddDishBtn').innerText()).trim(), 'the converted secondary does not shorten either — it already fits').toBe('Existing plate');
+  /* 262 (item 46): the label was the NOUN "Existing plate" — the item's one "a button labelled with
+     a noun" site. It is the verb "Add plate" now, at BOTH widths, which is what the note above
+     requires: the mock's "Add existing plate" wrapped this header onto two lines at 380px.
+     ⚠️ AND THIS ASSERTION CANNOT SEE WHAT ITS OLD MESSAGE CLAIMED. In a FRESH state there are no
+     menus and no eligible plates, so `updateMenuAddDishBtn` sets `hidden` on this button — and
+     Playwright's innerText() on a hidden node returns the raw text, not the rendered text. So it
+     never observed a `.btn-noun` collapse, and the old message ("it already fits") named a
+     rendered-width property the assertion had no way to measure.
+     A first cut of 262 gave the button a `.btn-noun` and asserted the collapsed form here; it went
+     red for exactly this reason, which is how the gap was found. The label carries no span now, so
+     there is nothing to collapse and the assertion means what it says: the words are these words.
+     Filed in docs/MAINTENANCE.md — pinning the RENDERED label needs a spec with a menu in it. */
+  expect((await page.locator('#menuAddDishBtn').innerText()).trim(), 'one verb phrase, the same at every width').toBe('Add plate');
   await page.setViewportSize({ width: 1280, height: 900 });
   await gotoTab(page, 'ingredients');   // 171: Products is under More below 1024 — drive the real route at the real width
   await page.waitForTimeout(300);

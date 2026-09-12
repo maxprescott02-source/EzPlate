@@ -147,7 +147,7 @@ It belongs in G3 on context: it is `as restrictive for delete`, one migration, m
 
 **Context:** the four object nouns and the forbidden fifth, the naming inversion, the verb table, the `.scr-sub` rule.
 
-**Items:** 46, 57, 58, 60 (**all four promoted to `docs/QUEUE.md` by batch 261's refill**) · 78 (C, rides) · the copy half of 51
+**Items:** ~~46~~ (SHIPPED, batch 261, `ezplate-v215`) · 57, 58, 60 (promoted to `docs/QUEUE.md` by batch 261's refill) · 78 (C, rides) · the copy half of 51
 
 **Why one batch:** every one of these is a decided vocabulary applied in one pass across one file. Done separately, each batch re-derives the table and they drift.
 
