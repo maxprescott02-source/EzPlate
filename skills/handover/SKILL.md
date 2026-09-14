@@ -19,7 +19,8 @@ Read it before adding a file that is not the next integer.
 
 **Keep it short.** Handovers accumulate faster than anyone reads them, so the handover carries only what nothing else does.
 Root-cause narrative, judgement-call essays and verification logs are NOT in the template any more: the PR, the tests and git already carry them.
-The recent ones run 300 to 430 lines (v113 299, v114 426, v115 306); the target now is one screen, around 40.
+The target is one screen, around 40 lines.
+⚠️ **This sentence read "the recent ones run 300 to 430 lines (v113 299, v114 426, v115 306)" until 263, and it had been wrong for months** - the last dozen run 59 to 123. It was a measurement of the problem the target was written to fix, left standing after the fix worked, so a reader arriving at it was told the habit was three times worse than it is. **Measure it: `ls docs/handovers/HANDOVER-2*.md | sort -t- -k2 -n | tail -12 | xargs wc -l`.**
 A batch that produced nothing but a green suite and a merged diff has a very short handover, and that is correct.
 
 **Style:** follow `~/.claude/AGENTS.md` - no em dashes, one sentence per line.

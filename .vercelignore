@@ -19,6 +19,8 @@ skills/
 .claude/
 .agents/
 .mcp.json
+.mcp.production.json
+tools/
 
 # Tests and their harnesses
 tests/

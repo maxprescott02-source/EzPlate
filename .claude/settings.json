@@ -6,7 +6,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node --test tests/*.test.js"
+            "command": "node \"$CLAUDE_PROJECT_DIR/tools/post-edit-tests.js\"",
+            "timeout": 120
           }
         ]
       }
