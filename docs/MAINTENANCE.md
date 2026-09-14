@@ -1334,3 +1334,13 @@ The helper set `.toast.show` and then `setTimeout(…, 300)` - a bet that 300ms 
 **The move is not free and that is why it is filed rather than done.** `.claude/skills/` is gitignored on purpose (it holds symlinks, which are facts about one machine), so landing them means putting the bodies in `skills/` and re-pointing three symlinks — and `test-flows` duplicates the `flow-tester` agent, which is *also* at `~/.claude/agents/`, so the honest fix is to move the agents too and decide whether the skill and the agent are one thing. That is a batch, not a rider.
 
 **Ride it with whichever batch next opens `skills/`.** Until then: a clone of this repo can run `/batch` and cannot run `/new-branch`, and nothing says so.
+
+### Comments across the repo cite `CLAUDE.md` for text that is now in `.claude/rules/`
+
+**25 test files, `js/app.js` (90 mentions) and `css/style.css` (26)** point at `CLAUDE.md` by name for rules that moved in 264 - *"CLAUDE.md's roster"*, *"CLAUDE.md Tier 1"*, *"CLAUDE.md's Tier 1 corollary"*. The rule is intact and the pointer is not.
+
+**It is filed rather than fixed, and the reason is the one thing that makes it tolerable: in almost every case the text now arrives anyway.** A comment in `tests/*.js` citing the roster sits in a file whose own rule file (`.claude/rules/tests.md`) the harness loads when that file is read; the same is true of `js/app.js` and `css/style.css`. So the reader gets the content and a wrong address, rather than nothing.
+
+**Do not sweep all 141 mentions.** Most are a phrase inside a sentence about something else, and a find-and-replace across three files that ship to a phone is a large diff with no test behind it. **Correct the ones in whatever file a batch already has open**, which is what this file is for, and prefer naming the rule file directly (`.claude/rules/tests.md`) over `CLAUDE.md`.
+
+⚠️ **The honest risk, stated because it is the one this split actually creates:** a reader who follows the pointer, greps `CLAUDE.md`, finds nothing, and concludes the rule was DELETED. `CLAUDE.md`'s own header says where the evidence went, which is the mitigation, and it is a weaker one than a correct pointer would be.
