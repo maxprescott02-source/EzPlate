@@ -131,8 +131,9 @@ function repoFiles() {
   return out;
 }
 
-test('1. CLAUDE.md stays under 200 lines', () => {
-  const lines = read(path.join(ROOT, 'CLAUDE.md')).split('\n');
+test('1. CLAUDE.md stays under 200 lines AND under 32KB', () => {
+  const text = read(path.join(ROOT, 'CLAUDE.md'));
+  const lines = text.split('\n');
   // Trailing newline gives one empty final element; do not count it.
   const n = lines[lines.length - 1] === '' ? lines.length - 1 : lines.length;
   assert.ok(
@@ -140,6 +141,16 @@ test('1. CLAUDE.md stays under 200 lines', () => {
     `CLAUDE.md is ${n} lines. It is loaded in full on every turn of every session, ` +
     `and it reached 1,078 lines the last time nothing was watching. A rule that ` +
     `earns its place displaces one, or its evidence moves to .claude/rules/.`
+  );
+  // The line cap alone is a PROXY, and the pre-push review of the split said so:
+  // the stated problem is 164,502 BYTES on every turn, and a line count is
+  // defeated by writing fewer, longer lines - which is exactly the house style
+  // here. Cap what the problem was actually measured in. 32KB against today's
+  // 24KB leaves real headroom and still catches a slide back toward 164KB.
+  assert.ok(
+    text.length <= 32768,
+    `CLAUDE.md is ${text.length} bytes. The 200-line cap is a proxy for this ` +
+    `number, and this is the one the audit measured.`
   );
 });
 
@@ -161,6 +172,39 @@ test('2. every section of the pre-split CLAUDE.md still exists somewhere', () =>
   // is not in the manifest is a NEW rule, which is fine and is why this half
   // only reports; the assertion above is the one that holds.
   assert.ok(present.size >= MANIFEST.length);
+
+  // ⚠️ THE HONEST LIMIT, and the pre-push review of the split named it: the
+  // check above proves a heading STRING survived, not that anything is left
+  // under it. A section gutted to a stub with its heading intact stays green -
+  // which is this repo's own most-recorded shape, a test that cannot fail,
+  // arriving in the test written to police a split.
+  //
+  // The floor below bounds the corpus, and it is worth being exact about what
+  // that buys, because the comfortable version of this sentence is wrong.
+  // MEASURED, by doing it: deleting the whole `revoke … from public` section -
+  // ~5KB, one of the highest-stakes rules here - leaves this assertion GREEN.
+  // The floor catches a COLLAPSE, not a gutting. Nothing in this repo catches a
+  // gutting, and the honest reason the floor is still here is that a collapse
+  // is the failure a bulk edit or a bad merge actually produces.
+  //
+  // The pre-split file was 164,502 bytes; the same text plus the new headers is
+  // ~193,000 across CLAUDE.md, the rule files and process.md. 150,000 is
+  // deliberately slack, because a floor that reddens on a typo fix teaches
+  // people to bump the number without reading it, and a number nobody reads is
+  // worse than no number. Pruning a stale rule is legitimate and this repo does
+  // it; taking a fifth of the corpus out has to be somebody editing this line
+  // on purpose, the same way MANIFEST works one level up.
+  const corpus = [
+    read(path.join(ROOT, 'CLAUDE.md')),
+    ...ruleFiles().map(f => read(path.join(RULES_DIR, f))),
+    read(PROCESS_DOC),
+  ].reduce((n, t) => n + t.length, 0);
+  assert.ok(
+    corpus >= 150000,
+    `the rules corpus is ${corpus} bytes, down from 164,502 in CLAUDE.md alone ` +
+    `before the split. This catches a collapse, not a single gutted section. ` +
+    `If the shrink is deliberate, lower this floor in the same commit.`
+  );
 });
 
 test('3. every rule file declares paths that match a real file', () => {

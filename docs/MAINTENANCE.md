@@ -1344,3 +1344,13 @@ The helper set `.toast.show` and then `setTimeout(…, 300)` - a bet that 300ms 
 **Do not sweep all 141 mentions.** Most are a phrase inside a sentence about something else, and a find-and-replace across three files that ship to a phone is a large diff with no test behind it. **Correct the ones in whatever file a batch already has open**, which is what this file is for, and prefer naming the rule file directly (`.claude/rules/tests.md`) over `CLAUDE.md`.
 
 ⚠️ **The honest risk, stated because it is the one this split actually creates:** a reader who follows the pointer, greps `CLAUDE.md`, finds nothing, and concludes the rule was DELETED. `CLAUDE.md`'s own header says where the evidence went, which is the mitigation, and it is a weaker one than a correct pointer would be.
+
+### A `PreToolUse` hook is the only mechanism that would close the split's read-trigger gap
+
+**Found by 264's own pre-push review, and it is the one finding that batch could not close.** `.claude/rules/*.md` load when Claude Code **reads** a file matching their `paths:`. Creating a new file does not read one, and `cat`/`grep`/`sed` is not a read. So the session most likely to need `sql.md` - one writing a fresh migration under `supabase/migrations/` - is the session least likely to have loaded it, and **nothing reports that it did not load**, which is the same shape the split was built to fix, one level up.
+
+**264 shipped two mitigations and both are reminders, not controls:** `CLAUDE.md` states the gap, and `skills/batch/SKILL.md` says to open the rule file by hand when creating or planning. The repo's own doctrine is that a rule an agent is asked to follow is a suggestion.
+
+**The mechanism, if it is wanted:** a `PreToolUse` hook matching `Write|Edit`, reading the target path out of the tool input, and returning the matching rule file's path as `additionalContext`. Claude Code's own documentation names `PreToolUse` as the thing to reach for when an instruction must hold regardless of what the model decides.
+
+⚠️ **It is filed rather than built, deliberately.** 263 had just filtered and bounded the one existing hook after it ran 134 test files on every edit; building a second hook class on the same day, in the batch whose whole job was to make the instruction layer *less* risky, and unasked by the item, is the wrong order. **Whoever takes it owns proving it fires** - a hook that silently does nothing is worse than the gap, because it reads as closed.

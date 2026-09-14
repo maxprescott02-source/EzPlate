@@ -2,11 +2,14 @@
 paths:
   - "js/app.js"
   - "index.html"
+  - "tests/**"
 ---
 
 # Client guards - the conditions that read as correct and are not
 
-Loaded whenever `js/app.js` or `index.html` is read. Every section is one incident that shipped.
+Loaded whenever `js/app.js`, `index.html` or anything under `tests/` is read. Every section is one incident that shipped.
+
+⚠️ **`tests/**` is on that list because the pre-push review of the split caught the rule below going out of reach.** *"A comment can record the defect CORRECTLY and file it under the wrong consequence"* was scoped to the client files, and **two of its five worked examples (212, 226) happened in Playwright specs** - so a batch editing only a spec, which is the exact context that produced them, would never have been shown it. The fix is the scope, not the text.
 
 **Moved out of `CLAUDE.md` verbatim by batch 264** so it loads with the file it protects instead of on every turn of every session. The rule in `CLAUDE.md` is the one-line version; this is the evidence.
 

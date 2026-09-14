@@ -1,11 +1,14 @@
 ---
 paths:
   - "css/style.css"
+  - "js/app.js"
 ---
 
 # CSS - three ways a rule looks right in the file and does nothing on screen
 
-Loaded whenever `css/style.css` is read. None of these is ever caught by reading; all were caught by measuring.
+Loaded whenever `css/style.css` **or `js/app.js`** is read. None of these is ever caught by reading; all were caught by measuring.
+
+⚠️ **`js/app.js` is on that list for one of the four sections, and the pre-push review of the split is what put it there.** *"`position:fixed` IS NOT VIEWPORT-RELATIVE"* names its own tell as **`position:fixed` set from JS together with numbers out of `getBoundingClientRect()`** - which is `anchorDrop`, in `js/app.js` - and the whole point of the rule is that a property added to an UNRELATED element silently changes the coordinate space that arithmetic runs in. Scoping it to the stylesheet would have shown it only to the half of the pair that is never the one doing the arithmetic.
 
 **Moved out of `CLAUDE.md` verbatim by batch 264** so it loads with the file it protects instead of on every turn of every session. The rule in `CLAUDE.md` is the one-line version; this is the evidence.
 

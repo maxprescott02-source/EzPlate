@@ -12,7 +12,9 @@ EzPlate is a plate/menu-costing PWA for a real cafe ("Scoopy's Family Cafe"). Th
 
 ## The rules that load with the file they protect
 
-`.claude/rules/*.md` carry `paths:` frontmatter, so **Claude Code loads them when it reads a matching file** and not otherwise. They are a mechanism, not a pointer you are asked to follow. Read one by hand when you are planning against a file you have not opened yet.
+`.claude/rules/*.md` carry `paths:` frontmatter, so **Claude Code loads them when it reads a matching file** and not otherwise. They are a mechanism, not a pointer you are asked to follow.
+
+⚠️ **The trigger is a READ, and that is a real gap rather than a technicality** (named by 264's own pre-push review). **Creating a NEW file needs no read, and `cat`/`grep`/`sed` is not a read either** - so writing a fresh migration under `supabase/migrations/`, which is the highest-stakes thing anyone does here, is exactly the case where `sql.md` may never load. **Open the rule file by hand whenever you are creating a file, or planning against one you have not opened.** Nothing will tell you it did not load.
 
 | File | Loads when you read | What it holds |
 |---|---|---|
