@@ -175,9 +175,10 @@ It belongs in G3 on context: it is `as restrictive for delete`, one migration, m
 
 **Context:** Playwright meaning and vacuity, the mutation gate and its targets, staging auth, the persona protocol.
 
-**Items:** 44, 79, 80, ~~82~~ (257), 84 (no dependency) · 27, 28, 29 (dependent) · 83 (blocked on Max)
+**Items:** 44, 79, 80, ~~82~~ (257), 84, **94** (no dependency) · 27, 28, 29 (dependent) · 83, **95** (blocked on Max)
 
-**This is the interleave group.** The five no-dependency items ship no client asset and need no version bump, so they fill the time a batch spends waiting on a Tranche 0 answer. 27 is blocked on the staging account and unblocks 28, 29 and fourteen skipped screenshot tests.
+**This is the interleave group.** The no-dependency items ship no client asset and need no version bump, so they fill the time a batch spends waiting on a Tranche 0 answer. 27 is blocked on the staging account and unblocks 28, 29 and fourteen skipped screenshot tests.
+**94 and 95 were raised by batch 265**, from `docs/audits/WORKFLOW-AUDIT-2026-09-09.md`'s recommendations 1 and 2 under the closure gate in `tests/audit-closure.test.js`. 94 is read-only and collides with no branch, so it interleaves with anything; 95 is the one process item that could hold a slot in `docs/QUEUE.md` once Max answers it.
 
 ### G8 · The margin monitor — outside the four client files
 

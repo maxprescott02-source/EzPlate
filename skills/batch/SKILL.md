@@ -69,7 +69,8 @@ If you are running `/batch`, you are in the first case.
     **Strike, never delete, in that file** - it is the backlog of record, and its "Dropped or merged" section exists so nothing disappears silently. The strike is also what makes the next batch's promotion derivable: **what is left is the unstruck items, which is a grep and not a count.**
     Then route anything found-not-fixed, because a finding that lives only in a handover is a finding nobody will action - **but route it by TIER, not by default into the queue** (`docs/QUEUE.md`'s header carries the test).
     **A finding defaults to C and lands in `docs/MAINTENANCE.md`.** It enters `docs/QUEUE.md` only if it would stop, embarrass or hurt a paying customer at launch - and if that file is already at its 20-item cap, it displaces the lowest-priority item there into maintenance rather than extending it.
-    **Never queue an item about the process itself** - skill wording, comment accuracy, doc contradictions. If a rule has been violated repeatedly, fix the rule once in `CLAUDE.md` and stop writing about it.
+    **Never queue an item about WRITING about the process** - skill wording, comment accuracy, doc contradictions. If a rule has been violated repeatedly, fix the rule once in `CLAUDE.md` and stop writing about it.
+    ⚠️ **This said "never queue an item about the process itself" until 15 Sep 2026** (batch 265). Process work that needs a BRANCH - a detector, a script, a workflow change - may hold **one** slot in `docs/QUEUE.md`, under the three-part test in that file's header. The old wording sent it to `docs/MAINTENANCE.md`, where it rode a batch that happened to touch the same file, and nothing in this repo touches `.github/workflows/` by accident - so it never rode anything.
     **Then check the audit counter.** The newest `docs/audits/AUDIT-vNN.md` is the version the last audit ran at; `sw.js` has the version you just shipped.
     At a gap of **10 or more** - or if `docs/audits/` is empty or missing - put `project-audit` into `docs/QUEUE.md` as the next item, above every unblocked one.
     Nothing to remember and no calendar: the version increments once per batch, so it already is the counter.
@@ -88,7 +89,8 @@ If you are running `/batch`, you are in the first case.
     If you find yourself about to act on something you know only because you did the last item, **that is the signal it should have been written down** - go and write it in the right file first, then act on the file.
 12. **Next item.**
 
-**Bump the cache version** as part of step 4 whenever the batch ships a client asset - the `cache-version` skill has the six spots.
+**Bump the cache version** as part of step 4 whenever the batch ships a client asset: `node tools/bump-version.js <NN>`, which does all six spots or refuses. The `cache-version` skill has the detail, and `tests/cache-version.test.js` reddens if one of the six is left behind.
+**And tag the merge in step 9: `git tag ezplate-v<NN> && git push origin ezplate-v<NN>`, on `main`, after the merge.** Skip it when the batch shipped no client asset - there is no new deploy version to name. The tag is what makes a shipped version findable in git; `sw.js`'s history only shows the branch that bumped the number.
 `CLAUDE.md` has no snapshot section to update; current state lives in git, `docs/QUEUE.md` and `docs/PHONE.md`.
 
 ## A decision only Max can make DEFERS the item - it does not stop the loop

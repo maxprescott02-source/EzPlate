@@ -98,35 +98,46 @@ The only things making B, C and D collide with A are six version literals and `d
 
 ## What to change, in the order that buys the most time
 
+⚠️ **Each recommendation below carries a `Closure:` line, added by batch 265 and NOT by the audit.**
+`tests/audit-closure.test.js` refuses the newest audit of each kind unless every numbered recommendation records a decision - a queue reference (`#nn`), `declined:` with a reason, or `done:` with the batch.
+The gate compares markers, not truth: it cannot tell whether the work happened, only whether anyone decided.
+**Do not rewrite the recommendations themselves.** The audit is what somebody found on 9 Sep 2026 and the closure is what was done about it; merging the two loses which is which.
+
 **1. Take the premise pass out of the batches and do it once, in parallel.**
 71 open items in `docs/QUEUE-2026-09-08-CONSOLIDATED.md` (3 struck of 74).
 Re-grep every item's named sites, confirm it still reproduces, mark the stale ones, all read-only, all fan-out, zero collisions.
 `docs/QUEUE-GROUPS.md` already prescribes exactly this and nothing does it.
 At a 57% miss rate this deletes or rewrites a large fraction of the list before a single branch is opened, and it is the one change that saves whole batches rather than minutes inside them.
+*Closure (batch 265): the bulk sweep is queued as #94. The per-batch half - a read-only premise-checker subagent run before any edit - is fix-plan item C4, not a queue item, because it is harness rather than product.*
 
 **2. Stop letting CI decide the merge.**
 Add Playwright to `.githooks/pre-push`, gated on the diff touching `css/`, `index.html`, `sw.js` or `tests/visual/`, and run it while the handover is being written rather than after.
 Then merge on a green hook and let CI be the post-merge alarm.
 **The cost this accepts is a red main for the ~11 minutes until CI reports, on a repo whose main auto-deploys. That is a call only Max makes.**
 Measure the local Playwright wall time first: it was not measurable here (3-core VM), and if it is 6 minutes rather than 2 the saving is half of what it looks.
+*Closure (batch 265): queued as #95, blocked on Max. The recommendation says so itself - accepting a red `main` on an auto-deploying repo is his call and nobody else's, so it goes to the blocked list, which is where this project keeps its pending decisions.*
 
 **3. One PR per group where the Design law allows it.**
 `/batch`'s stop condition is *"the batch would exceed what one PR can be reviewed as"*, which is a review-size test, not a one-item rule.
 G1's nine items call each other's functions; G4's five are one vocabulary pass over one file.
 Grouping collapses the per-item fixed cost from nine payments to two or three.
 **G5 stays split, and `docs/QUEUE-GROUPS.md` is right about why:** the Design law's *one screen per change set* is binding and G5 spans eight screens.
+*Closure (batch 265) - **declined:** nothing to build. The recommendation's own first line is the finding: `/batch`'s stop condition is already a review-size test, so grouping items into one PR is permitted today and always was. Writing a rule that says "you may do the thing you may do" adds a line to a skill and changes no behaviour. A batch that wants to group items simply does, and says so in the handover.*
 
 **4. Get the version bump out of the branch.**
 Either derive the six literals from one source, or bump on main in a separate one-line commit after the merge.
 This is what makes lanes B, C and D real rather than theoretical.
 `sw.js` is network-first for HTML already, so the `?v=` query strings on `index.html` are belt-and-braces rather than the mechanism.
+*Closure (batch 265) - **done:** the first of the two options. `tools/bump-version.js` moves all six literals or refuses, and `tests/cache-version.test.js` derives the expected number from `sw.js`'s `CACHE` and reddens on any spot that disagrees - including spots 2 to 5, which no test could see before. The bump stays IN the branch; what the recommendation actually wanted was for it to stop being six hand-edits, and it is now one command.*
 
 **5. Split Tier 1 of `CLAUDE.md` by area.**
 SQL/RLS, CSS, costing, parser, with a trigger line each, the way `projects/brain-ops/conventions.md` is triggered.
 Every item currently reads every trap.
+*Closure (batch 265) - **done:** batch 264. `CLAUDE.md` is under 200 lines and the traps live in `.claude/rules/*.md` with `paths:` frontmatter, so a rule loads with the file it protects. `tests/claude-md-split.test.js` is what stops it growing back.*
 
 **6. Then run three lanes.**
 Only after 4. Not worktrees on one file: disjoint file sets, which is a different claim from the one batches 181 to 197 disproved.
+*Closure (batch 265) - **declined:** the saving is not being paid for. Three lanes need a driver per lane; Max runs `/batch` serially in one window and clears the context between batches, so the fixed cost this removes is a cost nobody is currently incurring three times over. The claim about disjoint file sets is accepted as untested rather than disproved - revisit the day there is a second driver, and not before.*
 
 ## The pushback
 

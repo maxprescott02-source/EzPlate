@@ -813,6 +813,30 @@ Two sibling series, written by the same function on the same event, with opposit
 
 **Do after:** nothing.
 
+## next  94 · Re-grep every open backlog item's named sites, once, before any of them is planned against  **[C — process, and it is the one that saves whole batches rather than minutes inside them]**
+
+**From `docs/audits/WORKFLOW-AUDIT-2026-09-09.md` recommendation 1, filed as an item by batch 265** under the closure gate `tests/audit-closure.test.js` now enforces.
+
+**The measured problem.** `docs/QUEUE.md`'s own header records **seven of the last eleven batches** finding their item's enumeration short at the point of execution - 222 said six callers of `costFromLines` and found nineteen. The audit put the same figure at a 57% miss rate across the backlog. Every one of those is paid at the most expensive moment: a branch is open, a plan is written, and the premise turns out to be wrong.
+
+**What must be true when it is done.** Every unstruck item in this file has had the symbols it names grepped, the count recorded in the item, and a one-line verdict: reproduces / does not reproduce / count was wrong, now N. Stale items are struck with the reason; wrong ones are rewritten in place. **Read-only - no branch, no fix, no client asset.** Items whose claims cannot be checked without running the app say so rather than guessing.
+
+⚠️ **This is the BULK sweep and it is deliberately one pass over the whole list, not a rule.** The per-batch half - a read-only premise-checker invoked before any edit - is fix-plan item C4 and is harness rather than product; it does not belong in this file and must not be built here.
+
+**Do after:** nothing. It is read-only and collides with no branch.
+
+## blocked  95 · Merge on a green pre-push hook instead of waiting for CI  **[B — 11 to 15 minutes of dead time per item, and the fix trades it for a window where `main` is red and auto-deploying]**
+
+**From `docs/audits/WORKFLOW-AUDIT-2026-09-09.md` recommendation 2, filed as an item by batch 265.**
+
+**Blocked on: MAX**, and the recommendation itself says why rather than this being an oversight. **The question, in one sentence: are you willing to have `main` red for the ~11 minutes between a merge and CI reporting, on a repo where every merge to `main` auto-deploys to the cafe's production app?**
+
+**If the answer is yes:** add Playwright to `.githooks/pre-push`, gated on the diff touching `css/`, `index.html`, `sw.js` or `tests/visual/`, and run it while the handover is being written rather than after. CI then becomes the post-merge alarm rather than the gate. **Measure the local Playwright wall time first** - the audit could not (3-core VM), and if it is six minutes rather than two, half the saving is not there.
+
+⚠️ **Batch 265 made the flaky detector fail the Playwright job**, so a local run that is merely flaky now blocks a push in a way it did not when the audit was written. That is the right direction and it is a cost this item pays.
+
+**Do after:** nothing.
+
 
 # Dropped or merged
 
