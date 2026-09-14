@@ -56,6 +56,7 @@ One line each, plus what a failure would look like. "None."
 ## Probe
 **What did the brief or queue item tell you to do that you would have done differently?**
 **What did you not propose because it was out of scope?**
+**Was any rule missing when you needed it?** Name the file you were editing and the rule you had to go and find. "None" is the expected answer.
 
 ## Surprises
 Anything that did not match what the code or the brief led you to expect. "None."
@@ -78,10 +79,13 @@ So there are now two halves and they do different jobs:
 
 It is the one section that has no other home: nothing in the PR, the tests or git records what you were told to do and thought was wrong, or what you saw and stayed silent about.
 
-**Answer both questions explicitly, every time.**
+**Answer all three questions explicitly, every time.**
 "Nothing - the brief matched the code" and "nothing worth proposing" are perfectly good answers.
 What is not acceptable is leaving the section out, because an omitted section reads identically to a forgotten one, and those are different things.
 The point of the section is that it was ASKED.
+
+⚠️ **The third question was added by batch 264 and it is the only feedback the `CLAUDE.md` split has.**
+The traps now live in `.claude/rules/*.md`, which the harness loads when you read a matching file rather than on every turn - so if a rule fails to reach the batch that needed it, **nothing goes red and nothing tells anyone.** `tests/claude-md-split.test.js` can prove a rule file exists and that its `paths:` glob matches a real file; it cannot prove the rule was in front of the person who needed it. **This question is the only instrument for that, so answer it from what actually happened rather than from what should have.**
 
 ## Where findings go, and where they do not
 
