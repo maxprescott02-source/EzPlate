@@ -19,8 +19,11 @@ layered on the convention that failed.
 ## What enforces it, and what that enforcement is worth
 
 `.githooks/pre-push` runs `tests/review/check.js`, which refuses a push whose diff touches `js/`,
-`css/`, `index.html`, `sw.js`, `tests/`, `.github/`, `supabase/`, `.githooks/` or `api/` unless a file
-here names a commit on the branch being pushed.
+`css/`, `index.html`, `sw.js`, `tests/`, `.github/`, `supabase/`, `.githooks/`, `api/` or `.claude/`
+unless a file here names a commit on the branch being pushed.
+(`.claude/` joined the list in 264, when the harness stopped being one settings file: the reviewer's
+own definition and the rules a session is handed both live there now, so until then a diff that
+rewrote the second reader needed no second reader.)
 
 ⚠️ **It is a gate against FORGETTING and nothing more.** It cannot tell whether a review actually
 happened, whether the artifact describes this diff, or whether the findings were acted on. A file

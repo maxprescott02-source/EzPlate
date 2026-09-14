@@ -53,7 +53,10 @@ test('0d: the guarded list covers the four client files by name, and CI, and the
      batch that added CI-as-prose found a workflow change that would have run the live-production
      spec in a job documented as hermetic. Deleting any of these silently reopens that. */
   const prefixes = GUARDED.map((g) => g.prefix);
-  for (const need of ['js/', 'css/', 'index.html', 'sw.js', 'tests/', '.github/', 'supabase/']) {
+  /* `.claude/` joined the list in 264, when the harness stopped being one settings file: the rules
+     a session is handed and the reviewer's own definition both live there now, so a diff that
+     rewrote the second reader used to need no second reader. */
+  for (const need of ['js/', 'css/', 'index.html', 'sw.js', 'tests/', '.github/', 'supabase/', '.claude/']) {
     assert.ok(prefixes.indexOf(need) >= 0, `${need} must be guarded`);
   }
 });

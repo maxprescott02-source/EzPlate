@@ -1310,8 +1310,8 @@ The helper set `.toast.show` and then `setTimeout(…, 300)` - a bet that 300ms 
 |---|---|---|
 | E1 | `execute_sql` pre-approved, and on **production only** — the disposable staging rehearsal prompted while the café's live database did not | ✅ **263.** Production moved to `.mcp.production.json`, the grant removed, `tests/harness-config.test.js` pins it |
 | E2 | The PostToolUse hook ran the whole suite after every edit: no path filter, no timeout, wrong concurrency | ✅ **263.** `tools/post-edit-tests.js`, filtered and bounded, pinned |
-| E3 | `CLAUDE.md` is 163,583 bytes and loads every turn; no `.claude/rules/` split | **OPEN.** Needs its own session, in plan mode, with a classification table before anything moves. The one on this list that cannot ride another batch |
-| E4 | The reviewer definition, `AGENTS.md` and `.agents/` all lived outside the repo, so a fresh clone carried none of them | **HALF.** 263 un-ignored `.agents/` and `skills-lock.json`; the `code-review` agent's own definition is still at `~/.claude/agents/code-review.md` and a clone still does not get it |
+| E3 | `CLAUDE.md` is 163,583 bytes and loads every turn; no `.claude/rules/` split | ✅ **264.** 1,078 lines to 175; the evidence moved verbatim to seven `paths:`-scoped files in `.claude/rules/` plus `docs/rules/process.md`, and `tests/claude-md-split.test.js` is the detector that was missing |
+| E4 | The reviewer definition, `AGENTS.md` and `.agents/` all lived outside the repo, so a fresh clone carried none of them | ✅ **264.** `.claude/agents/code-review.md` and `AGENTS.md` are in the repo; 263 had already un-ignored `.agents/` and `skills-lock.json`. ⚠️ **Three EzPlate-specific SKILLS are still outside it** — see the entry below |
 | E5 | `enforce_admins` is false, so an admin merge bypasses every required check | **OPEN.** One API call plus a decision about whether Max wants to be able to override his own gate |
 | E6 | Six cache literals, four of them unchecked by anything | **OPEN.** One bump script and one test over all six |
 | E7 | Skills state figures that are wrong by an order of magnitude | ✅ **263** for the four measured (`skills/verify`'s suite duration, the mutation-gate duration, the pre-push check count, `skills/handover`'s line counts). **The class is open**: nothing stops the next one |
@@ -1322,3 +1322,35 @@ The helper set `.toast.show` and then `setTimeout(…, 300)` - a bet that 300ms 
 | E12 | No CodeQL, axe-core or perf budget | **OPEN, lowest.** `git ls-files .claude/` lists only `settings.json`, which was the part of it that mattered |
 
 **The finding worth keeping is not any single row: eleven of the twelve had NO DETECTOR.** Every one was a fact about a config file that no test read, so the only thing that could notice a regression was somebody opening the file for another reason. That is why 263 shipped `tests/harness-config.test.js` alongside the fixes rather than just the fixes — and why an open row above is only closed by something that can go red.
+
+## C — from batch 264 (gaps E3 and E4, 15 Sep 2026)
+
+### Three EzPlate-specific skills are still outside the repo, and E4 was declared closed without them
+
+`~/.claude/skills/new-branch`, `~/.claude/skills/investigate` and `~/.claude/skills/test-flows` are all written **about this project** — `new-branch` runs `npm test` here and cites `CLAUDE.md` by name; `investigate` and `test-flows` describe EzPlate's own screens — and all three live in Max's home directory. A fresh clone gets `skills/` (batch, cache-version, decide, handover, verify), gets the reviewer as of 264, and does not get these.
+
+**This is the same gap E4 named, found while closing it.** E4's own done-when is *"clone to a temp dir: the reviewer resolves and the RLS material is present"*, which these three pass by not being mentioned — the row can be ticked with the defect still in place. **A done-when that enumerates is a done-when that stops at the end of its list.**
+
+**The move is not free and that is why it is filed rather than done.** `.claude/skills/` is gitignored on purpose (it holds symlinks, which are facts about one machine), so landing them means putting the bodies in `skills/` and re-pointing three symlinks — and `test-flows` duplicates the `flow-tester` agent, which is *also* at `~/.claude/agents/`, so the honest fix is to move the agents too and decide whether the skill and the agent are one thing. That is a batch, not a rider.
+
+**Ride it with whichever batch next opens `skills/`.** Until then: a clone of this repo can run `/batch` and cannot run `/new-branch`, and nothing says so.
+
+### Comments across the repo cite `CLAUDE.md` for text that is now in `.claude/rules/`
+
+**25 test files, `js/app.js` (90 mentions) and `css/style.css` (26)** point at `CLAUDE.md` by name for rules that moved in 264 - *"CLAUDE.md's roster"*, *"CLAUDE.md Tier 1"*, *"CLAUDE.md's Tier 1 corollary"*. The rule is intact and the pointer is not.
+
+**It is filed rather than fixed, and the reason is the one thing that makes it tolerable: in almost every case the text now arrives anyway.** A comment in `tests/*.js` citing the roster sits in a file whose own rule file (`.claude/rules/tests.md`) the harness loads when that file is read; the same is true of `js/app.js` and `css/style.css`. So the reader gets the content and a wrong address, rather than nothing.
+
+**Do not sweep all 141 mentions.** Most are a phrase inside a sentence about something else, and a find-and-replace across three files that ship to a phone is a large diff with no test behind it. **Correct the ones in whatever file a batch already has open**, which is what this file is for, and prefer naming the rule file directly (`.claude/rules/tests.md`) over `CLAUDE.md`.
+
+⚠️ **The honest risk, stated because it is the one this split actually creates:** a reader who follows the pointer, greps `CLAUDE.md`, finds nothing, and concludes the rule was DELETED. `CLAUDE.md`'s own header says where the evidence went, which is the mitigation, and it is a weaker one than a correct pointer would be.
+
+### A `PreToolUse` hook is the only mechanism that would close the split's read-trigger gap
+
+**Found by 264's own pre-push review, and it is the one finding that batch could not close.** `.claude/rules/*.md` load when Claude Code **reads** a file matching their `paths:`. Creating a new file does not read one, and `cat`/`grep`/`sed` is not a read. So the session most likely to need `sql.md` - one writing a fresh migration under `supabase/migrations/` - is the session least likely to have loaded it, and **nothing reports that it did not load**, which is the same shape the split was built to fix, one level up.
+
+**264 shipped two mitigations and both are reminders, not controls:** `CLAUDE.md` states the gap, and `skills/batch/SKILL.md` says to open the rule file by hand when creating or planning. The repo's own doctrine is that a rule an agent is asked to follow is a suggestion.
+
+**The mechanism, if it is wanted:** a `PreToolUse` hook matching `Write|Edit`, reading the target path out of the tool input, and returning the matching rule file's path as `additionalContext`. Claude Code's own documentation names `PreToolUse` as the thing to reach for when an instruction must hold regardless of what the model decides.
+
+⚠️ **It is filed rather than built, deliberately.** 263 had just filtered and bounded the one existing hook after it ran 134 test files on every edit; building a second hook class on the same day, in the batch whose whole job was to make the instruction layer *less* risky, and unasked by the item, is the wrong order. **Whoever takes it owns proving it fires** - a hook that silently does nothing is worse than the gap, because it reads as closed.

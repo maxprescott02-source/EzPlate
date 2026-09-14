@@ -1,735 +1,70 @@
 # CLAUDE.md - EzPlate (Scoopys-Costing)
 
-EzPlate is a plate/menu-costing PWA for a real café ("Scoopy's Family Cafe").
-The owner is **Max** - hospitality background, new to coding and to git.
-Price data drives real menu decisions and the data is real, so a broken deploy costs money.
+@AGENTS.md
 
-**Who uses it: ONE intermittent user, not staff on real phones mid-service.** Gaps of a week between uses are normal.
-When a design call turns on how often the app is opened, this is the answer: an occasional user on mobile data can wait for a fetch, and would rather be told a thing did not save than discover it next week.
+EzPlate is a plate/menu-costing PWA for a real cafe ("Scoopy's Family Cafe"). The owner is **Max** - hospitality background, new to coding and to git. Price data drives real menu decisions and the data is real, so a broken deploy costs money.
 
-This file holds only what you could **violate without knowing**.
-Everything true but inferable has been deleted on purpose: a stale fact is worse than no fact, because it gets trusted.
-If a line here disagrees with the code, **the code is right and this file is a finding** - report it.
+**Who uses it: ONE intermittent user, not staff on real phones mid-service.** Gaps of a week between uses are normal. When a design call turns on how often the app is opened, this is the answer: an occasional user on mobile data can wait for a fetch, and would rather be told a thing did not save than discover it next week.
+
+**This file holds the RULE. `.claude/rules/` holds the EVIDENCE, and the harness loads it with the file it protects.** Every rule here exists because a mistake already happened once; the incident, the measurement and the date are in the rule file named below. Everything true but inferable has been deleted on purpose: a stale fact is worse than no fact, because it gets trusted. If a line here disagrees with the code, **the code is right and this file is a finding** - report it.
+
+**It is under 200 lines and `tests/claude-md-split.test.js` fails if it grows past that.** A rule that earns its place here displaces one. The alternative is what this replaced: 1,078 lines and 164KB, loaded in full on every turn of every session, growing 18% in three days with nothing able to notice (batch 264, gap E3 of the 12 Sep 2026 standards audit).
+
+## The rules that load with the file they protect
+
+`.claude/rules/*.md` carry `paths:` frontmatter, so **Claude Code loads them when it reads a matching file** and not otherwise. They are a mechanism, not a pointer you are asked to follow.
+
+⚠️ **The trigger is a READ, and that is a real gap rather than a technicality** (named by 264's own pre-push review). **Creating a NEW file needs no read, and `cat`/`grep`/`sed` is not a read either** - so writing a fresh migration under `supabase/migrations/`, which is the highest-stakes thing anyone does here, is exactly the case where `sql.md` may never load. **Open the rule file by hand whenever you are creating a file, or planning against one you have not opened.** Nothing will tell you it did not load.
+
+| File | Loads when you read | What it holds |
+|---|---|---|
+| `.claude/rules/app-guards.md` | `js/app.js`, `index.html` | duplicate top-level definitions · the scope of an exemption · `isFinite('')` · inert `min`/`max` · fail-open vs a third value · an optimistic write that moves a FIGURE · citing a precedent · a comment filed under the wrong consequence |
+| `.claude/rules/app-data.md` | `js/app.js` | the naming inversion in full · the row boundary and the backup format · `updated_at` · the five history series · cross-referencing write ORDER · the three FKs · the headline average · per-publication counting |
+| `.claude/rules/invoice.md` | `js/app.js` | the parser region and its two anchor literals · the corpus · review-render invariants · auto-tick · taught packs · supplier renames |
+| `.claude/rules/sql.md` | `supabase/**` | column DEFAULTs and the restore · DEFAULT vs BEFORE trigger · cross-tenant FKs · `as restrictive` · `anon` and `revoke … from public` · `create or replace` · `ON CONFLICT` · the client's role vs the MCP's · who may delete what |
+| `.claude/rules/css.md` | `css/style.css` | `@media` specificity · the `:not([hidden])` guard · `position:fixed` containing blocks · offsets on a static box · a silent syntax error |
+| `.claude/rules/tests.md` | `tests/**`, `.github/workflows/**` | the 22-incident roster of tests that could not fail · the mutation gate · viewport-geometry assertions |
+| `.claude/rules/api.md` | `api/**` | the server functions · the money/number law · untrusted model output |
+| `docs/rules/process.md` | nothing - read it by hand | the full record behind every Tier 3 rule below, and the full text of anything compressed here |
 
 ## Where things live
 
 | | |
 |---|---|
-| Outstanding work - tier A and B only, capped at 20. **It is the WORKING SET, not the backlog** | `docs/QUEUE.md` |
-| **The backlog itself - 72 items from the 8 Sep 2026 consolidation, struck as they ship** | `docs/QUEUE-2026-09-08-CONSOLIDATED.md` |
-| **Which of those load the same context, and the promotion order `/batch` refills from** | `docs/QUEUE-GROUPS.md` |
-| Tier C - internal quality, ridden along by whichever batch already touches the file (its header has the reasoning; the parallel worktree track was retired 22 Aug 2026) | `docs/MAINTENANCE.md` |
+| Outstanding work - tier A and B only, capped at 20. **The WORKING SET, not the backlog** | `docs/QUEUE.md` |
+| The backlog - 72 items from the 8 Sep 2026 consolidation, struck as they ship | `docs/QUEUE-2026-09-08-CONSOLIDATED.md` |
+| Which of those load the same context, and the promotion order `/batch` refills from | `docs/QUEUE-GROUPS.md` |
+| Tier C - internal quality, ridden along by whichever batch already touches the file | `docs/MAINTENANCE.md` |
 | Device checks | `docs/PHONE.md` |
-| **Migrations - the procedure, both projects, what staging can and cannot rehearse** | `docs/STAGING.md` |
+| Migrations - the procedure, both projects, what staging can and cannot rehearse | `docs/STAGING.md` |
 | Per-batch history | `docs/handovers/` (write-once; `README.md` explains the gaps) |
-
-**Two counters, and they are NOT the same number** (Max, 8 Aug 2026, after this confused him and, before him, the v115 audit):
-
-- the **batch number** in a handover's filename increments once per batch, always;
-- the **deploy version** (`sw.js` `CACHE`, the six cache spots) increments only when a batch ships a client asset.
-
-Four docs-only batches in a row left them three apart, so `HANDOVER-v122` shipped `ezplate-v119`.
-**New handovers drop the `v`: `HANDOVER-123-short-name.md`.** The `v` is what implied "app version"; a bare batch number does not.
-Existing `HANDOVER-vNN.md` files keep their names - they are write-once, and renaming them would rewrite the record to fix a label.
-**Every handover states the deploy version it shipped, or says it shipped none.**
-**`docs/audits/AUDIT-vNN.md` KEEPS its `v` and is correct as-is** - an audit really is keyed to the deploy version, because the `/batch` counter compares it against `sw.js`. Do not "make it consistent" with the handovers; they are numbering two different things on purpose.
 | Version bumps, handovers, running the checks | `skills/` - invoke them |
 | Current state | git, the repo, the Supabase MCP. Not this file. |
 
-Global working preferences live in `~/.claude/AGENTS.md` and are not repeated here.
-This file wins wherever the two disagree.
+**Two counters, and they are NOT the same number.** The **batch number** in a handover's filename increments once per batch, always; the **deploy version** (`sw.js` `CACHE`, the six cache spots) increments only when a batch ships a client asset. Four docs-only batches in a row once left them three apart. **New handovers drop the `v`: `HANDOVER-123-short-name.md`**, and existing `HANDOVER-vNN.md` files keep their names because they are write-once. **Every handover states the deploy version it shipped, or says it shipped none.** **`docs/audits/AUDIT-vNN.md` KEEPS its `v`** and is correct as-is: an audit is keyed to the deploy version, because the `/batch` counter compares it against `sw.js`. Do not make them consistent; they number two different things.
+
+**Process docs live in `docs/` because Vercel serves the repo root**, so anything left there is publicly fetchable. That is no longer a privacy reason - the docs are world-readable on GitHub whatever `.vercelignore` says - but the rule stands to keep non-user-facing files off the deployed origin. **Anything new that is process rather than product goes in `docs/`.** `CLAUDE.md`, `AGENTS.md` and `.claude/` are the exceptions and stay at root, because that is the only place the harness loads them from.
+
+**`git fetch` and read `origin/main` yourself before trusting local `main`** - Max merges via GitHub PR, so local goes stale.
 
 ## ⚠️ THE REPOSITORY IS PUBLIC (13 Aug 2026). NOTHING SECRET MAY EVER BE COMMITTED.
 
-Every file, every branch and **the entire git history** is world-readable, and a commit that leaks a secret is not fixable by deleting it later - scanning bots archive public repos within minutes, and a fork survives the repo going private again.
-**So the only safe rule for anything NEW is: it never goes in.** API keys stay in Vercel env vars, as the `api/` section already requires.
-**No credentials were exposed** - checked before the switch: no `.env` ever committed, `.mcp.json` carries project refs and no token, and the `service_role` matches are all `GRANT` statements.
+Every file, every branch and **the entire git history** is world-readable, and a commit that leaks a secret is not fixable by deleting it later. **The only safe rule for anything NEW is: it never goes in.** API keys stay in Vercel env vars. GitHub secret scanning and push protection are ON, and push protection is the useful half because it rejects the push rather than telling you afterwards. **It is a backstop, not the rule** - it knows vendor key formats and knows nothing about a cafe's invoices or a supplier's name, which is the class this repo actually leaked.
 
-⚠️ **WHAT IS PUBLIC THAT IS NOT A CREDENTIAL - and this list was WRONG when it was first written, which is the point of writing it out.**
-The pre-switch check looked for secrets and declared the repo clean. **It never looked for real-world business data, and there is some.** Caught by the pre-push review AFTER the switch, not before it.
+**What is public that is not a credential**, because the pre-switch check looked for secrets and never looked for business data: the real distributor is identifiable in dozens of tracked files (`git grep -l -i bidfood | wc -l` is the live figure); `tests/fixtures/base-products.json` holds 393 real products with real unit costs; every commit carries Max's real name and personal Gmail, permanently; the Supabase anon key ships in `index.html`, so rotating it achieves nothing while the anon fallback is open.
 
-- **Scoopy's real food distributor is identifiable.** `Bidfood` appears in **around forty tracked files** (26 until 28 Aug 2026, 37 until 2 Sep 2026, and it will keep moving — **`git grep -l -i bidfood | wc -l` is the live figure and this sentence deliberately no longer competes with it**), including the real letterhead string `BIDFOOD SUNSHINE COAST a division of` in `js/app.js`, and handovers and tests that say outright they were *"proved against his four real Bidfood PDFs"*.
-  ⚠️ **Two of those files were ALREADY public and the rest were not** - Vercel serves `js/app.js` and `css/style.css`, so the parser comments were world-readable before any of this; the **27** test files, `docs/PHONE.md` and the handovers are newly so.
-- **`tests/fixtures/base-products.json`** - 393 real products with real unit costs. **Supplier names are absent from THIS FILE**, which is what made the first check answer "no supplier names". That was true of the fixture and false of the repo, and stating a narrow grep as a broad conclusion is the whole mistake.
-- **Every commit carries Max's real name and personal Gmail** - every one in the history, permanently, and `git rev-list --count HEAD` is the figure (512 on 13 Aug 2026, 588 on 2 Sep 2026 - the number was written out here and went stale exactly as the Bidfood one above did). Not fixable without a history rewrite. Set GitHub's *Keep my email address private* for future commits.
-- **The Supabase anon key**, which was already public because it ships in `index.html`. **Rotating it achieves nothing while it ships in the page.** The real fix is the auth item's one-function change closing the anon fallback.
-
-**The transferable rule: a check that finds nothing has only proved something about WHAT IT LOOKED FOR.** "No secrets" is not "safe to publish", and this file said the second on the strength of the first.
-
-✅ **GitHub secret scanning AND push protection are ON** (enabled 13 Aug 2026, free on a public repo). Push protection is the useful half: it **rejects the push** rather than telling you afterwards, which is the only timing that helps when a leak cannot be undone.
-**It is a backstop, not the rule** - it knows vendor key formats and knows nothing about a café's invoices or a supplier's name, which is exactly the class this repo actually leaked. Do not let a green push mean the diff was checked.
-*(Dependabot alerts are also free and remain OFF - deliberately unaddressed rather than forgotten: `pdf.js` loads from a CDN and would be invisible to it, and this repo's standing rule is no new dependencies.)*
-
-**Process docs live in `docs/` because Vercel serves the repo root**, so anything left there is publicly fetchable.
-⚠️ **That was a PRIVACY reason and it no longer is one** - the docs are world-readable on GitHub whatever `.vercelignore` says. The rule stands for a different reason: keeping non-user-facing files off the deployed origin. **Do not delete it, and do not trust it to hide anything.**
-`CLAUDE.md` is the exception and stays at root - it is only auto-loaded from the project root, so moving it would silently stop it loading.
-`.vercelignore` keeps it, and everything else non-user-facing, off the origin.
-**Anything new that is process rather than product goes in `docs/`.**
-
-`git fetch` and read `origin/main` yourself before trusting local `main` - Max merges via GitHub PR, so local goes stale.
-
----
-
-# Tier 1 - Traps
-
-Things that look like mistakes and are not.
-Each one has already been "fixed" once, or cost real damage.
+**The transferable rule: a check that finds nothing has only proved something about WHAT IT LOOKED FOR.** "No secrets" is not "safe to publish", and this file said the second on the strength of the first. Full record: `docs/rules/process.md`.
 
 ## The naming inversion - never "fix" it
 
-UI labels and internal identifiers are deliberately CROSSED:
+UI labels and internal identifiers are deliberately CROSSED.
 
-- `data-tab="pantry"` is **labelled "Ingredients"** (kitchen words).
-- `data-tab="ingredients"` is **labelled "Products"** (supplier goods).
-- `data-tab="builder"` is **labelled "Plates"**.
-- Internally: `kitchenIngredients` / `king*` / `kById` = kitchen words (UI "Ingredients").
-  `PRODUCTS` / `byId` / `ing*` render code **and the Supabase `ingredients` TABLE** = supplier products (UI "Products").
+- `data-tab="pantry"` is **labelled "Ingredients"** (kitchen words); `data-tab="ingredients"` is **labelled "Products"** (supplier goods); `data-tab="builder"` is **labelled "Plates"**.
+- `kitchenIngredients` / `king*` / `kById` = kitchen words (UI "Ingredients"), and they live in an `app_settings` JSON blob under `kitchen_ingredients`.
+- `PRODUCTS` / `byId` / `ing*` **and the Supabase `ingredients` TABLE** = supplier products (UI "Products").
+- Same class: **`rowToMenu` maps a DISH**, despite the name. Read the table name, not the function name.
 
-⚠️ **THIS LIST PUT THE SUPABASE `ingredients` TABLE ON THE WRONG SIDE UNTIL 10 SEP 2026, AND IT IS THE ONE ENTRY THAT COULD COST DATA.** It grouped the table with the kitchen words; the table holds PRODUCTS. Tier 2 has always said so correctly - *"Products come from the Supabase `ingredients` table and nowhere else"* - so the file disagreed with itself, and the wrong half was in the section a reader consults precisely when they are unsure which is which.
-**Measured on production, 10 Sep 2026, not reasoned:** `public.ingredients` holds **428 rows, 35 of them `is_custom`** (the same 428 batch 248 counted when it found `price_as_of` written by nothing), while the kitchen Ingredients are **164 entries in an `app_settings` JSON blob** under the key `kitchen_ingredients` - the row-boundary section below has always said that blob is where they live.
-**Caught while writing a migration that names the table**, which is exactly the situation the section exists for: batch 255 was about to grant or revoke a delete on "products" and had to know which table that was. A reader trusting this line would have written the policy against the wrong data.
-**The transferable half: a two-column mapping is wrong in a way prose is not, because you check the column you are unsure about and trust the row.** When a file states the same fact twice, in two sections, for two audiences, the two are not redundancy - they are a pair that can disagree, and this one did for months.
-
-**Only ever change text a human reads.** Never rename an identifier, class, id, `data-tab` value, localStorage key or Supabase table.
-Renaming for consistency has caused rollbacks.
-`tests/terminology.test.js` carries three inversion guards because a terminology pass is exactly when someone is tempted. *(Said "two" until 28 Aug 2026, AUDIT-v176; the third — `:125` — is the strongest of them, pinning the CROSSING itself across nav buttons AND panel headings rather than either side alone.)*
-
-Same class: **`rowToMenu` maps a DISH**, despite the name.
-Read the table name, not the function name.
-
-## A duplicate definition is never "dead until reached"
-
-`aRow` and `renderAnalysis` were each defined twice at top level in one scope, and **hoisting makes the LAST definition win everywhere**, before any statement runs.
-Editing the first was a silent no-op that shipped real bugs.
-
-Both dead copies are gone and `tests/housekeeping.test.js` now fails if any top-level name in `js/app.js` — `function`, `var`, `let` or `const` — is declared twice again.
-
-⚠️ **THAT SAID "any top-level NAME" until 23 Aug 2026 and it was true of the PROSE and not of the TEST, which covered `function` only — which is half the class, and the half that was live.** Both halves were fixed in batch 200: `tests/housekeeping.test.js` now matches `var`/`let`/`const` as well, and the `var catState` collision it could not see is gone (the Add-to-menu combobox's is `catCombo`; the catalogue importer's kept the name).
-**The mechanism is worth keeping even though the instance is fixed, because the `var` form is worse than the `function` form rather than better:** both declarations hoist, and then **both ASSIGNMENTS run in source order, so the LAST one wins at boot** and the first object is discarded before any handler fires. Two functions at least leave one consistent answer; two `var`s build something and throw it away.
-**The transferable part is about the GUARD, not the collision: a test that pins a rule for one declaration keyword has pinned the rule for one declaration keyword.** It sat under that guard for months and was found by a pre-push review that had been asked to look for state leaking between two unrelated flows. Widening the regex and renaming one variable are ONE job, in that order, because widening alone goes red immediately — and the widened arm is now exercised against injected source, because a guard nobody has watched fail is this repo's most-recorded defect.
-**Scope, stated at the test:** the `^` anchor compares TOP-LEVEL declarations only. A nested shadow is legal JavaScript and is deliberately not flagged.
-
-## An exemption granted for one property applies to EVERY property the same path writes
-
-(QUEUE 0b, batch 200. Found by a blind code audit; the exemption was four years of correct reasoning about the wrong scope.)
-
-`resolveMatchedPrice` exempts a **taught** pack — the product's own `pack_qty`/`pack_unit`, or supplier memory — from its unit-mismatch guard, and says so at its own site: *"a pack the user taught is the truth"*. That is right, and it is right about **PRICE**: a pack the user typed outranks a parser's guess at what the line means.
-It says nothing about UNIT. But `applyInvoice` wrote the row's unit straight into `base_unit` on the same line as the price, so the exemption silently covered both. Teach a product stored per gram as "6 ea" and a 200g plate line costs **$2166.67 instead of $1.30** — with `unitMismatch:false` and `needManual:false`, so the row was **pre-ticked and applied with no prompt**.
-⚠️ **The loud version is the safe one, and this is the general shape rather than a detail of this bug.** The dangerous case is `ml` vs `g`: teach a `kg` pack on a product stored in `ml`, `base_unit` flips `ml → g`, and a plate line reading `250` (meaning 250 mL) is costed as 250 g. **The magnitude stays plausible and nothing on any screen can notice.** When you widen a guard, ask which of the cases it now catches would have been INVISIBLE, and write the test for that one.
-
-**The transferable rule: an exemption is scoped to the CLAIM that justified it, and code is scoped to the WRITE.** When you find one — a `!taught &&`, an `if(trusted)`, an allowlist that skips validation — do not ask "is this exemption correct?" Ask **"what else does the path this unblocks go on to write?"** Here the honest answer was "a second column, about a different thing, that nobody had thought about since."
-
-**And where the fix goes when the exempting function is untouchable.** `resolveMatchedPrice` was, at the time, inside the protected parser region AND on the never-touch list, so the guard could not live where the exemption does. *(The protection was lifted on 10 Sep 2026 - see the parser-region section below - so the constraint that forced this shape is gone. **The shape is still right, and for a better reason than the prohibition ever was**, which is why the paragraph stands rather than being rewritten as history.)* It went on the ROW instead — one function (`invUnitRebase`) read by the state machine, the renderer and the write, so the three cannot disagree.
-**The load-bearing detail is that the guard and the write call the SAME function to decide which unit gets stored** (`invPriceUnit`). A guard that recomputes the write's answer is a stub of it, which is this file's most-recorded defect one level up: it agrees with the code whenever the code is wrong. **If you add a guard in front of a write you cannot move, extract the decision the write makes and have both call it.**
-
-## `isFinite('')` is TRUE
-
-`Number('')` is `0`, and so is `Number(null)`.
-So a blank field passes an `isFinite` guard and fabricates a `$0.00` observation in the price history.
-
-**Guard with `typeof x === 'number'` first, then `isFinite`.** The null check is separate from the finite check on purpose - do not merge them.
-`tests/price-log-paths.test.js` pins it.
-
-## `min`, `max` and `required` ARE INERT on every input this app reads, and they read exactly like the check
-
-(Batch 245, 9 Sep 2026, QUEUE item 19. Measured in Chromium, not reasoned: the browser had already decided the value was out of range and nothing asked it.)
-
-**An HTML validation attribute only does something at native form submission or on a `checkValidity()`/`:invalid` that somebody wrote.** This app submits no form — every field is read by a handler on `oninput` or `change` — so `min="0"` on a number input constrains the **spinner arrows** and nothing else. Type a negative, or paste one, and the handler is called with it.
-
-The measured instance: the builder's misc-cost field carried `min="0"`, `setMiscCost` was `parseFloat(v)||0` with no sign guard, and a typed `-2` put a $0.92 plate at **$-1.08** — in the builder, in the save, and in the Plates library. On that keystroke `input.validity.rangeUnderflow` was **true**. The browser knew. The attribute was not wrong and it was not enforcement.
-
-**The tell: a numeric input whose handler reads `this.value` directly.** The attribute is the first thing a reader's eye lands on, it states the exact rule, and it makes the missing guard look like a duplicate rather than an absence — which is why this survived next to two siblings on the same screen that both guard (`setQty` clamps, `commitPrice` refuses `v<0`).
-
-**Keep the attribute and add the guard; do not choose.** The attribute is what makes the spinner behave and what a paste into a real form would be checked against; the handler is what actually holds. Deleting either while keeping the other is how this happened.
-⚠️ **And the count is not the reassuring part.** `grep -n 'type="number"' index.html js/app.js` returns fifteen, fourteen of them declaring `min="0"`, and **four have been checked**. The rest are filed in `docs/MAINTENANCE.md` with the instruction to reproduce one at a time rather than clamp them all on sight — a blanket clamp would hide which of them was ever reachable, and three of them sit next to the invoice items that are still deciding what a negative line MEANS.
-
-**The general shape, which is this file's oldest rule wearing a new costume: a declaration is not an enforcement.** `[hidden]` losing to an author `display` rule is the same sentence in CSS, and a `revoke … from public` that does not name `anon` is the same sentence in SQL. In all three the artefact states the rule correctly and something else decides.
-
-## The parser region - THE PROTECTION IS LIFTED (Max, 10 Sep 2026: *"its lifted"*)
-
-⚠️ **THIS SECTION SAID "NEVER EDIT ANYTHING INSIDE IT" AND NAMED FOUR NEVER-TOUCH FUNCTIONS. IT NO LONGER DOES.**
-Put to him as question 1 of `docs/decisions/2026-09-10.md` with both consequences written out, because reversing a decision he made himself is his alone and the record had been contradicting itself for two days across four documents.
-**The same sentence RATIFIES batch 197's edit inside the region**, which `docs/MAINTENANCE.md` had been asking about since 28 Aug 2026 through two audits - the question said so in as many words, and the answer was given against that wording.
-
-**So the region may be edited, and `resolveMatchedPrice`, `unitCatCategory`, `applySupplierMemory` and `packToUnitCost` may be changed.** The reason the prohibition existed - QUEUE item 17, the parser pricing by repetition and position, wrong on 36 of 41 real lines - is the work it was blocking.
-
-**What is NOT lifted, because it was never a decision of his and is not a rule at all:**
-
-- **The two anchors are LOAD-BEARING STRINGS.** `tests/_extract.js` slices the block with `sliceBetween(src, 'var INV_EXCLUDE=', 'function unitLabelFor(')`. Delete, rename or reorder either literal and the slice silently becomes something else - a different span, or an empty one - and every test built on it is then asserting about the wrong text while staying green. **Edit inside the anchors freely; do not disturb the anchors themselves without changing that file in the same commit.**
-- **The taught-pack path still exists so the parser needn't learn every notation.** That is a design fact, not a permission: a notation the user can teach is still cheaper than a parser rule, and lifting the protection does not make parsing the right answer to every line.
-- **These four functions are the ones this file has recorded defects in most often** - the exemption-scope trap at `resolveMatchedPrice` is a Tier 1 section of its own. They are now editable and they are still the code where a wrong change is hardest to see, because a mispriced line looks exactly like a correctly priced one. **Extract and pin before changing, per the roster.**
-
-✅ **AND WHAT REPLACED THE PROTECTION NOW EXISTS - `tests/parser-corpus.test.js`, in `npm test` since batch 256.** It runs the REAL parser over fourteen invoice layouts with hand-written truth and fails on **any silent-wrong price or any unflagged non-product row**; two residuals are allowed by NAME AND BY LINE so a new one cannot hide behind an old one. It was proved to go red against the pre-256 parser and green after, which is the only evidence that a net is a net.
-**So the answer to "may I edit the region" is no longer a rule, it is a number**, and the number is what a batch touching the region owes its handover: run `node tests/parser-corpus/run.js` and `node tests/parser-corpus/run.js --products tests/fixtures/base-products.json`, and put silent-wrong and pre-ticked-wrong in, before and after.
-⚠️ **THE HONEST LIMIT, because a net you over-trust is worse than none: THE FOURTEEN LAYOUTS ARE INVENTED.** The six REAL invoices' truth is committed at `spike/parser-audit/real-truth/` and their extracted text deliberately is not - it carries the cafe's details and this repository is public - **so no test in this repo can run them.** A green corpus means *no synthetic layout regressed*; it never means *the real invoices are right*. That gap is consolidated item 37 and it is the reason the `--products` run is asked for separately: it is the closest thing to real data the repo holds.
-
-## The row boundary - the backup export is IN-MEMORY shape, not schema shape
-
-`buildBackup` dumps live JS objects verbatim, so `menu_items` rows come out **camelCase**: `menuId`, `plateId`, `sourcePlateId`, `custom`.
-The columns are `menu_id`, `plate_id`, `source_plate_id`, `is_custom`.
-`rowToMenu`/`dbPushMenu` translate on every normal read and write; the export bypasses both.
-
-A restore written from the schema therefore inserts every dish with a null plate link - **every row present, nothing connected**, no error raised.
-It has already cost 76 of 77 dishes on one real file.
-
-Any importer must translate through the existing `xToRow` writers and never name a column of its own.
-Two groups have **no row mapper and that is not an oversight**: `kitchen_ingredients` and everything under `settings` are `app_settings` JSON blobs written by `dbSetSetting`, so **their boundary is the SETTING KEY**, not a column list.
-
-**The general law:** a backup that dumps live in-memory objects inherits every assumption those objects carry.
-Change what fills them and you have changed the file format without touching the exporter - silently, with the tests still green.
-**Any change to what `bootstrapSync` puts in memory is a change to the backup format, and must bump `stamp.format`** - **UNLESS ALL FOUR of these hold**, which is the carve-out 184 and 193 each applied on their own and which read as a violation both times because this rule did not carry it:
-
-1. **no group is added, removed or renamed**;
-2. **no key is removed or renamed**, and none changes type;
-3. **the new key is NULLABLE with NO COLUMN DEFAULT**, if it lands in one of the five tables `restore_backup` inserts with `select *`;
-4. both directions were **restored on staging and checked**, not reasoned about.
-
-A new nullable, default-less field inside an existing group is the case that passes: both directions read it as null, an old file restores clean and a new file restores into an old build clean, so the number would be announcing a compatibility break that did not happen. `backupToPayload`'s conditional `format` is the precedent - **the number declares what the PAYLOAD CONTAINS, not which build sent it.**
-⚠️ **This said "`buildBackup`'s own" until 22 Aug 2026 and the function was wrong.** `buildBackup` carries a FLAT format number; the conditional is in `backupToPayload`, which is the WIRE format rather than the FILE format, and the two are deliberately different.
-⚠️ **AND NO FORMAT NUMBER IS WRITTEN OUT HERE ANY MORE, ON PURPOSE.** This paragraph said "a flat `format:3`" and quoted `format:chg.length?3:2`, and batch 219 moved BOTH when it took the file to 4 - so the sentence telling a reader to go and check the citation was itself the stale claim, which is the failure it was written to fix, one format number later. **Read the two literals from `js/app.js`; what does not rot is which function holds which kind of number.** (Corrected 2 Sep 2026 by AUDIT-v186 F1.) The error originates in `js/app.js`'s own comment at the `buildBackup` site, which says "the precedent below" about a construct ~190 lines away in another function - so a reader who checks the citation finds a flat `3` and concludes the rule is wrong, when only the pointer is. **Found by a blind code auditor that had never seen this file** (`docs/audits/BLIND-AUDIT-2026-08-22-code.md`, finding 11a); ~~the comment in `js/app.js` is queued for the same fix in `docs/MAINTENANCE.md`.~~ ✅ **BOTH ENDS ARE GONE** — the comment at the `buildBackup` site cites `backupToPayload` correctly and the maintenance entry records it done. (This named `js/app.js:7726`, and by 2 Sep 2026 that line was `submitInvite`; the comment itself is still correct. **Grep the name, per this file's own header.**) Struck 28 Aug 2026 by AUDIT-v176, which followed the pointer and found nothing at either end.
-⚠️ **CONDITION 3 IS NOT BELT-AND-BRACES AND IT IS WHY THIS CARVE-OUT IS FOUR CLAUSES RATHER THAN ONE.** (Added 15 Aug 2026 by batch 194's pre-push review, which caught the first draft stating only conditions 1 and 2.) The DEFAULT section below is the reason: `jsonb_populate_recordset` turns a key that is ABSENT from an old file into an **explicit NULL that overrides the column DEFAULT**. So a new column WITH a default satisfies "no group touched, no type changed" perfectly, skips the bump under a two-clause rule, and then **restores every old file with that column null instead of defaulted** - silently, with the right row counts. The two rules would have been in one file disagreeing about what is safe. **A defaulted column is a format change even though nothing about the JSON shape says so.**
-⚠️ **AND IF YOU DECIDE IT DOES NOT NEED A BUMP, SAY SO AT `buildBackup`'S OWN SITE.** 184 wrote that note and gave the reason in one line: *a silent decision against this rule is indistinguishable from having missed it.* 193 made the same call, its handover said the note was written, and **it was not** - so the audit trail claimed a comment that did not exist. The carve-out is the cheap half of this; the note at the site is the half that makes it checkable.
-`parseBackupFile` accepts every format the current build writes and refuses everything else BY NAME; it refuses format 1 outright because the literal needed to tell a delta from a snapshot was deleted. **Read the accepted set from its guard rather than from here** - this line said "2 and 3" until 2 Sep 2026 and 219 had added 4.
-
-## A column DEFAULT does not survive the restore
-
-`restore_backup` inserts five tables as `insert into <t> select * from jsonb_populate_recordset(null::<t>, …)` — **no column list**.
-`jsonb_populate_recordset` yields the table's whole column list, and **an absent JSON key becomes an EXPLICIT NULL, which OVERRIDES a column DEFAULT rather than falling back to it.**
-That migration says so at its own site, which is why every one of those inserts is followed by an `update … where <col> is null` backfill.
-
-**So adding a column with a DEFAULT to `ingredients`, `menus`, `plates`, `menu_items` or `supplier_phrases` gives you the default everywhere EXCEPT after a restore**, where every row lands null — and the restore still returns success with the right row counts.
-The other restore paths name their columns and are safe: `ing_price_history`, `menu_change_log`, `app_settings`, and - since 219 put the last two history series in the backup - **`price_history` and `menu_price_history`**. (Said "the three other" until 2 Sep 2026, AUDIT-v186 F2. **The hazard half above - which five tables a DEFAULT is unsafe on - was and is exactly right**; only the safe list understated itself, which is the harmless direction and is still worth fixing, because a reader who counts three and finds five stops trusting the five.)
-
-**Measured, not reasoned** (13 Aug 2026, staging, on Max's real 412-product export): with the `set_business_id` trigger dropped from `ingredients` only, all 412 restored products came back null while `plates` came back correct.
-
-**The remedy that cannot be forgotten is a `BEFORE INSERT` trigger**, not a fix to the five inserts — because the next batch to rewrite `restore_backup` would have to remember the fix again. `set_default_business_id` + ten `set_business_id` triggers is the working example.
-⚠️ **The general law is wider than one column:** any DEFAULT you add to those five tables is a claim that holds on every path except the one that runs after a disaster, which is the path nobody exercises.
-
-### The other half: a DEFAULT is applied BEFORE the trigger, so the two must say the SAME thing
-
-(Measured 13 Aug 2026, staging, batch 182 — and it is the mirror image of everything above, on the path that runs every day.)
-
-A DEFAULT fires when the column is **ABSENT from the INSERT**, which is what every client write does. So by the time a `BEFORE` trigger runs, the column is already **non-NULL**, and a trigger written as *"fill it if it is null"* **correctly does nothing on the normal path**. It only ever fires on the restore, where the key is present and explicitly NULL.
-
-That is harmless while the two agree and silent when they do not. `business_id` carried `default '<the legacy café>'::uuid` and a trigger that filled nulls with *the caller's tenant*; the moment a tenant-scoped `with check` existed, **every café except the seeded one could READ its rows and could not WRITE any** — `42501` on its own insert. Nothing in SQL catches it: the column is populated, the trigger is present, and a single-tenant database behaves perfectly. **It appears only as a SECOND tenant**, which is why it was invisible until staging had one.
-
-**So: a DEFAULT and a BEFORE trigger on the same column are ONE mechanism with two entry points, and they must compute the same value.** Point both at the same function — `set default public.current_business_id()`, `new.x := public.current_business_id()` — rather than leaving one a literal. Two definitions of the same thing is the defect; which one is "right" is not the question.
-
-## "Fail open" is what you do with NO information — reusing it as the answer to a RECHECK reopens the hole
-
-(Batch 185, 14 Aug 2026, the non-member boot gate. Caught by the pre-push review, after the fix for one half of it created the other half.)
-
-A guard that refuses on a definite answer and proceeds on anything else is usually right the FIRST time it runs: with nothing known, a false alarm is worse than a miss, and here it would have locked a legitimate user out of a working app.
-**It is wrong the SECOND time, and the wrongness is invisible, because the same expression is still sitting there reading correctly.**
-Once the server has already said *"this caller has no café"*, `could not tell` is **not evidence to the contrary** — but a two-valued gate has nowhere to put that, so it lands on the permissive branch and DISCARDS the known state.
-
-The measured shape: from the standing gate, the `online` listener re-runs `bootstrapSync`; the tenant lookup alone fails, one flaky request out of twelve; the check falls open; **the four required reads still succeed with `[]`, because RLS filters rows rather than erroring**, so nothing throws, every store is emptied and the success path hides the gate.
-A silent empty app, reached by a network blip, on the exact path the guard was hardened for.
-
-**The remedy is a THIRD value.** `ok` / `nomember` / **`unknown`**, resolved by the caller against what it already knows: only a definite answer may change the standing verdict, and "could not tell" changes nothing in either direction.
-**The tell to recognise: a boolean guard whose two branches are "definitely bad" and "everything else".** Ask what it should do when it is asked a second time, by a caller that already has an answer — and if the honest reply is "keep what I had", the guard needs the third value, not a better default.
-This is the same family as the empty-read ambiguity above: **a successful-but-empty read, an RLS-blocked read and a failed read are three different things that arrive looking like two.**
-
-**And the counterweight, or the rule above becomes a tax on every unknown** (batch 186, the sign-in gate). A second unreadable answer landed one line away from the first — `getSession` failing while the tenant lookup succeeded — and it is deliberately collapsed to two values, which is not an inconsistency.
-**The question to ask is not "are there three states" but "does either branch do something I cannot take back?"** The tenant answer decides whether the app is USABLE, so guessing it wrongly locks someone out or shows them an empty café: three values, and the caller resolves the third. The session answer decides only **which of two screens explains a refusal that has already been decided** — a sign-in form or a "your account has no café" message — and both are recoverable in one tap, so the safer of the two is simply chosen and the third value would be ceremony.
-**So: a fail-open default is a decision about CONSEQUENCE, not about epistemics.** Two unknowns in the same function can honestly default in opposite directions, and the comment at each site has to say which consequence it was weighing — otherwise the next reader "fixes" the inconsistency.
-
-## A FOREIGN KEY is checked with RLS OFF, so a cross-tenant reference SUCCEEDS instead of erroring
-
-(Batch 184, 13 Aug 2026, removing the `MENU_ORIGINAL` literal.)
-
-**Postgres validates a foreign key as the constraint's owner, not as the caller, and RLS is not applied to that check.** So a row whose FK column points at ANOTHER tenant's row is accepted. The write returns success. The referenced row is then unreadable to the writer, because the ordinary `select` policy *does* apply.
-
-`menu_items.menu_id → menus(id)`, and `menuToRow` used to write `menu_id:(item.menuId||'MENU_ORIGINAL')` — a literal naming a `menus` row **only Scoopy's has**. The obvious reading is that a second café gets `23503`, and before 182 that is exactly what happened. After 182's tenant policies it is worse: the café that has no such row still passes the FK check against Scoopy's, saves cleanly, and the dish renders **on no menu at all, forever, with no error anywhere.** An error would have been the good outcome.
-
-**The transferable rule: a foreign key does NOT confine a reference to your own tenant, and it is easy to assume it does** because every other operation on that table is scoped. If a column can be written with a value the caller did not read from its own rows — a literal, a default, an id from an imported file — then **only the application can guarantee the target is yours.** The restore path is the standing example of the import case.
-**The symptom to recognise: a row that saved without error and is invisible.** Reach for this before assuming a render bug.
-
-## What staff may delete is decided by WHOSE work it destroys, not by how much damage it does
-
-(Max, 10 Sep 2026, reversing his own 187 decision. His words: *"they can do plates but not products, since those can break other plates that arent theres"*, and when told the first half was a reversal and had deliberately not been acted on: *"touch it and sort the merge out."*)
-
-**The line moved, and it moved to a better place than "how destructive is this".** Deleting a plate is plenty destructive. It is also *your own work*, and a cafe whose staff cost dishes has to let them delete their own mistakes. A **product** is the row every plate's cost is computed from, so deleting one reaches plates belonging to other people; a **taught pack** decides what every future import prices that product at, so it reaches them one step later and less visibly.
-
-| | before 255 | after |
-|---|---|---|
-| plate | owner only (187) | **any member** |
-| menu | owner only | owner only - he said plates, and widening it would be a decision he did not make |
-| product (`ingredients`) | **any member** | owner only |
-| taught pack (`supplier_phrases`) | any member | any member - extended to, then REVERTED; see below |
-| dish (`menu_items`) | any member | any member - 187 decided that deliberately |
-
-**So the two rules were exactly inverted against what he wanted**, which is what made this worth measuring rather than assuming: the restriction that existed was on the thing he was happy for staff to do, and the two that reach other people's work had none.
-
-⚠️ **THE TAUGHT PACK WAS AN INFERENCE FROM HIS REASON, IT SHIPPED IN THE FIRST CUT, AND THE PRE-PUSH REVIEW SENT IT BACK. That sequence is the rule, not the outcome.**
-
-The inference was sound and still looks sound: a taught pack decides what every future import prices a product at, so removing one reaches other people's plates the same way, one step later. What it MISSED is that `applyTidy`'s supplier rename **re-keys** every taught pack for that supplier, and re-keying is delete-then-insert - through a chain (`openTidyManage` -> `renderTidyValues` -> `openTidy` -> `applyTidy`) with **no role check anywhere in it**. So the restriction would have made a staff supplier rename refuse its DELETE, drop the entry from memory anyway, push the new row, toast success, and leave the old row to reappear at the next boot: this file's own orphaned-taught-pack trap, manufactured by the fix.
-
-**The honest remedy would have been to make renaming a supplier owner-only - a capability he was never asked about.** At that point the question stopped being *"is my inference sound"* and became *"is it worth staff losing supplier renames"*, which is his.
-
-**So: an inference from someone's stated reason is free to make WHILE IT COSTS NOTHING, and becomes theirs the moment it costs something.** The test is not whether the reasoning holds - it usually does, which is what makes this shape survive - but **what the extension takes away, and from whom.** Go and look for the OTHER callers of whatever you are restricting before deciding you have merely applied their answer.
-**And say at every site that you extended it**, which is what made this recoverable: the migration, the mirror, the queue item and this file all said "inference, not his answer", so the review had something to check rather than a rule to re-derive.
-
-**The client half is not the enforcement and is not decoration either.** `deleteIngredient` - which deletes a PRODUCT, the naming inversion again - already refused when the product was referenced by any ingredient or plate line. So the case the new policy newly refuses is an UNREFERENCED product, which still takes its `ing_price_history` with it, plus anything sent straight at PostgREST where no client guard exists at all.
-
-## A policy that RESTRICTS and a policy that GRANTS differ by one word and read identically
-
-(Batch 187, 14 Aug 2026, owner-vs-staff.)
-
-**Postgres ORs permissive policies together and ANDs restrictive ones in.** Every table here already carries a permissive `for all` tenant policy from 182, so a new policy meant to take something AWAY must say `as restrictive` — and `as permissive` is the DEFAULT, so the word is omitted far more naturally than it is written.
-
-```sql
-create policy "plates owner-only delete" on public.plates
-  as restrictive for delete using (current_business_role() = 'owner');   -- takes away
-create policy "plates owner-only delete" on public.plates
-  for delete using (current_business_role() = 'owner');                  -- takes away NOTHING
-```
-
-The second is OR'd with the tenant policy, which already permits the delete, so **staff can delete plates again, the SQL still says `owner`, no error is raised anywhere and the policy list still shows a policy with the right name.** Dropping two words silently repeals the rule while leaving every trace of it in place.
-
-**The tell: a policy whose NAME says what someone may not do.** Read its first line, not its condition — a restriction that is not `as restrictive` is decoration. **Two test files pin these, not one** — `tests/roles.test.js` holds 187's five (`plates`, `menus`, and three on the `food_cost_target` setting) and `tests/invites.test.js` holds 191's four on `business_invites`; the mutation was run on both, and flipping one to `permissive` turns it red.
-*(This read "pins all four" until 15 Aug 2026, naming one file and one number, and it was already contradicted three lines further down by the paragraph describing the FIFTH being added. A reader who counts and finds five stops trusting the paragraph, which is the one thing this section cannot afford.)*
-
-**⚠️ AND THE ONE THAT ACTUALLY SHIPPED PAST THE FIRST DRAFT: a restriction keyed to a VALUE must cover every command that can change that value, INCLUDING DELETE.**
-Two of 187's restrictions name a command on a table — "staff may not delete a plate" — so the policy is the whole of it. The other three name a *value*: `key = 'food_cost_target'` in a shared settings table, one policy per command, **and it took three because of exactly the mistake below.** `dbSetSetting` upserts, so the frame was "an upsert has two halves", INSERT and UPDATE were both covered, and a test asserting exactly that passed.
-**DELETE is not part of an upsert, so it never entered the frame.** A staff account could delete the row outright — measured, not reasoned: HTTP 200, row returned, target gone — and the client then boots on its hardcoded default with nothing raised anywhere, which moves every suggested price and every good/bad colour in the app. Caught by the pre-push review.
-**The transferable question is "what are ALL the ways this value can stop being what the owner set", not "which commands does my client use".** A client that only ever upserts is not a bound on what a caller can send; the whole point of the policy is the caller you did not write. Enumerate the commands in the test, so the next one cannot be missed by having a smaller frame.
-
-**Two corollaries that cost as much and are less obvious:**
-- **`as restrictive for all` is not "restrict everything", it is "require this to READ".** On a tenant table that means staff open the app to an empty café. Name the command.
-- **NULL refuses.** `current_business_role() = 'owner'` is NULL for a caller with no membership, and a policy evaluating to NULL denies — which is what you want on the server, and is the exact OPPOSITE of the client-side rule two sections up. **The server refuses when it cannot establish permission; the client must not lock anyone out when it cannot tell.** Same expression shape, opposite correct default, because the consequences are not symmetrical.
-  In PL/pgSQL the same NULL is a trap rather than a help: `if role <> 'owner' then raise` never fires for a NULL role, so a guard written that way lets exactly the caller it was written for straight through. Use `is distinct from`.
-
-## `revoke … from public` DOES NOT REVOKE `anon`, and every migration in this repo is written as if it does
-
-(Batch 218, 29 Aug 2026, rehearsing `create_business` on staging. Measured as the anon client over PostgREST; it could not have been found by reading, and a test written to forbid it was green.)
-
-**Supabase ships `alter default privileges in schema public grant execute on functions to anon, authenticated, service_role`** — two of them, from `postgres` and from `supabase_admin`; read them out of `pg_default_acl`. So **every function created in `public` is born with `anon=X` already in its ACL**, before any `grant` in your file runs.
-
-`revoke all on function … from public` revokes the **PUBLIC pseudo-role**. `anon` is a **real role**. They are different things, and the revoke does not touch the default-privilege grant. Omitting `anon` from your own `grant execute … to authenticated, service_role` cannot help either — **you cannot decline a privilege you were never the one to give.**
-
-The measured difference, and it is the whole tell:
-
-```
-before:  P0001  "sign in before creating a cafe"          HTTP 400   ← the BODY refused
-after:   42501  "permission denied for function …"        HTTP 401   ← the GRANT refused
-```
-
-**Both are a refusal, which is exactly why this survives.** The function was never callable-and-harmful; it was callable-and-raising, so nothing looked wrong from any screen, and the file's own comment claimed *"two mechanisms, because a grant is checked before the body runs"* while shipping one.
-
-**The remedy is one line, and it must name the role and follow the function:** `revoke execute on function public.f(args) from anon;`. Placed **above** the `create or replace` it runs against the old ACL and the fresh default grant lands afterwards, putting `anon` straight back.
-
-⚠️ **THIS PARAGRAPH NAMED `claim_business_invite()` AND `business_team()` AS CARRYING THE SAME GAP UNTIL 10 SEP 2026, AND BATCH 243 HAD CLOSED BOTH ON 9 SEP** — by-name revokes in `20260909_invite_choice.sql`, mirrored in `01-schema.sql`, with `docs/MAINTENANCE.md` and consolidated item 40 both struck the same day. 243's handover says *"Into CLAUDE.md: Nothing."* **So the one file loaded into every message of every batch stated an open security gap that was shut, and pointed at a maintenance entry that was already closed.** Found by AUDIT-v207.
-**Measured against `proacl` on PRODUCTION, 10 Sep 2026** — which is what the next sentence tells you to do, and the reason this correction is a measurement rather than a re-read of the migration:
-
-| holds `anon` EXECUTE | does not |
-|---|---|
-| `current_business_id`, `current_business_role`, `invite_pending`, `restore_backup`, `set_default_business_id`, `set_member_role`, `stamp_invite` | `business_team`, `claim_business_invite`, `create_business`, `my_pending_invites` |
-
-**`invite_pending` is deliberate** — the one intentionally unauthenticated endpoint, asserted as such by 243. **`set_default_business_id` and `stamp_invite` are trigger functions.** The two worth knowing about are **`restore_backup` and `set_member_role`**: both are refused by their own bodies, so neither is a hole, and both are the same *callable-and-raising* shape `create_business` was — which is precisely the shape that made this whole section necessary, because it looks identical from every screen.
-**They are not fixed on sight**, because a migration should not quietly re-grant or re-revoke functions its item does not own. **Check `proacl`, never the file**, when you want to know who can call something — and note that this paragraph was wrong for a day and a half in the direction that costs most: it named two functions that were safe and none of the ones that were not.
-
-**The transferable rule is this file's oldest one arriving in SQL: a check that finds nothing has only proved something about WHAT IT LOOKED FOR.** `tests/cafe-create.test.js` asserted that the word `anon` was ABSENT from the grant statement and that a `revoke … from public` was PRESENT. Both true; both about the file's text; neither about whether `anon` holds EXECUTE. That is roster entry 190 — a denylist assertion is weaker than an equality one — reaching a language where the privilege can arrive from outside the file entirely. **Assert the revoke BY NAME.**
-
-## `create or replace function` REPLACES THE WHOLE BODY, so copying one forward from the wrong ancestor DELETES guards by omission
-
-(Batch 219, 29 Aug 2026, `restore_backup` v5. Shipped to staging AND production before the pre-push review caught it.)
-
-There is no `alter function … body` in Postgres, so every change to a function in this repo restates the entire thing. **That makes "which copy did you start from" a correctness question, not a housekeeping one** — anything another batch added in between is deleted the moment you paste, **with no diff anywhere that shows a deletion**, because the new file simply never contained it.
-
-219 copied `restore_backup` forward from `20260813_semantic_keys.sql` and lost batch **187's owner-only guard**, added by `20260814_roles_part1.sql` the following day. The shipped function let any signed-in **staff** account wipe and replace the whole catalogue. It applied green, every existing test stayed green, and the client's own comment still said the server would refuse a non-owner.
-
-**Why the wrong ancestor was chosen is the part worth generalising: the QUEUE ITEM named it.** It said *"Start from v4, not from `20260806_restore_backup_v3.sql`"* — correct when written, falsified about 36 hours later, and no mechanism can notice. That is Tier 3's *"a queued item's approval does not expire and its FACTS do"* arriving somewhere it costs a security guard rather than a wasted hour.
-
-**The rule: find the newest definition by listing the DIRECTORY, never by trusting an item, a comment, a header or your memory.**
-
-```
-grep -l 'create or replace function public.<name>' supabase/migrations/*.sql | sort | tail -1
-```
-
-⚠️ **AND THE TEST THAT SHOULD HAVE CAUGHT IT COULD NOT, FOR A REASON THAT GENERALISES FURTHER THAN SQL: A MIGRATION FILE IS A HISTORICAL RECORD, SO A TEST PINNED TO ONE BY NAME PINS WHAT WAS TRUE ON THE DAY IT RAN.** `tests/roles.test.js` asserted the guard by reading `20260814_roles_part1.sql` at a hardcoded path. That file still contains the guard and always will — so the assertion was green while the deployed function had none. **Pin the behaviour to whichever migration LAST defines the thing**, the way `tests/semantic-keys.test.js` already did. Two files in this repo had learned that and the third, holding the only security-critical assertion of the three, had not.
-
-**The rehearsal missed it too, and the shape is the same one the `anon` record kept finding:** staging exercised `anon` and the OWNER, never a signed-in **staff** member — so the one role the guard exists for was the one role never tried. **When a function's guard names a role, the rehearsal has to sign in AS that role**, and it has to send the payload shape that reaches the destructive statements: a refusal proved with a payload that fails at the first insert has not tested the deletes.
-
-## A PRIMARY KEY's column list is a contract with every `ON CONFLICT` that names it — and with the client that names none
-
-(Batch 183, 13 Aug 2026, widening `app_settings` to `(business_id, key)` and `supplier_phrases` to `(business_id, id)`.)
-
-**Postgres resolves an `on conflict (cols)` arbiter at RUNTIME, not when the function is created.** So changing a primary key leaves every `on conflict` naming the old columns syntactically fine, stored happily, and **42P10 the first time it runs** — "there is no unique or exclusion constraint matching the ON CONFLICT specification".
-`restore_backup` carried exactly one such clause. **A migration that widens a key and does not replace that function applies GREEN and breaks disaster recovery**, which is the path nobody exercises until they need it most. The two are one change; 183 does them in one transaction, function first, so no intermediate state names a dead arbiter.
-
-**The client half is the opposite shape and is easier to break by being helpful.** `dbSetSetting` and `dbPushSupplierPhrase` name **no** conflict target, and that silence is what makes them correct: **PostgREST derives an upsert's `ON CONFLICT` from the table's PRIMARY KEY**, so the write resolves against the caller's own row and the server stays the only thing that decides the tenant.
-Adding `onConflict:'key'` "for clarity" re-globalises the key and puts the whole defect back — a second café's first save of a food cost target refused **42501 on the USING expression**, permanently, with no workaround. Both call sites say so; `tests/semantic-keys.test.js` pins it.
-
-**The general law: a key's width is depended on in three places that never mention each other** — the SQL that names it, the client that deliberately does not, and the schema mirror in `supabase/staging/01-schema.sql`. Change one and grep for all three.
-
-## `ingredients.updated_at` is not history
-
-It means nothing.
-Every product row carries the **same single timestamp** - the restore's - so it records when the table was last rewritten wholesale, not when anything changed.
-Never read it as a modification time, a price date, or an ordering key.
-
-The real per-product series is `ing_price_history`, and **`setProducts` is its one writer** - plural, since batch 193.
-⚠️ **This said `setProduct` until 15 Aug 2026 and the singular is now the WRAPPER, not the writer.** `setProduct(id, patch)` is `setProducts([{id, patch}])`, its N=1 case; the catalogue importer calls `setProducts` **directly** with up to a whole catalogue at once. So a reader asking *"who can write `ing_price_history`?"* who greps `setProduct(` finds six call sites, every one of them a single row, and **misses the one path that writes hundreds**. Grep the plural.
-Its condition is the PREVIOUS STORED price, not the last logged point - two separate guards, deliberately not merged.
-Product creation logs a first point on purpose.
-
-## The headline average is a MEAN OF PER-PLATE RATIOS, and it is bounded at 300%
-
-(241, queue items 18 and 23. Two decisions about one number, written together because they are read together.)
-
-**Which average.** `avgFoodCostForScope` averages each plate's own `cost/price`, so a $0.36 fritter weighs exactly as much as an $18.84 seafood box. The defensible alternative — total cost over total price — is a different number, **1.4 points away on Max's real data** (25.0 against 26.4, turning "5.0 pts under" into "3.6"). Nothing on any screen used to say which one you were reading, and the tile, the menu pills and the sidebar badge all agree with each other, so the disagreement was invisible by construction. **Both tiles now name the method** — "Average of plate food costs" — and the method itself is unchanged. Change the maths and you change every stored history point's meaning; change the label and you have only told the truth.
-
-**And it is bounded.** A plate whose ratio exceeds `FOOD_COST_SANE_MAX` (300%) is excluded from the average, from the over-target count, from the insight facts and from the Dig-in ranking — because **a ratio that high is not a menu that needs repricing, it is a price that is wrong**, and averaging it in let one $0.01 typo take the production headline to 354.4%, the trend axis to 380%, and the AI copy to "swings 20000-30000%". Every figure deterministic, correctly phrased, and about a typo.
-⚠️ **EXCLUDING IS ONLY HALF A FIX AND THE OTHER HALF IS NOT OPTIONAL: the plate is NAMED on its own Dashboard row.** A figure that silently drops a plate is exactly as unreconcilable as one that silently includes it — the reader cannot tie either back to the menu in front of them. Any future exclusion from a headline figure owes the same debt.
-**The number is written once, in `js/app.js`, with its reason.** Do not restate it here; grep the constant.
-
-## Per-publication counting was decided, then reverted on real data
-
-The dashboard headline counts **per publication**, so a plate on two menus counts twice.
-Distinct-plate maths was built, tested, and **reverted by Max against his own data** because it broke arithmetic consistency with the By-menu rows.
-
-It is a decision, not a bug.
-If it is revisited, the answer is a design one - stop implying All menus is a row like the others - not a quiet change to the maths.
-Related: **arithmetic across two series fabricates movement.** The change log stores an ALL-MENUS average; subtracting it from a per-menu current invents a number.
-That is why the since-line renders at all-menus scope only.
-
-## The client's role is not the MCP's role
-
-**A migration verified through the MCP or the SQL editor has NOT been verified for the client.** Found the hard way, on production.
-
-`postgres` (MCP, SQL editor) and `authenticator` (PostgREST, for `anon` and `authenticated`) differ in ways that change whether SQL *runs at all* - preloaded libraries, `statement_timeout`, and RLS, which the MCP bypasses entirely.
-The `verify` skill has the differences and the procedure for exercising an RPC as the client.
-
-The one that bites while AUTHORING A MIGRATION (there is no client code to edit - every `.delete()` in `js/app.js` is `.eq()`-scoped; the `where true` lines are SQL): **`safeupdate` rejects any WHERE-less `DELETE` or `UPDATE`** for `authenticator` but not for `postgres`.
-So **the `where true` on the restore's deletes is load-bearing** - it looks like a no-op and is not.
-Do not tidy it away.
-
-Also: **an anon UPDATE or DELETE returns 204 with NO error** and touches nothing.
-A caller checking only for an error would believe it had written.
-
-## Some of this app's behaviour is not in this repo at all, and nothing here can read it
-
-(Batch 238, 8 Sep 2026. A stranger's confirmation email sent them to `http://localhost:3000`.)
-
-**GoTrue's Site URL and Redirect URLs live in the Supabase dashboard.** There is no file, no migration, no table and no MCP call that reaches them. So when `signUp` shipped without an `emailRedirectTo`, every confirmation link inherited a factory default that no test could see, no grep could find and no review could read - and the account was created *correctly*, so nothing on any screen was wrong either. The defect lived entirely in the gap between two things that were each fine.
-
-**The tell: a flow where every artefact you can inspect is correct and the user still ends up somewhere wrong.** When you reach that, stop looking for the bug in the code and ask **which of this behaviour is decided somewhere I cannot read** - Supabase's auth settings, Vercel env vars, GitHub's branch protection, a DNS record. Then go and look at it by hand, because there is no other way.
-
-**And the corollary that is easy to get backwards: a client-side fix for an out-of-repo default is usually NECESSARY AND NOT SUFFICIENT.** GoTrue validates `emailRedirectTo` against its allow-list and **silently falls back to the Site URL** when it does not match - no error, no warning, no way to tell from the app that the option was ignored. So shipping the redirect is safe (its worst case is the old behaviour) and *proves nothing about whether it works*. Say so at the site, or the next reader will read a green suite as a working flow.
-`docs/MAINTENANCE.md` carries the item for writing these down; two are known and both were found by something breaking.
-
-## Three foreign keys between the DATA tables, and only one can ever error
-
-⚠️ **This heading said "Three foreign keys" until 13 Aug 2026, and the live count is MUCH HIGHER** - fifteen after **181** added `business_id → businesses` on all ten public tables plus two on `business_members`, eighteen after **191** added `business_invites`'s three, and **whatever it is when you read this.** (182 is the policy swap and the key widening and adds no foreign key at all; a first draft of this line credited it and was corrected by batch 194's pre-push review. Only two migrations have ever added one of these: `20260813_business_id_part1.sql` and `20260814_invitations.sql`.)
-**The three below are still the only ones that constrain the app**, which is why the section is scoped rather than rewritten: the tenant FKs can only raise if someone deletes a `businesses` row, and nothing does.
-⚠️ **The number used to be written out here and it went stale TWICE in ten deploy versions** - both times because a batch added a table without owning a count in a file it had no reason to open. **Grep `pg_constraint` for the live figure**; what this section is for is telling a reader which three of them matter, and that part does not rot.
-
-- `menu_items.plate_id → plates.id` - **NO ACTION**.
-  Deleting a plate while a dish references it raises **23503**.
-  The app's only FK hazard.
-- `plates.menu_id → menu_items.id` - ON DELETE SET NULL.
-  **Legacy, read by nothing.**
-- `menu_items.menu_id → menus.id` - ON DELETE SET NULL.
-
-`doDeleteMenu`'s comment claiming an FK violation was **wrong** and is corrected at the site (batch 254).
-
-⚠️ **BUT THIS SECTION THEN DREW THE WRONG CONCLUSION FROM ITS OWN CORRECT OBSERVATION, AND SAID SO FOR MONTHS: "the dishes-before-menu ordering guards nothing".** It guards something, and calling `plate_id` "the app's only FK hazard" is true only if a hazard has to be an ERROR.
-
-**`ON DELETE SET NULL` IS MORE DANGEROUS THAN `NO ACTION`, NOT LESS, AND IT READS AS THE MILD ONE.**
-- `NO ACTION` (`menu_items.plate_id`): delete the plate with a dish still referencing it and Postgres **raises 23503**. Loud, immediate, and the write did not happen.
-- `SET NULL` (`menu_items.menu_id`): delete the menus row with a dish delete still in flight and Postgres **helpfully detaches the dish for you**. If that dish's own delete then fails, the row **survives, attached to no menu, on no screen, with nothing raised anywhere** — this file's own "a row that saved without error and is invisible". An error would have been the good outcome.
-
-So the ordering is load-bearing in BOTH paths; only the failure mode differs, and the quiet one needs the sequencing more because nothing will ever tell you it was needed. Both are sequenced and rolled back as of 254; measured on production that day, 90 `menu_items` rows and **0 orphaned**, so this was latent rather than damage already done.
-
-**The transferable half is not about foreign keys: a referential action that "handles" your mistake has converted an error into a silent state change, and the milder-sounding clause is the one to sequence against.** Reach for the same question wherever a database, a framework or an API says it will clean up after you — `ON DELETE CASCADE`, an upsert that inserts what it cannot find, a retry that swallows a 4xx.
-
-The two tables are nonetheless **CIRCULAR**, which constrains any restore: `menu_items.plate_id` errors if plates go first, while `plates.menu_id` cannot be inserted before the dishes exist.
-**Any delete-and-reinsert of both tables must delete dishes first and insert plates with `menu_id` omitted** - which is what `plateToRow` already does, so the restore is correct by existing design rather than by luck.
-If `plateToRow` ever starts writing that column, restore breaks.
-`tests/restore.test.js` pins it.
-
-Resolve plate↔dish links ONLY through `plateIdOf` / `plateForMenuItem` / `dishesOfPlate` / `menusOfPlate`.
-One plate can back many dishes, one per menu - it is many-to-many.
-
-## Cross-referencing writes are a SEQUENCE, not two independent writes
-
-On the way IN, the referenced row lands first: push the plate, confirm it, then the dish (`dbPushMenuAfterPlate`).
-On the way OUT it mirrors - the REFERENCING rows go first: dishes, then the plate (`dbDeletePlateAfterDishes`).
-
-Two traps this cost real time to find:
-
-- **Dispatching in the right order is not sequencing.** The delete paths already fired the dish deletes before the plate delete; they just never awaited them, so commit order was arbitrary and the plate delete could be rejected with 23503. It presented as "sometimes broken".
-  **A test that records call ORDER passes against the broken code** - assert instead that the dependent write has not been ISSUED while the others are still pending.
-- **A helper that swallows its promise cannot be sequenced by anyone.** If you add a `dbDelete*` helper, RETURN the write.
-
-Rolling back on failure is part of the sequence: the optimistic repaint stays, but the WORDING waits for the server, and anything the server kept is put back.
-A delete that SUCCEEDED is never resurrected because a sibling failed.
-
-## Gating the last committing action is not a gate
-
-The invoice review does not render at all until the AI referee answers, because a match picked, an add-new ticked or a pack taught during the window makes `gemApplyReadings` skip that row - the referee then defers to a ruling made without it.
-Disabling the final confirm would not have helped.
-
-`invConfirmState` is the pure decision.
-**The watchdog MUST bump `gemToken`**, or a late response is still merged.
-
-## Two more that look like simplifications
-
-- **`productRefs(pid)` checks BOTH paths** - ingredient→pid AND plate-line→pid.
-  Deleting a product refuses if either hits.
-  Don't collapse it.
-- **`publishPlan` is the ONE publish decision**, shared by `submitMenuItem` and `submitAddDish`.
-  Two row-creating paths once carried the identical blind guard.
-  `renderUnlinkedPrompt` reads its `.unlinked` rather than computing its own.
-
-## The absence of a back-pointer is not evidence that nothing was lost
-
-A dish once read as uncosted while its recipe sat unreferenced in the library, because only one direction was checked.
-**Look on the OTHER side too.**
-
-## Five history series, deliberately separate - don't merge them
-
-`priceHistory` · `menuHistory` · `menuPriceLog` · `ingPriceLog` · `changeLog`.
-
-The last is not a price series at all: **`menu_change_log` records what MAX did; every other log records what a SUPPLIER did.** A supplier price movement must NEVER reach it - it is the thing being measured.
-
-**The condition is a function, not a list: if `setProducts` wrote it, it is drift and belongs in `ing_price_history`.** (Plural - `setProduct` is its N=1 wrapper and the importer bypasses it; see the `updated_at` section above.) Two more:
-
-- **`avgBefore` must be read BEFORE the mutation** - `computeAvgFoodCost()` is live, so one line later it is already the AFTER figure.
-- **`kind` alone does not answer "did this move menus"** - a save that changes the price AND the menu logs `dish_price`; the move is in `detail.menuFrom` / `detail.menuTo`.
-  **Read `detail`, never `kind` alone.**
-
-When checking whether a change is logged, **check the writer, not just the reader.**
-
-## Chart colour is anchored to the TARGET, not to direction
-
-Green = at or under target, the Menu-Analysis meaning; sparklines match.
-The older "green = improving" rule made the chart permanently red during ordinary trading.
-`tests/trend-reframe.test.js` holds the pair that catches a revert: rising-under stays green AND falling-over stays red.
-
-**The Dashboard's KPI figures carry the same anchoring** - at or under target is good, over is bad - so the strip, the chart, the sparklines and the Menu rows can never disagree.
-**Colour on a headline figure is a target reading, not a delta.** (Max, 10 Aug 2026.)
-This is also why a "vs last month" delta keeps being the wrong answer to "what does this colour mean": it has now been declined three times (deleted in v98, declined 9 Aug 2026, declined again 10 Aug 2026 as the mechanism a colour-free KPI would have needed).
-
-## `addProduct` is dead in the app and DELIBERATELY KEPT
-
-The `fresh-states` Playwright specs have no other handle on the pid-line shape, and Playwright is not in `npm test` - so deleting it fails **silently**.
-
-## A stub that mirrors a real function must mirror its CONTRACT - so extract the real function instead
-
-A test that re-implements a shipped function in order to test around it **passes against the very defect it was written to catch**, because the stub is written from the same wrong belief as the code.
-
-**The remedy is always the same and is already proven here: extract and call the REAL function** (`tests/_extract.js` exists for this), rather than hand-rolling a copy that agrees with you.
-
-**TWENTY-TWO incidents, one remedy — and the roster records new SHAPES, not every instance, so the raw count is HIGHER.**
-⚠️ **That clause was added 15 Aug 2026 and it settles a question the header kept re-asking of itself.** 193 found two more of this exact class (a new Playwright test that pinned one of the two things it claimed; a `/pack/` regex that matched both refusal messages so it was green whichever branch fired) and correctly added no rule, because both were already covered — but the header reads as a TALLY, so "twenty" then understates the frequency while looking like arithmetic. **Add a bullet when the SHAPE is new; leave the number alone when it is not, and do not treat the number as a census.** The alternative — every instance getting a bullet — is what took this list from four entries to twenty in a month.
-(Was "four" until 12 Aug 2026, then "seven" via AUDIT-v156, then twelve after 180 reconciled the lists, fourteen after 182 added two of its own, sixteen after 183 added two more, eighteen after 184, **nineteen after 188 — which added its entry to the list below and left this number reading eighteen, so the header undercounted its own roster for two batches** — and twenty after 190.  `docs/QUEUE.md` separately claimed "ten across 165-176". **All three were wrong and the two lists were counting different things**, which is why 180 reconciled them against the handovers themselves and left ONE roster. Seven of the twelve fall in batches 165-176; the queue's "ten" for that window could not be sourced from any handover.)
-
-- **v113** - a passthrough stub hid a real escaping bug.
-- **139** - a stub hid `showTab(undefined)`, because it asserted DOM counts rather than the contract.
-- **140** - a stub mirrored `fmtTargetPct` wrongly and hid a `30%%`.
-- **141** - a hand-rolled `esc` was missing `>`; the fix was to use the app's own `esc`, which is what v113 had already concluded.
-- **162** - an assertion searched a job block for a filename it had extracted from that same block a line earlier, so the `||` chain ended in a tautology. **In the test file written to police this class.**
-- **167 (a)** - an order-only assertion stayed green against an INVERTED guard: it matched three substrings and checked their left-to-right order, which flipping the condition does not disturb.
-- **167 (b)** - an assertion looked for a fragment at the END of a handler's source, and there is always code after it, so it passed whatever the branch did.
-- **172** - a test pinning an ordering scanned `js/app.js` only, because `loadApp()` does, so it could never have failed on the case it named (the resolver runs in `index.html`).
-- **173** - the counter in `uid` was masked by real `crypto`: freezing `_uidSeq` at a constant left all five uniqueness tests green, because 41 bits of entropy hide a broken counter at those sample sizes.
-- **174** - `S.purges` was read but never incremented, so the line asserting it could not fail.
-- **175** - a spec wrapped its comparison in `if (rows.mk.length)` while `boot()` never seeded the data, so the loop never ran. **Caught by the pre-push review, not by the batch.**
-- **176** - a truncation test went vacuous when the fix removed the pressure its own precondition assumed.
-- **182 (a)** - an assertion built its regex around a table NAME (`create policy…'ing_price_history'…for all`) where the SQL builds the statement from a loop VARIABLE, so it matched nothing and passed whatever the policy said. Turning three append-only logs into `for all` sailed through it.
-- **182 (b)** - an ordering test compared ONE named create against ONE named drop, and survived a DIFFERENT drop being moved above the creates. The invariant was "every create before every drop"; the test pinned one pair of it.
-
-- **183 (a)** - a SQL assertion inside a migration searched the deployed function body for a forbidden `on conflict` spelling. **`pg_get_functiondef` returns the body's COMMENTS**, and the comment above that very statement quoted both spellings in prose - so the negative half fired on its own explanation, and **the POSITIVE half would have passed on the prose alone, green whatever the statement said.** The fix is to strip `--` comments before searching. ⚠️ **Generalise it: any assertion that greps a function body, a source file or a diff is searching PROSE as well as CODE, and the prose is usually written by the same person, in the same hour, saying the same words.**
-- **183 (b)** - a test pinned `memKey` with a SUBSTRING match, so gluing a tenant onto either end left the substring intact and the test green - which is the exact change it existed to forbid. Caught by mutating it; fixed by comparing the whole normalised body.
-
-- **184 (a)** - a retry test proved the in-flight memo was cleared, and pinned only ONE of the two settle paths. It resolved the write with `{error}`, which is the FULFILLED handler - **supabase-js resolves with `{error}` rather than rejecting** - so deleting the clear from the REJECTION arm left it green, and a network throw would have wedged the button until reload. ⚠️ **Generalise it: a promise has two settle paths and a test that only takes the common one has pinned half a contract.** In this codebase the uncommon path is the one that fires when the café has no signal.
-- **184 (b)** - the `menu_items` row-boundary round trip used a fixture where `plateId` and `sourcePlateId` held the **SAME value**, so `(item.plateId||item.sourcePlateId)` could not be told apart from either half alone: flipping the `||` to `&&` - which drops the plate link on every dish written since v55, the exact 76-of-77 failure - left the test green. ⚠️ **Generalise it, because this one is not about tests at all: A FIXTURE WHOSE FIELDS AGREE CANNOT TELL YOU WHICH ONE THE CODE READ.** Any fallback chain, precedence rule or mirrored pair needs a fixture where the candidates DIFFER, or the assertion is measuring a coincidence. Found by the mutation gate the day `menuToRow` was first added to it.
-
-- **188** - a spec proving a re-sync had happened asserted `__rpcCalls > 1`, a counter the Playwright shim bumps on every `rpc()` call, with the comment *"the re-sync must actually have run, or this test proves nothing"*. **Boot issued ONE rpc when that was written.** 188 added a second (`current_business_role`) to the same `Promise.all`, so the first boot alone reached 2 and the assertion could never fail again - in the spec written to pin 185's silent-empty-app defect, the worst one this repo has had. ⚠️ **Generalise it, because NOTHING in the changed file was a test: A COUNTER IN A SHARED FIXTURE IS COUPLED TO EVERY FUTURE CALLER, so adding an unrelated call to the harness can silently retire an assertion in a spec you never opened.** The remedy is to make the counter count the THING ITS READER MEANS - here, "how many times was the TENANT asked" - rather than "how many times was this function entered". **The tell: a test asserting `> N` on a number some other file produces.** Grep the counter's writers before adding one, not just its readers.
-
-- **190** - a Playwright assertion checked that the onboarding link was **not** the browser's default blue, `rgb(0,0,238)`. Four cases: two homes x two themes. Deleting the CSS rule turned three of them red and left the **dark** one green, because Chromium picks a *lighter* default link colour under a dark `color-scheme` and the constant named only the light one. ⚠️ **Generalise it: A DENYLIST ASSERTION IS WEAKER THAN AN EQUALITY ONE, AND THE GAP IS INVISIBLE UNTIL THE ENVIRONMENT VARIES.** "Not the wrong value" is a guess about every wrong value there could be; "is the right value" is a fact about this app. **The tell: `not.toBe`, `assert.notStrictEqual`, `doesNotMatch` carrying a test's whole meaning.** Keep the negative for the failure message if it names the defect well, but put the weight on the positive. Found by the hand-run mutation, in a spec written that hour by someone who had just read this roster.
-
-- **195** - seven tests were written to pin a rewritten `ensurePdfjs`, and **every one of them read the function's SOURCE instead of running it** - `.type='module'`, `import(PDFJS_SRC)`, a count of the two `rej(...)` arms. The pre-push review deleted `res()` from the success arm and all seven stayed green. ⚠️ **Generalise it, and it is NOT merely "grepping source is weak" (167 already says that): A PROMISE THAT NEVER SETTLES IS A THIRD OUTCOME, AND NOTHING IN THIS TOOLCHAIN TREATS IT AS A FAILURE BY DEFAULT.** A test that awaits it does not go red, it HANGS - node:test has no default timeout - and in CI a hung suite is indistinguishable from a stuck runner. The app's symptom is the same shape: not an error, but a spinner that never stops, which the offline toast would at least have named. **So any test that awaits a promise the code under test is responsible for settling needs an explicit `{timeout: N}`, and the test must actually EXECUTE the function** - `new Function` runs a `tests/_extractfn` slice with real dynamic `import()`, where `vm` throws `ERR_VM_DYNAMIC_IMPORT_CALLBACK_MISSING`. **The tell: a test file that mentions a function's name only inside a regex.**
-  Two more from the same hour, both about the HARNESS rather than the code: **`document.head.appendChild` survived** because the fake `document` captured the element at `createElement`, so "built but never inserted" - another never-settles - was indistinguishable from inserted; **a fake DOM must not collapse two steps the real one keeps apart.** And the gate found that only because `ensurePdfjs` was ADDED to `tests/mutation/targets.js` as part of the fix, which is 184's lesson arriving again.
-
-- **205** - an assertion compared one fact between two runs, `assert.equal(a.facts.count, b.facts.count)`, and **the object has no `count`** - the anomaly family publishes `{top, mult}` and nothing else. `undefined === undefined` passes forever. It happened FOUR times in one batch, on three different keys, all in tests written that hour by someone who had just read this roster. ⚠️ **Generalise it, because the shape is not "I mistyped a key" - it is that THE TWO-SIDED FORM IS WHAT HIDES IT.** `assert.equal(c.facts.count, 4)` fails instantly and obviously; `assert.equal(a.facts.count, b.facts.count)` cannot fail at all, and reads as the more careful test of the two because it compares a real run against a real run. **Any assertion of the form "these two agree about X" is silently satisfied when neither has an X**, and that covers deep-equal of subsets, comparing two API responses, and every before/after regression check in this repo.
-  **The remedy is one line and it is now in `tests/insight-coverage.test.js` as `sameFact`: assert the key EXISTS, then compare.** Two of the four were caught by the mutation gate and two by the pre-push review; none by reading, and re-reading is what produced two of them. **The tell: a comparison whose two sides are both computed, with no literal anywhere in the assertion.**
-  The same batch produced its sibling, which is the same defect one level up: a test titled *"counted ONCE, at the first price found"* asserted two figures that are **structurally incapable of moving** whichever price won - they are counted by walking a different array - so inverting the guard to last-wins left it green. **A title that names a property the assertions cannot see is worse than no test, because the title is what the next reader trusts.**
-
-**Both 182s, both 183s, both 184s, 190 AND 195 were caught BEFORE merge, by running the mutation** - which is the point of recording them rather than quietly fixing them. They were written in the same hour as the paragraph above telling you to do exactly that, by someone who believed the tests were sound. **The count is 22 and the belief is never the check.**
-**195 is the one that argues for the pre-push REVIEW rather than the gate**: `npm run mutate` could not have found it, because `ensurePdfjs` was not a target - and it was not a target because nobody had written a test for it worth protecting. A second reader is what breaks that circle.
-**190 is also the one that argues hardest for running the mutation on a NEW test rather than only on changed app code**: nothing was broken, nothing was legacy, and the weak assertion was three minutes old. `npm run mutate` could not have found it either - the gap was in a Playwright spec, which the gate does not run.
-**184 is also the first pair the MECHANISED gate found rather than a hand-run mutation** - 184(b) was a test that had been green and unable to fail since v55, and it surfaced within seconds of `menuToRow` being added to `tests/mutation/targets.js`. **The lesson is about the LIST, not the gate: a function that is not a target has never been asked the question.** Adding one is two lines.
-
-**Most of these are a WIDER failure than a stub**, and that is the point of recording them here: 141 and before were copies that disagreed with the real function; 162, 167, 172, 173, 174, 175 and 176 were tests whose assertion **never executed, or could not distinguish right from wrong**. Same green, same false assurance, and no stub involved.
-**So the check is not "did I hand-roll a copy" but "would this test FAIL if I broke the thing it names?"** Answer it by breaking the thing and watching it go red - the only proof that costs one minute and settles it.
-
-⚠️ **And when you run that check by hand, BACK THE FILE UP BY COPYING IT, never with `git checkout --`.** (13 Aug 2026, batch 182.) `git checkout -- <tracked> <untracked>` restores **NOTHING** - one pathspec git does not know aborts the whole command - so a new file being mutation-tested is never put back, and if the loop is quiet about it the mutations **ACCUMULATE**. Two files were silently corrupted that way, and the run's own results were confounded: every "red" after the first was red for the wrong reason. `cp` to a scratch path and `cp` back. **A mutation harness that cannot restore is worse than no harness, because it reports green results you then believe.**
-
-⚠️ **A HANG IS A THIRD OUTCOME AND NOTHING IN THIS TOOLCHAIN CALLS IT A FAILURE — INCLUDING THE GATE ITSELF** (batch 201, closing the loop 195 opened).
-195 said this about a promise that never settles. **The same hole was in `tests/mutation/run.js`, which is the tool written to enforce it:** `spawnSync` had no `timeout`, `node --test` has no default one, and a mutant that turns a loop condition into a non-terminating one therefore hung the gate **forever** — no red, no green, no output at all. Measured: `computeInsights` has exactly one such mutant and the run went past ten minutes before being killed by hand.
-The reason it had never bitten is the reason this rule is worth writing down: **no target had a loop in it.** The gate was pointed only at guards and mappers, so the class was unreachable until somebody tried to point it at the arithmetic — which is the queue item that found it.
-**Three parts to the fix, and the third is the one that generalises:**
-- the gate bounds each mutant at ten times its own baseline, floored at five seconds, so the number cannot rot as the suite grows;
-- a timeout is counted as **killed** and **named separately** in the report. It is a kill because the suite did not pass, and calling it a survivor sends someone to write a test for a defect that is already caught — the worst thing this tool can do. It is named because a test file that HANGS rather than fails is its own finding: in CI that is a stuck job, not a red one;
-- **every CI job now carries `timeout-minutes`, and only the Playwright one did.** `unit` — the job that runs both the suite and the gate — ran to GitHub's **360-minute** default. `tests/ci-workflow.test.js` asserts the property for every job rather than for the three that exist today, because the gap arose from a job added by someone who had not read this.
-⚠️ **And the honest limit, because it is the same trap one level up: deleting the timeout does not turn the gate's self-test RED, it makes it HANG** — `mutationRun` is synchronous and node:test's `{timeout}` cannot interrupt a synchronous child wait. The self-test proves the classification; the CI bound is what proves the plumbing. **When you bound something, ask what happens if the bound itself is removed, and if the answer is "we find out in six hours", the net has to be outside the thing you just fixed.**
-
-⚠️ **AND READ THE EXIT CODE, NOT THE TALLY, AND CHECK YOUR HARNESS ACTUALLY RAN** (195). Two false SURVIVEDs in one batch, both from the reporting rather than the code:
-- **`node --test` does NOT count a TIMED-OUT test in `ℹ fail N`.** It prints `✖`, lists it under "failing tests:", exits **1** - and still says `fail 0`. A loop parsing the tally therefore reports a mutation as survived when the suite genuinely failed, which sends you to weaken a test that was working. **Measure `$?`.** It is the same number `npm test` and CI use, and it is the only one that cannot disagree with them.
-- **`timeout` does not exist on macOS.** `timeout 60 node --test …` fails with *"command not found"*, the grep matches nothing, and the loop reports SURVIVED for a mutation **that was never executed at all**. Same family as the rule below: prove the run HAPPENED, not just that it printed. (`gtimeout` if coreutils is installed; better, put the limit in the test with `{timeout: N}` so it self-terminates and CI inherits it.)
-
-⚠️ **And ASSERT THAT THE MUTATION CHANGED THE FILE, every time** (184). A hand-written `perl -0pi -e "s/…/…/"` whose pattern does not match edits nothing, the suite is green because the code is untouched, and the harness reports **SURVIVED** - so you go and write a test for a defect that was never there. It happened twice in one batch, both times on a multi-line pattern with curly quotes in it. `diff -q` the file against the backup before running the suite, and treat "no difference" as a broken mutation rather than a result. The direction is at least safe - a no-op can only ever read as a false ALARM, never as a false green - but a harness that cries wolf is one you stop believing, which costs you the real survivors.
-
-⚠️ **AND WHEN YOU HAND-RUN A MUTANT TO CHECK A GATE SURVIVOR, REPRODUCE THE GATE'S EXACT MUTATION — ITS KEY NAMES WHICH OCCURRENCE** (236, and it is the mirror image of the rule above: that one is a hand-run that changes NOTHING and reads as a survivor; this one is a hand-run that changes TOO MUCH and reads as a kill).
-The gate reported `invQtyFirstRebase` surviving a `||`→`&&` flip on a three-clause guard. The hand check flipped **both** `||`s, the test went red, and the obvious conclusion was that the gate was wrong. It was not: its key ends **`#0`** — it flips only the FIRST, leaving `(!row && a) || b`, which preserves the arm the test exercises and opens a different one. The survivor was real, and the "false" verdict would have dismissed a path that turns a null price into **$0.00** — the `isFinite('')` family, from the tool built to catch it.
-**So: read the `key:` line, mutate that occurrence only, and treat a hand-run that DISAGREES with the gate as a bug in your reproduction until proven otherwise.** The gate mutates one operator at a time on purpose; a human flipping "the `||`s" is answering a question nobody asked. **The cost is asymmetric and that is why this is a rule: a false SURVIVED wastes a test, a false KILLED deletes a finding.**
-
-**Since 180 that check is MECHANISED for the code most likely to need it: `npm run mutate`.** It flips one operator (or deletes one call) in a listed function of `js/app.js`, runs ONLY the test files that claim to pin it, and reports any mutant that survived. `tests/mutation/targets.js` holds the list and the allowances; `.githooks/pre-push` runs the changed-scope version alongside `npm test`.
-**It is not a substitute for the reasoning above and it is deliberately not repo-wide** - it cannot see a wrong premise, a backwards comment or a control that does nothing, which is what the `code-review` agent is for. What it removes is the excuse: the answer to "would this fail?" is now one command for anything on that list.
-
-**If a stub is genuinely unavoidable, assert the stub against the real function first** - one test that they agree - so the copy cannot drift silently.
-This is the same family as **"a test that records call ORDER passes against the broken code"** above and as `addProduct`: the failure is never a red test, it is a green one.
-
-## A `@media` block does not win by being later
-
-**Specificity is compared BEFORE source order**, so a multi-class selector written outside a media query beats a single-class rule written inside one.
-Putting the narrow selector on the small screen and the plain one on the large screen inverts the cascade, and **the symptom is a rule that looks right in the file and does nothing on screen** - which is why this is never caught by reading, only by measuring.
-
-**When a declaration appears at both breakpoints, give the two rules the SAME specificity.**
-
-**Five instances in ONE screen in ONE batch** (F3/v139) - a cell thrown into the wrong column on broken rows; desktop `—` placeholders losing to a mobile `.is-nil` rule and rendering blank; a dead grid row under every healthy mobile name; a column headed "Used in" reading ", in —" on every row because the desktop cancel of a mobile `::before` could never win; and a header right-alignment keyed off one class of button.
-Three were found by looking at the app and two by the review - **and the fourth was written INTO the fix for the third**, which is what makes this a rule and not a lesson.
-F2/v138 hit the same class twice more, as `[hidden]` overrides: a single-class rule beats the UA's `[hidden]`, so an element told to hide stays visible.
-
-**The `[hidden]` corollary is a DIFFERENT mechanism with the same symptom, and the specificity advice above does not fix it.**
-An author rule beats the UA's `[hidden]{display:none}` because **author origin wins over UA origin, and origin is decided BEFORE specificity is even compared** - so `.thing{display:block}` overrides it no matter how the selectors measure. Matching specificity therefore achieves nothing here.
-**The remedy is a selector guard, `.thing:not([hidden])`**, which stops the rule matching a hidden element at all. **It is an app-wide idiom, not a curiosity.** Every one was added after a renderer's hide was silently ignored and an element sat visible.
-⚠️ **This paragraph used to ENUMERATE them and state a count, and the number has now been wrong three times running** - "twice" until 12 Aug 2026, then "ten" (AUDIT-v156's correction), then wrong again inside ten deploy versions because three more were added by batches that had no reason to open this file. ~~`css/style.css` itself still says "twelve" in two of its own comments.~~ ✅ **FIXED — `css/style.css` now carries ONE mention of "twelve" and it is the comment recording that the number was deleted** (grep `NO COUNT HERE ON PURPOSE` — **no line number here on purpose either; the one this sentence used to carry had already moved 82 lines by v197**). Corrected 28 Aug 2026 by AUDIT-v176, which found this line still citing as outstanding a thing that had been fixed. **Four places carried four different numbers, and every hand-correction bought about a week.** The enumeration is deleted rather than re-counted: it was never what made the rule work.
-⚠️ **AND IF YOU GO AND COUNT THEM, READ THE HITS - DO NOT TRUST THE COUNT.** `grep -n ':not(\[hidden\])' css/style.css` returned **24** at v166 against **13** actual rules; narrowing it to lines with a brace still returns 14, because one comment contains the literal `[hidden]{display:none}` while explaining the mechanism. **This is roster entry 183(a) in miniature - a grep over a source file searches PROSE as well as CODE, and here the prose is this very idiom being described.** The first draft of this paragraph told you to grep for the live set and was caught by the pre-push review saying so; it is left written out because the trap bit inside the sentence warning about it.
-**So: any `display` rule on an element the JS hides with `hidden` needs the guard** - by default, not on recall. That sentence is the whole rule and it never needed a number.
-
-## `position:fixed` IS NOT VIEWPORT-RELATIVE, and this app's standard escape hatch assumes it is
-
-(Batch 212, 28 Aug 2026, queue item 6. Measured, not reasoned.)
-
-**A fixed element's containing block is the nearest ancestor carrying `transform`, `perspective`, `filter`, `backdrop-filter`, a layout/paint `contain`, or a `will-change` naming one of those — and only the VIEWPORT when there is no such ancestor.**
-
-That matters here because "anchor it `position:fixed` to the input's viewport rect so it ESCAPES the scroll container" is the **app-wide idiom for floating layers**, written into `anchorDrop` since v59, and it writes coordinates straight from `getBoundingClientRect()`. The idiom is correct exactly while no ancestor establishes a containing block — a precondition nothing states and nothing checks.
-
-`anchorDrop`'s own comment justified it: *"the modal's only transform is the open animation, long finished by interaction time, so fixed is viewport-relative."* **True of modals, which is all it had ever been asked to place.** Batch 177 then gave `.bld-docket` a `filter:drop-shadow` for an unrelated and correct reason — the tear-off edge is a zigzag, so a `box-shadow` would cast a straight rectangle under the teeth — and the builder's ingredient search sits inside it. Measured at 380px: a `position:fixed;left:0;top:0` probe inside `.bld-add .search-wrap` lands at **(12, 198)**, so handing that dropdown to the engine unchanged renders it **198px below its own field**.
-
-⚠️ **THE REAL SHAPE IS NOT ABOUT CSS. A batch added a property for its own reason and silently changed the COORDINATE SPACE a mechanism in another file depends on.** Nothing connects the two: `.bld-docket`'s shadow and `anchorDrop`'s arithmetic are in different files, written months apart, and both are individually right. This is the same family as "an exemption is scoped to the CLAIM that justified it" — a claim about modals quietly became a claim about everything the function places.
-**And the near-miss is the instructive part:** `tests/visual/v150-builder-order.spec.js` already had a comment saying the docket's filter *"creates a containing block but does NOT clip"*. The fact was recorded, correctly, and filed under the wrong consequence — the reader was thinking about clipping, so a note about containing blocks read as reassurance.
-
-**The remedy is `fixedContainingBlock`, which ASKS instead of assuming**, and every coordinate `anchorDrop` writes is offset by it. **The tell to recognise: `position:fixed` set from JS together with numbers out of `getBoundingClientRect()`.** Before trusting that pair, ask what is between the element and the root — and if the answer is "nothing today", note that adding a shadow, a transform or a `contain` anywhere above it is enough to break it silently.
-
-## An optimistic write that changes a FIGURE owes a rollback - and the wait it avoids may not exist
-
-(Max, 10 Sep 2026: *"dont make them wait"*, closing QUEUE item 90's last part.)
-
-**The decision: an applied invoice does NOT hold its dialog open while the writes settle.** The list closes immediately and the honest count - *"4 of 36 price writes saved"* - arrives when the server answers. A refused row is therefore NOT left on screen with its own error, and building that is declined rather than deferred.
-
-⚠️ **THE REASON IT IS RECORDED HERE IS THE FIGURE THAT WAS WRONG IN THE FILE FOR A WEEK, NOT THE ANSWER.** Batch 253 wrote at the site, in its handover, and into the queue item that holding the dialog open would cost *"dozens of round trips on cafe mobile data"*. **Measured against the code rather than reasoned: `applyInvoice` already awaits those writes before it says anything, and they are dispatched in parallel** - so the cost is the slowest of N, not N in sequence, and it is bounded either way. The choice never added waiting. It only decided whether the user is BLOCKED during a wait that already happens.
-
-**So the transferable rule is about how a trade-off gets written down, not about invoices: a cost stated in a comment is a claim, and the next person to read it will price the decision off it without re-measuring.** Here the inflated figure would have made the answer look obvious in the direction it happened to go, which is the worst case - it agrees with the outcome, so nothing prompts anyone to check it. **When you defer a decision to someone else, measure the cost you are handing them.** He was asked on the corrected terms and still said no, which is a stronger answer than the old framing could have produced.
-
-## "The server refuses it anyway" is true of an ACTION and false of a VALUE
-
-(Batch 244, 9 Sep 2026, the food-cost target. Reproduced before it was fixed: a $6 dish reading **$20** against a 30% the server had rejected, where the honest answer is $15.)
-
-**A permissive client-side guess costs nothing when the thing being guessed at is permission to DO something**, because the server's refusal means nothing happened. That argument is written into this app in several places and it is right in all of them but one. The role default says it in as many words — *"guessing owner shows a control that then fails honestly, with the server's own words in a toast"* — and three of the four controls it excuses are actions: delete a plate, delete a menu, restore a backup.
-
-**The fourth was a NUMBER, and setting a number has already changed what the user reads before the server is asked.** `setCogs` moved `cogsPct` — which every suggested price and every good/bad colour in the app is divided by — then sent the write unawaited with its promise discarded. The refusal arrived as a toast over a screen that had already recomputed, and a reload silently "fixed" it, so nothing was left to notice.
-
-**So: an optimistic write that changes a FIGURE owes a rollback; one that performs an ACTION does not.** The tell is a guard, a comment or a review finding that excuses a permissive client default with *"the server refuses it either way"* — go and ask what the client did BEFORE it asked, and if the answer is "showed a number", the refusal is only half the story.
-
-**Two details of the remedy that generalise past this one number:**
-- **Roll back to the last value the server CONFIRMED, not to the value before this call.** They are different the moment a control can write twice before the first answer lands, and the confirmed one is correct in either settle order. It is a second variable (`cogsServer` here), it belongs to the tenant, and it must be cleared with everything else on a café move.
-- **A rollback and a live control fight each other unless the PERSIST is debounced and the repaint is not.** Restoring a field somebody is still typing into is worse than the bug; the split is what makes the rollback safe rather than merely present. Pay the debounce's own cost in the same change — a delay is a window in which the tab can close, so flush on `change`.
-
-Same family as the section below, reached from the other end: there the comment's observation was right and its conclusion wrong; here the conclusion was right about the thing it was written for and was being read about everything the guard touched.
-
-## A justification that CITES A PRECEDENT is a claim that the precedent's CONDITION holds here, and it is never checked
-
-(Batches 247 and 248, 9 Sep 2026. Two consecutive batches, both caught by the pre-push review, both by the same author in the same session — which is what makes it a shape rather than a slip.)
-
-**An exemption with no comment invites the next reader to check it. An exemption justified by naming a rule from elsewhere in the file closes the question**, because the citation reads as the checking already having been done. Both instances below were confident, specific, and wrong in the same way: the cited rule was real, and its condition did not hold at the site.
-
-- **247** left two product-price paths ungated, arguing that *"`setProducts` returns a CHUNKED write whose verdict is a saved manifest rather than a single error"*. True of the catalogue importer, which passes hundreds of entries. **`setProduct` is the N=1 wrapper** — one entry, one chunk, one `pushWrite` — so the verdict is a plain binary error and there was nothing partial to lose. This file already says *"GREP THE PLURAL"* about that exact pair, one section up, for the mirror-image mistake.
-- **248** gated an import record on a settings write, arguing it was *"the same reason 247 gates the trend point"*. **The 247 comment ELEVEN LINES ABOVE IT says the opposite** — that this same settings write is not a valid gate because it *"decides nothing about the prices"*. The contradicting sentence was in the same function, on screen, and unmodified by the diff that contradicted it.
-
-**The tell is the citation itself: "for the same reason as X", "the pattern above", "as `foo` already does".** When you write one, the claim you are actually making is *X's precondition is true here* — so state that precondition in the comment and check it. If you cannot say what the precondition is, you are borrowing authority rather than reasoning.
-**And read the neighbours.** 248's contradiction was eleven lines away; a citation is exactly the case where the surrounding comments are evidence rather than noise.
-
-⚠️ **This is the same family as "an exemption is scoped to the CLAIM that justified it", pointed at the comment instead of the code** — and it is more dangerous, because that one leaves a silent gap while this one leaves a gap with an argument in front of it. **A wrong justification is worse than none.**
-
-## A comment can record the defect CORRECTLY and file it under the wrong consequence
-
-(Named 2 Sep 2026 by AUDIT-v186 R2, on its third dated instance. Three batches each found one, each correctly declined to add a roster bullet because the roster is about TESTS, and the shape then had no name of its own. **No count in this line on purpose** — it said "third" while the list below it grew to five, which is this file's own most-recorded rot. Count the bullets.)
-
-**The dangerous comment is not the wrong one. It is the one whose first half is exactly right and whose second half draws the wrong conclusion from it** — because the accurate half is what buys the reader's trust, and the conclusion is what they carry away.
-
-- **212** — a spec noted the docket's filter *"creates a containing block but does NOT clip"*. True, and filed under clipping, because the reader was thinking about clipping. The containing block was the bug.
-- **225** — a renderer's comment said *"the four figures are never announced"* and concluded *"the label gains nothing here and loses nothing"*. First half right; the `aria-label` it was excusing **was** the cause.
-- **226** — a spec said the toast and the install banner overlap each other, that it was pre-existing, and that it was not what that test measured. Every clause true; the result was a test named for a three-way split, green, with a third of the split false.
-- **242** — a REVIEW FINDING did it, and the batch nearly copied the disposal into a comment and a test. It correctly found `businessRole` uncleared across a café switch, and gave the consequence as *"owner in A, staff in B, so B's screen offers the owner-only controls"*. **The defect was real; that consequence is unchanged by the fix**, because `unknown` reads as owner by design — so the case comes out `owner` with the fix AND without it. The direction that actually moves is the opposite one (**staff** in A, who then cannot see the controls in a café they own). Written from the finding's words, the comment stated the wrong harm and the test asserted `'owner'` against a fixture where both sides were already `'owner'` — roster **184(b)** — so it **survived the hand-mutation**.
-- **244** — the fifth, and the reason the section above it now exists as its own rule. The role default's comment argued that a permissive guess is harmless *"because the server refuses either way, with its own words in a toast"*. Right about the three ACTIONS it was written for and wrong about the fourth control, which sets a NUMBER — so the toast arrived over a screen that had already recomputed every suggested price off a target the server had rejected. **The observation and the conclusion were both true of what the author had in mind, and the conclusion was being read about a wider set than the observation covered**, which is the same failure as an exemption scoped to the claim that justified it.
-
-
-⚠️ **242 is why this section is not only about comments.** The other three are an author disposing of their own observation; this is an author inheriting somebody else's disposal, which is harder to catch because the finding arrives with the authority of a second reader. **A finding's stated consequence is a fourth separable claim, after the defect, the mechanism and the remedy** — and it is the one that ends up written into the comment and chosen as the test's fixture. The existing rule ("run the finding's own repro, then run its FIX, before you apply it") is what caught it: run it **in both directions**, and if the fix changes nothing in the direction the finding named, you have not found its bug yet.
-
-**The tell: a comment that states an observation and then tells you not to worry about it.** "…but does NOT", "…gains nothing here", "…is not what this measures". The observation is usually load-bearing and the reassurance is usually the author's own frame rather than a finding.
-**So read the two halves as separate claims, exactly as this file already requires for a review finding** ("a finding whose stated CAUSE is wrong may still point at a real bug"). Here it is the mirror image: **a note whose OBSERVATION is right may still have disposed of it wrongly.** Go and check what it observed, not what it concluded.
-
-## Offsets on a `position:static` box are INERT, and everything around them can still read as deliberate
-
-(Batch 212, same item. A third mechanism with the same symptom as the two sections below: a rule that looks right in the file and does nothing on screen.)
-
-`.suggest-drop` — the builder's plate-name suggestion list — declared **no `position` at all**, so it was `static`. `.bld-namewrap .suggest-drop{left:0;right:0;top:calc(100% + 4px)}` wrote offsets that a static box ignores, and `.bld-namewrap{position:relative}` had been added as a containing block **for a child that never became absolute**. Three separate things all shaped like a floating layer, and not one of them made it float: it sat in the flow, and opening it pushed the ingredient search bar **389px down the page** — off the screen entirely on a phone with the keyboard up. That is what Max reported as *"dropdowns cover the search bar"*, and it is **displacement, not overlap**, which is why looking for an overlapping rect found nothing and the queue item's own guessed mechanism was wrong.
-
-**The transferable rule: `position:relative` on a parent and offsets on a child are EVIDENCE OF INTENT, never evidence of effect.** They are valid CSS on a static box and cost nothing to write, so a layer can carry the full costume of being positioned without being positioned. **When a layer misbehaves, read its computed `position` FIRST** — before its offsets, its `z-index` or its specificity, all of which are downstream of a value that may not be what the file implies.
-
-## A CSS syntax error is SILENT, and it discards every rule after it
-
-(Max's yes, 12 Aug 2026, after it cost batch 176 a full diagnose cycle.)
-
-An edit inserted comment text **without its opening `/*`**.
-The browser did exactly what the spec requires - discarded the malformed rule **and every rule after it** until it could resynchronise - so `.wrap{max-width:1200px}` and its followers were simply absent.
-
-**There is no build step and nothing in this project parses `css/style.css`**, so this class of mistake has no way to surface on its own.
-`npm test` was green, `node -c` was clean, the page rendered, and **the only symptom was one measurement coming back wrong.**
-It was found by dumping which `.wrap` rules the CSSOM actually contained and seeing that the new one was not there at all.
-
-**So a layout that measures wrong is not always a specificity problem - check the rule EXISTS before reasoning about why it loses.** That is the diagnostic order, and getting it backwards is what cost the cycle.
-`tests/css-syntax.test.js` is the guard: it checks the comments and braces balance, which are the two failures that can silently swallow rules. It is deliberately structural rather than a real parser, because no dependency may be added here.
-
-## A viewport-geometry assertion must MEASURE its reference, never name it
-
-**When a Playwright assertion depends on the width of the viewport - anything centred, anything positioned by percentage, anything compared against "the whole screen" - measure the fixed-position containing block with a `position:fixed;left:0;right:0` probe.**
-Never `window.innerWidth`, never `document.documentElement.clientWidth`.
-
-On the Linux CI runner all three disagree: the containing block is **370 inside a 380 viewport and 759 inside 768**, while `innerWidth` and `clientWidth` agree with each other and are both wrong.
-Anything resolved against the block - `left:50%` and friends - is then off by half the difference, so the assertion **passes on macOS, where overlay scrollbars make the three agree, and fails only in CI.**
-Two fixes written from theory without measuring were both wrong; instrumenting the assertion to print its own geometry settled it in one run.
-
-**Scope, stated honestly:** the measurement is one runner and one browser, so read this as a rule about **how to obtain the reference**, not as a claim that the three values differ everywhere.
-The probe is correct wherever they agree too, which is why it is the default rather than a CI workaround.
-
-**The corollary bit twice in the same batch and is a separate trap:** `.bottomnav` measures **370 wide at a 380 viewport**, so discriminating "left rail vs bottom tab bar" by comparing its width against the viewport misfires.
-**Discriminate on ORIENTATION** - a left rail is taller than it is wide.
-
-Worked example and comment: `tests/visual/v141-sync-corner.spec.js` (which states the 370/380 and 759/768 figures at the probe).
-The `.bottomnav` number is recorded in `docs/handovers/HANDOVER-150-sync-corner.md`, not in the spec - cited separately because a reader sent to the spec for it will not find it.
-
----
-
-# Tier 2 - Constraints
-
-Decisions already made.
-These bound what may be built; they are not open questions.
+**Only ever change text a human reads.** Never rename an identifier, class, id, `data-tab` value, localStorage key or Supabase table. Renaming for consistency has caused rollbacks. `tests/terminology.test.js` carries three inversion guards because a terminology pass is exactly when someone is tempted.
 
 ## The four object nouns - UI copy may not invent a fifth
 
@@ -738,341 +73,106 @@ These bound what may be built; they are not open questions.
 - **Plate** - a costed dish built from ingredients.
 - **Menu** - a set of plates with sell prices.
 
-**Forbidden as object nouns:** "recipe" (names nothing in this app), "kitchen word" / "kitchen name" (internal vocabulary - the object is an **Ingredient**), and **"dish"** (Max, 25 Jul 2026: a plate on a menu is still a plate).
-
-Describing without naming is fine - "the name you'll use when building plates" is good copy; "your kitchen name" is not.
-`tests/terminology.test.js` pins this.
-**"Menu item" is a known surviving fifth noun** in the Edit-menu-item modal, awaiting its own brief - it is not a bug to fix on sight.
+**Forbidden as object nouns:** "recipe" (names nothing in this app), "kitchen word" / "kitchen name" (internal vocabulary - the object is an **Ingredient**), and **"dish"** (Max, 25 Jul 2026: a plate on a menu is still a plate). Describing without naming is fine - "the name you'll use when building plates" is good copy; "your kitchen name" is not. `tests/terminology.test.js` pins this. **"Menu item" is a known surviving fifth noun** in the Edit-menu-item modal, awaiting its own brief - not a bug to fix on sight.
 
 ## Data and storage
 
 - **Supabase is the source of truth; the app is online-only.**
-- **localStorage holds view preferences and derived caches ONLY** - never data.
-  If something new resists that classification, **ask: there is no third category.**
-  **The one standing exception is the plate draft** (`cafeDB_plateDraft`), which is authored content and not a preference: it is the in-progress builder plate, held so an interrupted user can resume, and it is deliberately NOT a third category - it is unsaved work on its way to Supabase, deleted by `clearPlateDraft` the moment it lands or stops being dirty.
-  **A `localStorage.getItem('...')` grep MISSES it**, because every use goes through the `DRAFTKEY` constant - which is why two audits in a row rediscovered it as an unexplained violation. Named here so the third one doesn't.
-  ⚠️ **And it is NOT a special case - that framing was the actually misleading part, corrected 12 Aug 2026 by AUDIT-v156.** Measured against `js/app.js`: there are **thirteen** `cafe*` keys. A `getItem('...')` grep finds **six** of them and misses **seven**, for TWO different reasons:
-  - **six go through a constant** - `ENV_STAMP_KEY`, `DRAFTKEY`, `KEY`, `AI_INV_KEY`, `AI_SUG_KEY`, `THEME_KEY`;
-  - **one is never read at all** - `cafeDB_prodDensity` is a tombstone, only ever `removeItem`'d, so no read-side grep of any kind finds it.
-  (This line previously said the grep "finds the other nine keys and MISSES this one". Wrong on both halves, and it implied the draft was the single exception when it is one of seven.)
-  **So: grep the STRING `cafeDB_`/`cafeCost_`, never the call site** - that finds all thirteen, constants and tombstone included.
-  ⚠️ **It actually returns FOURTEEN, and the fourteenth is PROSE** (AUDIT-v176, 28 Aug 2026): `cafeDB_menus` appears only inside the comment at `js/app.js:2590` explaining that the key is dead. **That is roster entry 183(a) biting inside the sentence that recommends the grep** - the same trap the `:not([hidden])` paragraph below already warns about, and it is left written out for the same reason. Read the hits; do not trust the count. No line number here on purpose; grep the name.
-- Products come from the Supabase `ingredients` table and nowhere else.
-  Client-minted product ids carry a `uid()` prefix - **`CX` from the invoice add-new flow and `IMP` from the catalogue importer** - and **NOTHING READS EITHER PREFIX**. The column that says a row is the user's is **`is_custom`**, which both mappers round-trip and which `js/app.js` calls, at its own site, *"the column that tells a restore which rows the user made."*
-  ⚠️ **This said "Custom ids are `CX*`" until 15 Aug 2026, which invited a filter that is now half-blind:** `id.startsWith('CX')` silently misses every imported product, and a café that onboards through the importer has a catalogue that is **100% `IMP*`**. The sentence was true when there was one mint and became a trap when 193 added the second. Read the column, never the prefix.
-- NEW plate lines are written `{kid, qty}`; legacy `{pid, qty}` and `{misc, label, cost}` lines are LIVE data (84 of 179 lines at the v125 count) that every reader must keep resolving. Kitchen-word renames are display-only. (The word "only" was dropped 9 Aug 2026, Max's yes - it invited a refactor or importer to discard the legacy shapes on the authority of a hard rule.)
-- `nextKid()` scans the live `kitchenIngredients` array - push immediately, never batch ids.
+- **localStorage holds view preferences and derived caches ONLY** - never data. If something new resists that classification, **ask: there is no third category.** The plate draft (`cafeDB_plateDraft`) is the one standing exception and is unsaved work on its way to Supabase.
+- **Grep the STRING `cafeDB_`/`cafeCost_`, never the call site.** Thirteen keys exist; a `getItem('...')` grep finds six, because six go through a constant and one is never read at all. A fourteenth hit is PROSE. Read the hits; do not trust the count.
+- Products come from the Supabase `ingredients` table and nowhere else. **`is_custom` is the column that says a row is the user's - never the id prefix**, which is `CX` from the invoice flow and `IMP` from the importer, and nothing reads either.
+- NEW plate lines are written `{kid, qty}`; legacy `{pid, qty}` and `{misc, label, cost}` lines are LIVE data that every reader must keep resolving. `nextKid()` scans the live array - push immediately, never batch ids.
 
 ## Writes
 
-- **Every Supabase write goes through the `pushWrite`-wrapped helpers** (`dbPushPlate`, `dbPushMenu`, `dbPushIngredient`, `dbSetSetting`, `saveKitchenIngredients`, …).
-  They set sync state and surface the REAL error to a toast.
-  Never call the client raw.
-- **`pushWrite` returns its settled promise** - resolves to the result or to `{error}`, and **NEVER to `null`**.
-  Use it whenever write B depends on write A landing.
-  **`null` is `dbPushMenuAfterPlate`'s contract, not `pushWrite`'s** (corrected 10 Aug 2026, Max's yes, after AUDIT-v135 - this file claimed `pushWrite` resolved `null` when offline, and it has no such path: every exit is the result or `{error}`).
-  The distinction decides real code: **a caller that treats only `null` as failure sequences its dependent write straight after an error.**
-- **Known gap, flagged not fixed:** `pushWrite` **drops** writes when fully offline - no queue, no retry.
-  Don't assume a write happened because the call was made.
-  **It is not SILENT, and don't write a "tell the user" fix for a case already covered** (corrected 10 Aug 2026, same audit): the fail handler toasts *"you're offline. It has NOT been saved."* - offline changes the WORDING only, never whether the user is told.
-- **Rounding (Max, 15 Jul):** currency DISPLAYS round to the cent (`toFixed(2)`); stored costs (`cost_per_base_unit` etc.) stay exact.
-  **Never round stored values.**
+- **Every Supabase write goes through the `pushWrite`-wrapped helpers** (`dbPushPlate`, `dbPushMenu`, `dbPushIngredient`, `dbSetSetting`, `saveKitchenIngredients`, …). They set sync state and surface the REAL error to a toast. Never call the client raw.
+- **`pushWrite` returns its settled promise** - the result or `{error}`, and **NEVER `null`**. `null` is `dbPushMenuAfterPlate`'s contract, not `pushWrite`'s. **A caller that treats only `null` as failure sequences its dependent write straight after an error.**
+- **Known gap, flagged not fixed:** `pushWrite` **drops** writes when fully offline - no queue, no retry. It is not silent: the fail handler toasts *"you're offline. It has NOT been saved."* Offline changes the WORDING only.
+- **Rounding (Max, 15 Jul):** currency DISPLAYS round to the cent; stored costs stay exact. **Never round stored values.**
 
 ## Menus
 
-**Menu deletion deletes its dishes and UNLINKS their plates - never the plates.** Every plate survives in the library, unpublished, and on any other menu it was published to.
-There is **no holding area** and **no last-menu guard**: any menu is deletable, including the last, and **zero menus is a legitimate state**.
+**Menu deletion deletes its dishes and UNLINKS their plates - never the plates.** There is **no holding area** and **no last-menu guard**: any menu is deletable, including the last, and **zero menus is a legitimate state** that must be respected rather than seeded over. `fallbackMenuId()` never returns a deleted id and returns `null` when no menu exists.
 
-`fallbackMenuId()` never returns a deleted id and returns `null` when no menu exists.
-**`menusList` MEANS MENUS THE SERVER HAS, and `withPublishMenu` decides whether to create one by reading `menusList.length`** - so a writer that puts a menu there before the server has kept it puts a hole straight through the publish path, and the app then writes a dish against an id no `menus` row answers to. **Three writers, all of which wait for the server:** `bootstrapSync` assigns what the table returned, `submitNewMenu` pushes and takes back anything the server refused, `ensurePublishMenu` pushes only after a confirmed write. **If you add a fourth, this is what it owes.**
-
-**A successful EMPTY read is the user having deleted everything and must be respected** - zero menus is a legitimate state, and an earlier version keyed off a localStorage signal that read false forever and resurrected "Original menu" on every boot.
-⚠️ **THIS PARAGRAPH DESCRIBED `ensureDefaultMenu` AND ITS CALL-SITE GATE UNTIL 9 SEP 2026; BOTH ARE DELETED** (batch 246, QUEUE item 20), and the reason is the more useful half of the rule. The seeder was reached when the `menus` read **errored**, and an error cannot tell a table that does not exist from one request that failed - so a single flaky read out of the boot's thirteen invented a menu, repointed `currentMenuId` at it, and left every real dish on a menu not in the list. Measured in Chromium: a clean-looking boot, the café's menu gone, and the Menu screen offering *"Nothing on this menu yet. Publish a plate from the Plates tab to see it here."*
-**The `menus` read is now REQUIRED** - its error joins the four that raise the boot gate - so there are only two cases left, rows or a legitimate zero, which is what the rule above was always about. **A two-valued gate could not express the third case, and the answer was to remove the third case rather than to give the seeder a better guess.** (The 9 Aug 2026 correction that put the gate at the call site was right about where it belonged; what expired is that there is a gate at all.)
+**`menusList` MEANS MENUS THE SERVER HAS, and `withPublishMenu` decides whether to create one by reading `menusList.length`.** Three writers, all of which wait for the server: `bootstrapSync`, `submitNewMenu`, `ensurePublishMenu`. **If you add a fourth, this is what it owes.** The `menus` read is REQUIRED at boot - its error raises the boot gate - because a seeder reached by a flaky read cannot tell an empty table from a failed request, and once invented a menu that hid every real dish.
 
 ## No new dependencies, no build step, no scope creep
 
-Client-side there is **no build step** - four hand-written files: `js/app.js` (all logic, one browser script), `css/style.css`, `index.html`, `sw.js`.
+Client-side there is **no build step** - four hand-written files: `js/app.js`, `css/style.css`, `index.html`, `sw.js`. Two third-party scripts ship in production (`@supabase/supabase-js` in `index.html`, `pdfjs-dist` via `ensurePdfjs()`); both must stay **pinned to an exact version** and **integrity-checked wherever the load mechanism allows**. **Read `tests/third-party-pins.test.js` before touching either, and treat it as the authority on WHICH version** - it holds each version-and-hash pair and encodes the advisory windows, and the newest release is not always the safe answer. **Adding a third needs Max's yes, not a judgement call.**
 
-Two third-party scripts ship in production: `@supabase/supabase-js` in `index.html`, and `pdfjs-dist` loaded on demand by `ensurePdfjs()`.
-Both run with full DOM access on a page holding the anon key and the café's pricing, so both must stay **pinned to an exact version** (never a floating `@2`) and **integrity-checked wherever the load mechanism allows** - the pdf.js *worker* is the one exception, pinned only, because `new Worker()` has no SRI.
-Changing a version means recomputing its `sha384` in the same commit; a stale hash blocks the script outright.
-**Adding a third needs Max's yes, not a judgement call.**
-
-⚠️ **All of that was PROSE ONLY until 15 Aug 2026 — nothing checked any of it, and a floating `@2` or a stale hash would have shipped green.** `tests/third-party-pins.test.js` is now the mechanism: it holds each script's version-and-hash **pair**, so bumping one without recomputing the other fails by name.
-**Read that file before touching either script, and treat it as the authority on WHICH version rather than reaching for the newest.** It encodes the advisory windows, and the newest is not always the safe answer — batch 195 took pdf.js to 4.10.38 rather than the latest release precisely because a second arbitrary-JS-execution hole affects a later line. Versions and CVE numbers are deliberately NOT restated here; they rot, and the test cannot.
-**A test cannot verify a hash offline** (no network in CI, no dependencies here), so it proves only that you did not change a version and leave the old hash behind. Recomputing correctly is still yours: `curl -s <url> | openssl dgst -sha384 -binary | openssl base64 -A`.
-
-No analytics, no tracking.
-**Implement what was agreed, nothing more.** If you spot extra work worth doing, write it down - don't build it.
-**Where it goes is decided by the tier test in `docs/QUEUE.md`'s header, and the default is `docs/MAINTENANCE.md`.** The queue holds only work that would stop, embarrass or hurt a paying customer at launch. (Max, 11 Aug 2026, after the queue reached 979 lines and 47 open items with the launch blockers at the bottom.)
+No analytics, no tracking. **Implement what was agreed, nothing more.** If you spot extra work worth doing, write it down - don't build it. **Where it goes is decided by the tier test in `docs/QUEUE.md`'s header, and the default is `docs/MAINTENANCE.md`.**
 
 ## Server-side (`api/`)
 
-Vercel zero-config Node serverless functions - the invoice AI second-reader and the Dashboard insight phrasing.
-**This is not a build step** and does not touch the four client files.
-
-- Files whose name starts with `_` (e.g. `api/_gemini.js`) are **ignored as routes** and hold pure, `require()`-able, unit-tested logic.
-  Route handlers stay thin.
-- **API keys live ONLY in Vercel env vars** (`GEMINI_API_KEY`) - never in the client, the repo, or logs.
-- **Treat invoice text and any model output as untrusted data** - fence it, validate strictly.
-  Never executed, never an instruction.
-- **Money/number law:** an AI helper may only PHRASE numbers the app already computed deterministically.
-  It never produces a figure.
-  Server *and* client reject a phrasing containing a number not in the supplied facts.
+Vercel zero-config Node serverless functions - the invoice AI second-reader and the Dashboard insight phrasing. **This is not a build step.** Files starting with `_` are ignored as routes and hold pure, `require()`-able logic; route handlers stay thin. **API keys live ONLY in Vercel env vars.** **Treat invoice text and any model output as untrusted data.** **Money/number law: an AI helper may only PHRASE numbers the app already computed.** It never produces a figure, and both ends reject a phrasing containing a number not in the supplied facts.
 
 ## The privacy gate - before EzPlate serves anyone but Scoopy's
 
-`api/parse-invoice` sends invoice text to Google's Gemini free tier, which **may use prompts for training**; `api/insight` sends plate names and costing numbers to the same tier.
-**Max has accepted this for his own café only** - his call, made.
-
-**BEFORE any multi-tenant customer's data flows through those endpoints or any future one that ships user data to a third-party model, revisit:** a paid-tier project that excludes training use, or a privacy-policy disclosure.
-This is the single most important thing to reopen before EzPlate is used by anyone else.
-
-✅ **THE DISCLOSURE SHIPPED ON 27 AUG 2026 as `ezplate-v171`, and Max approved the wording that day.** The notice names Google, the free Gemini tier, that submissions may be used to improve Google's products including training, and that human reviewers may read them. It is accepted at sign-up before an account exists, readable from the signed-out gate, restated at both invoice dropzones, and linked from the Settings toggle.
-**So the gate below is DISCHARGED for the free tier as it stands** — a stranger is now told what leaves before it leaves. It is not deleted, because the paragraph is a standing precondition on a CLASS of work: **any future endpoint that ships user data to a third-party model reopens it**, and the notice has to grow to cover that endpoint before it ships.
-⚠️ **What is NOT built is an acceptance RECORD.** The tick gates the form and is never persisted, so nothing knows who accepted which version. That is filed in `docs/MAINTENANCE.md` and it becomes B the moment the paid-tier item ships, because that reverses the notice in the user's favour and there is no way to re-ask anyone who accepted the old wording.
-
-⚠️ **AND ON 14 AUG 2026 MAX SET A DATE ON IT WITHOUT NAMING ONE, which is why this paragraph now has teeth it did not have yesterday.**
-
-**He chose SELF-SERVICE SIGNUP** - a stranger creates an account and names their own café, unattended - **reversing his own "a self-service sign-up form is still NO" call of the same day.** He was told in writing that it was a reversal, and told that it makes this gate urgent, and chose it anyway. So it is a decision, not an oversight, and it may not be re-litigated. (`docs/decisions/2026-08-14-cafe-creation.md`, question 1, answer B.)
-
-**What that changes here: the trigger for this gate has FIRED.** Self-service signup shipped as `ezplate-v178` on 30 Aug 2026, so a stranger's café can exist, and *"before the first non-Scoopy's row exists, not after"* is this section's own wording - a standing precondition on a CLASS of work, which is why it belongs here and never expires.
-The ordering it implied was honoured: the disclosure shipped as `v171` on 27 Aug, three days ahead of signup.
-⚠️ **THE SENTENCE HERE USED TO POINT AT A `Do after:` LINE IN `docs/QUEUE.md`, AND THAT LINE IS GONE — CORRECTLY.** The queue deleted it the moment it was satisfied, which is the mechanism working; what rotted is the POINTER AT the mechanism, in a paragraph whose own parenthetical had predicted exactly that (*"the copy here rots with nothing able to notice"*). **So the rule survives one level up: do not restate a queue ordering here, and do not point at one either — a pointer at a self-deleting line is itself a claim that expires.** (Corrected 2 Sep 2026 by AUDIT-v186 C4, which found both the dead pointer and the future tense above.)
-**Do not read the reversal as permission to ship signup first.** He reversed which mechanism creates a café; he did not reverse this.
-
-**He also chose CSV-ONLY for the catalogue importer** (same file, question 2, answer A), which is a decision about the no-new-dependencies rule rather than about privacy: an `.xlsx` is a ZIP of XML and cannot be read without a third third-party script. **So the importer accepts CSV and says so; adding XLSX is a fresh yes, not an enhancement.**
+`api/parse-invoice` and `api/insight` send invoice text, plate names and costing numbers to Google's Gemini free tier, which **may use prompts for training**. ✅ **The disclosure shipped 27 Aug 2026 and Max approved the wording**, so the gate is DISCHARGED for the free tier as it stands. It is not deleted, because it is a standing precondition on a CLASS of work: **any future endpoint that ships user data to a third-party model reopens it**, and the notice has to grow to cover that endpoint before it ships. What is NOT built is an acceptance RECORD; that is in `docs/MAINTENANCE.md`.
 
 ## Fragile areas - regression tests mandatory
 
-Read the relevant tests first, diagnose with a truth table before patching, lock the fix with a regression test.
+Read the relevant tests first, diagnose with a truth table before patching, lock the fix with a regression test. **Invoice review rendering**, the **auto-tick rule**, **taught packs and price precedence**, and **supplier renames** are all in `.claude/rules/invoice.md`, which loads with `js/app.js`.
 
-- **Invoice review rendering** (`renderInvReview`, `invSelChanged`, `invRowState`, `flagNeedsAttention`, the pack-teach flow).
-  Three invariants, each from a real regression: **full-row re-render only** (per-cell patching left stale cells); **`.muted-row` hiding is scoped to `.is-new`** (it was hiding Old/Conf on needs-attention rows); **tint derives from `invRowState` via `st-*` classes** so the card and the summary can never disagree.
-- **Auto-tick rule:** only a row whose `invRowState` is `'matched'` is ever **pre**-ticked - by the renderer AND by every handler.
-  Flagged, review and new rows wait for the user.
-- **Taught packs / price precedence:** product pack > supplier memory > parser > manual.
-  A pack taught in the mismatch flow must persist on the product and outrank the parser on every later import.
-- **Supplier renames must migrate supplier memory.** Taught matches key off the supplier NAME (`memKey`); renaming without re-keying orphans them silently.
-  `tidySupplierMemMigration` rebuilds keys from each entry's already-normalised `phrase_norm`.
-  Apply the same pattern to any future rename of a name used as a lookup key elsewhere.
-- **The builder is a FULL PAGE.** `#builderPage`, a child of the Plates library rather than a tab of its own: `openBuilder` hides the `#tab-*` panes and shows it, the Plates nav item stays lit, and any tab change leaves it.
-  ⚠️ **There are NINE panes, not five** - this said "five" until 12 Aug 2026, when AUDIT-v156 counted them; F8, F9, F10 and 171 each added one. **Read the list from `TAB_PANES` in `js/app.js`, never from a count written down anywhere**, because a pane missing from that array renders UNDERNEATH the builder page - the code says so at its own site.
-  **The whole history, because this line has been wrong in both directions and each time it cost a batch:** the builder was a modal from v54; Max confirmed that shape on 8 Aug 2026 against a recommendation to change it; Q6 (v125) shipped its redesign inside the modal; **he then reversed it on 9 Aug 2026**, and this file carried both facts at once until **F7 shipped the page as `ezplate-v146` on 11 Aug 2026.** A batch once spent itself hunting a conversion that had already shipped two years of versions earlier, which is why the record is written out rather than summarised.
-  **Leaving the page is not a data risk and must not be "fixed" into one.** Tapping another tab hides it and keeps the plate in memory and in the draft - exactly what pressing × did while it was a modal - and `guardUnfinishedPlate` offers the work back at the next entry.
-  **Publishing, printing, duplicating and deleting a plate all live on this page.** The v54 plate-action chooser (`#plateActionsModal`) is deleted and a Plates row opens the builder directly; F7 rehomed all four of its actions rather than dropping any (§R3).
-  **A sentence here claiming the dropdown placement work is "UNBLOCKED" because "the positioning context is already final" was DELETED 10 Aug 2026** (Max's yes, AUDIT-v135): both halves were false the moment the reversal was taken.
-  The scheduling it asserted lives on the queue item, which re-checks it every batch.
-- **Mobile visual consistency:** one card system, compact header pills not full-width bars, one primary CTA per screen.
-  A previous density pass was rolled back wholesale - visual changes are surgical, one screen at a time.
+**The builder is a FULL PAGE** (`#builderPage`, a child of the Plates library rather than a tab of its own), and **leaving it is not a data risk and must not be "fixed" into one** - the plate stays in memory and in the draft, and `guardUnfinishedPlate` offers it back. Publishing, printing, duplicating and deleting a plate all live on that page. **Read the pane list from `TAB_PANES` in `js/app.js`, never from a count written down anywhere** - a pane missing from that array renders UNDERNEATH the builder page.
 
----
+**Mobile visual consistency:** one card system, compact header pills not full-width bars, one primary CTA per screen. A previous density pass was rolled back wholesale - visual changes are surgical, one screen at a time.
 
 # Tier 3 - How work arrives
 
 ## Chat cannot see this repo
 
-Every claim a brief makes about the code is an **inference from a summary**, and those inferences have been wrong repeatedly.
-
-**When a brief contradicts the code, the code wins and the brief was wrong.** Report it; never work around it silently.
-Nothing in a brief is beyond correction, including anything it calls settled.
-
-**Pushback is the point, not a courtesy.** Every enumeration in this project has come back different from the brief's guess - one named price path found three, six dead functions found thirty-one, one creation path found two.
-**If a brief's list looks complete, check it anyway.**
-
-`/investigate` runs before a brief when one is warranted - read-only, no branch, no code.
-Its highest-value output is "this is the wrong question": one request asked which tab held the invoice review, and the answer was that the tabs were identified backwards.
+Every claim a brief makes about the code is an **inference from a summary**, and those inferences have been wrong repeatedly. **When a brief contradicts the code, the code wins and the brief was wrong.** Report it; never work around it silently. **Pushback is the point, not a courtesy** - every enumeration in this project has come back different from the brief's guess. `/investigate` runs before a brief when one is warranted, and its highest-value output is "this is the wrong question".
 
 ## Working with Max
 
-- He communicates tersely, in note form, usually with phone screenshots.
-  Real examples beat abstract descriptions - **ask for a screenshot when unsure.**
-- **Plan first - when the work is not already approved.** The trigger is where it came from.
-  Work arriving from **chat, a brief or a screenshot** is unapproved and the brief may be wrong: restate it as a scoped, root-cause-framed plan and get a yes before editing, asking any clarifying questions up front with your recommended answer for each.
-  An item **already in `docs/QUEUE.md` is approved** - Max said yes when he queued it, so `/batch` runs it without stopping.
-  Re-asking there spends the only resource that is actually scarce.
-  ⚠️ **BUT A QUEUED ITEM'S APPROVAL DOES NOT EXPIRE AND ITS FACTS DO, AND THOSE ARE TWO DIFFERENT THINGS.** (Added 15 Aug 2026 by AUDIT-v166, which measured it: **four of the last seven batches found their item materially wrong at the point of execution** - 187 *"wrong in two places, and split in a third"*, 189 *"its stated hard part was the wrong one"*, 192 *"presupposes something Max has said NO to"*, 193 *"lists two options, then supersedes itself"*. Four different framings, which is why no batch named it as one thing.)
-  The cause is not carelessness, it is age: an item's claims about the code were true when it was written and the batches above it then shipped. **So read a queued item's factual claims exactly as you would a brief's - check them against the code before planning off them - and when they disagree, rewrite the item and carry on.** That is not re-asking and it is not a stop condition; every one of those four batches did it unprompted and nothing shipped wrong. Only the *approval* is settled by the item being in the file.
+- He communicates tersely, in note form, usually with phone screenshots. **Ask for a screenshot when unsure.**
+- **Plan first - when the work is not already approved.** Work arriving from chat, a brief or a screenshot is unapproved: restate it as a scoped, root-cause-framed plan and get a yes, asking any clarifying questions up front with your recommended answer for each. **An item already in `docs/QUEUE.md` is approved** and `/batch` runs it without stopping.
+- ⚠️ **A queued item's approval does not expire and its FACTS do.** Four of seven consecutive batches found their item materially wrong at execution. **Check a queued item's factual claims against the code before planning off them, and when they disagree, rewrite the item and carry on.** That is not re-asking and it is not a stop condition.
 - **Rollbacks happen.** If Max says the baseline is X, believe him - then verify it yourself and report discrepancies before working.
 - **Keep commentary in the PR and the handover - never in user-visible app copy.**
 
 ## Migrations - Claude applies them (REVERSED 8 Aug 2026)
 
-`list_migrations` is empty, so **the migration files plus their commit messages ARE the audit trail.** That has not changed and is why every migration is still a committed file with its reasoning in the header.
+`list_migrations` is empty, so **the migration files plus their commit messages ARE the audit trail.** Max reversed the old "let Max run it" rule - *"i dont want you to stop for me to hand run a query"* - so **a migration is not a stop condition.** Write it, apply it, verify it, record it. `docs/STAGING.md` is the procedure; `.claude/rules/sql.md` is why each step exists.
 
-**What changed:** this section used to read *"let Max run it… never apply one yourself"*, and a pending migration was a stop condition that halted the loop.
-**Max reversed it** (his words: *"i dont want you to stop for me to hand run a query"*), on the strength of staging existing.
-**A migration is no longer a stop condition.** Write it, apply it, verify it, record it.
-
-**The safeguards are not optional - the old rule's protection has to be replaced, not just deleted:**
-
-- ⚠️ **AND SINCE BATCH 263 AN ORDINARY SESSION CANNOT REACH PRODUCTION AT ALL.** `.mcp.json` carries **staging only**; production lives in `.mcp.production.json`, which nothing loads unless the session was started with `claude --mcp-config .mcp.production.json`. So "write it, apply it, verify it, record it" now ends at staging by default, and the production half is a deliberate act with a different session behind it. **That is the point** - the reversal above made Claude the one who applies migrations, and the 12 Sep 2026 audit found the consequence nobody had noticed: the café's live database was connected and `execute_sql` pre-approved in every session, while the disposable staging rehearsal prompted. `docs/STAGING.md` step 6 has what to write in the header and the one line to hand Max when production is out of reach. **Never write a header that reads as applied because you could have applied it.**
-- **Staging first, then production - AND STAGING IS NOW REAL. `docs/STAGING.md` is the procedure; follow it rather than this bullet.** Seven steps: write the migration with its one-statement rollback in the header · re-run `01-schema.sql` to re-mirror · load a seed · apply to staging · verify AS THE CLIENT over PostgREST · apply to production and record it in the header · diff the two schemas with the fingerprint query.
-  ⚠️ **This bullet said the OPPOSITE until 12 Aug 2026** - *"staging is EMPTY, so there is still nothing to rehearse against… the schema has not been mirrored and no seeds exist… every migration is still UNREHEARSED"* - which stopped being true on **11 Aug 2026**, when batch 172 shipped the mirror, three seeds and that procedure as `ezplate-v152`. The stale text sat here for four days with the queue's next four A-items all migrations, and `docs/STAGING.md:5` had already said *"That warning is now spent."* **The clause carried its own expiry** - *"the safeguard becomes real when the queue's staging item RUNS"* - and the item ran; this is that sentence being honoured, not overridden.
-  **CONFIRMED by Max, 12 Aug 2026**, when the correction was put to him with the option of reinstating the old caution: *"yes leave it"*. So the removal of "defer destructive ones" from THIS bullet is deliberate and agreed - it was a weaker duplicate of the standing destructive-work rule below, not a second protection. Do not restore it.
-  (History kept because both prior corrections asked for it: marked unavailable 9 Aug 2026, Max's yes, after the v125 audit found this file presenting the safeguard as available; the "has never yet loaded" clause corrected 10 Aug 2026, Max's yes, per AUDIT-v135 D1.)
-  ⚠️ **What staging still does NOT rehearse, and this half is unchanged:** the DATA is invented, so staging tells you a migration RUNS - never that it gives the right answer for Scoopy's. **Neither project has more than one user**, so `anon` is the only role either has been exercised as, and the multi-tenant policies are the first that will distinguish roles: staging can prove they run and let the right rows through, **not that a second tenant is excluded.** A rehearsal you over-trust is worse than none.
-- ⚠️ **A BULK REWRITE FROM THE CLIENT IS NOT A MIGRATION, SO NOTHING ABOVE REACHES IT - REHEARSE IT OFFLINE, AGAINST THE REAL DATA, WRITING NOTHING.** (Batch 239, the relink heal.) The seven steps are about SQL. A loop in `js/app.js` that rewrites a hundred `plates` rows has no migration file, and staging cannot help: its data is invented, and the whole safety argument for a heal is usually a claim about the RESULT - *"no cost moves"* - rather than about whether it runs.
-  **That claim is checkable in ten minutes, and nothing else in this process checks it.** Pull the real rows READ-ONLY through the Supabase MCP into a scratch file, extract the REAL functions with `tests/_extractfn`, run the plan and the apply over them in Node, and compare the figure before against the figure after for EVERY row - not for a sample. 239 did exactly that over 103 real plates: 31 lines rewritten, 0 costs changed, and the 13 the heal refuses matched the SQL count.
-  **The extraction is what makes it evidence.** A hand-rolled copy of the costing walk agrees with the code whether or not the code is right, which is this file's oldest recorded defect. **And it is read-only, so it needs nobody's permission** - the write itself is still Max's, unchanged.
-- **Order the statements so the dangerous intermediate state cannot exist**, rather than trusting the transaction alone to prevent it. Keep the transaction as well. (Worked example in `20260808_menus_rls.sql`: create the inert policy first, enable RLS second, so a failure between them leaves today's behaviour.)
-- **Verify AS THE CLIENT, over PostgREST with the anon key.** The MCP and the SQL editor run as `postgres` and bypass RLS, so they cannot see a policy mistake - see "The client's role is not the MCP's role".
-  On a write, send `Prefer: return=representation` and check a row came back: **a blocked anon write returns success and touches nothing**, so an empty response, not an error, is the failure signal.
-- ⚠️ **A CLIENT CHANGE AND A MIGRATION ARE ONE CHANGE, AND THE ORDER BETWEEN THEM IS AN INTERMEDIATE STATE THE TRANSACTION CANNOT PROTECT** (batch 186). "Order the statements so the dangerous intermediate state cannot exist" is the same law one level up: between the migration landing and the deploy going out, the database is answering a client that has not shipped yet — and that window is minutes, not milliseconds, with a real person's phone in it.
-  **Work out which order has the harmless intermediate, and it is usually the client first**, because a client written for both answers is cheap while a database that answers only the new way is not. 186's migration made `anon` resolve to no tenant; the new client reads that as "sign in", and the OLD client — still cached on a phone — read it as "you are signed in, but your account has no café", to somebody who was not signed in at all.
-  **Say the order in the migration header and why**, because the file is the only artefact that outlives the batch. It also decides where the "applied to production" line gets written: after the merge, which is a second small docs-only commit and is worth it.
-- **A migration whose failure mode is a LOCKOUT can refuse to run.** A `do $$ … raise exception … $$;` block ahead of the change, asserting the precondition that makes it survivable — 186 refuses to close the anon fallback unless a confirmed account already holds a membership — turns "I checked first" into something the file enforces every time it is ever run, including on a project nobody has measured. **Prove it FIRES** (staging, inside a block that removes the precondition and lets the raise unwind it) or it is one more assertion nobody has watched execute.
-- **Know the one-statement rollback before you run it**, and say what it is in the file.
-- **Record in the file's header that it was applied, when, by whom, and how it was verified.** With `list_migrations` empty, the file is the only place that can say so.
-  ⚠️ **WRITE THAT RECORD WHEN IT HAPPENS, NEVER AHEAD OF IT** (batch 186, caught by the pre-push review). A header was drafted with the production application already written out — date, method, row counts — before a single statement had run there, and it read exactly like a verified fact because that is the form the rule above asks for. **A pre-written record is not a formatting slip; it is the audit trail lying**, and nothing downstream can tell the difference. If the application is deliberately deferred, say **that**, in the header, with the reason.
-- **Anything that DELETES or REWRITES data is still Max's**, not because of who types it but because it is not reversible by a rollback statement. Destructive means data loss is possible if it is wrong - the restore's full-wipe step is the standing example.
+- ⚠️ **An ordinary session cannot reach production at all.** `.mcp.json` carries **staging only**; production lives in `.mcp.production.json`, which nothing loads unless the session was started with `claude --mcp-config .mcp.production.json`. **Never write a header that reads as applied because you could have applied it.**
+- **Staging first, then production.** Staging proves a migration RUNS, never that it gives the right answer for Scoopy's, and neither project has a second tenant.
+- **Verify AS THE CLIENT, over PostgREST with the anon key.** The MCP runs as `postgres` and bypasses RLS. On a write, send `Prefer: return=representation`: **a blocked anon write returns success and touches nothing.**
+- **A client change and a migration are ONE change**, and the order between them is an intermediate state no transaction can protect. Work out which order has the harmless intermediate - usually the client first - and **say the order in the migration header and why.**
+- **A bulk rewrite from the client is not a migration**, so none of the above reaches it: rehearse it offline against the real data, read-only, by extracting the REAL functions and running the plan over every row.
+- **Know the one-statement rollback before you run it**, say what it is in the file, and **record that it was applied when it happens, never ahead of it.** A pre-written record is the audit trail lying.
+- **Anything that DELETES or REWRITES data is still Max's.**
 
 ## Deploy
 
-GitHub `main` → Vercel auto-deploys → installed PWAs pick it up via the network-first service worker.
-**Treat every merge to `main` as a production deploy.**
+GitHub `main` → Vercel auto-deploys → installed PWAs pick it up via the network-first service worker. **Treat every merge to `main` as a production deploy.** Production is `https://scoopyscosting.vercel.app`; per-deployment URLs are auth-protected, and a branch push deploys a PREVIEW.
 
-**Production is `https://scoopyscosting.vercel.app`** - the stable alias, and the only URL that answers without a login.
-The per-deployment URLs from `gh api …/deployments` are auth-protected and 302 to Vercel SSO, so a `curl` against one proves nothing.
-Fetch the alias, and check WHICH build answered before concluding anything from a device - **a branch push deploys a PREVIEW.**
-
-⚠️ **AND THE ALIAS ITSELF SERVES STALE FOR A WHILE AFTER A MERGE, so "check which build answered" is not enough on its own** (31 Aug 2026, batch 225, measured rather than reasoned). Minutes after #245 merged and Vercel reported the deployment complete, a plain `curl https://scoopyscosting.vercel.app/sw.js` returned the PREVIOUS version's `CACHE` line, repeatedly and consistently - and a cache-busted request to the same path, in the same minute, returned the new one six times out of six.
-**So a bare fetch of a stable path can be answered from a CDN edge cache rather than from the deployment**, and the failure looks exactly like a deploy that did not happen. The wrong conclusion is the dangerous one: it invites a batch to re-push, re-bump or start hunting a build failure that does not exist.
-**Append a throwaway query string** - `?cb=$RANDOM` - **and send `Cache-Control: no-cache`, or you are testing the CDN rather than the deploy.** The same caution applies to `index.html`, `js/app.js` and `css/style.css`; `sw.js` is simply the one with a version number printed in it.
-This is the same shape as this file's oldest rule one level up: **a check that finds nothing has only proved something about WHAT IT LOOKED FOR**, and an unparameterised GET looked at a cache.
+⚠️ **The alias serves stale for a while after a merge**, so checking which build answered is not enough on its own. **Append `?cb=$RANDOM` and send `Cache-Control: no-cache`, or you are testing the CDN rather than the deploy.**
 
 ## Independent review before merge
 
-Max has no human reviewer, so this is the only second reader the code gets.
+Max has no human reviewer, so this is the only second reader the code gets. **Branch protection is ON**: `unit tests` and `smoke (jsdom)` are required, the mutation gate and the review-artifact check run inside `unit`, **Playwright is NOT required**, and `enforce_admins` is FALSE, so an admin merge bypasses everything.
 
-⚠️ **THE REPOSITORY WENT PUBLIC ON 13 AUG 2026 (Max's call, taken twice), AND THAT REVERSED THIS PARAGRAPH.**
-It read: *"Nothing can actually BLOCK a merge. Branch protection and rulesets need GitHub Pro on a private repo - the API returns 403 - so 'mandatory' below is a convention you keep, not a mechanism that stops you."*
-**Branch protection is FREE on a public repository**, and it is now **TURNED ON**.
-⚠️ **This paragraph said "available and simply not yet turned on" until 28 Aug 2026, and told you to keep reading "mandatory" as a convention. That is now wrong**, found by batch 212 when a docs-only handover PR was refused with *"the base branch policy prohibits the merge"* and the API answered with a live policy instead of the `404 Branch not protected` recorded here.
-
-**What is actually enforced, because "protected" is not one thing and the gap is the useful part:**
-
-- **Two required checks: `unit tests` and `smoke (jsdom)`.** A PR cannot merge until both pass, and that is a real mechanism rather than a convention.
-- ⚠️ **`browser specs (Playwright)` is NOT required, and neither is anything else.** So a PR that reddens Playwright still merges.
-- ⚠️ **AND THE MUTATION GATE IS INSIDE `unit tests`, WHICH IS THE ONE PIECE OF GOOD NEWS HERE** - it is not a separate job, so requiring `unit tests` does require the full `npm run mutate`. The gate section below says CI "is the one that actually holds" against a forgotten local hook, and that claim survives this correction. Check it if that job is ever split.
-- ⚠️ **`enforce_admins` is FALSE**, so an admin merge bypasses every check above. The gate is real for the ordinary path and is not a wall.
-
-**So the honest reading: the merge is gated on the suite, the mutation gate AND the review artifact, and on nothing else.**
-⚠️ **The artifact gate was described here as hook-only until 28 Aug 2026, and that UNDERSTATED enforcement** (AUDIT-v176). `.github/workflows/test.yml` runs `node tests/review/check.js` as a step of the **`unit`** job, which is required - so the artifact gate is inside CI exactly the way the mutation gate is, and the good-news paragraph above applies to it verbatim. The understatement is the dangerous direction: it invites a batch to think it can skip a gate it cannot. **Check this if that job is ever split.** The `code-review` agent, its artifact and the browser specs are still conventions you keep - the artifact gate lives in `.githooks/pre-push`, which `--no-verify` skips and which a fresh clone does not install at all.
-The reason it went public was GitHub blocking Actions on a billing cap; **Actions are unlimited and free on a public repo, measured at `billable_ms: 0` for an 8-minute run.**
-
-**DECIDED, 8 Aug 2026 (Max): no second reader beyond the pre-push agent. CodeRabbit is NO and GitHub Pro is NO - do not re-propose either.**
-Both were put to him with costs, records and a recommendation to take CodeRabbit; he declined both.
-The option he chose was worded "the current pre-push review is enough", so this declines an ADDITIONAL reader and relaxes nothing below.
-It also means the convention above is the whole mechanism, permanently - **the pre-push agent is the only thing standing between a mistake and production.**
-On the day it was decided that agent caught a four-word change that would have silently discarded a plate's category edit, with the suite green and the change already driven in a browser.
-
-- **The mutation gate - MECHANICAL.** It covers exactly one thing: a test that would still pass with the code it names broken. See Tier 1's twelve-incident roster for why that one thing earned automation.
-  **It runs in TWO places and only the second one is a mechanism.** `.githooks/pre-push` runs it in changed scope, and needs `git config core.hooksPath .githooks` once per clone - **so a fresh clone runs no gate at all and looks exactly like a clone that passed it.** That is why the `unit` CI job also runs the full `npm run mutate` unconditionally, where nothing has to be installed and nothing can be forgotten.
-  ⚠️ **AND THE HOOK DOES NOT RUN PLAYWRIGHT, WHICH MEANS A GREEN HOOK IS NOT A GREEN SUITE.** Its five steps are orphan reaping, `npm test`, `npm run smoke`, the changed-scope mutation gate and the review artifact. The browser specs take ~7 minutes and are deliberately left to CI; that trade is fine and is not the trap. **The trap is reading "hook passed" as "everything passed"**, and it is a live one: batch 214 hid a control that `tests/visual/v158-header-actions.spec.js` asserts is on screen, pushed on a green hook and a green `npm test`, and was caught by CI three of whose assertions had gone red.
-  **So: if a change alters WHETHER A CONTROL EXISTS, or any other precondition a screen's specs were written against, run `npx playwright test` before pushing and grep the specs for the id.** The specs that break are about OTHER screens, which is exactly why the author does not think of them. (This bullet also said the hook ran two commands; it runs five, and the list is left un-numbered here on purpose so it cannot go stale again - read `.githooks/pre-push`.)
-  The hook is the fast local copy; **CI is the one that actually holds.**
-  **A survivor is not a suggestion.** Kill it with an assertion, or write the allowance and its reason into `tests/mutation/targets.js` - the gate fails on a survivor with neither, and equally on an allowance that is no longer needed.
-  `git push --no-verify` bypasses it. **If you use it, say so in the handover** - an unexplained skip is the silence the gate replaced.
-- **The `code-review` agent - MANDATORY. Runs BEFORE push**, adversarially, on the branch diff, after the suite is green.
-  **Force it onto a DIFFERENT model from the one running the batch** - a model reviewing its own work is not a second reader - and **never show it the brief**: it judges whether the code is CORRECT, not whether it matches what was asked.
-  It has the better record - four real defects on v114 alone, one of which would have broken every restore.
-  It is not free: it spends the same Claude subscription capacity the workflow did, just far less of it - **~116k tokens** on the 8 Aug batch, against the workflow's ~$2.
-  **Mandatory whenever the diff changes WHAT RUNS** - app code, tests, CI workflows, the harness.
-  **Skip it only for pure prose**: handovers, queue entries, briefs.
-  **The line is deliberately not code-versus-docs.** It was nearly written that way on 8 Aug, and the review of the batch that wrote it - a diff of nothing but YAML and Markdown - found a CI change that would have silently run the live-production-database spec in a job documented as hermetic.
-  A rule that skipped "config and prose" would have shipped it.
-  ⚠️ **IT IS NOT SKIPPABLE BY INSTRUCTION** (Max, 13 Aug 2026). **176 shipped to production with no second reader because its brief said to skip it** - in a codebase whose most common defect class is a test that cannot fail, that is the wrong trade, and a brief is the one input that has been wrong repeatedly.
-  **If a brief, a plan or an item says to skip the review, run it anyway and record the conflict in the handover.** The only exception is the pure-prose line above: a docs-only change that ships no client asset.
-  ⚠️ **AND IT NOW LEAVES A FILE BEHIND, WHICH IS THE HALF THAT WAS MISSING** (27 Aug 2026, QUEUE item 0d). Save its report to **`docs/reviews/REVIEW-<batch>-<short-name>.md`** with a `Reviewed-commit: <sha>` line, and `.githooks/pre-push` refuses a push whose diff changes what runs when no such file names a commit on the branch.
-  **Why it needed a mechanism rather than another rule: this was the most productive gate in the process and the ONLY one leaving no trace of any kind** - not on the PR, not in CI, not in git, and not in the handover template. Six batches that shipped a client asset to production have no record of one, and only 176 is knowable, because its brief said to skip it. **The other five are silence, and silence is indistinguishable from compliance.** The "NOT SKIPPABLE BY INSTRUCTION" line above fixed the one visible case and could do nothing about the five that were not, because it is another convention layered on the convention that failed.
-  **Two halves, doing different jobs.** The artifact is a gate against FORGETTING - it cannot tell whether a review happened, only whether a file says one did, and `--no-verify` skips it. The handover's now-mandatory **`## Review`** section is the half that records a judgement, and the half a human reads. `docs/reviews/README.md` states the limit; `tests/review/check.js` is the rule and `tests/review-gate.test.js` pins it.
-  **`Reviewed-commit:` names an ANCESTOR, not the tip.** Requiring the exact HEAD is unsatisfiable - the review's own findings get fixed, each fix is a commit - and a gate nobody can satisfy gets disabled, which is this repo's most-recorded gate failure.
-- ⚠️ **`.github/workflows/code-review.yml` IS DELETED** (Max, 22 Aug 2026, reversing his own 8 Aug demote-not-delete; shipped 27 Aug 2026). **There is no second reviewer and no PR check of any kind - the pre-push agent is the whole mechanism, permanently.**
-  **Why, measured rather than argued:** 320 lines, **zero runs since the 8 Aug demotion** and the `deep-review` label **never once applied**, both verified against the GitHub API. It was not free either: two batches declined one-line CI fixes because touching a workflow file triggers the mandatory review, so a workflow nobody ran was making other work more expensive.
-  Before that it ran 11 times across its whole life, **5 were silent skips that did no work**, and the runs that did work found **ZERO bugs** - its 3 findings were two missing tests and a doc gap. It authenticated by OAuth against Max's personal Claude subscription, so it competed with his own coding sessions at roughly $20 and ~15 minutes per batch.
-  **Git keeps the file. Do not re-propose it, and do not propose CodeRabbit or GitHub Pro either** - both were declined on 8 Aug 2026 with costs and a recommendation in front of him.
-  ⚠️ **The three ways its green check was untrustworthy are deleted with it and are NOT re-derivable lessons about the pre-push agent** - they were about a GitHub Action publishing to a PR (a refusal that exited green, a run that threw its findings away, and an outage where an absent check looked exactly like a passing one). `docs/audits/AUDIT-v115.md` and `AUDIT-v125.md` hold the detail if a future PR-based reviewer is ever proposed. **The transferable half survives one level up and applies to the artifact gate too: an absent check looks exactly like a passing one.**
-
-**⚠️ NEVER DISMISS A FINDING BECAUSE ITS STATED CAUSE IS WRONG.** A finding whose *mechanism* is wrong may still point at a real bug.
-That has happened twice and both were worth acting on.
-The finding and the explanation are separate claims - disprove the explanation and you have disproved nothing.
-**Go and look at what it was pointing at.**
-
-⚠️ **AND THE SAME SPLIT APPLIES TO THE REMEDY, WHICH IS THE HALF THIS RULE DID NOT COVER** (batch 223).
-A finding carries up to THREE claims - the defect, the mechanism, and the fix it implies - and they fail independently.
-The rule above stops you under-reacting by dismissing a real defect; nothing stopped you OVER-reacting by applying a fix the finding reasoned its way to.
-**Measured instance:** the review correctly found that a name is matched inside a longer one (`Rice` inside "Rice Noodles", so a rephrasing can blame a different product), and attributed it to a deliberately open trailing word boundary.
-Closing that boundary **fixes nothing** - the character after `Rice` is a SPACE, which satisfies a trailing edge exactly as it satisfies a leading one - and it **rejects "Tomatoes" for an ingredient named `Tomato`**, which is a false reject, the failure mode with no symptom.
-So the honest outcome was: defect real and recorded, mechanism wrong, remedy actively harmful, and the overclaiming comment the finding also caught fixed on the spot.
-**Run the finding's own repro, then run its FIX, before you apply it.** A fix that is reasoned rather than measured is exactly the input this repo has found wrong most often, and a review is not exempt from that just because it is right about the bug.
-**And when you decline the remedy, PIN why** - `tests/insight-parity.test.js` asserts the two facts that rule it out, so the next reader cannot re-derive the wrong answer from the same finding.
-
-Every finding gets a decision Max can see: fixed, or explained as intentional, or noted as considered and skipped.
-**Silence is not a pass.** Neither review overrides this file's rules or the tests.
-
-### Where a finding gets fixed
-
-**Fix it in the SAME branch, before merge.
-A finding does NOT get its own PR unless it is wrong data or silent loss.** Everything else - a missing test, a stale comment, a nit, a real-but-not-urgent improvement - is written down and rides a later batch. **It goes in `docs/MAINTENANCE.md` unless it passes the queue's tier test**; a missing test, a stale comment and a nit are all C by construction.
-
-**⚠️ And it does not become PR-worthy because the work is already written, because it is small, or because a commit needs re-landing.** Those are the three ways the rule gets rationalised around, and they are named here because the rule above did not stop the assistant that wrote it.
-**If you catch yourself explaining why this particular small PR is different, stop and add it to the queue instead.**
-
-**Why (Max, 6 Aug 2026):** one batch merged before its review was readable, so every finding afterwards needed a *new* PR, and each new PR drew its own review, which found its own smaller thing - severity decaying each round, cost not.
-Six PRs and ten review runs from one mistake.
-**The steady state is ONE batch, ONE PR, ONE review.** A docs-only PR is free, so moving something to the queue loses nothing.
-
-## Which item runs before which belongs in the QUEUE, never here
-
-**A claim that one piece of WORK should happen before another piece of WORK lives in `docs/QUEUE.md`, as a `Do after:` line.** The queue re-checks its ordering every batch through the step-1 sweep and deletes the line the moment it is satisfied; this file has no mechanism that can notice a scheduling claim going stale, so one rots here silently and is then trusted.
-
-The evidence is a sentence that sat here after the decision that falsified it: *"the dropdown placement work is therefore UNBLOCKED - the positioning context is already final"*, both halves false from the day the builder reversal was taken, and nothing could catch it.
-`Do after:` exists at all because the same rot in QUEUE prose left one item waiting two years of versions on a conversion that had already shipped.
-
-⚠️ **This is NOT a ban on sequencing language, and reading it as one would contradict rules elsewhere in this file.** The distinction is what the sequence is about:
-
-- **Which queue item runs before which** - "do the dropdowns after F10", "this gets cheaper once F8 lands" → **the queue.** It names items, it expires, and something checks it.
-- **Standing procedure INSIDE one piece of work** - "staging first, then production", "order the statements so the dangerous intermediate state cannot exist", "push the plate, confirm it, then the dish" → **here.** It names no item, it never expires, and it is true every time the work is done.
-
-If you cannot name the queue item, you are probably writing the second kind and it belongs here.
-
-**And a note aimed at ONE FUTURE ITEM lives in that item's own body, in the imperative, ending "answer it here, do not route it onward."** Never in a general list with a pointer at the item. Moved here 11 Aug 2026 from the queue preamble, where it could not survive a queue reset.
-The failure is specific and is not the same as a stale `Do after:`: a line saying *"decide this in F5"* sits in a section the F5 batch never opens, so F5 ships without answering it and the next audit finds the note pointing at a batch that has gone past. The tint-vs-hover note did it **four times** (V2 → F1 → F2 → F5), was wrong the last two, and the fifth re-point would have been wrong too - the collision it described had been deleted underneath it while nobody re-read the code. AUDIT-v135 C2 named the shape and it recurred **twice more in the same file after being named**.
-
-**The worked example, because the boundary is where this gets decided wrongly:** the privacy gate above says to revisit the Gemini tier *before any multi-tenant customer's data flows through those endpoints.* That LOOKS like the first kind and is the second. It names no queue item, it never expires, and it binds **any** future endpoint that ships user data to a third-party model - so it is a standing precondition on a class of work, not "item A before item B", and it stays here.
-Contrast the sentence this rule was written for: *"the dropdown placement work is therefore UNBLOCKED"* named specific work, was falsified by one decision, and nothing here could notice.
-
-(Approved by Max 10 Aug 2026, taking the recommendation, with this narrower wording rather than the original "sequencing lives in the queue, **never** in `CLAUDE.md`" - which its own pre-push review found too broad, because Tier 3's Migrations section legitimately states standing sequencing.)
-
-## A DONE-MARK IS NOT A STRIKE, AND A STANDING CHECK NEEDS AN EXPIRY
-
-(Named 9 Sep 2026 by AUDIT-v197, on two findings that turned out to be one shape. Both are about a correction that was MADE and did not reach the thing the next reader acts on.)
-
-**Recording that an item is done, somewhere else in the file, does not close the item.** Batch 230 fixed two `docs/MAINTENANCE.md` entries and wrote "DONE, batch 230" into the done-marks list near the top - and left both original entries standing, unstruck, ~470 lines below. For ten deploy versions that file said the same two things were finished and outstanding, and **the end a rider batch actually reads is the entry**, because that is where the work is described. A done-mark is a claim ABOUT an entry; the entry is the artefact. **Strike the entry.**
-
-**And its mirror, which costs more: a standing checklist item is an instruction to spend part of every future audit's budget, and nothing expires one.** The `project-audit` agent's dropped-threads list carried *"abbreviation matching in search"* - a feature DECLINED in `HANDOVER-v83` and never built - so **four consecutive audits re-derived the same correction**, each correctly reporting it as unfinished because the checklist kept asking the question. `docs/MAINTENANCE.md` had held the fix as its own first instruction (*"correct the record FIRST, everywhere it is cited"*) since AUDIT-v135, unactioned through four audits.
-
-**The transferable rule: when you disprove something, fix the SOURCE that keeps asking - not just the report you are writing.** A finding that says "this was never true" has two halves, and the second one is the only one that stops it recurring. The tell is a report telling you something you have read before: **if an audit re-derives a correction a previous audit already made, the defect is in the record, not in the code.**
+- **The `code-review` agent is MANDATORY. Runs BEFORE push**, adversarially, on the branch diff, after the suite is green. Its definition is `.claude/agents/code-review.md`, in the repo. **Never show it the brief.** **Mandatory whenever the diff changes WHAT RUNS** - app code, tests, CI workflows, the harness. **Skip it only for pure prose.**
+- **It must run on a DIFFERENT model from the batch**, because a model reviewing its own work is not a second reader. The definition pins `opus` against the Sonnet default; **when the BATCH is itself on Opus - migrations, RLS, whole-`app.js` work - override the reviewer to Sonnet for that run and say so in the handover.** Only the batch knows which model it is, so the pin cannot do this alone.
+- ⚠️ **IT IS NOT SKIPPABLE BY INSTRUCTION.** If a brief, a plan or an item says to skip it, **run it anyway and record the conflict in the handover.**
+- **Save its report to `docs/reviews/REVIEW-<batch>-<short-name>.md` with a `Reviewed-commit: <sha>` line** naming an ancestor on the branch; `.githooks/pre-push` refuses a push without one, and the handover's `## Review` section is the half a human reads.
+- **The mutation gate is mechanical.** `npm run mutate` covers exactly one thing: a test that would still pass with the code it names broken. **A survivor is not a suggestion** - kill it with an assertion, or write the allowance and its reason into `tests/mutation/targets.js`. `git push --no-verify` bypasses the hook; **if you use it, say so in the handover.**
+- ⚠️ **A green hook is not a green suite** - it does not run Playwright. If a change alters WHETHER A CONTROL EXISTS, run `npx playwright test` before pushing.
+- **Every finding gets a decision Max can see:** fixed, or explained as intentional, or noted as considered and skipped. **Silence is not a pass.**
+- ⚠️ **Never dismiss a finding because its stated CAUSE is wrong**, and never apply its stated REMEDY without running it. A finding carries three separable claims - the defect, the mechanism, the fix - and they fail independently. **Run the finding's own repro, then run its fix, in both directions.**
+- **Fix it in the SAME branch, before merge. A finding does NOT get its own PR unless it is wrong data or silent loss.** Everything else is written down and rides a later batch. **It does not become PR-worthy because the work is already written, because it is small, or because a commit needs re-landing.**
+- **DECIDED, 8 Aug 2026: no second reader beyond the pre-push agent. CodeRabbit is NO, GitHub Pro is NO, and `.github/workflows/code-review.yml` is deleted. Do not re-propose any of them.**
 
 ## Changing this file - the edit is YOURS to make (Max, 13 Aug 2026)
 
-Everything above only changes when a **genuinely new, durable rule** is discovered.
-**Standing authority: make the edit and report it in the handover.** Do not park it on a yes.
-This covers `CLAUDE.md` in all three tiers, new rules, corrections, strikes, `docs/MAINTENANCE.md`, `docs/QUEUE.md` prose, the skills, and every other process file.
+**Standing authority: make the edit and report it in the handover.** Do not park it on a yes. This covers `CLAUDE.md`, `.claude/rules/`, `AGENTS.md`, new rules, corrections, strikes, `docs/MAINTENANCE.md`, `docs/QUEUE.md` prose, the skills, and every other process file. **The asymmetry is the argument: a wrong edit is caught, because `project-audit` re-checks every documented claim against the code. A parked edit is caught by nothing.**
 
-⚠️ **This section said "propose it to Max and get a yes - don't edit silently" until 13 Aug 2026.** It was reversed on evidence: 172 and 176 each parked a documentation change on his approval, and **176's proposed rule - the one about a CSS syntax error silently discarding every rule after it - sat unapplied while the thing it warned about had already cost a full diagnose cycle.** He has never once deviated from a recommendation on a documentation question.
-**The asymmetry is the argument: a wrong edit is caught, because `project-audit` re-checks every documented claim against the code. A parked edit is caught by nothing.**
+**Two things still need him, and only these:** a change to a **decision he made himself** (the naming inversion, per-publication counting, the builder-as-a-page reversal, the More-screen gear removal), and **anything that would DELETE or REWRITE production data**, which is a stop condition rather than a decision file.
 
-**Two things still need him, and only these:**
+**Which item runs before which belongs in `docs/QUEUE.md` as a `Do after:` line, never here** - the queue re-checks its ordering every batch and deletes the line when it is satisfied, and nothing here can notice a scheduling claim going stale. Standing procedure INSIDE one piece of work ("staging first", "push the plate, confirm it, then the dish") names no item, never expires, and belongs here. **A note aimed at ONE FUTURE ITEM lives in that item's own body**, in the imperative, ending "answer it here, do not route it onward."
 
-- **a change to a decision he made himself** - the naming inversion, per-publication counting, the builder-as-a-page reversal, the 12 Aug matching-edges call, the More-screen gear removal. Reversing his own call is his, however good the reason;
-- **anything that would DELETE or REWRITE production data.** Unchanged, and it is a stop condition rather than a decision file.
+**A DONE-MARK IS NOT A STRIKE.** Recording that an item is done somewhere else in a file does not close the item - **strike the entry**, because the entry is what the next reader acts on. And **a standing checklist item is an instruction to spend part of every future audit's budget**: when you disprove something, fix the SOURCE that keeps asking. **If an audit re-derives a correction a previous audit already made, the defect is in the record, not in the code.**
 
-Everything else - which implementation is cleaner, what a thing is called, how a test is structured, whether to split a batch, what goes in `docs/MAINTENANCE.md`, every word of every process doc - **decide it and write it down.**
-
-Rules here exist because a mistake already happened once.
-
-The test for any line: **would a competent model reading this repo get this wrong?** True but inferable is a deletion.
-Version numbers, commit hashes, suite counts and descriptions of past batches belong to git, not here.
+The test for any line here: **would a competent model reading this repo get this wrong?** True but inferable is a deletion. Version numbers, commit hashes, suite counts and descriptions of past batches belong to git, not here.

@@ -23,7 +23,8 @@ The target is one screen, around 40 lines.
 ⚠️ **This sentence read "the recent ones run 300 to 430 lines (v113 299, v114 426, v115 306)" until 263, and it had been wrong for months** - the last dozen run 59 to 123. It was a measurement of the problem the target was written to fix, left standing after the fix worked, so a reader arriving at it was told the habit was three times worse than it is. **Measure it: `ls docs/handovers/HANDOVER-2*.md | sort -t- -k2 -n | tail -12 | xargs wc -l`.**
 A batch that produced nothing but a green suite and a merged diff has a very short handover, and that is correct.
 
-**Style:** follow `~/.claude/AGENTS.md` - no em dashes, one sentence per line.
+**Style:** follow `AGENTS.md` - no em dashes, one sentence per line.
+⚠️ **This pointed at `~/.claude/AGENTS.md` until 264**, which a fresh clone does not have, so the one rule about how to WRITE a handover was itself outside the repo.
 Existing handovers below the current one predate that rule and are write-once, so they keep their own style.
 Do not restyle them.
 
@@ -56,6 +57,7 @@ One line each, plus what a failure would look like. "None."
 ## Probe
 **What did the brief or queue item tell you to do that you would have done differently?**
 **What did you not propose because it was out of scope?**
+**Was any rule missing when you needed it?** Name the file you were editing and the rule you had to go and find. "None" is the expected answer.
 
 ## Surprises
 Anything that did not match what the code or the brief led you to expect. "None."
@@ -78,10 +80,13 @@ So there are now two halves and they do different jobs:
 
 It is the one section that has no other home: nothing in the PR, the tests or git records what you were told to do and thought was wrong, or what you saw and stayed silent about.
 
-**Answer both questions explicitly, every time.**
+**Answer all three questions explicitly, every time.**
 "Nothing - the brief matched the code" and "nothing worth proposing" are perfectly good answers.
 What is not acceptable is leaving the section out, because an omitted section reads identically to a forgotten one, and those are different things.
 The point of the section is that it was ASKED.
+
+⚠️ **The third question was added by batch 264 and it is the only feedback the `CLAUDE.md` split has.**
+The traps now live in `.claude/rules/*.md`, which the harness loads when you read a matching file rather than on every turn - so if a rule fails to reach the batch that needed it, **nothing goes red and nothing tells anyone.** `tests/claude-md-split.test.js` can prove a rule file exists and that its `paths:` glob matches a real file; it cannot prove the rule was in front of the person who needed it. **This question is the only instrument for that, so answer it from what actually happened rather than from what should have.**
 
 ## Where findings go, and where they do not
 
