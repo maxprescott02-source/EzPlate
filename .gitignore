@@ -4,9 +4,15 @@ playwright-report/
 playwright-results.json
 tests/visual/__shots__/
 .DS_Store
-.agents/
 .claude/skills/
-skills-lock.json
+
+# 263 (the 12 Sep 2026 standards audit, gap E4). `.agents/` and `skills-lock.json` WERE ignored, and
+# that is why a fresh clone of this repo did not carry the Supabase skills the migration work reads -
+# the RLS and Postgres material was present on one laptop and nowhere else, which is indistinguishable
+# from a clone that has it until the moment somebody needs it. The lock file is the half that says
+# WHICH version of a vendored skill is checked out, so ignoring it while tracking nothing made the
+# pair unverifiable in both directions. `.claude/skills/` stays ignored on purpose: it holds symlinks
+# into these two, and a symlink is a fact about this machine.
 
 # 240 (AUDIT-v197). THE REPOSITORY IS PUBLIC and a leaked key cannot be un-leaked - scanning bots
 # archive public repos within minutes and a fork survives the repo going private again. Checked

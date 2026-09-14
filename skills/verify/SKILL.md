@@ -30,8 +30,8 @@ Confirm the failure reproduces from a clean run before you go looking for the bu
 ### 1. The suite - `npm test`
 
 `node --test tests/*.test.js`.
-Runs in about a second.
 This is the one that must be green before you start and after every item.
+⚠️ **It said "runs in about a second" until 263, and it was out by a factor of fifty** - measured 13 Sep 2026 at 2241 tests and ~46 seconds. Nothing is wrong; the suite grew and the sentence did not, which is why **no duration is stated here any more. Measure it: `time npm test`.** The stale figure was not decoration - a PostToolUse hook was firing the whole suite after every edit on the strength of it costing a second.
 
 Tests extract real shipped code from `js/app.js` by source slicing and brace extraction - there are no duplicate copies to drift.
 If you rename an anchored function the tests fail loudly and name the anchor.
@@ -53,7 +53,7 @@ npm install jsdom --no-save && node tests/smoke.js
 
 Run it for anything touching rendering, wiring or Settings.
 
-⚠️ **"Run it alone" USED TO BE THE WHOLE STORY AND IS NOW A FALLBACK: since 192 the pre-push hook runs it for you** (`.githooks/pre-push`, check 2 of 3, ~8s). That is deliberate mechanism rather than convenience.
+⚠️ **"Run it alone" USED TO BE THE WHOLE STORY AND IS NOW A FALLBACK: since 192 the pre-push hook runs it for you** (`.githooks/pre-push` - read the script for which checks it runs; it said "check 2 of 3" here while the hook ran five). That is deliberate mechanism rather than convenience.
 **The failure it removes has now happened twice, in 174 and in 192, on the SAME assertion** - the one about which Account cards may carry controls, which is stated in three places of which `tests/smoke.js` is the only one outside `npm test`. Both times the batch moved the other two, saw `npm test`, the mutation gate and Playwright all green, and went red in CI on push.
 174 left a warning inside `tests/smoke.js` saying precisely this would happen. It did not help, because it is only readable by somebody already opening the file they are about to break.
 **So do not read the hook as permission to stop thinking about it** - a fresh clone runs no hook at all (`git config core.hooksPath .githooks` is per-clone) and looks exactly like a clone that passed one. If you have not confirmed the hook is installed, run it by hand.
@@ -76,7 +76,7 @@ Because it is outside `npm test`, nothing it depends on fails loudly.
 That is why `addProduct` is dead in the app and deliberately kept - the `fresh-states` specs have no other handle on the pid-line shape, and deleting it would fail silently.
 
 ⚠️ **COMMIT FIRST, RUN SECOND. A RUN WHOSE SUBJECT MOVED UNDER IT IS WORTH NOTHING AND LOOKS EXACTLY LIKE A GOOD ONE.**
-This run takes ~9 minutes, so the temptation is to background it and keep working. **Do not edit `js/app.js`, `index.html`, `css/style.css` or `tests/` while it is running** - it reads them off disk as it goes, so a mid-run edit means half the specs ran against one version and half against another, and the result describes neither.
+This run takes minutes rather than seconds (**measure it: `time npx playwright test`** - no figure is stated here, because the one that was is how the suite-duration claim above rotted), so the temptation is to background it and keep working. **Do not edit `js/app.js`, `index.html`, `css/style.css` or `tests/` while it is running** - it reads them off disk as it goes, so a mid-run edit means half the specs ran against one version and half against another, and the result describes neither.
 **It happened twice in three batches, and the second time was after the first had been written up** (246 and 248, AUDIT-v207 §3.2). The measured signature of the bad run:
 
 ⚠️ **AND THE `code-review` AGENT MUTATES THE TREE, SO IT CANNOT RUN WHILE PLAYWRIGHT DOES.** (Batch 255, and it is the third discarded run of the same session by a route "commit first, run second" does not cover.)
@@ -94,18 +94,20 @@ exit code 0, no failures reported
 ```
 
 **Nothing about that says "invalid".** A shorter test list reads as a smaller suite, and the exit code is the one CI trusts. The only reason it was caught is that the previous run's number was known - so **note the pass count you expect before you start**, and treat a drop with no red as a discarded run rather than a mystery to investigate.
-The discipline is one line: **commit, then run.** If findings come back from a review while a run is in flight, stop the run rather than editing under it - a re-run costs nine minutes and a wrong green costs whatever it lets through.
+The discipline is one line: **commit, then run.** If findings come back from a review while a run is in flight, stop the run rather than editing under it - a re-run costs one run and a wrong green costs whatever it lets through.
 *(This is the same family as the mutation harness's "assert that the mutation changed the file" and "read the exit code, not the tally" - a harness that reports on something other than what you think you measured.)*
 
 ### 5. The mutation gate - would the suite NOTICE a break?
 
 ```
-npm run mutate            # every target, ~12s
+npm run mutate            # every target
 npm run mutate:changed    # only what this branch touched - what the pre-push hook runs
 ```
 
+⚠️ **The first line said `~12s` until 263 and no duration is stated now.** It runs one mutant at a time against the suite, so its cost tracks the suite's, and the suite's own figure in this file was fifty times out. **Measure it: `time npm run mutate`.**
+
 Shipped in 180. It flips one operator, or deletes one call, in a listed function of `js/app.js`, runs **only the test files that claim to pin that function**, and reports any mutant that survived.
-A survivor means those tests would still be green with that line broken - the defect class this repo has shipped **twelve** times (`CLAUDE.md`'s roster).
+A survivor means those tests would still be green with that line broken - **this repo's most-recorded defect class** (`CLAUDE.md`'s roster; it said "twelve" here while that roster was past twenty, and the roster's own header says the number is not a census, so **count the bullets rather than quoting a figure**).
 
 **Run it whenever you write or change a test**, not only before pushing. It answers in seconds the question the rules make you ask by hand: *would this test FAIL if I broke the thing it names?*
 

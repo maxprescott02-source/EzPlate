@@ -15,7 +15,18 @@ Built in batch 172 (11 Aug 2026). Before it, `.mcp.json` had carried a staging p
 | Staging | `pboidoxjghntalovzrke` — disposable, synthetic. |
 | SQL | `supabase/staging/` — `01-schema.sql`, then one of `02`/`03`/`04` |
 
-Both are in `.mcp.json` as `supabase` and `supabase-staging`.
+⚠️ **ONLY STAGING IS IN `.mcp.json`, SINCE BATCH 263. Production is in `.mcp.production.json`, which nothing loads on its own.**
+To reach production, the SESSION has to be started with it:
+
+```
+claude --mcp-config .mcp.production.json
+```
+
+The server is still called `supabase`, so every `mcp__supabase__*` tool name and every reference in this repo's migrations still reads correctly — what changed is whether it is connected before anyone asked for it.
+
+**Why, and it is not tidiness** (the 12 Sep 2026 standards audit, gap E1). Production was connected in every session by default AND `mcp__supabase__execute_sql` was pre-approved in `.claude/settings.local.json`, while the staging rehearsal — the cheap, disposable half — prompted every time. **The asymmetry was exactly the wrong way round:** the one database a snapshot cannot undo was the one nothing stood in front of. A rehearsal that needs permission and a café that does not is not a procedure, it is an accident waiting for a wrong `where` clause.
+
+**What this costs, said plainly rather than discovered later: a `/batch` running unattended cannot reach production.** That is the intended half of the change, not a side effect — `CLAUDE.md`'s *Migrations — Claude applies them* is unchanged for staging, and step 6 below says what to do when production is out of reach.
 
 ---
 
@@ -94,6 +105,7 @@ Applies to every migration from now on. This is what `CLAUDE.md`'s *staging firs
 4. **Apply the migration to staging.** Order the statements so the dangerous intermediate state cannot exist; keep the transaction as well.
 5. **Verify AS THE CLIENT** — see below. Not through the MCP.
 6. **Apply to production**, and record in the file's header that it was applied, when, by whom, and how it was verified. `list_migrations` is empty, so the file is the only place that can say so.
+   ⚠️ **If this session has no production MCP server, STOP AT THIS STEP AND SAY SO IN THE HEADER.** Since 263 that is the normal state (see *Pointing the app at staging* above). Write *"PRODUCTION: NOT YET APPLIED"* with the date and the reason, and give Max the one line that lets the next session do it: **start Claude with `claude --mcp-config .mcp.production.json`, then say "apply the pending migration".** Do not merge a header that reads as applied. `CLAUDE.md` already forbids writing the record ahead of the event, and *"deliberately deferred"* is a thing the header is allowed to say.
 7. **Diff the two schemas** with the fingerprint query below. They must match again.
 
 **Anything that DELETES or REWRITES production data is still Max's to authorise**, rehearsed or not. A rehearsal changes the risk, not the ownership.

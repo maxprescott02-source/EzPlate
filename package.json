@@ -4,6 +4,7 @@
   "description": "EzPlate — plate/menu costing PWA. Tagline: Plate costing made easy.",
   "private": true,
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks || true",
     "test": "node --test --test-concurrency=2 tests/*.test.js",
     "preflight": "node tests/preflight-processes.js",
     "mutate": "node tests/preflight-processes.js --reap && node tests/mutation/run.js",

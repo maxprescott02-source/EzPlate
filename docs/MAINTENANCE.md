@@ -1299,3 +1299,26 @@ The helper set `.toast.show` and then `setTimeout(…, 300)` - a bet that 300ms 
 **Any other fixed `setTimeout` waiting on a transition in `tests/visual/` is the same defect waiting.** They are not swept here because each needs to know which element's settling it is waiting for.
 
 ⚠️ **And the meta-lesson, which cost more than either flake: `v143-dashboard` and this one BOTH reddened on a diff that could not reach them**, and the honest first reading of a red test is *"my change broke this"*. **Run a suspect spec three times in isolation AND once as part of a full run on clean `main` before investigating your own diff** - the two differ, and this one only fails in the second.
+
+## C — the 12 Sep 2026 standards audit, recorded here by batch 263 because nothing in this repo held it
+
+⚠️ **THE AUDIT ITSELF LIVES OUTSIDE THIS REPOSITORY** (`~/Desktop/brain-ops`, which is Max's own notes and is not public). Batch 263 closed five of its twelve EzPlate gaps and cited it by date in six files — and a reader inside this repo had no way to check what the other seven were, whether they were real, or whether anyone still owed them. **That is the exact shape this repo has already named twice: a done-mark is not a strike, and a finding nobody can check is a finding nobody will action.** So the list is written out here, once, with an owner against each. The prose of the audit is deliberately NOT copied; only what is outstanding and what closed it.
+
+**Caught by batch 263's own pre-push review**, which asked where "gap E7" was defined and found the answer was nowhere.
+
+| # | Gap | Where it stands |
+|---|---|---|
+| E1 | `execute_sql` pre-approved, and on **production only** — the disposable staging rehearsal prompted while the café's live database did not | ✅ **263.** Production moved to `.mcp.production.json`, the grant removed, `tests/harness-config.test.js` pins it |
+| E2 | The PostToolUse hook ran the whole suite after every edit: no path filter, no timeout, wrong concurrency | ✅ **263.** `tools/post-edit-tests.js`, filtered and bounded, pinned |
+| E3 | `CLAUDE.md` is 163,583 bytes and loads every turn; no `.claude/rules/` split | **OPEN.** Needs its own session, in plan mode, with a classification table before anything moves. The one on this list that cannot ride another batch |
+| E4 | The reviewer definition, `AGENTS.md` and `.agents/` all lived outside the repo, so a fresh clone carried none of them | **HALF.** 263 un-ignored `.agents/` and `skills-lock.json`; the `code-review` agent's own definition is still at `~/.claude/agents/code-review.md` and a clone still does not get it |
+| E5 | `enforce_admins` is false, so an admin merge bypasses every required check | **OPEN.** One API call plus a decision about whether Max wants to be able to override his own gate |
+| E6 | Six cache literals, four of them unchecked by anything | **OPEN.** One bump script and one test over all six |
+| E7 | Skills state figures that are wrong by an order of magnitude | ✅ **263** for the four measured (`skills/verify`'s suite duration, the mutation-gate duration, the pre-push check count, `skills/handover`'s line counts). **The class is open**: nothing stops the next one |
+| E8 | Process fixes are all tier C, behind ~61 consolidated items, so an audit's recommendations never surface again | **OPEN.** This section is a partial answer to it |
+| E9 | A fresh clone runs no gate and looks identical to one that passed | ✅ **263.** `npm install` now installs the hook path |
+| E10 | Three `*.test 2.js` files, run by nothing, reading as coverage | ✅ **263** — they were already gone; the detector is what keeps them gone |
+| E11 | The RLS tests assert SQL **text**, not the deployed grant | **OPEN, and deliberately after the October relaunch.** `CLAUDE.md` already carries the measured version of this: check `proacl`, never the file |
+| E12 | No CodeQL, axe-core or perf budget | **OPEN, lowest.** `git ls-files .claude/` lists only `settings.json`, which was the part of it that mattered |
+
+**The finding worth keeping is not any single row: eleven of the twelve had NO DETECTOR.** Every one was a fact about a config file that no test read, so the only thing that could notice a regression was somebody opening the file for another reason. That is why 263 shipped `tests/harness-config.test.js` alongside the fixes rather than just the fixes — and why an open row above is only closed by something that can go red.
