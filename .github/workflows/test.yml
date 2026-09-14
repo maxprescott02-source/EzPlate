@@ -401,11 +401,19 @@ jobs:
       #                    a race or timing regression that fails one run in three - exactly what
       #                    these visual specs exist to catch - presents identically to a slow
       #                    context launch. Fails attempt 1, passes attempt 2, classified `flaky`,
-      #                    and THE JOB EXITS 0 AND GOES GREEN. There is no retry-exhaustion-only
-      #                    path: if every test eventually passes, the run is a pass.
-      #                    So the annotation is the whole safety net, and it only works if someone
-      #                    reads it: **a `flaky` annotation on a green check is a FINDING, not
-      #                    noise.** Treat it as a defect report against the spec it names.
+      #                    and PLAYWRIGHT ITSELF EXITS 0. There is no retry-exhaustion-only
+      #                    path: if every test eventually passes, Playwright calls the run a pass.
+      #                    ⚠️ SINCE BATCH 265 THE JOB DOES NOT AGREE WITH IT. The detection step
+      #                    below EXITS 1 on a non-zero `stats.flaky`, so a flaky run is a red job.
+      #                    The old design made the annotation the whole safety net and then relied
+      #                    on somebody reading it - which is the same shape as every other finding
+      #                    this project has lost: a warning on a green check reads as a pass.
+      #                    THE COST THIS ACCEPTS, stated because it is real: the Chromium segfault
+      #                    documented above is infra, it is intermittent, and it will now redden
+      #                    this job every time it happens. That is deliberate. The crash detector
+      #                    below names it in the same run, `playwright` is NOT a required check on
+      #                    main, and a red job that says "known Chromium segfault" costs one read;
+      #                    a green check hiding an intermittent real regression costs a release.
       #                    (The trace for the failed attempt used to be discarded with the runner
       #                    for the same reason - the upload gate was `if: failure()`. Fixed 10 Aug
       #                    2026; see the detection step below.)
@@ -469,8 +477,25 @@ jobs:
       # one-test report. Both were measured before this was written; the first would have been a
       # gate that looks right and never fires, which is worse than the hole it replaces.
       #
-      # It cannot turn a green run red: node parses inside a try/catch and prints 0 for a missing or
-      # malformed report, so a broken detector loses the artifact rather than failing the build.
+      # ⚠️ IT NOW FAILS THE JOB, and that is the change batch 265 made (audit gap E6). Until then
+      # this step only annotated, on the argument that a `flaky` annotation is a FINDING and someone
+      # would read it. Nobody did, which is the same failure this repo records everywhere else: a
+      # warning attached to a green check is indistinguishable from a pass. An intermittent REAL
+      # regression - a race that fails one run in three, which is precisely what these specs exist
+      # to catch - is the thing being let through, and it presents identically to the infra segfault.
+      # So the honest signal is red, and the reader decides which of the two it was with the crash
+      # detector's warning and the uploaded trace, both of which still run.
+      #
+      # A BROKEN DETECTOR STILL CANNOT REDDEN A GREEN RUN: node parses inside a try/catch and prints
+      # 0 for a missing or malformed report, so the failure direction is unchanged - it loses the
+      # signal rather than inventing one. Only a report that actually says `stats.flaky > 0` exits 1.
+      #
+      # The output is written BEFORE the exit, because the upload gate below reads it and a step that
+      # exits without setting its output leaves the artifact behind on exactly the run that needs it.
+      #
+      # tests/ci-workflow.test.js EXTRACTS THIS `run:` BLOCK AND EXECUTES IT against three reports -
+      # flaky, clean, and absent - asserting the exit code and the output each time. A grep for
+      # `exit 1` would pass against an `exit 1` on any branch, which is this repo's oldest test defect.
       - name: Did any spec pass only on a retry?
         id: flaky
         if: always()
@@ -478,8 +503,9 @@ jobs:
           set -euo pipefail
           COUNT=$(node -e "try{process.stdout.write(String(require('./playwright-results.json').stats.flaky||0))}catch(e){process.stdout.write('0')}")
           if [ "$COUNT" != "0" ]; then
-            echo "::warning::$COUNT spec(s) passed only on a retry. A flaky annotation on a green check is a FINDING, not noise - the uploaded report has the trace for the failed attempt."
             echo "flaky=true" >> "$GITHUB_OUTPUT"
+            echo "::error::$COUNT spec(s) passed only on a retry. That is a FINDING, not noise, and it fails this job on purpose - the uploaded report has the trace for the failed attempt. If the crash detector below names a segfault, it is the known Chromium infra bug; anything else is an intermittent regression in the spec it names."
+            exit 1
           else
             echo "flaky=false" >> "$GITHUB_OUTPUT"
           fi

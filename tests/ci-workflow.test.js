@@ -14,7 +14,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { execFileSync } = require('child_process');
+const { execFileSync, spawnSync } = require('child_process');
 
 const YML = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'test.yml'), 'utf8');
 // the playwright job is the last one in the file; every assertion below is about it
@@ -74,6 +74,84 @@ test('the detector runs even when the specs failed', () => {
   assert.ok(step, 'the detector step must keep its id, or the gate above references nothing');
   assert.strictEqual(step[1].trim(), 'always()',
     'a step after a failed one is skipped by default, and a skipped detector reports no output at all');
+});
+
+/*
+ * THE FLAKY DETECTOR'S EXIT CODE — batch 265, audit gap E6.
+ *
+ * Until this batch the step annotated and exited 0, so a spec that passed only on a retry left a
+ * GREEN check with a warning attached to it. The whole roster in `.claude/rules/tests.md` is about
+ * signals that cannot fail; this was one on the CI side.
+ *
+ * These four EXTRACT the shipped shell body and RUN it, the same treatment the node scripts below
+ * get and for the same reason. A grep for `exit 1` would match an `exit 1` on any branch — and the
+ * branch that must NOT exit is the one this repo cares about more, because a detector that reddens
+ * a clean run is a detector that gets deleted.
+ */
+function flakyScript() {
+  const step = /- name: Did any spec pass only on a retry\?[\s\S]*?(?=\n      - name: |$)/.exec(JOB);
+  assert.ok(step, 'the flaky detector step must be findable by name');
+  const lines = step[0].split('\n');
+  const start = lines.findIndex((l) => /^\s+run: \|\s*$/.test(l));
+  assert.ok(start >= 0, 'the detector must carry a block `run: |`');
+  const indent = /^(\s+)run/.exec(lines[start])[1].length;
+  const body = [];
+  for (const line of lines.slice(start + 1)) {
+    // the body ends at the first non-blank line that is not indented past the `run:` key
+    if (line.trim() !== '' && /^(\s*)/.exec(line)[1].length <= indent) break;
+    body.push(line.slice(indent + 2));
+  }
+  assert.ok(body.join('\n').includes('GITHUB_OUTPUT'),
+    'the extracted body must be the real one — if this mis-slices, every assertion below is vacuous');
+  return body.join('\n');
+}
+
+// Runs the real step the way Actions does: cwd holds playwright-results.json, GITHUB_OUTPUT points
+// at a file. Returns the exit status and whatever the step wrote to its output.
+function runFlaky(report) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ezplate-flaky-'));
+  try {
+    if (report !== undefined) fs.writeFileSync(path.join(dir, 'playwright-results.json'), report);
+    const out = path.join(dir, 'gh-output');
+    fs.writeFileSync(out, '');
+    const r = spawnSync('bash', ['-c', flakyScript()], {
+      cwd: dir, encoding: 'utf8', env: Object.assign({}, process.env, { GITHUB_OUTPUT: out }),
+    });
+    return { status: r.status, output: fs.readFileSync(out, 'utf8'), stdout: r.stdout };
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+const flakyReport = (n) => JSON.stringify({ stats: { expected: 1, flaky: n, unexpected: 0 }, suites: [] });
+
+test('a spec that passed only on a retry FAILS the job', () => {
+  if (!retries || retries[1] === '0') return;
+  const r = runFlaky(flakyReport(2));
+  assert.strictEqual(r.status, 1, 'stats.flaky > 0 must exit non-zero — an annotation on a green check is not a signal');
+  assert.match(r.output, /flaky=true/,
+    'and the output must be written BEFORE the exit, or the artifact upload below is skipped on the one run that needs it');
+});
+
+test('a clean run stays green', () => {
+  if (!retries || retries[1] === '0') return;
+  // The half that matters most. A detector that reddens a run with no flakes in it would be turned
+  // off within a week, and then the assertion above would be pinning a step nobody runs.
+  const r = runFlaky(flakyReport(0));
+  assert.strictEqual(r.status, 0, 'stats.flaky of 0 must exit 0');
+  assert.match(r.output, /flaky=false/, 'and must say so, because the upload gate reads this output');
+});
+
+test('a missing or malformed report loses the signal rather than inventing one', () => {
+  if (!retries || retries[1] === '0') return;
+  // The step runs on always(), so a hard failure here would redden a run that had already passed —
+  // including a run where Playwright itself never started. Fail open is right for THIS direction.
+  for (const [what, report] of [['no report at all', undefined], ['truncated json', '{"stats":'],
+                                ['valid json of the wrong shape', 'null']]) {
+    const r = runFlaky(report);
+    assert.strictEqual(r.status, 0, what);
+    assert.match(r.output, /flaky=false/, `${what}: the output must still be written`);
+  }
 });
 
 /*
