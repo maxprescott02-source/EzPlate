@@ -108,14 +108,14 @@ The gate compares markers, not truth: it cannot tell whether the work happened, 
 Re-grep every item's named sites, confirm it still reproduces, mark the stale ones, all read-only, all fan-out, zero collisions.
 `docs/QUEUE-GROUPS.md` already prescribes exactly this and nothing does it.
 At a 57% miss rate this deletes or rewrites a large fraction of the list before a single branch is opened, and it is the one change that saves whole batches rather than minutes inside them.
-*Closure (batch 265): the bulk sweep is queued as #93. The per-batch half - a read-only premise-checker subagent run before any edit - is fix-plan item C4, not a queue item, because it is harness rather than product.*
+*Closure (batch 265): the bulk sweep is queued as #94. The per-batch half - a read-only premise-checker subagent run before any edit - is fix-plan item C4, not a queue item, because it is harness rather than product.*
 
 **2. Stop letting CI decide the merge.**
 Add Playwright to `.githooks/pre-push`, gated on the diff touching `css/`, `index.html`, `sw.js` or `tests/visual/`, and run it while the handover is being written rather than after.
 Then merge on a green hook and let CI be the post-merge alarm.
 **The cost this accepts is a red main for the ~11 minutes until CI reports, on a repo whose main auto-deploys. That is a call only Max makes.**
 Measure the local Playwright wall time first: it was not measurable here (3-core VM), and if it is 6 minutes rather than 2 the saving is half of what it looks.
-*Closure (batch 265): queued as #94, blocked on Max. The recommendation says so itself - accepting a red `main` on an auto-deploying repo is his call and nobody else's, so it goes to the blocked list, which is where this project keeps its pending decisions.*
+*Closure (batch 265): queued as #95, blocked on Max. The recommendation says so itself - accepting a red `main` on an auto-deploying repo is his call and nobody else's, so it goes to the blocked list, which is where this project keeps its pending decisions.*
 
 **3. One PR per group where the Design law allows it.**
 `/batch`'s stop condition is *"the batch would exceed what one PR can be reviewed as"*, which is a review-size test, not a one-item rule.

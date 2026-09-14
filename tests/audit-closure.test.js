@@ -28,7 +28,13 @@ const AUDITS = path.join(__dirname, '..', 'docs', 'audits');
 // A heading that opens a recommendations section. Audits in this repo have used "2b. Dead traps
 // recommended for removal", "Recommendations, ranked by expected value" and "What to change, in the
 // order that buys the most time", so the match is on the WORDS, not on a numbering scheme.
-const SECTION = /^(#{2,4})\s+.*(recommend|what to change|what to do|proposed fixes)/i;
+//
+// ⚠️ IT IS NOT A BARE `recommend`, and the first version was - caught by the pre-push review. That
+// matches "Recommended reading" and "Not recommended", so a future audit could have an unrelated
+// numbered list forced to carry decision markers, or redden this gate for content nobody owes a
+// decision about. `recommended for` keeps the one heading shape this repo actually uses
+// ("recommended for removal"), which IS a recommendation, and drops the rest.
+const SECTION = /^(#{2,4})\s+.*(recommendations?\b|recommended for|what to change|what to do|proposed fixes)/i;
 
 // A numbered recommendation inside such a section: `**1. …`, `1. …`, `1) …`, `### R4 — …`.
 // A BARE number needs its `.` or `)`; an `R`-prefixed one does not. That asymmetry is load-bearing:
@@ -155,6 +161,21 @@ test('the `R4` and heading forms are recognised too', () => {
   const v = closureViolations('# x\n\n## Recommendations\n\n### R4 — do the thing\n\nNo decision.\n');
   assert.strictEqual(v.length, 1, 'AUDIT-v186 numbers its recommendations `R4`, as a heading');
   assert.strictEqual(v[0].id, 'R4');
+});
+
+test('a heading that merely contains the word "recommended" is not a recommendations section', () => {
+  // The pre-push review's finding. `recommend` as a bare substring swallows "Recommended reading"
+  // and "Not recommended", and then every numbered line under such a heading owes a decision.
+  const open = '\n\n**1. A numbered line.**\nNo decision recorded.\n';
+  for (const heading of ['## Recommended reading', '## Not recommended, and here is why']) {
+    assert.deepStrictEqual(closureViolations(`# x\n\n${heading}${open}`), [],
+      `"${heading}" must not open a recommendations section`);
+  }
+  // and the two that MUST still be caught, because this repo writes both
+  for (const heading of ['## 2b. DEAD TRAPS — recommended for removal', '## Recommendations, ranked']) {
+    assert.strictEqual(closureViolations(`# x\n\n${heading}${open}`).length, 1,
+      `"${heading}" must still be policed`);
+  }
 });
 
 test('newestAudits picks by number and by date, not by sort order', () => {

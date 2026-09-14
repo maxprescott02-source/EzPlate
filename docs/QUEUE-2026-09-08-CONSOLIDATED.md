@@ -813,7 +813,7 @@ Two sibling series, written by the same function on the same event, with opposit
 
 **Do after:** nothing.
 
-## next  93 · Re-grep every open backlog item's named sites, once, before any of them is planned against  **[C — process, and it is the one that saves whole batches rather than minutes inside them]**
+## next  94 · Re-grep every open backlog item's named sites, once, before any of them is planned against  **[C — process, and it is the one that saves whole batches rather than minutes inside them]**
 
 **From `docs/audits/WORKFLOW-AUDIT-2026-09-09.md` recommendation 1, filed as an item by batch 265** under the closure gate `tests/audit-closure.test.js` now enforces.
 
@@ -825,7 +825,7 @@ Two sibling series, written by the same function on the same event, with opposit
 
 **Do after:** nothing. It is read-only and collides with no branch.
 
-## blocked  94 · Merge on a green pre-push hook instead of waiting for CI  **[B — 11 to 15 minutes of dead time per item, and the fix trades it for a window where `main` is red and auto-deploying]**
+## blocked  95 · Merge on a green pre-push hook instead of waiting for CI  **[B — 11 to 15 minutes of dead time per item, and the fix trades it for a window where `main` is red and auto-deploying]**
 
 **From `docs/audits/WORKFLOW-AUDIT-2026-09-09.md` recommendation 2, filed as an item by batch 265.**
 

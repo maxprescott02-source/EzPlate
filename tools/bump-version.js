@@ -8,9 +8,15 @@
  * hour. WORKFLOW-AUDIT-2026-09-09 recommendation 4 asked for one source instead of six.
  *
  * WHAT IT WILL NOT DO. It refuses unless every spot below matches EXACTLY ONCE in its file, and it
- * writes nothing until all six have been located — a partial bump is the failure it exists to
- * prevent, so there is no path that half-applies one. A second `?v=` link added to index.html is
+ * writes nothing until all six have been located. A second `?v=` link added to index.html is
  * therefore a hard stop with the count in the message, not a silent miss.
+ * ⚠️ THE GUARANTEE IS "NO WRITE UNTIL EVERY SPOT IS FOUND", WHICH IS NOT "NEVER HALF-APPLIES", and
+ * the first draft of this comment claimed the second - caught by the pre-push review. The writes
+ * are three separate fs calls across three files with no rollback, so an I/O failure (a full disk,
+ * a read-only checkout) part-way through leaves the earlier files bumped and the later ones not.
+ * That case is loud rather than silent: the CLI prints REFUSED with the fs error, and
+ * tests/cache-version.test.js reddens on the disagreement it leaves behind. Re-run it after fixing
+ * the disk - the script is idempotent, so a second run finishes the job.
  *
  * Usage:  node tools/bump-version.js 216     (or `v216`)
  *         node tools/bump-version.js --check  (print the six, change nothing; exit 1 if they disagree)
