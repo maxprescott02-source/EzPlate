@@ -64,12 +64,24 @@ test('the hook decides from the path, and asks the real function', () => {
   // The REAL exported function, not a copy of its rules: a stub written from the same belief as the
   // code agrees with it whether or not the code is right.
   const { affectsSuite } = require('../tools/post-edit-tests.js');
-  for (const p of ['docs/QUEUE.md', 'CLAUDE.md', 'docs/handovers/HANDOVER-262-one-verb-per-intent.md', 'skills/verify/SKILL.md', 'README.md']) {
+  for (const p of ['CLAUDE.md', 'docs/handovers/HANDOVER-262-one-verb-per-intent.md', 'docs/MAINTENANCE.md', 'docs/PHONE.md', 'README.md']) {
     assert.strictEqual(affectsSuite(p), false, `${p} cannot break the suite and must not fire it`);
   }
   for (const p of ['js/app.js', 'css/style.css', 'index.html', 'sw.js', 'tests/smoke.js', 'tests/harness-config.test.js', 'api/insight.js']) {
     assert.strictEqual(affectsSuite(p), true, `${p} can break the suite and must fire it`);
   }
+  // ⚠️ THE HALF THE FIRST CUT MISSED, and it is the half this batch is about: every one of these is
+  // asserted on BY NAME by a test file, and every one of them returned false. A filter written from
+  // "which files are the app" is silent on exactly the config edit that breaks a config assertion.
+  for (const p of ['.mcp.json', '.mcp.production.json', '.claude/settings.json', '.gitignore', '.vercelignore',
+    '.github/workflows/test.yml', '.githooks/pre-push', 'supabase/migrations/20260813_business_id_part1.sql',
+    'supabase/staging/01-schema.sql', 'tools/post-edit-tests.js', 'package.json']) {
+    assert.strictEqual(affectsSuite(p), true, `${p} is asserted on by the suite, so editing it must fire the suite`);
+  }
+  // docs/ is prose and excluded by default, with exactly two exceptions - the two files
+  // tests/queue-routing.test.js reads. Both halves are pinned, or "excluded by default" is a guess.
+  assert.strictEqual(affectsSuite('docs/QUEUE.md'), true, 'queue-routing.test.js reads it');
+  assert.strictEqual(affectsSuite('docs/QUEUE-GROUPS.md'), true, 'queue-routing.test.js reads it too');
   // tests/visual/ is Playwright, which this hook has never run and must not start running.
   assert.strictEqual(affectsSuite('tests/visual/v141-sync-corner.spec.js'), false, 'a browser spec must not fire the unit suite');
 });
@@ -78,7 +90,9 @@ test('a docs edit runs nothing, end to end', () => {
   // The unit assertions above prove the mapping; this proves the plumbing around it - stdin parsing,
   // the path coming out of tool_input, and the silence. Deleting the filter turns this red by
   // TIMING OUT rather than by failing, which is why the timeout is explicit and short.
-  const payload = JSON.stringify({ hook_event_name: 'PostToolUse', tool_name: 'Edit', tool_input: { file_path: path.join(ROOT, 'docs/QUEUE.md') } });
+  // A PROSE doc, deliberately: docs/QUEUE.md is one of the two the suite reads, so using it here
+  // would spawn `npm test` from inside `npm test` and hang on its own bound.
+  const payload = JSON.stringify({ hook_event_name: 'PostToolUse', tool_name: 'Edit', tool_input: { file_path: path.join(ROOT, 'docs/PHONE.md') } });
   const run = spawnSync(process.execPath, [path.join(ROOT, 'tools', 'post-edit-tests.js')], { input: payload, encoding: 'utf8', timeout: 20000 });
   assert.strictEqual(run.status, 0, 'a docs edit must exit clean');
   assert.strictEqual((run.stdout || '').trim(), '', 'and say nothing at all');

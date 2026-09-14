@@ -33,17 +33,38 @@ const path = require('node:path');
 const fs = require('node:fs');
 
 const ROOT = process.env.CLAUDE_PROJECT_DIR || path.resolve(__dirname, '..');
-const BOUND_MS = 110000;   // under the 120s the hook's own `timeout` allows, so WE report the kill.
+// Under the 120s the hook's own `timeout` allows, with room for the reaper that runs after a kill
+// (it has its own 10s bound) - so WE report the timeout rather than the session reporting the hook.
+const BOUND_MS = 90000;
 
-// A path matters if breaking it could redden `npm test`. tests/visual/ is Playwright, which this
-// hook has never run and must not start running - those specs take ~9 minutes.
+// A path matters if breaking it could redden `npm test`, and the honest way to build this list is
+// to ask what the suite READS - not what looks like app code.
+//
+// ⚠️ THE FIRST CUT OF THIS FUNCTION GOT THAT BACKWARDS AND THE PRE-PUSH REVIEW CAUGHT IT. It
+// covered js/, css/, api/, tests/, index.html and sw.js, and returned FALSE for `.mcp.json`,
+// `.claude/settings.json`, `.gitignore`, `.vercelignore`, `.github/workflows/test.yml` and
+// `supabase/migrations/*.sql` - every one of which the suite asserts on by name, and every one of
+// which is what THIS batch is about. A filter written from "which files are the app" goes quiet on
+// exactly the config edits that fast local feedback is worth most for. The list is derived from
+// what the test files open; re-derive it the same way rather than reasoning about it:
+//   grep -ohE "readFileSync\(|join\(" tests/*.test.js   ... and read the paths out.
+const SUITE_DIRS = ['tests/', 'api/', 'js/', 'css/', 'tools/', 'supabase/', '.github/', '.githooks/', '.agents/', '.claude/'];
+const SUITE_FILES = new Set([
+  'index.html', 'sw.js', 'package.json',
+  '.mcp.json', '.mcp.production.json', '.gitignore', '.vercelignore',
+  // The two docs the suite genuinely pins (tests/queue-routing.test.js reads both). Every other
+  // file under docs/ is prose that no assertion can see, and firing the suite on those is the
+  // 46-second defect this whole file exists to remove - so docs/ is excluded by DEFAULT and these
+  // two are named. If a test ever starts reading a third, it belongs here and nowhere else.
+  'docs/QUEUE.md', 'docs/QUEUE-GROUPS.md',
+]);
+
 function affectsSuite(rel) {
   if (!rel) return false;
+  // tests/visual/ is Playwright, which this hook has never run and must not start running.
   if (rel.startsWith('tests/visual/')) return false;
-  if (rel.startsWith('tests/')) return true;
-  if (rel.startsWith('api/')) return true;
-  if (rel.startsWith('js/') || rel.startsWith('css/')) return true;
-  return rel === 'index.html' || rel === 'sw.js' || rel === 'package.json';
+  if (SUITE_FILES.has(rel)) return true;
+  return SUITE_DIRS.some((d) => rel.startsWith(d));
 }
 
 function readStdin() {
