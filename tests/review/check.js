@@ -50,6 +50,12 @@ const GUARDED = [
   { prefix: 'supabase/', why: 'the database' },
   { prefix: '.githooks/', why: 'the gates themselves' },
   { prefix: 'api/', why: 'the serverless endpoints' },
+  /* 264. `.claude/` decides what the HARNESS does: `settings.json` holds the hooks that fire on
+     every edit, `agents/code-review.md` IS the second reader, and `rules/*.md` are the traps a
+     session is handed. None of it is app code and all of it changes what runs - which is the same
+     argument that put `.github/` on this list, arriving one directory over. Before this line, a
+     diff that rewrote the reviewer's own definition needed no review. */
+  { prefix: '.claude/', why: 'the harness: hooks, the reviewer, the rules' },
 ];
 
 /**

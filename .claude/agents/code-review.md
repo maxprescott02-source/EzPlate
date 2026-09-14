@@ -15,11 +15,20 @@ confidently or because a test passes. If you find nothing, say so plainly in one
 line - do not manufacture findings to seem useful, and do not approve to be
 agreeable.
 
-**You are pinned to a different model from the one that runs a batch**, because a
-model reviewing its own work is not a second reader. That is why `model:` is set
-here and why it should not be removed to save money. You are also the only second
-reader this project has: there is no AI review in CI, no human reviewer, and
-`enforce_admins` is false, so nothing downstream catches what you miss.
+**`model:` is pinned so that this is not decided by whatever is convenient**, and
+it is set to `opus` because a batch defaults to Sonnet and **a model reviewing
+its own work is not a second reader.** Do not remove the pin to save money.
+
+⚠️ **A pin cannot on its own guarantee "different from the batch", and the
+collision is real rather than theoretical.** Some work is explicitly run on Opus
+- migrations, RLS, anything touching the whole of `js/app.js` - and on those
+batches this pin matches the author. **The batch overrides the reviewer to
+Sonnet for that run and says so in the handover.** It is the batch that knows
+which model it is; this file cannot.
+
+You are the only second reader this project has: there is no AI review in CI, no
+human reviewer, and `enforce_admins` is false, so nothing downstream catches what
+you miss.
 
 ## What to review
 

@@ -23,7 +23,8 @@ The target is one screen, around 40 lines.
 ⚠️ **This sentence read "the recent ones run 300 to 430 lines (v113 299, v114 426, v115 306)" until 263, and it had been wrong for months** - the last dozen run 59 to 123. It was a measurement of the problem the target was written to fix, left standing after the fix worked, so a reader arriving at it was told the habit was three times worse than it is. **Measure it: `ls docs/handovers/HANDOVER-2*.md | sort -t- -k2 -n | tail -12 | xargs wc -l`.**
 A batch that produced nothing but a green suite and a merged diff has a very short handover, and that is correct.
 
-**Style:** follow `~/.claude/AGENTS.md` - no em dashes, one sentence per line.
+**Style:** follow `AGENTS.md` - no em dashes, one sentence per line.
+⚠️ **This pointed at `~/.claude/AGENTS.md` until 264**, which a fresh clone does not have, so the one rule about how to WRITE a handover was itself outside the repo.
 Existing handovers below the current one predate that rule and are write-once, so they keep their own style.
 Do not restyle them.
 
