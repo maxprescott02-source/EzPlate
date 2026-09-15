@@ -23,33 +23,57 @@
  * — and the inequality is kept only for the failure message, which names the defect better than
  * either equality does.
  *
- * ⚠️ AND THE PHONE ASSERTION IS ABOUT A MOVE THAT WAS DELIBERATELY NOT MADE. Item 47 asked for the
- * button to move into the docket masthead. It did not, for a measured reason: below 768 `.bld-actrow`
- * is the ONLY thing #bCost still shows (`#bCost .bld-sumhead, .bld-kv, > #saveBtn, > #saveHint` are
- * all `display:none` there, and `.is-bare` hides the body), so moving Clear out leaves a bordered
- * card containing one button. A later batch reading the queue item would have no way to know that
- * without re-measuring, which is what this assertion is for.
+ * ⚠️ AND THE PHONE ASSERTIONS ARE ABOUT A MOVE THAT WAS DELIBERATELY NOT MADE. Item 47 asked for the
+ * button to move into the docket masthead; it did not, and a later batch reading that item needs to
+ * know what it would be spending.
+ *
+ * ⚠️ THE FIRST DRAFT OF THIS FILE GOT THAT REASON WRONG, AND THE WRONGNESS IS WHY THE PHONE TEST IS
+ * A TABLE RATHER THAN ONE CASE. It asserted, in its title, that `.bld-actrow` is "all that card
+ * shows" below 768 — measured, correctly, against a seed whose plate was on NO menu, and stated as a
+ * fact about the screen. 273's pre-push review traced the actual CSS and found it false for any
+ * PUBLISHED plate: `.is-bare` (and with it `#bCost .bld-cardbody{display:none}`) is set from
+ * `on.length===0`, so a plate on one menu keeps #bPriceRow in the body and a plate on two keeps
+ * #bMenus. Re-measured at 380 across all three: **card height 60 / 127 / 164px** for 0 / 1 / 2 menus.
+ * The give-away was in the stylesheet the whole time — the same media block sets
+ * `#bCost .bld-menus{border-top:0;padding-top:0}`, which is only worth writing if that list renders
+ * at this width.
+ * So the table below pins what is ACTUALLY true at every menu count — the discard is in the row, in
+ * the card, and painted — and pins the bare-card case as the one state it holds in, by its condition
+ * rather than by its name. `.claude/rules/app-guards.md`: an exemption is scoped to the claim that
+ * justified it, and here the claim was a single fixture.
  */
 const { test, expect } = require('@playwright/test');
 const { installBoot, gotoTab } = require('./_boot');
 
-const SEED = () => {
+/* `dishes` is what publishes the plate, and it is a PARAMETER rather than a constant because the
+   number of menus is the variable the first draft of this file held fixed without noticing. */
+const SEED = (dishes) => {
   localStorage.clear();
   localStorage.setItem('cafeDB_cogsPct', '40');
-  localStorage.setItem('cafeDB_menus', JSON.stringify([{ id: 'MENU_WINTER', name: 'Winter Menu' }]));
+  localStorage.setItem('cafeDB_menus', JSON.stringify([
+    { id: 'MENU_WINTER', name: 'Winter Menu' }, { id: 'MENU_SUMMER', name: 'Summer Menu' },
+  ]));
   localStorage.setItem('cafeDB_king', JSON.stringify([{ kid: 1, name: 'Chips', pid: 'P_CHIPS' }]));
   localStorage.setItem('cafeDB_plates', JSON.stringify([
     { id: 'PL1', name: 'Fish and chips', lines: [{ kid: 1, qty: 200 }], category: 'Mains' },
   ]));
+  localStorage.setItem('cafeDB_menu', JSON.stringify(dishes));
 };
+
+const DISH = (id, menuId, price) => ({ id, menuId, name: 'Fish and chips', price, plateId: 'PL1', sourcePlateId: 'PL1' });
+const MENU_COUNTS = [
+  { menus: 0, dishes: [], bare: true },
+  { menus: 1, dishes: [DISH('MI1', 'MENU_WINTER', 24)], bare: false },
+  { menus: 2, dishes: [DISH('MI1', 'MENU_WINTER', 24), DISH('MI2', 'MENU_SUMMER', 26)], bare: false },
+];
 
 /* A SAVED plate is the precondition, not a convenience: #bldDelete is `hidden` until
    `loadedPlateId` is set (syncBuilderPlateActions), so on a fresh builder there is no second red
    verb to collide with and the spec would measure nothing. Opening the library row is the real
    gesture that gets there. */
-async function openSavedPlate(page, theme) {
+async function openSavedPlate(page, theme, dishes = []) {
   await installBoot(page);
-  await page.addInitScript(SEED);
+  await page.addInitScript(SEED, dishes);
   await page.addInitScript((t) => localStorage.setItem('cafeCost_theme', t), theme);
   await page.goto('/');
   await gotoTab(page, 'builder');
@@ -93,30 +117,42 @@ for (const theme of ['light', 'dark']) {
   });
 }
 
-test('at 380 the discard is still in the summary card\'s action row, which is all that card shows', async ({ page }) => {
-  await page.setViewportSize({ width: 380, height: 900 });
-  await openSavedPlate(page, 'light');
+for (const c of MENU_COUNTS) {
+  test(`at 380 the discard is in the summary card's action row, with the plate on ${c.menus} menu(s)`, async ({ page }) => {
+    await page.setViewportSize({ width: 380, height: 900 });
+    await openSavedPlate(page, 'light', c.dishes);
 
-  const m = await page.evaluate(() => {
-    const cb = document.getElementById('clearBtn');
-    const row = cb.closest('.bld-actrow');
-    const card = document.getElementById('bCost');
-    const painted = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
-    return {
-      inRow: !!row,
-      rowInCard: !!(row && card && card.contains(row)),
-      clearPainted: painted(cb),
-      // everything else #bCost holds, at this width: if any of these came back the card is no
-      // longer one row and the reason for not moving the button has changed.
-      othersPainted: ['bTotal', 'bSuggest', 'saveBtn'].filter((id) => {
-        const el = document.getElementById(id); return el && painted(el);
-      }),
-    };
+    const m = await page.evaluate(() => {
+      const cb = document.getElementById('clearBtn');
+      const row = cb.closest('.bld-actrow');
+      const card = document.getElementById('bCost');
+      const painted = (el) => { if (!el) return false; const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+      return {
+        inRow: !!row,
+        rowInCard: !!(row && card && card.contains(row)),
+        clearPainted: painted(cb),
+        bare: card.classList.contains('is-bare'),
+        bodyPainted: painted(card.querySelector('.bld-cardbody')),
+        /* the three the @media block hides at this width REGARDLESS of `.is-bare`. They are the
+           part of the old one-case claim that really was general, so they stay asserted. */
+        hiddenAtThisWidth: ['bTotal', 'bSuggest', 'saveBtn'].filter((id) => painted(document.getElementById(id))),
+      };
+    });
+
+    expect(m.inRow, '#clearBtn left .bld-actrow').toBe(true);
+    expect(m.rowInCard, '.bld-actrow left #bCost').toBe(true);
+    expect(m.clearPainted, 'the discard is not reachable on a phone').toBe(true);
+    expect(m.hiddenAtThisWidth,
+      'the figures and Save are hidden below 768 at every menu count — the phone reads them from the sticky bar').toEqual([]);
+
+    /* AND THE CONDITIONAL HALF, stated as the condition rather than as a fact about the screen:
+       the card is down to its action row ONLY when the plate is on no menu. A published plate keeps
+       #bPriceRow or #bMenus in the body. This is the assertion the pre-push review's finding
+       produced, and it is what a later batch should read before believing that moving #clearBtn
+       out of this row would leave a card with one button in it. */
+    expect(m.bare, `.is-bare is set from on.length===0, and this plate is on ${c.menus}`).toBe(c.bare);
+    expect(m.bodyPainted, c.bare
+      ? 'on no menu the body is hidden, so the action row really is all the card holds'
+      : 'on a menu the body stays and carries the price row or the menu list beside the action row').toBe(!c.bare);
   });
-
-  expect(m.inRow, '#clearBtn left .bld-actrow').toBe(true);
-  expect(m.rowInCard, '.bld-actrow left #bCost').toBe(true);
-  expect(m.clearPainted, 'the discard is not reachable on a phone').toBe(true);
-  expect(m.othersPainted,
-    'the reason #clearBtn stays put is that this row is all #bCost shows below 768 — re-measure before moving it').toEqual([]);
-});
+}

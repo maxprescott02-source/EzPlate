@@ -477,12 +477,24 @@
             <!-- 273 — "Start over", NOT "Clear plate", and it STAYS IN THIS ROW. Queue item 47 asked
                  for the rename and for the button to move into the docket header; the rename and the
                  red coming off (see css/style.css, where #clearBtn's --bad rules are deleted) are
-                 what fixed the defect, and the move is deliberately NOT taken. Measured at 380:
-                 `.bld-mast` is 322px of 11px mono with `white-space:nowrap;overflow:hidden` already
-                 holding a title and #dCount, so a 44px control there clips one of them or breaks the
-                 touch target; and below 768 this row is the ONLY thing #bCost still shows, so moving
-                 Clear out leaves a bordered card containing one button. The two verbs were 402px
-                 apart at 1360 already - distance was never what made them read alike. -->
+                 what fixed the defect, and the move is deliberately NOT taken. Two measured reasons,
+                 both at 380:
+                 · `.bld-mast` is 322px of 11px mono with `white-space:nowrap;overflow:hidden` already
+                   holding a title and #dCount, so a 44px control there clips one of them or breaks
+                   the touch target;
+                 · the two verbs were 402px apart at 1360 already - distance was never what made them
+                   read alike, the colour and the `<verb> plate` grammar were.
+                 ⚠️ A THIRD REASON WAS WRITTEN HERE AND WAS TRUE OF ONE PLATE STATE ONLY - caught by
+                 273's own pre-push review, and left written out because it is this repo's most
+                 recorded shape rather than a slip. It said "below 768 this row is the ONLY thing
+                 #bCost shows, so moving Clear out leaves a card with one button". That holds for a
+                 plate on NO menu (`.is-bare`, card 60px) and is false the moment the plate is
+                 published: measured at 380, one menu renders #bPriceRow inside `.bld-cardbody` and
+                 the card is 127px, two menus render #bMenus and it is 164px. The media block below
+                 `#bCost` even sets `.bld-menus{border-top:0}` - direct evidence that list is
+                 EXPECTED here - and the claim was written anyway, from a probe seeded with an
+                 unpublished plate. The decision stands on the two reasons above; this one is
+                 conditional and is not a reason. -->
             <div class="bld-actrow">
               <button class="btn" id="printBtn" type="button">Print docket</button>
               <button class="btn" id="clearBtn" type="button">Start over</button>
