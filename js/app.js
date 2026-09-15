@@ -9408,7 +9408,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v220';
+var APP_VERSION='v221';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -15167,7 +15167,7 @@ function closeConfirm(){ hide('confirmModal'); __confirmFn=null; __confirmCancel
 
 /* ===== Menu item edit modal ===== */
 // v112: editKind/edRestoreMode are gone with the orphan-plate editor — the modal only ever edited a menu item.
-var editTargetId=null, edDelArmed=false, edCatState={chosen:null,chosenIsNew:false}, edCat=null, delChoiceId=null;
+var editTargetId=null, edCatState={chosen:null,chosenIsNew:false}, edCat=null, delChoiceId=null;
 function makeCatCombo(inpId, dropId, newId, state){
   var inp=document.getElementById(inpId); if(!inp) return null;
   function render(){
@@ -15194,7 +15194,7 @@ function makeCatCombo(inpId, dropId, newId, state){
 }
 function openMenuEdit(id){
   var m=menuById[id]; if(!m) return;
-  editTargetId=id; edDelArmed=false; setEditMode();
+  editTargetId=id; setEditMode();
   document.getElementById('ed_name').value=m.name||'';
   document.getElementById('ed_price').value=(m.price!=null)?m.price:'';
   document.getElementById('ed_cat').value=m.section||'';
@@ -15203,10 +15203,13 @@ function openMenuEdit(id){
   var d=document.getElementById('ed_catDrop'); if(d)d.style.display='none';
   var nn=document.getElementById('ed_catNew'); if(nn)nn.style.display='none';
   document.getElementById('ed_err').style.display='none';
-  var del=document.getElementById('ed_delete'); if(del) del.textContent='Delete item';
+  /* 272: a line writing 'Delete item' over markup that already says 'Delete item' stood here.
+     It is the fourth of exactly this shape in this modal's two openers - 262 (item 46) deleted the
+     other three from setEditMode below and its comment explains why they existed. Same removal,
+     same reason, one function over. */
   show('editModal');
 }
-function closeEdit(){ hide('editModal'); editTargetId=null; edDelArmed=false; }
+function closeEdit(){ hide('editModal'); editTargetId=null; }
 function resolveEditCat(){
   var typedCat=document.getElementById('ed_cat').value.trim();
   var allCats=menuCats();
@@ -15278,9 +15281,9 @@ function editDeleteTap(){
 function setEditMode(){
   var cf=document.getElementById('ed_catField'), pf=document.getElementById('ed_priceField');
   var mf=document.getElementById('ed_menuField');
-  var dr=document.getElementById('ed_deleteRow');
   if(cf)cf.style.display=''; if(pf)pf.style.display=''; if(mf)mf.style.display='';
-  if(dr)dr.style.display='';
+  /* 272: `#ed_deleteRow` was shown here, unconditionally, because the mode that hid it has been
+     dead since v55. The row itself is gone - Delete is in the footer - so the line goes with it. */
   /* 262 (item 46) — THE THREE textContent LINES THAT WERE HERE ARE GONE, and the reason is the
      whole of why this function still existed. They restored the labels for the FIRST of the two
      modes described above, and the second has been dead since v55. Two of them wrote exactly what
@@ -15521,7 +15524,7 @@ document.getElementById('editClose').addEventListener('click',closeEdit);
 document.getElementById('editCancel').addEventListener('click',closeEdit);
 document.getElementById('editSave').addEventListener('click',onEditSave);
 /* §D2: ed_openBuilder removed — a dish's recipe is edited from its plate in the Plates tab. */
-document.getElementById('ed_delete').addEventListener('click',function(e){e.preventDefault();editDeleteTap();});
+document.getElementById('ed_delete').addEventListener('click',editDeleteTap);   // 272: a real <button type="button"> now, so there is no default to prevent - and Enter and Space reach it, which they never did on the <a role="button"> this replaced
 /* v112: ed_restore / ed_permDelete are gone with the unreachable orphan-plate editor. */
 document.getElementById('delChoiceClose').addEventListener('click',closeDelChoice);
 document.getElementById('delChoiceCancel').addEventListener('click',closeDelChoice);

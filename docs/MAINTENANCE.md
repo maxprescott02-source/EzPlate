@@ -368,6 +368,23 @@ QUEUE item 19 was a misc-cost field carrying `min="0"` while `setMiscCost` had n
 **It is C because it is UNMEASURED, not because it is small.** Three of the eleven are on the invoice review (`invPrice`, `invPackQty`, and the price cell at the row level), where a negative would be a wrong unit cost rather than a cosmetic slip — the same grade as the item that produced this entry. **Step one is the repro, one field at a time, and any that reproduces is a B and belongs in `docs/QUEUE.md`, not here.** Do not "fix" the eleven on sight: `costDetail` already refuses a negative line by either route since 245, so several of these may be harmless in a way that a blanket clamp would hide rather than prove.
 ⚠️ **And the invoice ones sit next to the protected parser region and next to consolidated items 17 and 26** (negative and $0.00 invoice lines), which are deciding what a negative line MEANS. Whatever they decide is the answer for those fields; do not settle it here first.
 
+### The Chromium segfault has a SEVENTH occurrence, and HANDOVER-163's fingerprint method needs one correction
+(Recorded 15 Sep 2026, batch 272, from PR #301's `browser specs (Playwright)` failure. The job's own crash detector named it; the arithmetic below was done afterwards rather than taken on trust.)
+
+`v141-sync-corner.spec.js:252` died again in CI, and the job failed on its "passed only on a retry" rule, which is the intended behaviour rather than noise.
+
+⚠️ **THE OFFSET TEST HANDOVER-163 ESTABLISHED DOES NOT SURVIVE A VERSION BUMP, AND READING IT LITERALLY SAYS THIS IS A DIFFERENT BUG.** That handover pinned six occurrences at **binary offset `0x2af9eec`**, computed to survive ASLR, in `chrome-headless-shell-1228` under Playwright **1.61.1**. This one computes to **`0x2e283cc`** - in `chrome-headless-shell-**1234**` under Playwright **1.62.1**. **A different binary puts the same source-level bug at a different offset**, so the offsets cannot be compared across builds and a mismatch is not evidence of a second bug.
+
+**What DOES match, and is the fingerprint to use from now on:**
+- `Received signal 11 SEGV_MAPERR` at fault address **`0000000001b0`**, with `cr2: 0x1b0` - a null dereference at a fixed member offset;
+- **`ax: 0`** - the null pointer itself;
+- **`cx: 74736f686c61636f`**, which is the ASCII **`ocalhost`** little-endian, the same register holding the same string fragment;
+- the same spec, `v141-sync-corner.spec.js`.
+
+**So the rule is: compare the FAULT ADDRESS and the register signature, not the binary offset.** Compute the offset only to tell two crashes apart *within one build*. `docs/handovers/HANDOVER-163-browser-segv.md` is write-once and stays as it is; this entry is the correction, and the next batch to hit a segfault should read both.
+
+**Not queued, and the reason is the cost rather than the count.** `--retries=1` already absorbs it, the required checks (`unit tests`, `smoke`, `what changed`) are unaffected, and no client code is involved. What it costs is one CI job per occurrence and a batch's attention. **If it becomes frequent enough to matter, the variable is the pinned Playwright version and `tests/third-party-pins.test.js` is the authority on which one is safe** - note that this occurrence is the first on 1.62.1, so the bump from 1.61.1 did NOT fix it.
+
 ### The bottom stack's OTHER pair: a toast covers the builder's Save button, with no install banner involved
 (Measured 2 Sep 2026 by batch 226, which fixed the toast-vs-install-banner pair and measured this one on the way past.)
 
@@ -642,7 +659,10 @@ Struck rather than deleted so the decision is visible where the question was ask
 ### The publish dialog and the Menu row print the same ratio at different precision
 Whole-number % vs one decimal (HANDOVER-125). Same `cost/price` ratio, two displays — align them or record the split as deliberate at both sites.
 
-### Two more sub-44 touch targets the R5/R6 audit rows never named
+### ~~Two more sub-44 touch targets the R5/R6 audit rows never named~~ — **DONE, batch 272 (`ezplate-v221`), consolidated item 47**
+✅ `.use` reaches 44 effective through an `::after` extension, probed with a real hit test in `tests/visual/v192-touch-targets.spec.js`. `.del-link` did not need a treatment: it was worn by exactly one element, and that element is now a `.btn` in the modal footer, where `.mfoot .btn{min-height:40px}` and a modal footer is not a ≤767 tap surface.
+⚠️ **The entry's own warning was checked and does NOT apply to `.use`**: the ~1px-per-edge shortfall is a property of a BORDERED element, whose pseudo is laid against the padding box. `.use` is `border:0`, so ±4 is ±4, and the probe is at the full depth rather than a softened one.
+
 Found by batch 233 while doing R5+R6, out of that step's scope (Max's plan enumerated the rows).
 `.use` ("Use this name", king wizard rows) is `min-height:36px`; `.del-link` ("Delete item", edit modal) measures ~37px with its existing 10px padding.
 Both clear WCAG 2.5.8's 24px floor, so this is polish, not a violation.
