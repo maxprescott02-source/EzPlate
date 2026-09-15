@@ -87,6 +87,53 @@ test('every other field agrees with the files too, and written_at is a real past
     `written_at ${onDisk.written_at} is in the future`);
 });
 
+/* ---- newest-by-NUMBER, against synthetic directories ----
+ *
+ * ⚠️ ADDED BECAUSE A HAND-MUTATION SURVIVED. Replacing audits()' `a.n - b.n` with a filename
+ * compare left every assertion above green: the ten AUDIT-vNN.md files in this repo today happen to
+ * sort identically either way. It breaks the first time the series crosses a digit boundary -
+ * "AUDIT-v99.md" sorts ABOVE "AUDIT-v207.md" as a string - and what it would produce then is a
+ * newest_audit five deploy versions stale, which is the input to the audit counter in
+ * skills/batch step 10. That is the `sorted(glob)[-1]` defect, and it is silent by construction.
+ * The real tree cannot pin it, so these two build the disagreement on purpose.
+ */
+function dirRoot(sub, files) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ezplate-state-'));
+  fs.mkdirSync(path.join(dir, 'docs', sub), { recursive: true });
+  for (const f of files) fs.writeFileSync(path.join(dir, 'docs', sub, f), 'x\n');
+  return dir;
+}
+
+test('newest audit is the highest NUMBER, not the last filename', () => {
+  const dir = dirRoot('audits', [
+    'AUDIT-v99.md', 'AUDIT-v207.md', 'AUDIT-v115.md',
+    'WORKFLOW-AUDIT-2026-09-09.md', 'UX-AUDIT-2026-12-31.md',   // dated, and NOT in the series
+  ]);
+  try {
+    assert.strictEqual(state.audits(dir).slice(-1)[0].file, 'AUDIT-v207.md');
+    assert.deepStrictEqual(state.audits(dir).map((a) => a.n), [99, 115, 207],
+      'a dated audit is keyed to a date, not a deploy version, and cannot feed the counter');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('newest handover is the highest NUMBER, across both filename shapes', () => {
+  const dir = dirRoot('handovers', [
+    'HANDOVER-v99.md',              // the write-once pre-8-Aug shape
+    'HANDOVER-266-state-file.md',   // the current shape
+    'HANDOVER-123-dashboard.md',
+    'README.md',                    // not a handover
+  ]);
+  try {
+    const hs = state.handovers(dir);
+    assert.deepStrictEqual(hs.map((h) => h.n), [99, 123, 266]);
+    assert.strictEqual(hs.slice(-1)[0].file, 'HANDOVER-266-state-file.md');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 /* ---- the group derivation, against synthetic files ---- */
 
 function fixtureRoot(groups, consolidated) {
