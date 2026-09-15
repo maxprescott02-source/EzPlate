@@ -384,7 +384,12 @@ test('F9: renderSettingsTab primes every control the modal used to prime on open
   });
   assert.equal(els.setCogsInput.value, 31, 'the target % comes from memory, not the markup default');
   assert.equal(els.setGstDefault.value, 'inc', 'the GST default comes from memory');
-  assert.equal(els.setVersion.textContent, 'v999', 'the About version is filled in');
+  /* 268: 'v999' -> '999'. The markup already reads "Version " before this span, so printing
+     APP_VERSION whole said version twice. The CONSTANT is unchanged and must stay 'vNNN' — six
+     cache spots mirror it verbatim and tests/cache-version.test.js pins the spelling — so the
+     fix is at the concatenation and this is where it is visible. The fixture stays 'v999' on the
+     way IN, which is what makes the assertion prove the strip happened rather than assuming it. */
+  assert.equal(els.setVersion.textContent, '999', 'the About version is filled in, without doubling the v the markup already carries');
   assert.equal(els.setAiInvoiceChk.checked, true, 'the AI invoice switch reflects the stored flag');
   assert.equal(els.setAiSuggestChk.checked, true, 'the AI suggestions switch reflects the stored flag');
   assert.equal(themeSynced, 1, 'the theme segment is synced too');
@@ -436,7 +441,7 @@ test('Account/Team/Plan ship as coming-feature sentences, not disabled controls'
   assert.ok(acct.indexOf('id="tab-account"') === 0, 'the account screen exists');
   const body = acct.slice(0, acct.indexOf('/tab-account'));
   assert.deepEqual([...body.matchAll(/class="stg-card-h">([^<]+)</g)].map(m => m[1]),
-    ['Profile', 'Team', 'Plan'], "the mock's §3.9 sections, in the mock's order, ready to be filled");
+    ['Profile', 'Team'], "the mock's §3.9 sections that have something behind them, in the mock's order");
   /* ⚠️ 174 CHANGED THIS FROM 3 TO 2, consciously, and the reasoning is the point rather than the
      number: the rule was never "these three sections must stay empty", it was "a capability that
      does not exist is stated in a sentence, never mimed with a control that does nothing" (§R4).
@@ -451,8 +456,22 @@ test('Account/Team/Plan ship as coming-feature sentences, not disabled controls'
      `.stg-soon` sentence saying adding someone is done by hand would be the dishonest option, the
      way a sentence on Profile would have been in 174. Plan still describes billing that does not
      exist and still gets one. The assertions below narrow with it, for the same reason. */
-  assert.equal((body.match(/class="stg-soon"/g) || []).length, 1,
-    'only Plan is still a sentence; Profile is real as of 174 and Team as of 192');
+  /* ⚠️ 268 TOOK IT FROM 1 TO 0, AND BY A DIFFERENT ARGUMENT FROM 174's AND 192's — which is why
+     this note is longer than theirs rather than a fourth tick on the same ratchet.
+     They filled a section: the capability arrived, so the sentence describing its absence became
+     the dishonest option. 268 DELETES the section. Queue item 58's reading, and it is right: a
+     `<h3>Plan</h3>` whose entire body is "there is no plan" is a roadmap note on a customer-facing
+     screen, not an §R4 spec — and R4's actual requirement, *never a dead control*, cannot be
+     weakened by removing a section, only by adding one. Every no-dead-control assertion below
+     therefore stands unchanged; the scan just has one fewer card to walk.
+     THE DIRECTION THIS TEST NOW HAS TO HOLD, since a count of zero can no longer move: if billing
+     ever ships, the Plan card comes back WITH its controls, and the heading list above goes red
+     until someone re-reads this. A card that reappears carrying a sentence and no backing is the
+     state all four of these notes exist to forbid. */
+  assert.equal((body.match(/class="stg-soon"/g) || []).length, 0,
+    'no section is left describing a capability that does not exist — Profile is real as of 174, Team as of 192, and 268 removed Plan rather than filling it');
+  assert.ok(body.indexOf('>Plan<') < 0 && !/not billed yet/.test(body),
+    'and the Plan card is gone rather than merely emptied — the heading was the roadmap note');
   /* THE assertion. The mock draws Edit profile, Invite a teammate, Manage billing and Sign out;
      none has any backing, so none may ship. A shell is not a licence for a dead control.
      ⚠️ 171 narrowed this from "no control of any kind" to "no control in the screen's BODY", and the
@@ -467,11 +486,14 @@ test('Account/Team/Plan ship as coming-feature sentences, not disabled controls'
   /* 174: scoped to the sections that still promise nothing. The Profile card is excluded because
      its controls are BACKED — that is the whole distinction this test exists to enforce, so
      excluding a card that earned its controls is applying the rule, not weakening it.
-     192: Team leaves the scan for exactly that reason and Plan is what is left. */
-  const planOnward = cards.slice(cards.indexOf('>Plan<'));
-  assert.ok(planOnward.length > 0, 'the Plan card must still be found');
-  assert.ok(!/<(input|select|button|a\s)/.test(planOnward.replace(/<!--[\s\S]*?-->/g, '')),
-    'no control of any kind in Plan — billing does not exist');
+     192: Team leaves the scan for exactly that reason and Plan is what is left.
+     ⚠️ 268 REMOVED THE PLAN CARD, so the "no control in an unbacked section" scan has no section
+     left to point at, and there is nothing honest to slice. Deleting the scan silently would leave
+     the rule enforced by nothing the day a card comes back; the replacement is the same rule stated
+     over the whole body — the three dead control NAMES are already asserted absent below, and this
+     asserts that no card exists WITHOUT backing in the first place. */
+  assert.ok(cards.indexOf('>Plan<') < 0,
+    'no Plan card; if billing ships, it returns with controls and the heading list above goes red first');
   /* ⚠️ AND THE TWO CARDS THAT LEFT THE SCAN ARE NOT SIMPLY UNGUARDED NOW, which is what would make
      this a ratchet. Each has to keep the controls that bought its exemption: if Profile's sign-in
      or Team's invite form is ever deleted, the card is back to describing a capability it does not
@@ -480,7 +502,8 @@ test('Account/Team/Plan ship as coming-feature sentences, not disabled controls'
   const profile = cards.slice(cards.indexOf('Profile'), cards.indexOf('>Team<'));
   assert.ok(/id="acctForm"/.test(profile) && /id="acctOutBtn"/.test(profile),
     'Profile ships a real sign-in and sign-out, or its sentence should come back');
-  const team = cards.slice(cards.indexOf('>Team<'), cards.indexOf('>Plan<'));
+  // 268: Team ran to '>Plan<'; that heading is gone, so it runs to the end of the cards block.
+  const team = cards.slice(cards.indexOf('>Team<'));
   assert.ok(/id="teamForm"/.test(team) && /id="teamList"/.test(team),
     'Team ships a real invite form and member list, or its sentence should come back');
   // and the one thing in the header is navigation, nothing else

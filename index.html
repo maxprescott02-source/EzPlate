@@ -102,7 +102,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=216">
+<link rel="stylesheet" href="css/style.css?v=217">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -654,8 +654,14 @@
         <button class="plib-btn2" id="kingWizBtn" type="button" data-mobile-home="kingControls" style="display:none">Set up<span class="btn-noun"> from products</span></button>
         <button class="btn primary" id="kingNew" type="button">New ingredient</button>
       </div>
-      <!-- setup progress: its own quiet line, conditional, unchanged in behaviour -->
-      <div class="king-progress" id="kingProgress" style="display:none"></div>
+      <!-- setup progress: its own quiet line, conditional.
+           268: it now prints the SAME clause the header sub above carries ("235 products with no
+           ingredient"), and `.king-progress` is hidden at >=768 where the sub is visible, so exactly
+           one of the two is on screen at any width. It is NOT deleted, which was this batch's first
+           attempt: `.scr-sub` is display:none below 768, so the sub alone would have lost the count
+           on a phone. Same shape as #kingWizBtn's `data-mobile-home` above - one thing, two homes,
+           one breakpoint. -->
+      <div class="king-progress" id="kingProgress"></div>
       <div class="plib-controls" id="kingControls">
         <div class="plib-search">
           <input id="kingSearch" type="search" placeholder="Search ingredients" aria-label="Search ingredients" autocomplete="off">
@@ -777,7 +783,17 @@
              batch; the F8 note above says the More-screen item owns rehoming it, and this is it. -->
         <button class="scr-back" type="button" data-back="more" aria-label="Back to More"><span class="scr-back-i" aria-hidden="true">&lsaquo;</span><span class="btn-noun">More</span></button>
         <h2>Invoices</h2>
-        <span class="scr-sub">Imports update product prices automatically</span>
+        <!-- 268: this said "Imports update product prices automatically", which CONTRADICTED the
+             dropzone six lines below ("Nothing changes without your review") - the two were written
+             by different batches and both shipped. It is DELETED rather than reworded: the slot's
+             rule is scope or a count, never a sentence, and this screen's body already carries the
+             review promise where a reader looks for it. An empty sub is a legitimate state - the
+             Dashboard has had one since F1.
+             ⚠️ AND IT IS NOT FILLED WITH THE LAST-IMPORT DATE, WHICH WAS THIS BATCH'S FIRST ATTEMPT.
+             `.scr-sub` is `display:none` until 768 (css/style.css §2) - the slot does not exist on
+             a phone - so moving the date up here would have deleted the one import fact the app
+             stores from the device the app is mostly used on. It stays in the body. -->
+        <span class="scr-sub"></span>
         <span class="scr-gap"></span>
         <button class="btn primary" id="invUploadBtn" type="button">Import invoice</button>
       </div>
@@ -788,9 +804,17 @@
         <span class="invz-s">or click to browse. We read the line items and match them to your products. Nothing changes without your review.</span>
       </button>
       <p class="inv-privacy">The text of an invoice you import is sent to Google to be double-checked, on a free tier that may use it for training. <a href="#" class="privacy-open" id="invzPrivacyLink">What is sent</a></p>
+      <!-- 268: this was a "Recent imports" heading over a sentence apologising for the absence of
+           recent imports. The heading is dropped until the import-history feature exists
+           (consolidated item 87), and of the sentence what is kept is the half that tells a reader
+           where a changed price CAN be found - information rather than apology. The DATE stays
+           exactly where it was; see the note at the header sub for why it did not move up. -->
+      <!-- 268: `.invz-recent` is now a wrapper over two paragraphs with no heading. The name is
+           kept rather than tidied: it carries this block's top margin, and it is named (as a CLASS,
+           alongside #invDropZone and .stg-cards) in the >=768 page-inset rule in §2 — so renaming it
+           here would silently un-inset this block on desktop. -->
       <div class="invz-recent">
-        <h3>Recent imports</h3>
-        <p class="invz-none">EzPlate doesn&rsquo;t keep a list of past imports yet &mdash; only the date of the most recent one. Every price an import changed is on that product&rsquo;s own history.</p>
+        <p class="invz-none">Every price an import changed is on that product&rsquo;s own history.</p>
         <p class="invz-last" id="lastImport3"></p>
       </div>
     </div>
@@ -834,7 +858,11 @@
              <header> comment at the top of this file). -->
         <button class="scr-back" type="button" data-back="more" aria-label="Back to More"><span class="scr-back-i" aria-hidden="true">&lsaquo;</span><span class="btn-noun">More</span></button>
         <h2>Settings</h2>
-        <span class="scr-sub">Changes save as you make them</span>
+        <!-- 268: this said "Changes save as you make them" - a save rule, which is a sentence, and
+             the `.scr-sub` rule wants scope or a count. It answers a question this screen does not
+             raise: there is no Save control anywhere on it, every card is live toggles and inputs.
+             The slot now names the cards below it. -->
+        <span class="scr-sub">Costing, AI, appearance and data</span>
       </div>
       <div class="stg-cards">
 
@@ -876,7 +904,7 @@
             <div class="stg-row">
               <div class="stg-text">
                 <label class="stg-lbl" for="setAiInvoiceChk">AI invoice check</label>
-                <p class="stg-help">A second AI read of invoice matches. Off = imports stay fully offline.</p>
+                <p class="stg-help">A second AI read of invoice matches. Off keeps imports fully offline.</p>
               </div>
               <label class="switch stg-ctl"><input type="checkbox" id="setAiInvoiceChk"><span class="switch-track" aria-hidden="true"></span></label>
             </div>
@@ -902,7 +930,8 @@
             <div class="stg-row">
               <div class="stg-text">
                 <span class="stg-lbl" id="setThemeLbl">Theme</span>
-                <p class="stg-help">System follows your phone&rsquo;s setting.</p>
+                <!-- 268: "your phone's setting" on a screen that is read at 1360 as often as at 380. -->
+                <p class="stg-help">System follows your device&rsquo;s setting.</p>
               </div>
               <div class="seg stg-ctl" role="radiogroup" aria-labelledby="setThemeLbl">
                 <button type="button" class="seg-btn" id="setThemeLight" data-theme-pref="light" role="radio" aria-checked="false">Light</button>
@@ -1037,7 +1066,9 @@
             <div class="stg-row">
               <div class="stg-text">
                 <span class="stg-lbl">Account &amp; team</span>
-                <p class="stg-help">Sign-in, team roles and billing.</p>
+                <!-- 268: this promised BILLING, which the Account screen's own Plan card then said
+                     did not exist. The card is gone and so is the promise. -->
+                <p class="stg-help">Sign-in, roles and your team.</p>
               </div>
               <button class="btn stg-ctl" id="setAccountOpen" type="button">Open</button>
             </div>
@@ -1048,6 +1079,9 @@
           <h3 class="stg-card-h">About</h3>
           <div class="stg-body">
             <p><b>EzPlate</b> &mdash; Plate costing made easy</p>
+            <!-- 268: the span is filled with APP_VERSION's digits only. The CONSTANT keeps its `v`
+                 - six cache spots mirror it and tests/cache-version.test.js pins the spelling - so
+                 the fix is at the concatenation, which read "Version v216" and said version twice. -->
             <p class="hint">Version <span id="setVersion">&mdash;</span></p>
             <p class="hint">Contact: <a class="linklike" href="tel:0423960797">0423 960 797</a></p>
             <p class="hint">Privacy &mdash; data stays on this device and EzPlate&rsquo;s synced database. AI features (both optional, above) send invoice text and plate names to Google Gemini.</p>
@@ -1093,7 +1127,11 @@
         <!-- 188: this said "roles and billing are still to come". Roles arrived — 187 enforces them
              and this batch shows them — so the half that is still true is billing. Same stale-claim
              class as the Team card below; found by looking at the screen rather than by any test. -->
-        <span class="scr-sub">Sign-in and roles work; billing is still to come</span>
+        <!-- 268: the two notes above are the record of this line being re-stated twice as the
+             roadmap moved under it, which is the argument against a roadmap note in a subtitle
+             rather than a reason to write a third one. The slot is scope now; the screen's own
+             sections say what is real. -->
+        <span class="scr-sub">Your profile and team</span>
       </div>
       <div class="stg-cards">
 
@@ -1195,12 +1233,14 @@
           </div>
         </section>
 
-        <section class="stg-card">
-          <h3 class="stg-card-h">Plan</h3>
-          <div class="stg-body">
-            <p class="stg-soon">EzPlate is not billed yet. Nothing here costs anything and there is no card on file.</p>
-          </div>
-        </section>
+        <!-- 268: THE PLAN CARD IS DELETED, and it is worth saying why this is not a retreat from
+             §R4. That rule is "a capability that does not exist is stated in a sentence, never
+             mimed with a control that does nothing" - it forbids a dead Manage-billing button, and
+             removing the section cannot add one. What the section actually was is a roadmap note on
+             a customer-facing screen: a heading whose only content was that the heading describes
+             nothing. Its useful half ("nothing here costs anything") was never asked for by
+             anything on the screen, because no price is named anywhere in EzPlate.
+             The day billing exists, the mock's §3.9 Plan section is its design and comes back. -->
 
       </div>
     </div>
@@ -1249,7 +1289,9 @@
           <span class="more-chev" aria-hidden="true">&rsaquo;</span>
         </button>
         <button class="more-row" type="button" data-more="account">
-          <span class="more-txt"><span class="more-lbl">Account</span><span class="more-sub">Profile, team, plan</span></span>
+          <!-- 268: this said "Profile, team, plan" and was the item's own enumeration coming up
+               short - the Plan card it removes was promised from the row that opens the screen. -->
+          <span class="more-txt"><span class="more-lbl">Account</span><span class="more-sub">Profile and team</span></span>
           <span class="more-chev" aria-hidden="true">&rsaquo;</span>
         </button>
       </div>
@@ -1878,7 +1920,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=216"></script>
+<script src="js/app.js?v=217"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —

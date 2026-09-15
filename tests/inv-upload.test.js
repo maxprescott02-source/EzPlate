@@ -255,12 +255,32 @@ test('Invoices is a screen: the sidebar navigates to it and does not also open t
     'and a refresh on Invoices must come back to Invoices, not silently to Plates — the valid-tab list is the shared one, which the assertion above proves carries invoices');
 });
 
+/* ⚠️ 268 DROPPED ONE ASSERTION FROM THIS TEST AND THE REASON MATTERS MORE THAN THE CHANGE, because
+   "the absence is stated in words" reads like the whole of §R4 and is not.
+   R4 is *build what exists, spec the rest, NEVER A DEAD CONTROL* — it forbids drawing the mock's
+   recent-imports table with nothing behind it, and that half is untouched and asserted below.
+   What went was a `<h3>Recent imports</h3>` over a sentence explaining that there are no recent
+   imports: a heading whose only content was that the heading describes nothing. Queue item 58 calls
+   that an apology for its own absence and removes it; the sentence's USEFUL half — where a changed
+   price can actually be found — is kept and is asserted here instead, so the test still fails if
+   the screen goes silent about it.
+   The date moved into the screen's `.scr-sub`, so `#lastImport3` is asserted by ID rather than by
+   position: it is the same element, filled by the same function, in the header instead of the body. */
 test('the screen states what it cannot do rather than drawing a table with no data behind it', () => {
-  // R4. The mock's recent-imports table has no backing store; nothing in this app records an import.
   const pane = HTML.slice(HTML.indexOf('id="tab-invoices"'), HTML.indexOf('/tab-invoices'));
-  assert.ok(pane.indexOf('id="lastImport3"') >= 0, 'the one import fact the app does store is printed');
-  assert.ok(pane.indexOf('doesn&rsquo;t keep a list of past imports yet') >= 0, 'and the absence is stated in words');
-  assert.ok(!/<table/.test(pane), 'no table is drawn for data that does not exist');
+  /* ⚠️ THE NEGATIVE ASSERTION BELOW IS RUN AGAINST COMMENT-STRIPPED MARKUP, and it went red on its
+     first run for exactly the reason the roster names (183a): the comment 268 left at the deleted
+     block EXPLAINS that "Recent imports" is gone, using the words. A grep searches prose as well as
+     code, and the prose is written by the same person in the same hour saying the same words. The
+     positive assertions above may read the raw pane — a comment cannot satisfy them by accident,
+     because they name ids and rendered entities the comments do not carry. */
+  const paneCode = pane.replace(/<!--[\s\S]*?-->/g, '');
+  assert.ok(paneCode.indexOf('id="lastImport3"') >= 0, 'the one import fact the app does store is printed');
+  assert.ok(paneCode.indexOf('on that product&rsquo;s own history') >= 0,
+    'and the screen still says where a price an import changed CAN be found — the half of the old sentence that was information rather than apology');
+  assert.ok(!/Recent imports/.test(paneCode),
+    'no heading for a list that does not exist (item 58); it comes back with the import-history feature, consolidated item 87');
+  assert.ok(!/<table/.test(paneCode), 'no table is drawn for data that does not exist');
   assert.match(SRC, /'lastImport','lastImport2','lastImport3'/, 'updateLastImport fills it');
 });
 

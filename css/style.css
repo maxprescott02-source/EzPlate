@@ -1397,8 +1397,10 @@ body.scroll-locked{position:fixed;left:0;right:0}
 @media (max-width:767px){ .invz{padding:26px 16px} }
 
 /* the Invoices screen's R4 recents area — see the note on #tab-invoices for why no table */
+/* 268: `.invz-recent h3` ("Recent imports") is deleted with the heading that wore it. `.invz-last`
+   STAYS — the date did not move into the header sub, because `.scr-sub` is display:none below 768
+   and the phone would have lost it. */
 .invz-recent{margin-top:var(--sp-5)}
-.invz-recent h3{margin:0 0 6px;font-size:13px;font-weight:600;color:var(--text)}
 .invz-none{margin:0;font-size:var(--fs-sm);color:var(--muted2);line-height:1.5;max-width:62ch}
 .invz-last{margin:8px 0 0;font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:var(--fs-sm);color:var(--muted2)}
 
@@ -3027,7 +3029,13 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .es-actions .es-clear{font-size:var(--fs-base)}
 
 /* ===== batch (v34) — Item 2: kitchen-word setup accelerators ===== */
-.king-progress{padding:6px var(--sp-5) 0;font-size:12px;color:var(--muted2);font-variant-numeric:tabular-nums}
+/* 268: `display` moved OFF the element's inline style and onto a class, so the cascade owns it —
+   this line has to be able to lose to the >=768 rule in §2, and an inline style cannot lose to
+   anything. Hidden until renderKingProgress puts `.is-on` on it; the two `.is-on` rules are written
+   at the SAME specificity on purpose (css.md: a @media block does not win by being later, so equal
+   specificity plus source order is the idiom, not a narrower selector on the small screen). */
+.king-progress{display:none;padding:6px var(--sp-5) 0;font-size:12px;color:var(--muted2);font-variant-numeric:tabular-nums}
+.king-progress.is-on{display:block}
 /* v61 item 4: #kingWiz lives in a full-bleed modal body now (was inline in the tab). The modal body drops its
    padding so the rows keep their own var(--sp-5) indent and the separators span edge-to-edge, exactly as before;
    the old tab-context top border/margin is gone (the mhead's border already separates it). */
@@ -3154,8 +3162,12 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    is painted in and reads the same way in both themes. */
 .stg-ctl.cogs-in input[readonly]{background:transparent;border-color:var(--hairline);cursor:default}
 .stg-ctl.cogs-in .pct{font-weight:700;font-family:var(--mono);color:var(--muted2)}
-/* Account / Team — a coming feature, not a disabled control (F10 owns whether they stay) */
-.stg-soon{margin:var(--sp-4) 0;font-size:var(--fs-base);color:var(--text2)}
+/* 268: `.stg-soon` was here — the §R4 "this capability does not exist yet" sentence. It dressed
+   three cards in turn and each one stopped needing it as the capability arrived: Profile in 174,
+   Team in 192, and Plan in 268, which removed the card rather than filling it. With the last
+   consumer gone the rule is dead, so it goes with the markup in the same change.
+   It does NOT come back with billing: a real Plan card carries controls, not a sentence saying it
+   has none. tests/settings-toggles.test.js asserts zero `class="stg-soon"` on that screen. */
 /* 192 — the Team card's list, form and states.
    ⚠️ `.team-own` IS ABSENT FROM THIS FILE ON PURPOSE. It is the block applyRoleUi hides from staff
    with `hidden`, it is a <div> and therefore display:block already, and giving it a rule that said
@@ -3173,9 +3185,15 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
 .team-em{font-size:var(--fs-base);color:var(--text);overflow-wrap:anywhere;min-width:0}
 /* Mono + tabular for the role, so Owner/Staff form a column the eye can scan rather than ragged
    words — the §4 row grammar (identity left, status pill rightmost) the whole redesign uses. */
-.team-role{flex:0 0 auto;font-family:var(--mono);font-size:var(--fs-sm);font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:.04em}
-.team-you,.team-pend{font-size:var(--fs-sm);font-weight:700;color:var(--muted2)}
-.team-pend{color:var(--accent-ink)}
+/* 268: ONE badge geometry. `.team-role`, `.team-you` and `.team-pend` were three different
+   treatments for three tags on the same row — the role mono and uppercase, the other two neither —
+   so they read as three unrelated kinds of thing rather than three tags. `.team-role` survives as
+   the LAYOUT half only (it is the right-hand column and must not shrink); the appearance is
+   `.team-tag`'s. `.is-pending` is the one variance kept: "invited" is the only tag of the three
+   that names work somebody still has to do, and the Revoke button beside it is that work. */
+.team-tag{font-family:var(--mono);font-size:var(--fs-sm);font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:.04em}
+.team-role{flex:0 0 auto}
+.team-tag.is-pending{color:var(--accent-ink)}
 .team-x.btn{flex:0 0 auto;min-height:36px;padding:6px 12px;font-size:var(--fs-sm)}
 .team-note{margin:var(--sp-3) 0;font-size:var(--fs-sm);color:var(--text2)}
 .team-bad{color:var(--bad)}
@@ -4058,6 +4076,18 @@ html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 80px)}
      that the item asks for belongs to the page container, not to this rule — see `.wrap` at §1024. */
   .scr-head{min-height:48px;flex-wrap:nowrap;padding:0;margin:0 var(--sp-5)}
   .scr-sub{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* 268: THE OTHER HALF OF THIS LINE, AND IT MUST STAY BESIDE IT. `.scr-sub` is display:none below
+     768 — the subtitle slot does not exist on a phone — so the Ingredients setup count is rendered
+     into BOTH the sub and `#kingProgress`, from one string (kingUnlinkedClause), and this is what
+     makes exactly one of them visible at a time. Off the SAME breakpoint on purpose: two rules that
+     must stay opposite are one edit apart rather than 3,000 lines apart.
+     ⚠️ Moving the count into the sub and deleting `#kingProgress` was this batch's first attempt.
+     It renders correctly at 1360 and deletes the count on the phone, with the whole suite green —
+     found by looking at the screen at 380.
+     SAME SPECIFICITY as the `.king-progress.is-on` rule in §27 (0,2,0), so source order decides and
+     this one is later. Writing `.king-progress{display:none}` here instead would be a 0,1,0 rule
+     LOSING to a 0,2,0 one outside the media query — the inversion css.md opens with. */
+  .king-progress.is-on{display:none}
   /* THE TITLE AND ITS META SHARE A BASELINE (176). Measured before: the h2 ran y44-67 and the meta
      y46-65 — centred against each other, so "393 products" floated at the title's mid-height instead
      of sitting on its line, which is what reads as a stray label rather than a subtitle.

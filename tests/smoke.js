@@ -98,8 +98,16 @@ ok('the More screen\'s Settings row navigates to it', (() => { openSet(); return
 ok('and every other pane is hidden', ['builder','ingredients','analysis','dashboard','pantry','invoices','account','more']
    .every(n => $('tab-' + n).style.display === 'none'));
 // derive the expected version from sw.js's CACHE so this never rots again (settings.test.js pins the full six-spot mirror)
+/* 268: the span carries the DIGITS only — the markup beside it already says "Version", so printing
+   APP_VERSION whole read "Version v216". ⚠️ `swVer` KEEPS ITS `v` and the assertion adds one back,
+   rather than the capture group being narrowed, because `swVer` HAS A SECOND CONSUMER further down
+   — the backup stamp's `app_version`, which is APP_VERSION verbatim. Narrowing the regex here was
+   the first attempt and it broke that check: one constant, two renderings, and only one of them
+   strips. Rebuilding the `v` at the assertion keeps this an equality against sw.js (the property
+   that stops it rotting) and leaves the stamp comparing the thing it actually stores. */
 const swVer = (fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8').match(/ezplate-(v\d+)/) || [])[1];
-ok('About shows the version, matching sw.js', $('setVersion').textContent === swVer, $('setVersion').textContent + ' vs ' + swVer);
+ok('About shows the version, matching sw.js, with the v the markup supplies',
+   'v' + $('setVersion').textContent === swVer, $('setVersion').textContent + ' vs ' + swVer);
 ok('COGS input prefills from cogsPct', $('setCogsInput').value === String(window.cogsPct), $('setCogsInput').value);
 ok('GST default prefills', ['ex','inc'].indexOf($('setGstDefault').value) >= 0, $('setGstDefault').value);
 /* The priming is the screen's one fragile spot, so drive it the way the bug would happen: leave the
@@ -146,8 +154,13 @@ ok('none of them is hidden — there is no section to be "on"',
 $('setAccountOpen').click();
 ok('the Settings row opens the Account screen', $('tab-account').style.display !== 'none');
 ok('and Settings is hidden behind it', $('tab-settings').style.display === 'none');
-ok('the account screen carries the three mock sections',
-   [...window.document.querySelectorAll('#tab-account .stg-card-h')].map(h => h.textContent).join('|') === 'Profile|Team|Plan');
+/* 268 (queue item 58): 'Profile|Team|Plan' -> 'Profile|Team'. The Plan card was a heading whose
+   entire body was a sentence saying the heading describes nothing — a roadmap note on a screen a
+   customer reads. §R4 is untouched by its removal: that rule forbids a dead CONTROL, and deleting a
+   section cannot add one. tests/settings-toggles.test.js carries the long version of this argument
+   and the guard that goes red if a Plan card ever comes back without controls behind it. */
+ok('the account screen carries the mock sections that have something behind them',
+   [...window.document.querySelectorAll('#tab-account .stg-card-h')].map(h => h.textContent).join('|') === 'Profile|Team');
 /* 171: scoped to `.stg-cards` — the screen gained a "‹ More" back chevron in its shared header,
    which is navigation, not a capability the account claims.
    ⚠️ 174: narrowed again, to the cards that still promise nothing. §R4 is "a capability that does

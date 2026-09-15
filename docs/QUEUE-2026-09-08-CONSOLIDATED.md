@@ -534,7 +534,26 @@ Opener `New <object>` · commit `Add <object>` · join a list `Add to menu` · e
 
 **Also found and left alone, routed to item 61:** `.mnu-sec` prints a section name in forced capitals while three other surfaces title-case it. Kept as a group heading; it belongs with the Menu screen's own vocabulary work.
 
-## next  58 · Screen subtitles and status copy: the subtitle slot means four things, the Invoices subtitle contradicts its own dropzone, "Recent imports" apologises for its absence, Account and Settings carry roadmap notes, and four copy slips  **[B, the eye learns to read the slot one way and is wrong on the next screen]**
+## ~~58 · Screen subtitles and status copy: the subtitle slot means four things, the Invoices subtitle contradicts its own dropzone, "Recent imports" apologises for its absence, Account and Settings carry roadmap notes, and four copy slips~~  **SHIPPED, batch 268, `ezplate-v217` — with three of its bullets CORRECTED at execution and one deleted**
+
+✅ **Shipped: the `.scr-sub` rule (scope or a count, never a sentence) applied to all seven literals and pinned by shape in `tests/terminology.test.js`; the Invoices contradiction; the "Recent imports" heading; the Ingredients count; the Plan card; the version doubling; the three real Settings slips; the Account subtitle; one badge family on the Team card.**
+
+⚠️ **EVERY LINE NUMBER IN THIS ITEM WAS WRONG** — drift of about nineteen lines, most citations landing inside block comments rather than at the element named. Every named LITERAL existed. The `premise-check` agent found this before planning; nothing was planned off a citation.
+
+⚠️ **THREE SUBSTANTIVE CORRECTIONS, recorded because each would have shipped a defect:**
+- **"Account and team promises billing" names nothing.** The real site is the SETTINGS → Account card: `<span class="stg-lbl">Account &amp; team</span>` over help text reading *"Sign-in, team roles and billing."* Fixed there.
+- **The Ingredients replacement string was ARITHMETICALLY WRONG.** It proposed *"164 ingredients, 235 products unlinked"*, reading the old line's 164 as an ingredient count. 164 was the count of LINKED PRODUCTS (`kingLinkableProducts().length` minus `kingUnlinkedProducts().length`); the ingredient count is `kitchenIngredients.length` and is a different number. Shipping the item's wording would have printed a confidently wrong count on a costing screen.
+- **`#kingHeadSub` was not an empty slot.** It already rendered `kingHeadSummary()` — "N ingredients, M products missing" — so "move the line into the header sub" was a merge, not a move.
+
+⚠️ **AND THE ITEM'S CENTRAL INSTRUCTION COULD NOT BE FOLLOWED AS WRITTEN, which is the finding worth carrying forward: `.scr-sub` IS `display:none` BELOW 768** (`css/style.css` §2) — **the subtitle slot does not exist on a phone.** So "move it into the header sub" silently DELETES whatever is moved, on the device this app is mostly used on, while rendering perfectly at 1360 with the entire suite green. It was caught by rendering the screen at 380.
+**Both affected facts were re-homed rather than moved:** the Invoices last-import date stays in the body (`.invz-last`) and the subtitle is simply emptied; the Ingredients count is computed ONCE (`kingUnlinkedClause`) and rendered into BOTH the sub and `#kingProgress`, with `.king-progress.is-on{display:none}` written into the same `@media (min-width:768px)` block that shows `.scr-sub`, so exactly one is on screen at any width. `tests/king-head-sub.test.js` pins one-source-two-sinks and the breakpoint pairing, and was proved red against both the deleted element and the missing hide.
+**Anyone planning a future item against the `.scr-sub` slot must read this first.** Items 61, 62, 63 and 64 all touch screen headers.
+
+**DELETED, does not reproduce:** the `renderManageMenusZero` bullet as written. It already offers exactly one obvious action ("Add to a new menu"), so nothing is wrong with the ACTION. What it breaks is the TITLE voice — `emptyStateHtml`'s rule is *one obvious action → invite; anything else → report*, and it reports ("No menus yet."). Copy is Max's; the line is proposed in the handover and the entry stays in `docs/MAINTENANCE.md` until he answers.
+
+**The original item, kept as the record:**
+
+## ~~next~~  58 · original item
 
 - **The `.scr-sub` slot (U23):** Plates a count (`index.html:303`), Menu a name (`:522`), Ingredients (`:625`) and Products (`:670`) counts, Invoices a promise (`:761`), Settings a save rule (`:818`), Account a status note (`:1034`), Dashboard nothing. Rule: subtitle is scope or count only; sentences move into the body.
 - **Invoices: "Imports update product prices automatically" against "Nothing changes without your review" (U24):** `:761` vs `:769`. Subtitle becomes "Imports update product prices after your review."
