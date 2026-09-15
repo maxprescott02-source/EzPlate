@@ -353,21 +353,38 @@ test('271 census: the phone hides the Cost card body by CLASS, in the block that
     'the bare-body hide must live in the SAME block as the .bld-kv hide it depends on');
   assert.match(block[1], /#bCost \.bld-kv/, 'precondition: that is the block being read');
 
-  /* ⚠️ AND THE CEILING MUST AGREE WITH THE WRAP BREAKPOINT, which is the coupling 274 introduced and
-     the thing most likely to drift: three media queries in css/style.css describe one band (this
-     block, `.bld-rail{max-width:none}`, and `.bld-bar{display:none}`), and if they disagree the
-     screen gets a width with no Save and a width with two. The numbers are read out of the file and
-     compared rather than written down here. */
+  /* ⚠️ THE THREE 274 MEDIA QUERIES MUST OVERLAP IN THE SAFE DIRECTION, AND AN EARLIER VERSION OF
+     THIS ASSERTION REQUIRED THEM TO MEET EXACTLY. That was wrong, and CI proved it: the wrap point
+     is where `.bld-body` reaches 800px of inner width, which depends on the SCROLLBAR as well as the
+     viewport, so a rule pinned one pixel past the macOS wrap leaves a band on a classic-scrollbar
+     machine where the query says "two-column" while flex is still wrapping - the bar hidden, and
+     #saveBtn restored to a rail under a full-height docket. A width with NO reachable commit.
+     ⚠️ SO THE TWO ERRORS ARE NOT SYMMETRIC AND THIS ASSERTS THE ASYMMETRY. The bar being shown
+     slightly past the wrap is harmless (one control, reachable, mildly redundant). The bar switching
+     off slightly before it is the defect. **Overlap is safe; a gap is not** - so the bar's threshold
+     must be strictly ABOVE the wrapped-rail band rather than adjacent to it.
+     ⚠️ AND THE HONEST LIMIT, because this test cannot see a browser: agreement between RULES is not
+     agreement with the LAYOUT. All three of these can be perfectly consistent and all three wrong
+     about where flex actually wraps, which is exactly what happened. What proves the property is
+     `tests/visual/274-builder-tablet.spec.js`'s sweep, which measures the wrap instead of naming it.
+     This file's job is only that the three numbers cannot drift APART. */
   const ceiling = /max-width:(\d+)px/.exec(query);
   assert.ok(ceiling, `the #bCost hide block must be bounded by a max-width, got "${query}"`);
   const wrapBlock = /@media \(min-width:768px\) and \(max-width:(\d+)px\)\{\s*(?:\/\*[\s\S]*?\*\/\s*)?\.bld-rail\{max-width:none\}/.exec(css);
   assert.ok(wrapBlock, 'the wrapped-rail block must still be findable — 274 added it');
-  assert.strictEqual(ceiling[1], wrapBlock[1],
-    'the #bCost hide band and the wrapped-rail band must end at the same width, or a width exists where the rail wraps and the rail\'s Save is the only commit control');
   const barBlock = /@media \(min-width:(\d+)px\)\{\s*\.bld-bar\{display:none\}/.exec(css);
   assert.ok(barBlock, 'the save-bar hide block must still be findable');
-  assert.strictEqual(Number(barBlock[1]), Number(ceiling[1]) + 1,
-    'the save bar must switch off exactly where the wrapped band ends, or there is a width with two primary CTAs or none');
+
+  const hideTo = Number(ceiling[1]);        // #bCost's figures and #saveBtn are hidden up to here
+  const wrapTo = Number(wrapBlock[1]);      // the rail is known-wrapped up to here
+  const barOff = Number(barBlock[1]);       // the sticky bar disappears from here
+
+  assert.strictEqual(barOff, hideTo + 1,
+    'the sticky bar must switch off exactly where #saveBtn comes back, or there is a width with two primary CTAs or none');
+  assert.ok(hideTo > wrapTo,
+    `the bar must be shown PAST the wrapped-rail band, not level with it: #bCost hides to ${hideTo} and the wrap band ends at ${wrapTo}. A scrollbar moves the real wrap point, and the two errors are not symmetric — overlapping is safe, a gap has no reachable commit.`);
+  assert.ok(hideTo - wrapTo >= 20,
+    `the margin between them is ${hideTo - wrapTo}px, which is under the ~17px a classic scrollbar can move the wrap point by. Widen it rather than trimming it.`);
   assert.ok(!/bCost[^\n]*style\.display/.test(SRC),
     'nothing may set the card body\'s display inline — an inline style cannot lose at 1280');
   assert.match(extractFn(SRC, 'renderBuilderCost'), /classList\.toggle\('is-bare'/,

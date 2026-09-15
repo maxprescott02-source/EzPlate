@@ -21,12 +21,11 @@
  *
  * WHY EACH ASSERTION IS A REGRESSION AND NOT A DESCRIPTION:
  *
- *  1. THE WRAP POINT, FROM BOTH SIDES. 1076 is not a chosen number: it is where `.bld-body`'s inner
- *     width reaches 800 = `.bld-main`'s 500 basis + the rail's 280 + the 20px gap. It is therefore
- *     COUPLED to the sidebar's 224px, and nothing in CSS can notice that moving — the three media
- *     queries this batch added would just be silently wrong at the wrong widths. Asserting 1075
- *     wrapped AND 1076 side by side is the only thing that catches it, and it is why both halves are
- *     here rather than one.
+ *  1. WHEREVER THE RAIL WRAPS, A COMMIT CONTROL IS ON SCREEN — swept across 900-1200 rather than
+ *     asserted at a named width. This started life as "wrapped at 1075, side by side at 1076" and CI
+ *     failed it while macOS passed: the wrap depends on the SCROLLBAR as well as the viewport, so the
+ *     number is not a property of the app. The header block above that test carries the full story,
+ *     including why the media query built on that number was itself wrong and not just the test.
  *  2. THE WRAPPED RAIL FILLS ITS ROW. Written as "the space to its right is no wider than the gap",
  *     which is the item's own acceptance wording, rather than as "max-width is none" — a selector
  *     assertion passes on a rule that some later specificity fight overrides.
@@ -102,24 +101,58 @@ const geom = () => ({
   },
 });
 
-test('1: the wrap point is 1076, asserted from both sides because it is coupled to the sidebar', async ({ page }) => {
-  await openPlate(page, 1075);
-  expect(await page.evaluate(() => {
-    const m = document.querySelector('.bld-main').getBoundingClientRect();
-    const r = document.querySelector('.bld-rail').getBoundingClientRect();
-    return r.top >= m.bottom - 4;
-  }), 'at 1075 the rail must still wrap under the docket').toBe(true);
+/* ⚠️ THIS TEST ASSERTED THE WRAP POINT AS A NUMBER — "wrapped at 1075, side by side at 1076" — AND
+   CI FAILED IT WHILE MACOS PASSED. The wrap happens where `.bld-body`'s inner width reaches 800, and
+   that width depends on the SCROLLBAR as well as the viewport: overlay scrollbars here, a classic one
+   on the Linux runner, so the same 1076 is two-column on one and still wrapped on the other. Roster
+   entry 270: the only thing that finds an environment-dependent assertion is a different environment,
+   and `.claude/rules/tests.md` already says a viewport-geometry assertion must MEASURE its reference
+   rather than name it.
+   ⚠️ AND THE NUMBER WAS NOT JUST A BAD ASSERTION, IT WAS A BAD RULE. A media query pinned one past
+   the measured wrap leaves any environment with a wider scrollbar a band where the query says
+   "two-column", the bar is hidden and #saveBtn is restored — to a rail that is still under the
+   docket. A width with no reachable commit, which is the defect this batch removes.
+   So the property replaces the number, and it is the property that actually matters: **wherever the
+   rail wraps, there is a commit control on screen.** That is true in every environment, at every
+   scrollbar width, and it cannot be satisfied by three media queries agreeing with each other. */
+test('1: wherever the rail wraps, a commit control is on screen — swept, not named', async ({ page }) => {
+  await openPlate(page, 900);
+  const sweep = [];
+  for (let w = 900; w <= 1200; w += 20) {
+    await page.setViewportSize({ width: w, height: 800 });
+    await page.waitForTimeout(120);
+    sweep.push(await page.evaluate((width) => {
+      const m = document.querySelector('.bld-main').getBoundingClientRect();
+      const r = document.querySelector('.bld-rail').getBoundingClientRect();
+      const bar = document.querySelector('.bld-bar').getBoundingClientRect();
+      const btn = document.getElementById('saveBtn').getBoundingClientRect();
+      const on = (x) => x.width > 0 && x.height > 0;
+      return {
+        width,
+        wrapped: r.top >= m.bottom - 4,
+        barOn: on(bar) && bar.bottom <= innerHeight + 1,
+        railSaveOn: on(btn) && btn.bottom <= innerHeight,
+      };
+    }, w));
+  }
 
-  await page.setViewportSize({ width: 1076, height: 800 });
-  await page.waitForTimeout(200);
-  expect(await page.evaluate(() => {
-    const m = document.querySelector('.bld-main').getBoundingClientRect();
-    const r = document.querySelector('.bld-rail').getBoundingClientRect();
-    return r.top >= m.bottom - 4;
-  }), 'at 1076 the rail must sit beside the docket — if this moved, the sidebar width changed and the three media queries in css/style.css are now wrong').toBe(false);
+  // the control: the sweep must actually cross the boundary, or it proves nothing.
+  expect(sweep.some((s) => s.wrapped), 'precondition: no wrapped width in the sweep').toBe(true);
+  expect(sweep.some((s) => !s.wrapped), 'precondition: no two-column width in the sweep').toBe(true);
+
+  for (const s of sweep) {
+    if (s.wrapped) {
+      expect(s.barOn,
+        `at ${s.width} the rail is wrapped, so its Save is below a full-height docket — the sticky bar must be on screen`).toBe(true);
+    }
+    expect(s.barOn && s.railSaveOn,
+      `at ${s.width} both the sticky bar and the rail's Save are on screen — two primary CTAs (§7)`).toBe(false);
+    expect(s.barOn || s.railSaveOn,
+      `at ${s.width} there is NO commit control on screen at all`).toBe(true);
+  }
 });
 
-for (const width of [768, 900, 1024, 1075]) {
+for (const width of [768, 900, 1024, 1060]) {
   test(`2+4: at ${width} the wrapped rail fills its row and exactly one commit control is on screen`, async ({ page }) => {
     await openPlate(page, width);
     const m = await page.evaluate(geom);
@@ -145,7 +178,7 @@ for (const width of [768, 900, 1024, 1075]) {
   });
 }
 
-for (const width of [1076, 1100, 1200, 1360]) {
+for (const width of [1100, 1200, 1360]) {
   test(`3: at ${width} the ingredient name and the unit noun are whole`, async ({ page }) => {
     await openPlate(page, width);
     const m = await page.evaluate(geom);
@@ -166,12 +199,12 @@ for (const width of [1076, 1100, 1200, 1360]) {
   });
 }
 
-for (const width of [900, 1076, 1360]) {
+for (const width of [900, 1100, 1360]) {
   test(`5+7: at ${width} the qty inputs share one edge and the band matches the rows`, async ({ page }) => {
     await openPlate(page, width);
     const m = await page.evaluate(geom);
-    expect(m.qtyLefts.length,
-      `the qty inputs sit on ${m.qtyLefts.length} different left edges (${m.qtyLefts.join(', ')}) — the unit noun after the input decides the position, so a docket mixing units staggers them`).toBe(1);
+    expect(Math.max(...m.qtyLefts) - Math.min(...m.qtyLefts),
+      `the qty inputs sit on left edges ${m.qtyLefts.join(', ')} — the unit noun after the input decides the position, so a docket mixing units staggers them. 1px of sub-pixel rounding is tolerated; the defect was 23px.`).toBeLessThanOrEqual(1);
     expect(m.rowCols, 'the band and the rows are separate grids and only line up while these strings match').toBe(m.bandCols);
   });
 }
@@ -183,7 +216,7 @@ for (const width of [900, 1076, 1360]) {
    turned out, had been doing so on `main` at 640-767 all along.
    The lesson is the fixture's, not the assertion's: a spec that checks the boundary it just wrote a
    rule for has checked its own work. Run it at every width the ELEMENT can appear at. */
-for (const width of [640, 768, 900, 1023, 1024, 1075]) {
+for (const width of [640, 768, 900, 1023, 1024, 1060]) {
   test(`6: at ${width} the save bar clears the nav rail rather than sitting under it`, async ({ page }) => {
     await openPlate(page, width);
     const m = await page.evaluate(() => {

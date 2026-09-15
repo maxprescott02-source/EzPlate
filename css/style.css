@@ -898,7 +898,7 @@ input.bld-nameinput:focus{background:var(--surface);border-color:var(--accent);b
    against "g"'s 21. At 1.7em (21.25px) the min-width was under the natural width, so at 1100 the
    cell squeezed and "unit" rendered clipped: a rule that set out to align a column and truncated a
    word instead. 2.5em is 31.25px at this font size, which clears the real widest. */
-.bld-u{font-family:var(--mono);font-size:12.5px;color:var(--muted2);display:inline-block;min-width:2.5em;text-align:left}
+.bld-u{font-family:var(--mono);font-size:12.5px;color:var(--muted2);display:inline-block;min-width:32px;text-align:left}
 .bld-unit{grid-column:2;grid-row:2;justify-self:start;font-size:12.5px;color:var(--text2)}
 .bld-lc{
   grid-column:2 / 4;grid-row:1;justify-self:end;align-self:center;
@@ -1013,7 +1013,7 @@ input.bld-nameinput:focus{background:var(--surface);border-color:var(--accent);b
    whole band had NO reachable commit once the page was scrolled. Queue item 49.
    Both halves still hold at the new number: the panel and the bar must not print the same two
    figures (§7), and both hidden would be no commit at all. */
-@media (max-width:1075px){
+@media (max-width:1099px){
   #bCost .bld-sumhead,#bCost .bld-kv,#bCost .bld-sumacts > #saveBtn,#bCost .bld-sumacts > #saveHint{display:none}
   #bCost .bld-cardbody{padding-top:14px}
   #bCost.is-bare .bld-cardbody{display:none}
@@ -1221,11 +1221,26 @@ input.bld-nameinput:focus{background:var(--surface);border-color:var(--accent);b
 }
 /* §7: the summary bar and the summary panel would print the same two figures. The panel wins at the
    widths where it is actually on screen, and the bar covers the rest.
-   ⚠️ 274 — THIS MOVED FROM `min-width:768px` TO `min-width:1076px` and is the other half of the pair
-   at the `max-width:1075px` block above. It is not "the bar is a phone element" any more, because
-   the condition was never really about phones: it is about whether the rail's Save is reachable, and
-   between 768 and 1075 the rail sits under a full-height docket and it is not. */
-@media (min-width:1076px){
+   ⚠️ 274 — THIS MOVED FROM `min-width:768px` TO `min-width:1100px`, and the 1100 is NOT the wrap
+   point. It is the wrap point plus a deliberate margin, and the margin is the whole correction.
+   THE FIRST CUT SET IT TO 1076, EXACTLY ONE ABOVE THE MEASURED WRAP, AND CI CAUGHT IT.
+   The wrap point is where `.bld-body`'s inner width reaches 800, and that width depends on the
+   SCROLLBAR as well as the viewport: macOS draws overlay scrollbars and the Linux runner draws a
+   classic one, so the same 1076 viewport is two-column here and STILL WRAPPED there.
+   `.claude/rules/tests.md` says this in as many words about assertions - the fixed containing block
+   is 370 inside a 380 viewport on that runner - and it is just as true of a rule as of a test.
+   ⚠️ THE FAILURE THAT CREATES IS THE DANGEROUS ONE, WHICH IS WHY THE MARGIN IS NOT TIDINESS: a
+   viewport where the media query says "two-column" while flex is still wrapping gets the bar hidden
+   AND #saveBtn restored to a rail that sits under a full-height docket - a width with NO REACHABLE
+   COMMIT, which is the exact defect this batch exists to remove.
+   ⚠️ AND NOTE WHAT DID NOT CATCH IT. `tests/builder-readiness.test.js` asserts the three media
+   queries agree with each OTHER, and they did: all three can be perfectly consistent and all three
+   wrong about where flex actually wraps. **Agreement between rules is not agreement with the
+   layout.** The spec now measures the wrap rather than naming a width.
+   So this threshold is deliberately LOOSE. Between the wrap point and 1100 the bar is shown while
+   the rail is already beside the docket - one commit control, reachable, slightly redundant - and
+   that is the harmless side of the error. Overlapping is safe; a gap is not. */
+@media (min-width:1100px){
   .bld-bar{display:none}
 }
 /* ⚠️ THE BAR IS `position:fixed;left:0`, AND FROM 640 UP THE NAV IS A LEFT RAIL - SO IT HAS RUN
@@ -1249,7 +1264,7 @@ input.bld-nameinput:focus{background:var(--surface);border-color:var(--accent);b
 @media (min-width:640px) and (max-width:1023px){
   .bld-bar{left:78px}
 }
-@media (min-width:1024px) and (max-width:1075px){
+@media (min-width:1024px) and (max-width:1099px){
   .bld-bar{left:224px;bottom:0}
 }
 /* Below 640 the tab bar is a real bottom bar and the summary sits above it; from 640 up it is a

@@ -78,3 +78,26 @@ Exactly the "two files describing one thing will disagree" defect, committed ins
 Rewriting the finding-2 comment left a `*/` mid-block, closing a CSS comment early and leaving two lines of prose as raw stylesheet text. `tests/css-syntax.test.js` went red on the next run.
 
 That is `.claude/rules/css.md`'s *"a CSS syntax error is SILENT, and it discards every rule after it"* — the guard catching the exact class it was written for, in the batch that was editing comments about measurement discipline. Nothing shipped; noted because the guard's value is invisible unless someone says when it fired.
+
+---
+
+## What the review did NOT find, and CI did
+
+**The breakpoint itself was wrong, in the dangerous direction, and every gate in this repo passed it.**
+
+`browser specs (Playwright)` went red on the PR with the local suite green. Three failures, two causes:
+
+**The wrap point is not a property of the app.** It is where `.bld-body`'s inner width reaches 800px, and that width depends on the **scrollbar** as well as the viewport — overlay scrollbars on macOS, a classic one on the Linux runner. So the same 1076px viewport is two-column here and **still wrapped** there.
+
+⚠️ **That is not a test artifact, and reading it as one would have been the expensive mistake.** A media query pinned one pixel past the locally-measured wrap leaves any machine with a wider scrollbar a band where the query says "two-column" — so the bar hides and `#saveBtn` is restored **to a rail still sitting under a full-height docket**. A width with no reachable commit: precisely the defect this batch exists to remove, reintroduced by its own fix, on every Linux and Windows machine.
+
+**And note which gate failed to see it.** `tests/builder-readiness.test.js` asserted the three new media queries agree with **each other**, and they did — perfectly, at 1075/1075/1076. **Agreement between rules is not agreement with the layout.** All three can be consistent and all three wrong about where flex actually wraps.
+
+**Three corrections:**
+- **The threshold is now 1100, deliberately loose**, not wrap+1. Between the real wrap and 1100 the bar is shown while the rail is already beside the docket — one control, reachable, mildly redundant. **Overlapping is safe; a gap is not,** and the two errors are not symmetric.
+- **The spec asserts the property, not the number.** It sweeps 900→1200 in 20px steps and asserts that *wherever the rail wraps, a commit control is on screen* — plus never two, and never none. True at every scrollbar width, in every environment, and it cannot be satisfied by three rules agreeing with each other.
+- **The unit-noun floor is `32px`, not `2.5em`.** The em resolved to a fraction and the runner rounded the qty inputs to 427 and 428 where macOS gave one value. The assertion now tolerates 1px of sub-pixel rounding and names the 23px defect it is really about.
+
+`tests/builder-readiness.test.js` now asserts the **asymmetry** instead of adjacency: the bar's threshold must sit strictly above the wrapped-rail band, by at least 20px, "which is under the ~17px a classic scrollbar can move the wrap point by." Verified red against the exact 1075/1076 configuration CI rejected.
+
+**The transferable half, and it is the reason this section exists rather than a quiet fix:** `.claude/rules/tests.md` already says a viewport-geometry **assertion** must measure its reference rather than name it. This batch proves the same is true of a **rule**. A breakpoint derived from a measured container width inherits every environmental assumption that measurement carried — and unlike a test, a wrong breakpoint ships.
