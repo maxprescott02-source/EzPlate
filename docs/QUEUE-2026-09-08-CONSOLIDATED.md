@@ -453,17 +453,43 @@ Opener `New <object>` · commit `Add <object>` · join a list `Add to menu` · e
 
 ## next  49 · The builder between 768 and 1200 wide: side cards stack at half width, names truncate to seven characters, Save falls below the fold  **[B, the desktop band most laptops open the app in]**
 
-**Measured 8 Sep (persona §7, §8, §9; UX U6):** at 1024 and 900 `.bld-body` wraps and the rail sits under the docket at `max-width:340px` (`css/style.css:937`, called deliberate for the 340 and silent about the empty right half); the wrap point is about 1120 viewport with the 230px sidebar (`flex:1 1 480px` + `1 1 280px` + gap); at 1100 `.bld-band`'s `minmax(0,1fr) 110px 110px 90px 40px` (`:945`) leaves the name about 130px so "Mushroo…", "Bread S…", "Hash Browns" on two lines while the chip keeps 110; at 900 Save plate is below the fold and the mobile save bar is hidden at this width; `.bld-sum{position:sticky}` (`:939`) does nothing once stacked.
+⚠️ **RE-MEASURED 16 SEP 2026 (batch 274's premise check and repro). EVERY VALUE THE 8 SEP MEASUREMENT NAMED IS STILL CORRECT AND EVERY LINE NUMBER IS STALE, AND THREE OF THE FIGURES WERE WRONG IN THE DIRECTION THAT UNDERSTATES THE DEFECT.** Two batches (271, 273) edited these files after it was written. **Plan off the table below, not off the paragraph under it, which is kept as the record of what was originally seen.**
+
+| viewport | `.bld-body` inner | wrapped | rail | **empty space right of the rail** | name track | `#saveBtn` | `#bldSaveBar` |
+|---|---|---|---|---|---|---|---|
+| 768 | 610 | yes | 340 | **290** | 178 | below fold (y=987) | **not painted** |
+| 900 | 680 | yes | 340 | **360** | 248 | below fold (y=987) | **not painted** |
+| 1024 | 748 | yes | 340 | **428** | 316 | below fold (y=936) | **not painted** |
+| 1056 | 780 | no | 280 | - | 70 | on screen | not painted |
+| 1100 | 824 | no | 302 | - | **70, and "Mushrooms Sliced" is CLIPPED** | on screen | not painted |
+| 1200 | 924 | no | 340 | - | 132 | on screen | not painted |
+| 1360 | 1084 | no | 340 | - | 208 | on screen | not painted |
+
+**The four corrections, each of which changes what the fix has to do:**
+- **The band is 768 to 1055, not "1024 and 900".** Three of the widths a laptop opens the app in, not two.
+- **THE WRAP POINT IS EXACTLY 1056, not "about 1120"** - at 1056 the container is 780, which is `480 + 280 + 20` to the pixel.
+- **The empty right half is bigger than the rail.** At 1024 the rail is 340 with **428px of nothing beside it**.
+- **The name track bottoms out at 70px, not "about 130"** - understated by half, and 70px is where a real name actually clips. 130px is the 1200 case. The damage is visible in the page height: `.bld-main` is **734px tall at 1100 against 616 at 1200**, because crushed names wrap to two lines and every row grows.
+- **`#bldSaveBar` is not painted at ANY width in this band**, so from 768 to 1055 there is no save control on screen at all once the page is scrolled. The item said "at 900 Save plate is below the fold"; the true statement is that the whole band has no reachable commit.
+
+✅ **AND THE MECHANISM QUESTION IS SETTLED, WHICH IS THE PART THAT WAS ACTUALLY BLOCKING THIS.** `css/style.css`'s own comment at the `.bld-body` rule says *"a breakpoint cannot fix it, because the same viewport means two different container widths depending on whether the shell is drawn"*, and that is **false as measured**: `.bld-body`'s inner width minus the viewport is a **constant -276 at every width from 1024 up**, and below 1024 the container plateaus at 680. The relationship is exact within each band; it needs **two** breakpoints rather than one, which is what the comment ruled out by only considering one.
+**So this needs no container query** - and that matters beyond tidiness, because `container-type:inline-size` establishes a containing block for `position:fixed` descendants, and the ingredient dropdown is a `position:fixed` descendant of `.bld-body` placed by `anchorDrop` from `getBoundingClientRect()` numbers. `.claude/rules/css.md` is an entire section about that exact pairing. **A plain `@media (min-width:768px) and (max-width:1055px)` is the wrapped state precisely, and carries none of that risk.**
+⚠️ **The 1056 IS coupled to the sidebar's width and that coupling must be PINNED, not just written down** - if the sidebar changes width the wrap point moves and the query is silently wrong, which is the fragility the site comment was right about even though its conclusion was not. Assert that the rail is wrapped at 1055 and side by side at 1056.
+
+*(The original 8 Sep paragraph, kept as written:)* at 1024 and 900 `.bld-body` wraps and the rail sits under the docket at `max-width:340px` (`css/style.css:937`, called deliberate for the 340 and silent about the empty right half); the wrap point is about 1120 viewport with the 230px sidebar (`flex:1 1 480px` + `1 1 280px` + gap); at 1100 `.bld-band`'s `minmax(0,1fr) 110px 110px 90px 40px` (`:945`) leaves the name about 130px so "Mushroo…", "Bread S…", "Hash Browns" on two lines while the chip keeps 110; at 900 Save plate is below the fold and the mobile save bar is hidden at this width; `.bld-sum{position:sticky}` (`:939`) does nothing once stacked.
+**Current lines for the five citations: `:1091` (the 340 cap), `:1099` (the band grid), `:1094` (the sticky), `index.html:543` (`#bldSaveBar`), and `css/style.css:1135` (`.bld-bar{display:none}`, which the item never cited and which is what actually hides the bar).**
 
 **What must be true:** when the rail wraps it fills the row (drop the 340 cap when wrapped, or move the wrap point so 1024 stays two-column); the name track has a 140px floor and the fixed tracks shrink first; below 1024 the summary is full width and a slim sticky bar with Total and Save plate stays on screen (the phone already has one: `#bldSaveBar`, `index.html:494`; show it to 1023 rather than 767). The per-unit qty inputs sit further left than gram-line inputs (persona §9): right-align the input to one edge and let the unit label vary, in the same grid pass.
 
-**Test:** `tests/visual/` spec at 900, 1024, 1100 and 1200: no empty band wider than the gap to the right of the rail; the longest fixture name shows at least 12 characters; the save control is inside the viewport at 900 with a costed plate. Extends `v190-tablet-band.spec.js` upward.
+**Test:** `tests/visual/` spec at 900, 1024, 1100 and 1200: no empty band wider than the gap to the right of the rail; the longest fixture name shows at least 12 characters; the save control is inside the viewport at 900 with a costed plate. ~~Extends `v190-tablet-band.spec.js` upward.~~
+⚠️ **"EXTENDS `v190-tablet-band.spec.js`" IS FALSE AND THE WORD HIDES THE SIZE OF THE JOB** (batch 274's premise check). That spec pins the 768-1023 band on the **Menu, Ingredients and Products tables** - `.mnu-band`, `.king-band`, `.ing-band` - plus a 1024 desktop-track lock. **It contains no `.bld-*`, no `#bldSaveBar` and no builder assertion of any kind.** So this is a NEW spec, not an extension, and the estimate should carry that.
+**Add to the test list, from the re-measurement:** the wrap point itself, asserted from both sides (wrapped at 1055, side by side at 1056), because the 1056 is coupled to the sidebar's width and nothing else would notice that moving.
 
-## next  50 · Toasts land on controls: "Loaded" on Clear plate and the misc input, any toast on the builder's Save, a toast on a bottom sheet  **[B, a toast for a non-event sitting on a control, and a real toast hiding the primary action]**
+## next  50 · Toasts land on controls: "Loaded" on the builder discard and the misc input, any toast on the builder's Save, a toast on a bottom sheet  **[B, a toast for a non-event sitting on a control, and a real toast hiding the primary action]**
 
 **One mechanism:** the toast docks at a fixed height and nothing else on the bottom stack knows about it. 226 built the answer for the install banner (`--install-banner-clear`, published by the element that knows its own height).
 
-- **Remove the "Loaded: <plate>" toast** (`js/app.js:9475`, `loadPlate`; UX U12): it fires on every open, the breadcrumb already names the plate, and it sat over "Clear plate" at 1024, over "Duplicate" at 900, and over the misc row on desktop. The `loadMenuItem` sibling at `:9412` says something useful and stays.
+- **Remove the "Loaded: <plate>" toast** (`js/app.js:9475`, `loadPlate`; UX U12): it fires on every open, the breadcrumb already names the plate, and it sat over #clearBtn ("Start over" since batch 273, "Clear plate" when this was measured) at 1024, over "Duplicate" at 900, and over the misc row on desktop. The `loadMenuItem` sibling at `:9412` says something useful and stays.
 - **A real-length toast covers `.bfs-save` at 380x800** (`docs/MAINTENANCE.md`, measured 2 Sep: toast x95-285 y617-708 over `.bld-bar` y636-736): `.bld-bar` publishes `--bld-bar-clear` from `renderBuilderCost` and the toast takes the max; never a third hardcoded constant.
 - **Toast (z90) on bottom-sheet content and dropdown rows at ≤767** (ui-audit R13, deferred 3 Sep, re-asked): the same clearance variable, or a higher offset while an overlay is open.
 
