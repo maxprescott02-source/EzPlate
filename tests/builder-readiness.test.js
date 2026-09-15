@@ -262,15 +262,46 @@ test('271: a legacy {pid} line for the same product does NOT block adding its ki
 
 test('271 census: the four readiness controls have ONE owner', () => {
   /* The F7 census said this about `hidden` on two controls, after two copied assignments per call
-     site left both visible on a discarded plate. `disabled` is the same mechanism on four more. */
+     site left both visible on a discarded plate. `disabled` is the same mechanism on four more.
+     ⚠️ TWO CHECKS, BECAUSE THE FIRST ONE ALONE IS A PROXIMITY HEURISTIC and this file's own roster
+     (`.claude/rules/tests.md`, entry 268) is about exactly that: the same-line form catches a direct
+     `getElementById('x').disabled=`, and a second writer that binds the element to a variable first
+     and sets `.disabled` twenty lines later walks straight past it. That is the natural way anyone
+     would write the second writer, because it is how the owner itself is written.
+     So the second check follows the BINDING: any `var/let/const X = getElementById('<id>')` outside
+     the owner is found by name, and `X.disabled =` is then forbidden anywhere outside the owner.
+     Stated limit, because a heuristic sold as a structural claim is the defect: neither check sees
+     an element reached through a collection, a `querySelector`, or a variable assigned in two steps. */
   const owner = extractFn(SRC, 'syncBuilderPlateActions');
   const elsewhere = SRC.split(owner).join('');
   for (const id of ['saveBtn', 'bldSaveBar', 'printBtn', 'clearBtn']) {
     assert.ok(owner.includes(id), `syncBuilderPlateActions must own #${id}`);
-    assert.ok(!new RegExp("getElementById\\('" + id + "'\\)[^;\\n]*disabled\\s*=").test(elsewhere),
+    assert.ok(!new RegExp("getElementById\\(['\"]" + id + "['\"]\\)[^;\\n]*disabled\\s*=").test(elsewhere),
       `#${id}'s disabled state is set outside syncBuilderPlateActions — a second writer is how the ` +
       'F7 Clear-plate gap happened');
+    const bind = new RegExp("(?:var|let|const)\\s+(\\w+)\\s*=\\s*document\\.getElementById\\(['\"]" + id + "['\"]\\)", 'g');
+    let m;
+    while ((m = bind.exec(elsewhere))) {
+      assert.ok(!new RegExp("\\b" + m[1] + "\\s*\\.\\s*disabled\\s*=").test(elsewhere),
+        `#${id} is bound to \`${m[1]}\` outside syncBuilderPlateActions and that variable's ` +
+        '`.disabled` is written — same second writer, one statement further apart');
+    }
   }
+});
+
+test('271 census: the binding check can actually see a second writer', () => {
+  /* The check above is the kind that passes for the wrong reason, so it is run against source that
+     contains the defect. Without this, a regex that matches nothing reads exactly like a clean file
+     — roster 167, and the reason `tests/queue-routing.test.js` carries the same pair. */
+  const owner = extractFn(SRC, 'syncBuilderPlateActions');
+  const injected = SRC.split(owner).join('') +
+    "\nfunction somethingLater(){ var sb=document.getElementById('saveBtn'); if(sb) sb.disabled=false; }\n";
+  const bind = /(?:var|let|const)\s+(\w+)\s*=\s*document\.getElementById\('saveBtn'\)/g;
+  const hits = [];
+  let m;
+  while ((m = bind.exec(injected))) hits.push(m[1]);
+  assert.ok(hits.includes('sb'), 'the binding pattern finds the injected variable');
+  assert.ok(/\bsb\s*\.\s*disabled\s*=/.test(injected), 'and the write it makes is what the assertion forbids');
 });
 
 test('271 census: the blocker has one definition and every sink reads it', () => {
