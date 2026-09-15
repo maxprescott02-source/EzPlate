@@ -102,7 +102,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=219">
+<link rel="stylesheet" href="css/style.css?v=220">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -428,7 +428,10 @@
             <p class="hint bld-hint" id="builderHint" style="display:none"></p>
             <div class="bld-miscrow">
               <button class="btn bld-misc" id="addMiscBtn" type="button">+ Misc cost</button>
-              <span class="bld-tip">tap a unit cost to edit &mdash; the change applies everywhere</span>
+              <!-- 271: was "tap a unit cost to edit — the change applies everywhere". Lower case, a
+                   device verb this app is read on a desktop as often as a phone, and a dash joining
+                   two whole sentences. Two sentences now, and the second says WHERE the change lands. -->
+              <span class="bld-tip">Select a unit cost to edit it. The change applies to every plate.</span>
             </div>
             <!-- the docket totals ITSELF, at its foot, which is what makes it a docket. §7's "one
                  figure per screen" is deliberately relaxed here and the reason is recorded at
@@ -465,6 +468,12 @@
           </div>
           <div class="bld-actions bld-sumacts">
             <button class="btn primary" id="saveBtn" type="button">Save plate</button>
+            <!-- 271 — THE REASON THE BUTTON ABOVE IS DISABLED, and it is not decoration: a disabled
+                 primary with nothing beside it replaces a toast that said exactly what was missing
+                 with silence. syncBuilderPlateActions is its one writer and builderSaveBlocker is
+                 the one source; the phone's copy of this sentence is #bFootLine, because #saveBtn
+                 and this line both hide below 768 (see the @media pair on #bCost). -->
+            <p class="bld-savehint" id="saveHint" hidden></p>
             <div class="bld-actrow">
               <button class="btn" id="printBtn" type="button">Print docket</button>
               <button class="btn" id="clearBtn" type="button">Clear plate</button>
@@ -1922,7 +1931,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=219"></script>
+<script src="js/app.js?v=220"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —

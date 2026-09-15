@@ -169,15 +169,19 @@ for (const size of [{ name: '380px', width: 380, height: 780 }, { name: 'desktop
 }
 
 /* The refusal to save an unnamed plate points at a field the user may not be able to see, so the
-   thing to pin is that pressing Save BRINGS IT TO THEM. It works because saveCurrentPlate calls
-   pn.focus() and focus scrolls — a fact about the browser, not about the code, which is why it is
-   measured rather than assumed.
+   thing to pin is that the refusal BRINGS IT TO THEM. It works because focus() scrolls — a fact
+   about the browser, not about the code, which is why it is measured rather than assumed.
    ⚠ 177 INVERTED THE GEOMETRY AND THE GUARANTEE IS THE SAME. #plateName went back into the header,
    so it is off the TOP once the docket is scrolled rather than off the bottom, and Save on a phone
    is the sticky bar's — always on screen, at the other end of the page from the field it refuses
    for. That is a longer distance than 170's, not a shorter one, so the pin is if anything more
-   load-bearing here. The premise below scrolls to the BOTTOM for exactly that reason. */
-test('saving an unnamed plate scrolls its error into view @ 380px', async ({ page }) => {
+   load-bearing here. The premise below scrolls to the BOTTOM for exactly that reason.
+   ⚠ 271 CHANGED THE TRIGGER AND KEPT THE GUARANTEE, WHICH IS WHY THIS SPEC IS REWRITTEN RATHER THAN
+   DELETED. Save is now DISABLED until the plate has a name and a line, so there is no press to make
+   and no error to scroll to; the reason is printed in the sticky bar instead, where it needs no
+   scrolling at all, and the line itself is the route to the field. Both halves are asserted below,
+   because disabling alone would have traded a message the user could not see for no message. */
+test('an unnamed plate says so where the user is looking, and the line takes them to the field @ 380px', async ({ page }) => {
   const errs = [];
   page.on('pageerror', e => errs.push(String(e)));
   await page.setViewportSize({ width: 380, height: 780 });
@@ -213,19 +217,31 @@ test('saving an unnamed plate scrolls its error into view @ 380px', async ({ pag
 
   // the phone's Save is the sticky bar's — visible wherever the page is scrolled to
   await expect(page.locator('#bldSaveBar')).toBeVisible();
-  await page.locator('#bldSaveBar').click();
-  await page.waitForTimeout(600);
-  const shown = await page.evaluate(() => {
-    const e = document.getElementById('plateNameErr'), r = e.getBoundingClientRect();
+  const refused = await page.evaluate(() => {
+    const b = document.getElementById('bldSaveBar');
+    const l = document.getElementById('bFootLine'), r = l.getBoundingClientRect();
     return {
-      text: e.textContent,
-      inViewport: r.top >= 0 && r.bottom <= window.innerHeight,
-      focused: document.activeElement && document.activeElement.id,
+      disabled: b.disabled,
+      text: l.textContent,
+      inViewport: r.top >= 0 && r.bottom <= window.innerHeight && r.height > 0,
+      role: l.getAttribute('role'),
     };
   });
-  expect(shown.text).toMatch(/name/i);
-  expect(shown.focused, 'the refusal puts the cursor in the field it is about').toBe('plateName');
-  expect(shown.inViewport, 'and the message is somewhere the user can actually read it').toBe(true);
+  expect(refused.disabled, 'Save is refused BEFORE the press, which is what item 51 asked for').toBe(true);
+  expect(refused.text, 'and the refusal names what is missing').toMatch(/name/i);
+  expect(refused.inViewport,
+    'and it is on screen with the page scrolled to the foot of the docket — the field it is about is not, ' +
+    'which is the whole reason this spec exists').toBe(true);
+  expect(refused.role, 'the line is announced as the control it is').toBe('button');
+
+  await page.locator('#bFootLine').click();
+  await page.waitForTimeout(600);
+  const after = await page.evaluate(() => {
+    const r = document.getElementById('plateName').getBoundingClientRect();
+    return { focused: document.activeElement && document.activeElement.id, inViewport: r.top >= 0 && r.bottom <= window.innerHeight };
+  });
+  expect(after.focused, 'tapping the reason puts the cursor in the field it is about').toBe('plateName');
+  expect(after.inViewport, 'and focus() is what scrolls it back into view — measured, not assumed').toBe(true);
   expect(errs, errs.join('|')).toHaveLength(0);
 });
 

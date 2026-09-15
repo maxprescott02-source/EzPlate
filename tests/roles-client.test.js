@@ -91,6 +91,13 @@ function harness(opts) {
     ${extractFn(SRC, 'isOwner')}
     ${extractFn(SRC, 'ownerOnly')}
     ${extractFn(SRC, 'applyRoleUi')}
+    /* 271: syncBuilderPlateActions also owns the builder's readiness controls now, so it reads the
+       live plate. Real here rather than stubbed — an empty plate is the state applyRoleUi actually
+       runs against at boot, and the getElementById above answers null for every control it touches,
+       which is the second thing this file asserts (a cached index.html must not throw). */
+    var plate = OPT.plate || [];
+    ${extractFn(SRC, 'builderSaveBlocker')}
+    ${extractFn(SRC, 'builderPlateName')}
     ${extractFn(SRC, 'syncBuilderPlateActions')}
     ${extractFn(SRC, 'updateMenuDelBtn')}
     ${extractFn(SRC, 'openDelChoice')}

@@ -149,7 +149,9 @@ It belongs in G3 on context: it is `as restrictive for delete`, one migration, m
 
 **Context:** the four object nouns and the forbidden fifth, the naming inversion, the verb table, the `.scr-sub` rule.
 
-**Items:** ~~46~~ (SHIPPED, batch 261, `ezplate-v215`) · ~~57~~ (267, `v216`) · ~~58~~ (268, `v217`) · ~~60~~ (270, `v219`) · 78 (C, rides) · **the copy half of 51** (promoted to `docs/QUEUE.md` by batch 270's refill, and the only unstruck A-or-B item left here)
+**Items:** ~~46~~ (SHIPPED, batch 261, `ezplate-v215`) · ~~57~~ (267, `v216`) · ~~58~~ (268, `v217`) · ~~60~~ (270, `v219`) · ~~51~~ (271, `v220` — **whole, not the copy half**: the three readiness bullets were three small functions on one screen, so splitting them would have left residue for no saving) · 78 (C, rides)
+
+✅ **G4 HAS NO UNSTRUCK A-OR-B ITEM LEFT as of batch 271**, so it is finished as a source of queue items in the same way G1 and G2 are: 78 is C and rides. **The next refill opens G5** — and see the standing warning above that G5 cannot be one batch.
 
 ⚠️ **THE STRIKES ON 57, 58 AND 60 WERE ADDED BY BATCH 270, AFTER ITS PRE-PUSH REVIEW POINTED OUT THAT THIS LINE STILL LISTED 60 AS LIVE.** Three shipped items had been sitting here unstruck while `docs/QUEUE-2026-09-08-CONSOLIDATED.md` recorded all three as done, so the two files disagreed about what was left in this group.
 **It is not merely cosmetic, and the reason is this file's own rule: the `**Items:**` line is a FIELD** - `tools/state.js` and `tests/queue-routing.test.js` both read it, which is exactly the argument the G5 note below makes about item 85. The derivation happened to be right here because struck-ness is read from the consolidated file rather than from this line, so nothing went wrong; **a human reading this line to decide whether G4 was finished would have got a different answer from the machine**, which is the failure one step before the one that costs a batch.
@@ -176,7 +178,7 @@ It belongs in G3 on context: it is `as restrictive for delete`, one migration, m
 
 **Context:** `anchorDrop`, `fixedContainingBlock`, `makeInlineCombo`, `reanchorOpenLayers`, the combobox inventory, modal stacking order.
 
-**Items:** 48, 52, 74 · the Save-readiness half of 51
+**Items:** 48, 52, 74 · ~~the Save-readiness half of 51~~ (SHIPPED with the copy half, batch 271, `ezplate-v220` — it was three small functions on one screen, so G4 took the whole item rather than leaving a half here)
 
 **Why separate from G5:** the defect is JS coordinate arithmetic, not cascade. 48's mechanism is explicitly unmeasured and step one is measuring inside the modal. 52 adds the first reachable modal-over-modal stack, which is exactly what 74 exists to guard — they check each other.
 

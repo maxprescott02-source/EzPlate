@@ -2207,7 +2207,24 @@ function addProduct(pid){const p=byId[pid];if(!p)return;plate.push({uid:uidc++,p
    a window property. pid-lines are live production data (84 of 179 plate lines) that reach the builder
    via loadPlateState, and four fresh-states specs cover their rendering through this door. Deleting it
    would trade one line for the only coverage of that shape. */
-function addKitchenLine(kid){const k=kById[kid];if(!k)return;const p=byId[k.pid];plate.push({uid:uidc++,kid:kid,qty:p?defaultQty(p):null});qEl.value='';closeDrop();renderPlate();qEl.focus();}   /* v60: qty starts empty */
+/* 271 — THE SAME INGREDIENT TWICE IS REFUSED, NOT MERGED, and the difference matters.
+   Both add paths land here — the dropdown's Enter (pickListItem) and its mousedown — and neither
+   looked at what was already on the plate, so two "Chips" rows costed the same ingredient twice
+   with nothing on screen saying so.
+   ⚠️ MERGING WAS THE ITEM'S OTHER OPTION AND IS THE WRONG ONE: a new line's qty is defaultQty(p)
+   or null, so "merge into the existing line's quantity" means ADDING A NUMBER THE USER NEVER TYPED
+   to one they did, silently, on a costing screen. Refusing says the same thing and invents nothing.
+   The existing line's quantity field is focused because that is what the user came to change. */
+function addKitchenLine(kid){const k=kById[kid];if(!k)return;
+  const dupe=plate.find(function(l){ return l && l.kid===kid; });
+  if(dupe){
+    qEl.value='';closeDrop();
+    toast('“'+(k.name||'That ingredient')+'” is already on this plate');
+    const qi=document.querySelector('.bld-row[data-uid="'+dupe.uid+'"] .bld-qty input');
+    if(qi){ qi.focus(); if(qi.select) qi.select(); } else qEl.focus();
+    return;
+  }
+  const p=byId[k.pid];plate.push({uid:uidc++,kid:kid,qty:p?defaultQty(p):null});qEl.value='';closeDrop();renderPlate();qEl.focus();}   /* v60: qty starts empty */
 function removeLine(uid){plate=plate.filter(l=>l.uid!==uid);renderPlate();}
 function setQty(uid,v){const l=plate.find(x=>x.uid===uid);if(!l)return;const s=(v==null?'':String(v)).trim();const n=parseFloat(s);l.qty=(s===''||isNaN(n))?null:Math.max(0,n);updateLine(uid);updateTotals();}   // v60: a cleared field is null (empty), not 0 — save requires a real quantity
 
@@ -2390,7 +2407,8 @@ function updateTotals(){
      line reading -$2.00 has cost data — it has the wrong data. The wording covers both cases now,
      because the flag is the only thing on screen that says why the total is short. */
   if(missing){flag.style.display='block';flag.textContent='⚠ '+missing+' item'+(missing>1?'s':'')+(missing>1?' have':' has')+' no usable cost and '+(missing>1?'are':'is')+' not in the total.';}else flag.style.display='none';
-  renderBuilderCost(tot);                                     // Q6 (v125): the cost panel + mobile footer render from the SAME total this function just displayed
+  syncBuilderPlateActions();                                  // 271: a line added, removed or re-portioned changes whether the plate can be saved or printed
+  renderBuilderCost(tot);                                   // Q6 (v125): the cost panel + mobile footer render from the SAME total this function just displayed
   scheduleDraftSave();                                        // v82 D1: qty / misc / price edits funnel through here
 }
 /* Q6 (v125): the builder's cost panel (desktop) and footer summary (mobile). One renderer, one
@@ -2468,6 +2486,18 @@ function renderBuilderCost(tot){
   var sEl=document.getElementById('bSuggest'); if(sEl) sEl.textContent=(cost>0)?money(cost/foodTarget()):'—';
   var sp=loadedPlateId?savedPlates.find(function(s){return s.id===loadedPlateId;}):null;
   var on=sp?menusOfPlate(sp):[];
+  /* 271 — THE CARD BODY IS EMPTY ON A PHONE FOR A PLATE ON NO MENU, and this class is what lets CSS
+     know. Its four children are `.bld-kv` (hidden below 768, because the sticky bar carries that
+     figure), #bPriceRow (rendered only at exactly one menu), #bWarn (only WITH that input) and
+     #bMenus (only at two or more) — so below 768 the body holds something iff the plate is on a
+     menu, and `on.length` is the whole condition rather than a proxy for it. Measured at 380 on an
+     unpublished plate before this: 28px of padding inside the card's border, painting nothing.
+     ⚠️ THE CARD ITSELF IS NOT HIDDEN. `docs/MAINTENANCE.md` recorded this as a 16px empty box, which
+     was true of F7's markup and stopped being true in 177 — the card now also holds Print and Clear,
+     and hiding it would delete two controls from the phone (§R3). Re-measured rather than quoted.
+     The hide lives in the SAME @media block as the `.bld-kv` one it depends on. */
+  var sumCard=document.getElementById('bCost');
+  if(sumCard) sumCard.classList.toggle('is-bare', on.length===0);
   /* 177 — the mock's "recent range $6.61–$7.28". Real data, not decoration: costRangeForLines is the
      same function the Menu screen's cost band uses, and its `hasRange` is false when no ingredient
      on the plate has ever moved — in which case this prints nothing rather than a range whose two
@@ -2581,6 +2611,13 @@ function renderBuilderCost(tot){
     else{
       foot.hidden=false;
       var figs='', line;
+      /* 271 — WHY SAVE IS DISABLED OUTRANKS THE PRICE LINE HERE, and this element is the phone's
+         only room for it: #saveHint hides below 768 with the rail's own Save button. One source
+         (builderSaveBlocker) and one writer per sink — this function owns #bFootLine, and
+         syncBuilderPlateActions owns #saveHint, so the two can never render in a stale order.
+         The bar only exists once there is a line, so in practice the blocker read here is the
+         missing NAME; the empty-docket case has no bar to print it in. */
+      var _blk=builderSaveBlocker(plate.length>0, builderPlateName()!=='');
       if(cost>0){
         figs='<div class="bfs-fig"><span class="bfs-lbl">Plate cost</span><span class="bfs-total">'+money(cost)+'</span></div>'
           +'<div class="bfs-fig"><span class="bfs-lbl">Suggested</span><span class="bfs-total">'+money(cost/foodTarget())+'</span></div>';
@@ -2597,7 +2634,12 @@ function renderBuilderCost(tot){
         line='no costed ingredients yet';
       }
       footFigs.innerHTML=figs;
-      footLine.innerHTML=line;
+      footLine.innerHTML=_blk?esc(_blk):line;
+      /* the line is a CONTROL only while it carries a blocker — see focusBuilderBlocker. A
+         permanent role on an element that is usually a read-out would announce a button that does
+         nothing, which is §R4 in ARIA. */
+      if(_blk){ footLine.className='bfs-line bfs-fix'; footLine.setAttribute('role','button'); footLine.setAttribute('tabindex','0'); }
+      else { footLine.className='bfs-line'; footLine.removeAttribute('role'); footLine.removeAttribute('tabindex'); }
     }
   }
   renderBuilderPublish(sp, on);
@@ -3626,7 +3668,11 @@ document.getElementById('plateName').addEventListener('input',function(e){
   if(e.target.value.trim()){ var pe=document.getElementById('plateNameErr'); if(pe) pe.style.display='none'; }
   // 177: syncBuilderTitle() stood here. The field IS the breadcrumb title now, so there is nothing
   // left to mirror — see the header markup in index.html for why it moved back.
-  scheduleDraftSave();                  // v82 D1: persist the name into the draft too
+  /* 271: the name is half of builderSaveBlocker's question, so Save's state moves on these
+     keystrokes too. updateTotals rather than syncBuilderPlateActions alone, because the blocker's
+     PHONE sink is #bFootLine, whose one writer is renderBuilderCost — and updateTotals is what
+     calls it with a cost. It calls scheduleDraftSave itself, so the draft is still persisted. */
+  updateTotals();
 });
 (function(){ var pc=document.getElementById('plateCat'); if(pc) pc.addEventListener('input', scheduleDraftSave); })();   // v82 D1: category into the draft
 /* saved plates */
@@ -9362,7 +9408,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v219';
+var APP_VERSION='v220';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -11158,11 +11204,17 @@ function closeOverlay(el){
 function show(id){ openOverlay(document.getElementById(id)); }
 function hide(id){ closeOverlay(document.getElementById(id)); }
 
+/* 271 — IT SAYS SAVED-OR-NEW AND NOTHING ELSE. It used to read "Editing: Big Breakfast", which put
+   the plate's name on this page for the THIRD time (the header field is the first, #plateName the
+   second, and `docs/MAINTENANCE.md` recorded the count when 170 added the header). The name was
+   never the information: the reader can see what they typed. What they cannot see is whether Save
+   will update a plate that exists or create one, which is the whole of this element's job, so the
+   sentence is now the same at every plate and the pill is neutral rather than accent-bold. */
 function updateEditTag(){
   var t=document.getElementById('editTag');
   if(t){
     if(loadedPlateId){var sp=savedPlates.find(function(s){return s.id===loadedPlateId;});
-      if(sp){t.textContent='Editing: '+(sp.name||'plate');t.style.display='inline';} else t.style.display='none';}
+      if(sp){t.textContent='Editing a saved plate';t.style.display='inline';} else t.style.display='none';}
     else t.style.display='none';
   }
   updatePublishLabel();
@@ -11500,6 +11552,53 @@ function setBuilderSaved(on){
    both became silent no-ops (duplicateCurrentPlate returns on `if(!sp)`, the delete handler is
    gated on loadedPlateId). A visible control that does nothing is exactly what §R4 forbids, and
    two separate `hidden=` assignments per call site is how it happened. */
+/* 271 — WHY THE PLATE CANNOT BE SAVED YET, as a sentence, or '' when it can.
+   Pure and separate from the DOM because it has TWO sinks at two widths (#saveHint in the rail,
+   #bFootLine in the phone's sticky bar) and one of them is written by another function. The two
+   would drift the day someone reworded one of them.
+   ⚠️ IT IS NOT THE WHOLE OF saveCurrentPlate's VALIDATION AND MUST NOT BECOME IT. That function
+   also refuses a line with no quantity, and that refusal stays where it is: it names WHICH line and
+   focuses it, which a button-level sentence cannot do. This answers only "is there anything here to
+   save, and is it called anything" — the two conditions that are true of the whole plate. */
+function builderSaveBlocker(hasLines, hasName){
+  if(!hasLines) return 'Add an ingredient to save this plate.';
+  if(!hasName) return 'Name this plate to save it.';
+  return '';
+}
+function builderPlateName(){ var el=document.getElementById('plateName'); return ((el&&el.value)||'').trim(); }
+/* 271 — AND THE REASON IS ALSO THE ROUTE, on the phone, which is not a flourish: it is what keeps
+   the guarantee `tests/visual/v150-builder-order.spec.js` was written for.
+   That spec pinned "pressing Save on an unnamed plate BRINGS THE FIELD TO THE USER" — measured at
+   380 with eight lines, where #plateName is off the TOP of the screen while the sticky bar is
+   pinned to the bottom. A disabled Save cannot be pressed, so that one-tap recovery would have gone
+   silently with it; the message is now always visible instead, and tapping it does what the press
+   used to. focus() is what scrolls — a fact about the browser, which is why that spec measures it.
+   The target is computed from the STATE rather than parsed out of the sentence, so rewording the
+   copy cannot send the cursor to the wrong field. */
+function focusBuilderBlocker(){
+  var id=(plate.length>0)?'plateName':'q';
+  var el=document.getElementById(id); if(!el) return;
+  el.focus(); if(el.select) el.select();
+}
+(function(){
+  /* #bFootLine is STATIC markup — only its innerHTML is rewritten (see the 177 comment on this bar,
+     which is about exactly this: a control rebuilt mid-gesture loses the tap). So the listener is
+     wired once here and reads the live blocker itself rather than being re-attached per render. */
+  var fl=document.getElementById('bFootLine'); if(!fl) return;
+  fl.addEventListener('click',function(){ if(builderSaveBlocker(plate.length>0, builderPlateName()!=='')) focusBuilderBlocker(); });
+  fl.addEventListener('keydown',function(e){
+    if(e.key!=='Enter'&&e.key!==' ') return;
+    if(!builderSaveBlocker(plate.length>0, builderPlateName()!=='')) return;
+    e.preventDefault(); focusBuilderBlocker();
+  });
+})();
+/* 271 — ONE owner for the builder's action controls, extended from the two below.
+   Save is disabled until the plate has a name and a line, which is the rule #kingModalSave has
+   followed since the New ingredient modal shipped; Print is disabled on an empty docket, because a
+   docket with no lines prints "Untitled plate · 0 ingredients"; and Clear is disabled only when
+   there is NOTHING to clear. Clear is deliberately NOT keyed on plate.length alone: it also drops
+   the name, the menu link and loadedPlateId, so a typed name with no lines is still work to
+   discard, and disabling it there would strand the user with a name they could not get rid of. */
 function syncBuilderPlateActions(){
   var on=!!loadedPlateId;
   var dup=document.getElementById('bldDuplicate'); if(dup) dup.hidden=!on;
@@ -11511,6 +11610,16 @@ function syncBuilderPlateActions(){
      damage a delete does, it is WHOSE work it destroys. A plate belongs to whoever built it, and a
      café whose staff cost dishes has to let them delete their own mistakes. A product is shared. */
   var del=document.getElementById('bldDelete'); if(del) del.hidden=!on;
+  var why=builderSaveBlocker(plate.length>0, builderPlateName()!=='');
+  ['saveBtn','bldSaveBar'].forEach(function(id){
+    var b=document.getElementById(id); if(!b) return;
+    b.disabled=!!why;
+    if(why) b.title=why; else b.removeAttribute('title');   // the hint below is what a phone reads; the title is for a desktop hover
+  });
+  var pb=document.getElementById('printBtn'); if(pb) pb.disabled=!plate.length;
+  var cb=document.getElementById('clearBtn'); if(cb) cb.disabled=(!plate.length && !builderPlateName() && !loadedPlateId);
+  var hint=document.getElementById('saveHint');
+  if(hint){ hint.textContent=why; hint.hidden=!why; }
 }
 /* v85 — the two builder entries that REPLACE its contents ("+ New plate", "Edit plate" from a card)
    used to bin unfinished work in silence: press ×, go to the Ingredients tab, come back and tap

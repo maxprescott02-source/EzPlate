@@ -99,6 +99,10 @@ Two things a desktop browser physically cannot show: it has no soft keyboard, an
 ⚠️ **RE-CHECK, and this is a fix that could not be tested here.** You reported exactly that on 11 Sep and `ezplate-v213` subscribes the floating layers to `visualViewport`, which is the only event an iOS keyboard produces — `window.resize` does not fire (the height does not shrink) and `scroll` does not fire when iOS pans rather than scrolls, so the list was anchored once when it opened and then the field moved out from under it. **No browser on a desk has a soft keyboard**, so the listeners are tested and the CAUSE is not. If it still covers the field, say so and it needs a different mechanism, not a bigger version of this one.
 **Then the sign-in screen** (sign out, or just look at it): the keyboard must not cover the **Sign in** button with no way to scroll to it.
 
+**And one more, added by `ezplate-v220`, in the same two minutes.** Add an ingredient to a plate and do NOT type a name. The bar at the bottom now says *"Name this plate to save it."* beside a greyed-out Save. **Tap that sentence.**
+**Pass:** the name field comes up the screen with the cursor already in it, above the keyboard, ready to type.
+**Fail:** the keyboard opens over the field, or nothing visibly moves. Focus is what scrolls, and iOS decides where a focused field lands - no browser on a desk can answer that.
+
 **Cold from the home screen, in dark.** Close the app completely, set the phone to dark, and open the installed icon - not Safari.
 **Pass:** it opens straight into the app already dark, and the title bar at the very top matches.
 **Fail:** a flash of white before dark appears, or a near-black title bar sitting above a white app. **Then scroll well down the Menu list:** the "Menu · *name*" bar should stay pinned at the top with rows sliding under it.

@@ -312,7 +312,18 @@ const targets = [
   // carry a second condition that predates this batch (a plate must be loaded; a menu must exist),
   // and a mutant that swaps the `&&` for an `||` restores the control for staff while leaving the
   // word `isOwner` sitting in the source, reading correctly.
-  { fn: 'syncBuilderPlateActions', tests: ['roles-client.test.js', 'builder-page.test.js'] },
+  /* 271 — the same function now also decides whether the builder's PRIMARY action is pressable, so
+     its test list grows a third file. A surviving mutant here is a Save the user cannot press with
+     nothing on screen saying why, or one they can press onto a refusal. */
+  { fn: 'syncBuilderPlateActions', tests: ['roles-client.test.js', 'builder-page.test.js', 'builder-readiness.test.js'] },
+  /* 271 — and the sentence it renders. builderSaveBlocker is pure and tiny, which is exactly the
+     shape that gets "simplified" later: swap its two clauses and an empty docket is told to pick a
+     name. Both arms are asserted, and the ORDER between them is asserted separately. */
+  { fn: 'builderSaveBlocker', tests: ['builder-readiness.test.js'] },
+  /* 271 — the duplicate-line guard. A mutant that drops it is invisible on every screen: two
+     identical docket rows look like a plate that uses an ingredient twice, and the cost is simply
+     double. */
+  { fn: 'addKitchenLine', tests: ['builder-readiness.test.js'] },
   { fn: 'updateMenuDelBtn', tests: ['roles-client.test.js'] },
   // The second door to a plate delete. Its guard is conditional on `sp` on purpose — with no plate
   // the same button only unpublishes a dish, which staff may do — so both halves need proving.
