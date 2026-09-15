@@ -1,0 +1,226 @@
+/*
+ * state-file.test.js — docs/STATE.json says what the files say, or the suite is red.
+ *
+ * THE ONE ASSERTION THE ITEM ASKED FOR is `batch` against the newest handover. It is a FRESHNESS
+ * assertion rather than a correctness one: the writer derives both from the same directory, so they
+ * can only disagree when the writer has not been run since the handover landed. That is exactly the
+ * failure worth catching, because a state file nobody refreshes is a state file that lies while
+ * looking maintained - and this repo has three recorded instances of a status marker outliving the
+ * thing it described. The remedy is one command, and the failure message says it.
+ *
+ * ⚠️ IT IS COMPARED AGAINST AN INDEPENDENT WALK, NOT ONLY AGAINST derive(). A test that asked the
+ * writer what it thinks and then agreed with it would be green against a broken writer - the stub
+ * defect in .claude/rules/tests.md, twenty-two incidents. So the committed file is checked against a
+ * second reading of the directory, written differently, below.
+ *
+ * WHAT THE FIXTURE TESTS ARE FOR. The group derivation is the only field that is not a max() over a
+ * directory, and its first draft was WRONG in the quiet direction: it matched `**G4**` exactly, so
+ * the file's `**G4 + G5**` dropped two groups and it named the wrong current group while returning
+ * a list that still looked like an order. Those cases are pinned against synthetic files here,
+ * because the real ones will be edited by hand every time a group finishes.
+ */
+const test = require('node:test');
+const assert = require('node:assert');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const state = require('../tools/state.js');
+
+const ROOT = path.join(__dirname, '..');
+const onDisk = JSON.parse(fs.readFileSync(path.join(ROOT, 'docs/STATE.json'), 'utf8'));
+
+/* A second reading of docs/handovers/, deliberately not the one tools/state.js uses. */
+function newestHandoverByHand() {
+  let best = null;
+  for (const file of fs.readdirSync(path.join(ROOT, 'docs', 'handovers'))) {
+    if (!file.startsWith('HANDOVER-')) continue;
+    const digits = /(\d+)/.exec(file.slice('HANDOVER-'.length));
+    if (!digits) continue;
+    const n = Number(digits[1]);
+    if (!best || n > best.n) best = { n, file };
+  }
+  return best;
+}
+
+test('STATE.json batch is the newest handover, so a handover cannot land without the writer', () => {
+  const hand = newestHandoverByHand();
+  assert.ok(hand, 'docs/handovers/ holds no HANDOVER-<n> file at all');
+  assert.strictEqual(onDisk.batch, hand.n,
+    `docs/STATE.json says batch ${onDisk.batch}; the newest handover is ${hand.file}. Run: node tools/state.js`);
+  assert.strictEqual(onDisk.newest_handover, hand.file,
+    `docs/STATE.json names ${onDisk.newest_handover} as the newest handover; the directory says ${hand.file}. Run: node tools/state.js`);
+});
+
+test('STATE.json deploy_version is sw.js CACHE, and newest_audit is the highest AUDIT-vNN', () => {
+  const sw = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
+  const cache = /const CACHE = 'ezplate-v(\d+)'/.exec(sw);
+  assert.ok(cache, 'sw.js has no CACHE literal - tools/bump-version.js would have refused first');
+  assert.strictEqual(onDisk.deploy_version, Number(cache[1]),
+    `docs/STATE.json says v${onDisk.deploy_version}; sw.js says v${cache[1]}. Run: node tools/state.js`);
+
+  // The counter skills/batch step 10 reads is the NUMBERED series only. A dated audit
+  // (UX-AUDIT-2026-09-08.md) is keyed to a date and cannot be compared against a deploy version.
+  const nums = fs.readdirSync(path.join(ROOT, 'docs', 'audits'))
+    .map((f) => /^AUDIT-v(\d+)\.md$/.exec(f)).filter(Boolean).map((m) => Number(m[1]));
+  assert.ok(nums.length, 'docs/audits/ holds no AUDIT-vNN.md');
+  assert.strictEqual(onDisk.newest_audit, `AUDIT-v${Math.max(...nums)}.md`,
+    `docs/STATE.json names ${onDisk.newest_audit}. Run: node tools/state.js`);
+});
+
+test('STATE.json open_ab_count counts every item heading in docs/QUEUE.md, whatever its status', () => {
+  // Counted here off the raw file rather than via queueItems(), for the same reason as above.
+  const queue = fs.readFileSync(path.join(ROOT, 'docs', 'QUEUE.md'), 'utf8');
+  const heads = queue.split('\n').filter((l) => /^##\s+(next|blocked|doing)\s+\d/.test(l));
+  assert.strictEqual(onDisk.open_ab_count, heads.length,
+    `docs/STATE.json says ${onDisk.open_ab_count} open items; docs/QUEUE.md has ${heads.length} headings. Run: node tools/state.js`);
+  assert.ok(heads.length <= 20, 'docs/QUEUE.md is capped at 20 items by its own header');
+});
+
+test('every other field agrees with the files too, and written_at is a real past date', () => {
+  const want = state.derive(ROOT);
+  const stale = Object.keys(want).filter((k) => k !== 'written_at' && want[k] !== onDisk[k]);
+  assert.deepStrictEqual(stale, [],
+    `docs/STATE.json is stale on ${stale.map((k) => `${k} (${onDisk[k]} -> ${want[k]})`).join(', ')}. Run: node tools/state.js`);
+
+  assert.match(onDisk.written_at, /^\d{4}-\d{2}-\d{2}$/, 'written_at is a plain ISO date');
+  assert.ok(onDisk.written_at <= new Date().toISOString().slice(0, 10),
+    `written_at ${onDisk.written_at} is in the future`);
+});
+
+/* ---- the group derivation, against synthetic files ---- */
+
+function fixtureRoot(groups, consolidated) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ezplate-state-'));
+  fs.mkdirSync(path.join(dir, 'docs'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'docs/QUEUE-GROUPS.md'), groups);
+  fs.writeFileSync(path.join(dir, 'docs/QUEUE-2026-09-08-CONSOLIDATED.md'), consolidated);
+  return dir;
+}
+
+const GROUPS_OK = [
+  '# groups',
+  '',
+  '### G1 · first',
+  '',
+  '**Items:** ~~16~~ (239) · 17 · 18',
+  '',
+  '### G2 · second',
+  '',
+  '**Items:** 19, 20',
+  '',
+  '### G3 · third',
+  '',
+  '**Items:** 21',
+  '',
+  '## The order',
+  '',
+  '1. **G1** - the wrong numbers, and three of G3\'s inputs.',
+  '2. **G2 + G3** - the polish tranche.',
+  '',
+  '**G3\'s schedule is a consequence of this order.**',
+  '',
+  '## What is not routed here',
+  '',
+  'Tranche 0 is not in any group.',
+  '',
+].join('\n');
+
+const CONSOLIDATED_OK = [
+  '# backlog',
+  '',
+  '## ~~16 · a shipped one~~  **SHIPPED, batch 239, `ezplate-v197`**',
+  '## next  17 · a C one  **[C, nobody sees it]**',
+  '## next  18 · another C one  **[C until a second client exists, then A]**',
+  '## next  19 · a B one  **[B, a real person sees it]**',
+  '## next  20 · an A one  **[A, launch is unsafe without it]**',
+  '## next  21 · a B one  **[B, later]**',
+  '',
+].join('\n');
+
+test('the order is read from the numbered list, and a bold span can name two groups', () => {
+  const dir = fixtureRoot(GROUPS_OK, CONSOLIDATED_OK);
+  try {
+    // `**G2 + G3**` is ONE bold span naming two groups - the shape that broke the first draft.
+    assert.deepStrictEqual(state.groupOrder(dir), ['G1', 'G2', 'G3']);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a group named in prose inside a numbered line does not join the order', () => {
+  // Item 1 above says "three of G3's inputs" outside its bold span. A bare \bG\d\b scan would put
+  // G3 second and name the wrong current group, with no symptom anywhere.
+  const dir = fixtureRoot(GROUPS_OK.replace('2. **G2 + G3** - the polish tranche.', '2. **G2** - alone.'), CONSOLIDATED_OK);
+  try {
+    assert.throws(() => state.groupOrder(dir), /does not place G3/,
+      'a group with a section but no place in the order must be a hard stop, not a shorter list');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('groupOrder refuses a file with no "## The order" section rather than guessing one', () => {
+  const dir = fixtureRoot(GROUPS_OK.replace('## The order', '## The plan'), CONSOLIDATED_OK);
+  try {
+    assert.throws(() => state.groupOrder(dir), /no "## The order" section/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('membership reads item numbers, not the batch numbers in the asides beside them', () => {
+  const dir = fixtureRoot(GROUPS_OK, CONSOLIDATED_OK);
+  try {
+    // `~~16~~ (239)` must contribute 16 and NOT 239. Struck items stay in the membership list on
+    // purpose: the consolidated file, not this one, is what says whether an item is finished.
+    assert.deepStrictEqual(state.groupMembers(dir).G1, [16, 17, 18]);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a group whose only unstruck items are tier C is NOT the current group', () => {
+  // The G1 case, and the reason "unstruck" alone is the wrong test: docs/QUEUE.md holds tier A and
+  // B only, so a C-only group can never be promoted and would read as current for ever.
+  const dir = fixtureRoot(GROUPS_OK, CONSOLIDATED_OK);
+  try {
+    assert.strictEqual(state.firstUnstruckGroup(dir), 'G2', 'G1 holds one shipped item and two C items');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('striking a group\'s last A and B items moves the current group on', () => {
+  const struck = CONSOLIDATED_OK
+    .replace('## next  19 · a B one  **[B, a real person sees it]**', '## ~~19 · a B one~~  **SHIPPED, batch 266**')
+    .replace('## next  20 · an A one  **[A, launch is unsafe without it]**', '## ~~20 · an A one~~  **SHIPPED, batch 266**');
+  const dir = fixtureRoot(GROUPS_OK, struck);
+  try {
+    assert.strictEqual(state.firstUnstruckGroup(dir), 'G3');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('with every A and B struck the answer is null, which is a finding and not an error', () => {
+  const struck = CONSOLIDATED_OK.replace(/^## next  (19|20|21) · (.*)$/gm, '## ~~$1 · $2~~  **SHIPPED**');
+  const dir = fixtureRoot(GROUPS_OK, struck);
+  try {
+    assert.strictEqual(state.firstUnstruckGroup(dir), null);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('write() refuses and leaves the old file alone when a source file is unreadable', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ezplate-state-'));
+  try {
+    fs.mkdirSync(path.join(dir, 'docs'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'docs/STATE.json'), '{"batch":1}\n');
+    assert.throws(() => state.write(dir), /ENOENT/, 'no handovers, no sw.js - it must throw');
+    assert.strictEqual(fs.readFileSync(path.join(dir, 'docs/STATE.json'), 'utf8'), '{"batch":1}\n',
+      'a partly-derived state file must never be written over a good one');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

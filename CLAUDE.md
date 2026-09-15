@@ -39,6 +39,7 @@ EzPlate is a plate/menu-costing PWA for a real cafe ("Scoopy's Family Cafe"). Th
 | Migrations - the procedure, both projects, what staging can and cannot rehearse | `docs/STAGING.md` |
 | Per-batch history | `docs/handovers/` (write-once; `README.md` explains the gaps) |
 | Version bumps, handovers, running the checks | `skills/` - invoke them |
+| Derived state - batch, deploy version, current group, open count, newest audit | `docs/STATE.json`, rewritten by `node tools/state.js` in the same commit as each handover |
 | Current state | git, the repo, the Supabase MCP. Not this file. |
 
 **Two counters, and they are NOT the same number.** The **batch number** in a handover's filename increments once per batch, always; the **deploy version** (`sw.js` `CACHE`, the six cache spots) increments only when a batch ships a client asset. Four docs-only batches in a row once left them three apart. **New handovers drop the `v`: `HANDOVER-123-short-name.md`**, and existing `HANDOVER-vNN.md` files keep their names because they are write-once. **Every handover states the deploy version it shipped, or says it shipped none.** **`docs/audits/AUDIT-vNN.md` KEEPS its `v`** and is correct as-is: an audit is keyed to the deploy version, because the `/batch` counter compares it against `sw.js`. Do not make them consistent; they number two different things.

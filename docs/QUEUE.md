@@ -59,7 +59,7 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
-# Promoted 9 Sep 2026 — group G1, the costing core
+# Promoted by refill — group G4, copy and terminology
 
 **These came from `docs/QUEUE-2026-09-08-CONSOLIDATED.md` by promotion, per `docs/QUEUE-GROUPS.md`.** They are referenced, not copied: **the full item — mechanism, sites, acceptance, the test that pins it — is in the consolidated file under the number given, and that file is the one to read before planning.** One description, in one place.
 **When one ships, delete it here AND strike it there**, with the batch and deploy version. `skills/batch` step 10 carries the rule; the strike is what stops finished work being re-promoted.
@@ -67,6 +67,8 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ⚠️ **Every line number in these items is a POINTER TO GREP, not a fact** — the consolidated file says so of itself, and the blind audit above is why. **Step one of each is the repro**, and "it does not reproduce" deletes the item and says so in the handover.
 *(G1's only [B — wrong number] item, 15, shipped in batch 244; what is left of the group is below. The two headings were folded into one when it went, because a section with a title and no items reads as work nobody has got to.)*
+⚠️ **This heading read "Promoted 9 Sep 2026 — group G1, the costing core" until batch 266, and the three items under it are G4's.** G1 drained, batch 261's refill promoted 57, 58 and 60 out of G4, and the heading above them went on naming the group they are not in. **A section heading is not a status field and nothing re-checks one**, which is why the current group is now DERIVED into `docs/STATE.json` by `node tools/state.js` instead: first group in `docs/QUEUE-GROUPS.md`'s order with an unstruck A or B item. Read that when the two disagree, and fix the heading.
+**The date came off the heading in the same edit.** It recorded which promotion happened to fill the file and went stale on the next one; the group is the fact worth carrying.
 
 ## next  57 · One casing system and one product identity line  **[B — the same object in two typographic voices one click apart]**
 

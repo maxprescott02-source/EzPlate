@@ -28,6 +28,13 @@ A batch that produced nothing but a green suite and a merged diff has a very sho
 Existing handovers below the current one predate that rule and are write-once, so they keep their own style.
 Do not restyle them.
 
+## Draft it with the `handover-writer` agent
+
+`.claude/agents/handover-writer.md` - Haiku, given the batch number, the short name, the scope line and your own answers for Review, Into CLAUDE.md, the new queue and phone items, Probe and Surprises.
+It reads the branch diff and this template and returns a body under 60 lines.
+**You review it and you own the file.** It is told never to invent a section's content, because a handover is evidence of what was believed at the time and a plausible invented sentence is the one thing it must not carry - so a section it hands back marked `(the calling session fills this)` is yours to answer, not a defect.
+The sections it cannot write are the ones with no other home: Review is a judgement about findings, and Probe is about what you were told to do and thought was wrong.
+
 ## The template
 
 Every section appears, in this order, every time.
@@ -103,6 +110,7 @@ The traps now live in `.claude/rules/*.md`, which the harness loads when you rea
 
 ## After writing it
 
+- **Run `node tools/state.js` in the SAME commit.** It rewrites `docs/STATE.json` from the files, and `tests/state-file.test.js` asserts its `batch` against the newest handover - so a handover that lands without it reddens `npm test`. That is deliberate: it is the only thing that keeps the state file from quietly describing a batch that finished three ago.
 - Copy it to `~/Downloads/` - Max reads handovers from there.
 - A handover-only PR is free, and so is every other PR: since 8 Aug 2026 **no PR is reviewed automatically at all**, and since 27 Aug 2026 there is no PR-review workflow left to run either - `.github/workflows/code-review.yml` was deleted in batch 207.
   That is why moving something to the outstanding list costs nothing.

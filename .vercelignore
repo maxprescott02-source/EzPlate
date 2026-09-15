@@ -15,6 +15,12 @@ docs/
 
 # Agent tooling and instructions
 CLAUDE.md
+# AGENTS.md landed at the root in batch 264 and was not listed here until 266, so it answered
+# 200 on the production origin for two batches. Nothing here can notice a new root file: the
+# list is names, and a name that was never added is indistinguishable from one deliberately
+# served. If you add a file to the repo ROOT that is not index.html, sw.js or manifest.json,
+# it belongs here in the same commit.
+AGENTS.md
 skills/
 .claude/
 .agents/
