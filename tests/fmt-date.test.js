@@ -73,10 +73,26 @@ test('a 23-hour and a 25-hour day are each ONE day', () => {
 
 /* ------------------------------------------------------------------ the device gets no vote */
 
-test('the month is the app\'s own three letters, never the device\'s "Sept"', () => {
+/* ⚠️ THE CONTROL NAMES ITS LOCALES, AND THE FIRST DRAFT DID NOT — IT PASSED HERE AND FAILED IN CI.
+   It asserted `toLocaleDateString(undefined, …) === '8 Sept'`, which is true on a machine set to
+   en-AU or en-GB and false on the ubuntu-latest runner, where the ambient locale is en-US and the
+   same call returns "Sep 8". `process.env.TZ` at the top of this file forces the TIMEZONE and says
+   nothing about the LOCALE, and I had read the one as covering the other.
+   ⚠️ **It passed locally for the reason it was written to rule out: this machine already agreed
+   with it.** That is the same shape as a stub written from the same belief as the code.
+   Naming both locales is strictly stronger than what it replaced, because the two halves of the
+   defect are different on each: en-AU gets the month abbreviation wrong (four letters against
+   three) and en-US gets the ORDER wrong. One ambient assertion could only ever show one of them. */
+test('the month is the app\'s own three letters, never the device\'s "Sept" or "Sep 8"', () => {
   assert.strictEqual(D.fmtDateAbs(at(2026, 9, 8)), '8 Sep 2026');
-  assert.strictEqual(new Date(at(2026, 9, 8)).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }),
-    '8 Sept', 'the locale really does say Sept here, or this test is measuring nothing');
+
+  const d = new Date(at(2026, 9, 8));
+  assert.strictEqual(d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }), '8 Sept',
+    'en-AU really does say Sept, or this test is measuring nothing');
+  assert.strictEqual(d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }), '8 Sept',
+    'and so does en-GB');
+  assert.strictEqual(d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' }), 'Sep 8',
+    'while en-US reverses the ORDER — the half of this defect a UK-only control cannot see');
 
   // every month, and every one exactly three letters, so no second "Sept" can appear
   const months = Array.from({ length: 12 }, (_, i) => D.fmtDateAbs(at(2026, i + 1, 1)).split(' ')[1]);
@@ -156,9 +172,29 @@ test('monthLabel stays a month NOUN — it is not a date and must not become one
   // eslint-disable-next-line no-new-func
   const ml = new Function(`"use strict"; ${extractFn(APP, 'monthLabel')} return monthLabel;`)();
   const sameYear = ml(at(2026, 3, 9));
-  assert.strictEqual(sameYear, 'March', 'a month in this year is the month alone');
-  assert.ok(!/\d/.test(sameYear), 'no digits, so "at March prices" stays a sentence');
-  assert.match(ml(at(2025, 3, 9)), /^March 2025$/, 'a different year is named, because "March" alone would lie');
+  const otherYear = ml(at(2025, 3, 9));
+
+  /* These four hold in EVERY locale, because the contract is "a month noun" and not "an English
+     word". They are what carries this test; the literal below is guarded and cannot make it
+     vacuous. `monthLabel` reads the DEVICE locale deliberately, unlike fmtDate, which is the whole
+     reason it was excluded from item 60 — so a test that pins its output pins the runner. */
+  assert.ok(sameYear.length > 0, 'it names something');
+  assert.ok(!/\d/.test(sameYear), 'no digits in the same-year form, so "at March prices" stays a sentence');
+  assert.match(otherYear, /\b2025\b/, 'a different year IS named, because the month alone would lie');
+  assert.ok(otherYear.startsWith(sameYear), 'and it is that same month word plus a year, not a second format');
+
+  /* ⚠️ GUARDED, and the guard is the finding rather than a convenience. The first draft asserted
+     'March' unconditionally; it is green on en-US (CI) and en-AU (Max's machine) and RED on a
+     French runtime, where monthLabel returns "mars". That is the same defect as the locale control
+     above, one test along, found by running this file under fr-FR rather than by reading it.
+     The literal is kept because it is the only assertion that says what the copy actually READS,
+     and a monthLabel emitting "mars" inside four English sentences would be a real defect — it is
+     simply not one this repo can reproduce, so it is asserted where it is meaningful and skipped
+     where it would only measure the runner. */
+  if (/^en\b/.test(Intl.DateTimeFormat().resolvedOptions().locale)) {
+    assert.strictEqual(sameYear, 'March', 'a month in this year is the month alone');
+    assert.strictEqual(otherYear, 'March 2025');
+  }
 });
 
 /* ------------------------------------------------------------------ the axis keeps its own form */

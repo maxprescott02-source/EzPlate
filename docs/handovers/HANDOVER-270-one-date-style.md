@@ -83,6 +83,18 @@ My own new test caught two real defects in my first draft, which is the argument
 `fmtDate([])` returned "1 Jan 1970" because `Number([])` is 0, which is `app-guards.md`'s `isFinite('')` family arriving in a function written with that rule open.
 And the `dash-recent` `Date` shim forwarded only its first constructor argument, which collapsed both local midnights to the same instant and turned "yesterday" into "today".
 
+**CI caught a test of mine that passed locally for the reason it was written to rule out, and this is the one worth reading.**
+`tests/fmt-date.test.js` carried a CONTROL assertion: that `toLocaleDateString(undefined, …)` really does render "8 Sept", so the test could not be measuring nothing.
+It asserted the output of the AMBIENT locale, and this machine is already en-AU, so it agreed with me.
+The ubuntu-latest runner is en-US, where the same call returns **"Sep 8"**, and `unit tests` went red on it.
+`process.env.TZ` at the top of that file forces the TIMEZONE and says nothing about the LOCALE, and I had read the one as covering the other.
+The fix names both locales explicitly and is strictly stronger than what it replaced, because the two halves of the defect are different on each: en-AU gets the month ABBREVIATION wrong and en-US gets the ORDER wrong, and one ambient assertion could only ever have shown one of them.
+**The app was never involved** - `fmtDateAbs` returns "8 Sep 2026" on every runtime, which is the entire point of the change.
+
+Then, looking for the same shape rather than waiting for it, I found the `monthLabel` test asserting the literal `'March'`, which is green on en-US and en-AU and **red under fr-FR**, where the function correctly returns "mars".
+That one is now four locale-independent contract assertions plus the English literal behind a guard.
+The file is verified across twelve timezone and locale combinations, including CI's exact pair, and the "Sept" mutation still turns it red in every one of them.
+
 `updateLastImport` writes to three element ids and only two have existed since v140.
 The test pins the id LIST rather than the elements, so it would stay green if all three were dead.
 Pre-existing, routed to `docs/MAINTENANCE.md` as C.
