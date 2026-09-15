@@ -164,9 +164,13 @@ test('171: R4 — the mock\'s workspace/plan card is not drawn, because neither 
   const after = body.slice(body.lastIndexOf('</button>') + '</button>'.length);
   assert.ok(!/<(?!\/)/.test(after), 'nothing is drawn after the four rows — the mock\'s card sits there');
   /* Then the words that would arrive with it. Scoped to OUTSIDE `.more-list`, because the Account
-     ROW legitimately says "Profile, team, plan" — that is the mock's own sub-line describing the
-     screen it opens, and it is honest: #tab-account really does carry a Plan section saying nothing
-     is billed. What must not appear is a workspace name, a plan NAME or a renewal date. */
+     ROW describes the screen it opens and may name that screen's sections.
+     ⚠️ 268 FALSIFIED THIS NOTE'S EXAMPLE AND IT IS CORRECTED RATHER THAN LEFT. It said the row
+     "legitimately says 'Profile, team, plan'" and that "#tab-account really does carry a Plan
+     section saying nothing is billed". Queue item 58 deleted that section as a roadmap note, and
+     the row now says "Profile and team" — so both clauses were false the moment that shipped.
+     The SCOPING is unaffected and still right; only the example rotted. What must not appear
+     outside the list is a workspace name, a plan NAME or a renewal date. */
   const outside = body.replace(/<div class="more-list">[\s\S]*<\/div>/, '');
   ['renews', 'workspace', 'billing', 'upgrade', 'trial'].forEach((dead) => {
     assert.ok(!new RegExp(dead, 'i').test(outside), `"${dead}" must not ship on this screen — nothing is behind it`);

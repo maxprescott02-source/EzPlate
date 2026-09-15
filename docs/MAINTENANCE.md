@@ -1040,6 +1040,12 @@ Filed 9 Sep 2026 by batch 240. Neither is load-bearing and neither is worth a de
 
 *"A primary action must not live inside a node that re-renders."* Earned by a real defect: Save lived inside `#bFootSum`, which was replaced between touchstart and touchend, so the click was dropped. It was parked on Max's yes **the day before that requirement was reversed**, and the reversal's own justification was that a parked rule sat unapplied while the thing it warned about cost a diagnose cycle. ⚠️ **The reversal does not reach edits proposed BEFORE it** — that is the gap, and `HANDOVER-172`'s proposal is in the same state.
 
+### `tests/king-wizskip.test.js` hand-rolls `kingLinkableProducts` instead of extracting it
+Found by batch 268 while writing `tests/king-head-sub.test.js` against the same neighbourhood.
+`tests/king-wizskip.test.js:44` writes its own `function kingLinkableProducts(){ return PRODUCTS_.filter(function(p){ return p && p.description && p.is_food!==false; }); }` rather than extracting the shipped one. It is byte-identical today, which is exactly the state the roster's first entry describes: **a stub written from the same belief as the code passes against the defect it was written to catch.** Change the `is_food!==false` predicate in `js/app.js` — widen it, or start excluding a second column — and that file stays green while `kingUnlinkedProducts` returns a different set.
+Requirements: inject `PRODUCTS` and use `extractFn(SRC, 'kingLinkableProducts')`, as the same file already does for `kingUnlinkedProducts` two lines below. `tests/king-head-sub.test.js` injects it for the same reason and has the same gap; fix both in one pass.
+Tier C: no number moves today, and both files are green for the right reason at this commit.
+
 ### `renderManageMenusZero` still reports, and the rule now written down says it should invite
 
 Batch 217, filed at the moment the rule was written rather than after someone rediscovers the inconsistency.
@@ -1047,6 +1053,9 @@ Batch 217, filed at the moment the rule was written rather than after someone re
 Max chose option A of `docs/decisions/2026-08-28.html` — change one title, write the rule down — and the rule is now at `emptyStateHtml`'s own site: **one obvious action → invite; anything else → report.**
 
 `renderManageMenusZero` (`js/app.js`, the manage-menus modal opened from a plate) shows **"No menus yet."** over **one** action, "Add to a new menu". By the rule as written it should invite. It was left alone because the decision enumerated six tab-level empty states and this is a seventh surface, so changing it would have gone past what was approved — and user-visible copy is Max's.
+
+⚠️ **BATCH 268 REACHED THIS THROUGH QUEUE ITEM 58 AND STILL DID NOT CHANGE IT, deliberately** — the item's own bullet says *"Copy is Max's; propose the line in the handover"*, so it is proposed rather than taken. **What 268 adds is that the item's framing was wrong and this entry's is right:** item 58 described it as *"reports where the written rule says invite"* with the remedy *"one obvious action → invite"*, which reads as though the ACTION were missing. It is not — "Add to a new menu" is there, primary, and is the only action on the surface. **The only thing out of step is the TITLE.**
+**The proposed line, matching what batch 217 did to the Menu tab for the identical reason: "No menus yet." → "Create your first menu".** The body sentence and the button are already correct and are not proposed for change. **Ask Max; do not take it on a free slot.**
 
 ⚠️ **The reason this is filed rather than shrugged at: a café creating its first plate can reach this modal BEFORE it ever opens the Menu tab**, so the two surfaces are not merely inconsistent in the abstract — one user, one session, two voices for the same underlying state (no menus, one way out). That is the exact complaint the queue item was about, one surface over.
 

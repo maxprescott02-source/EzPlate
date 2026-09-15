@@ -159,8 +159,16 @@ test('380: each rehomed action still opens what it opened, in one tap', async ({
   await forceWizard(page);
   await page.locator('#kingWizBtn').click();
   await page.waitForTimeout(300);
-  expect(await page.evaluate(() => document.getElementById('kingProgress').offsetParent !== null
-    || document.getElementById('kingWizBtn').textContent.indexOf('Close') === 0),
+  /* ⚠️ 268 REMOVED THE FIRST HALF OF AN `||` AND THAT MADE THIS ASSERTION STRONGER, NOT WEAKER.
+     It read `kingProgress.offsetParent !== null || kingWizBtn.textContent.startsWith('Close')`.
+     The left half never carried weight: a visible progress line proves nothing about a TOGGLE, and
+     an `||` is satisfied by whichever half is true, so the button could have stopped toggling
+     entirely with this green. That is roster 190's shape — a disjunction whose weak half can carry
+     the whole test. What is left is the half that names what the test is titled about.
+     (`#kingProgress` still EXISTS — 268 kept it as the phone's home for the setup count, hidden at
+     ≥768 where the header sub carries the same clause. What changed is that its visibility is now a
+     breakpoint concern rather than evidence about a button.) */
+  expect(await page.evaluate(() => document.getElementById('kingWizBtn').textContent.indexOf('Close') === 0),
   'Set up from products still toggles the wizard').toBe(true);
 });
 

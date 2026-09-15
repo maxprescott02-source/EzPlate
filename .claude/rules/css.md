@@ -55,6 +55,25 @@ That matters here because "anchor it `position:fixed` to the input's viewport re
 
 **The transferable rule: `position:relative` on a parent and offsets on a child are EVIDENCE OF INTENT, never evidence of effect.** They are valid CSS on a static box and cost nothing to write, so a layer can carry the full costume of being positioned without being positioned. **When a layer misbehaves, read its computed `position` FIRST** — before its offsets, its `z-index` or its specificity, all of which are downstream of a value that may not be what the file implies.
 
+## A SLOT THAT DOES NOT EXIST AT EVERY WIDTH IS NOT A HOME - `.scr-sub` is `display:none` below 768
+
+(Batch 268, 15 Sep 2026, queue item 58. Found by rendering the screen at 380; the whole suite was green with the defect in.)
+
+**`.scr-sub` - the screen-header subtitle worn by seven screens - is `display:none` in its base rule and `display:block` only inside `@media (min-width:768px)`.** The §2 mobile header is deliberately compact, so **the subtitle slot does not exist on a phone at all.**
+
+That is correct and is not the trap. The trap is what it does to any instruction of the form *"move this line into the header sub"*, which is how a tidy-up is naturally phrased and is what item 58 asked for in two places. **Moving content there DELETES it below 768**, silently:
+
+- the Invoices last-import date was a `<p class="invz-last">` in the body, visible at 380. Moved into the sub, the phone loses the only import fact the app stores.
+- the Ingredients setup count (`#kingProgress`) had its own `@media (max-width:560px)` gutter rule - direct evidence it was meant to be read on a phone. Moved into the sub, it is gone on the device the wizard is most used from.
+
+**Nothing catches this.** Both moves render perfectly at 1360, no test asserted the mobile half, and the markup reads as a straight relocation. The item that asked for it was written from a desktop screenshot and could not see the breakpoint.
+
+**The remedy when a fact genuinely belongs in the header on desktop: ONE source, TWO sinks, ONE breakpoint.** Compute the string once (`kingUnlinkedClause`), render it into both the sub and the body element, and write the body element's hide **into the same `@media` block that shows the sub** - so the pair that must stay opposite is one edit apart rather than three thousand lines apart. `#kingWizBtn`'s `data-mobile-home` is the same shape and was already on that screen.
+
+⚠️ **AND THE VISIBILITY MUST BE A CLASS, NOT `el.style.display`.** The first fix toggled `pr.style.display='block'`, and **an inline style beats a stylesheet rule outright - regardless of specificity, regardless of source order, regardless of the media query** - so the desktop hide could never fire and the count rendered in BOTH places at 1360. **This is the third costume of "a declaration is not an enforcement"**, after `[hidden]` losing to an author rule and `min="0"` on an input nothing validates: here the two CSS rules were both correct and something else decided. **If a rule has to be able to LOSE at some width, the JS must not write that property inline.**
+
+**The transferable question, and it is not about this one class: before moving anything into a shared slot, ask at which widths the slot is RENDERED.** A slot is a promise about layout, not a container. `tests/king-head-sub.test.js` pins the source/sink/breakpoint triple and the absence of an inline `display`.
+
 ## A CSS syntax error is SILENT, and it discards every rule after it
 
 (Max's yes, 12 Aug 2026, after it cost batch 176 a full diagnose cycle.)

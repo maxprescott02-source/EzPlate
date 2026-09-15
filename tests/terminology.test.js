@@ -202,3 +202,75 @@ test('INVERSION GUARD: the CROSSING itself — nav buttons AND panel headings ca
   assert.equal(panel('pantry'), 'Ingredients', 'the pantry PANEL is headed Ingredients');
   assert.equal(panel('ingredients'), 'Products', 'the ingredients PANEL is headed Products');
 });
+
+/* ---------------------------------------------------------------------------------------------
+ * 268 (queue item 58): THE `.scr-sub` SLOT MEANS ONE THING.
+ *
+ * It meant four. Plates and Products carried counts, Menu a name, Invoices a promise that
+ * CONTRADICTED its own dropzone six lines below, Settings a save rule, Account a roadmap note, and
+ * the Dashboard nothing — so the eye learns to read the slot one way and is wrong on the next
+ * screen. The rule item 58 settles: **a subtitle is scope or a count, never a sentence.** Sentences
+ * move into the body, which is where a reader looks for them anyway.
+ *
+ * ⚠️ WHY THIS IS ASSERTED AS A SHAPE AND NOT AS A LIST OF THE SEVEN STRINGS. A list would go red
+ * on any edit and green on a wrong one — it pins the copy, which is Max's, rather than the rule,
+ * which is the thing 58 decided. The shape test fails the day somebody writes a sentence into the
+ * slot, and that is the only failure worth having. This is the roster's "pin the condition, not the
+ * structure" applied to copy.
+ *
+ * The two tells of a sentence, both measured against the seven literals as they shipped: a
+ * TERMINAL FULL STOP, and a FINITE VERB. The verb list is the closed set that actually occurred
+ * here plus the obvious neighbours — it is not a grammar, and it does not need to be: a subtitle
+ * that is scope or a count has no verb at all, so any hit is a finding worth looking at by hand.
+ * -------------------------------------------------------------------------------------------- */
+test('268: every .scr-sub literal is scope or a count, never a sentence', () => {
+  // comments are stripped FIRST — roster 183(a): a grep searches prose as well as code, and the
+  // comments 268 left at three of these slots quote the sentences it removed, word for word.
+  const htmlCode = html.replace(/<!--[\s\S]*?-->/g, '');
+  const subs = [...htmlCode.matchAll(/<span class="scr-sub"[^>]*>([\s\S]*?)<\/span>/g)].map(m => m[1].trim());
+
+  assert.ok(subs.length >= 7, `every converted screen's subtitle is scanned (found ${subs.length})`);
+
+  /* The empty ones are the JS-filled slots (#plateHeadSub, #menuHeadSub, #kingHeadSub, #ingHeadSub,
+     and #lastImport3 since 268) plus any screen that deliberately has none, as the Dashboard does.
+     They are not exempt from the rule — they are the rule's best case, and what fills them is
+     asserted at its own site (kingHeadSummary, plateHeadSummary, updateLastImport). */
+  const literals = subs.filter(s => s.length > 0 && s !== '&mdash;');
+
+  assert.ok(literals.length > 0, 'at least one hard-coded subtitle exists, or this test is vacuous');
+
+  const VERBS = /\b(is|are|was|were|does|do|has|have|follows?|updates?|works?|save[sd]?|keeps?|changes?|comes?|stays?|sends?|means?|will|can|should)\b/i;
+  literals.forEach((s) => {
+    assert.ok(!/[.!?]$/.test(s),
+      `.scr-sub "${s}" ends in a full stop — that is a sentence, and a sentence belongs in the body (item 58)`);
+    assert.ok(!VERBS.test(s),
+      `.scr-sub "${s}" carries a finite verb, so it is making a statement rather than naming scope or a count (item 58)`);
+    assert.ok(!/;/.test(s),
+      `.scr-sub "${s}" joins two clauses — the slot holds one thing`);
+  });
+
+  /* THE INVOICES CONTRADICTION, pinned by name because it is the one that shipped a FALSE statement
+     rather than a stylistic one: the subtitle said imports update prices "automatically" while the
+     dropzone under it said "Nothing changes without your review". Both were true of different
+     things and a user reading top to bottom got the wrong one first. */
+  const invPane = htmlCode.slice(htmlCode.indexOf('id="tab-invoices"'), htmlCode.indexOf('/tab-invoices'));
+  assert.ok(!/automatically/.test(invPane),
+    'the Invoices screen never says an import happens automatically — every row is reviewed (item 58)');
+  assert.ok(/Nothing changes without your review/.test(invPane),
+    'and it still says so where the user is about to drop a file');
+});
+
+/* 268: the About line read "Version v216" — the markup says "Version" and APP_VERSION carries its
+   own `v`. The constant must keep it (six cache spots mirror it verbatim), so the fix is at the
+   concatenation. This asserts BOTH halves, because fixing either one alone is a silent regression
+   in the other direction: strip the constant and the cache bump breaks; drop the word and the About
+   card reads "v216" with no label. */
+test('268: the About version prints its number once, and APP_VERSION keeps its v', () => {
+  const htmlCode = html.replace(/<!--[\s\S]*?-->/g, '');
+  assert.match(htmlCode, /Version <span id="setVersion">/,
+    'the markup supplies the WORD, so the constant must not supply a second one');
+  assert.match(app, /var APP_VERSION='v\d+'/,
+    "APP_VERSION keeps its `v` — tests/cache-version.test.js pins the same spelling in six places");
+  assert.match(appCode, /setVersion'\);\s*if\(v\)\s*v\.textContent=APP_VERSION\.replace\(\/\^v\/,\s*''\)/,
+    'and the render strips it, so the line reads "Version 216" rather than "Version v216"');
+});

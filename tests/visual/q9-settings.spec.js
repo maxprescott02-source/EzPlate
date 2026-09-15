@@ -176,7 +176,9 @@ test('380px: the Settings row is the whole route to Account, and it works with a
   await page.waitForTimeout(400);
   await expect(page.locator('#tab-account')).toBeVisible();
   await expect(page.locator('#tab-settings')).toBeHidden();
-  await expect(page.locator('#tab-account .stg-card-h')).toHaveText(['Profile', 'Team', 'Plan']);
+  // 268 (item 58): the Plan card is removed — a heading whose whole body said the heading described
+  // nothing. See tests/settings-toggles.test.js for the §R4 argument and the guard on its return.
+  await expect(page.locator('#tab-account .stg-card-h')).toHaveText(['Profile', 'Team']);
 
   /* Not a dead end — and 171 gave it the §6 answer rather than the fallback this used to accept:
      the "‹ More" chevron goes back to the screen it was opened from. The bottom bar still works too
@@ -209,7 +211,17 @@ test('1280px: the account screen renders, and only its BACKED card carries contr
      `business_invites` and this batch shipped the form. Team has earned its controls exactly as
      Profile did, so asserting it empty would enforce the letter of §R4 against its purpose. Plan
      still describes billing that does not exist and is still asserted empty. */
+  /* ⚠️ 268 REMOVED THE PLAN CARD, AND THAT TURNED THE ASSERTION BELOW VACUOUS — which is why it is
+     rewritten rather than left alone. `promiseCards` selects the cards that are NOT backed; with
+     Plan gone it matches nothing, so `toHaveCount(0)` became "no controls inside no elements" and
+     could not fail again. That is this repo's most-recorded defect class arriving through a change
+     in the APP rather than a change in the test.
+     The invariant was never "Plan is empty" — it is "no card promises a capability it does not
+     have". Stated directly: every card in this body is one of the two backed ones. A third card
+     appearing, backed or not, goes red and sends the next reader here. */
+  await expect(page.locator('#tab-account .stg-card')).toHaveCount(2);
   const promiseCards = '#tab-account .stg-card:not(:has(#acctForm)):not(:has(#teamForm))';
+  await expect(page.locator(promiseCards)).toHaveCount(0);
   await expect(page.locator(`${promiseCards} button, ${promiseCards} input, ${promiseCards} select, ${promiseCards} a`)).toHaveCount(0);
   /* And BOTH exempt cards really are backed, so this cannot pass by a form having vanished — which
      is the only way narrowing twice could turn into a ratchet. */
@@ -220,7 +232,7 @@ test('1280px: the account screen renders, and only its BACKED card carries contr
   // 171: scoped to the body. The screen gained a "‹ More" chevron in its shared header — navigation,
   // not a capability — and at 1280 it is display:none anyway, which is asserted rather than assumed.
   await expect(page.locator('#tab-account .scr-back')).toBeHidden();
-  for (const label of ['Profile', 'Team', 'Plan']) {
+  for (const label of ['Profile', 'Team']) {   // 268: Plan removed
     const box = await page.locator('#tab-account .stg-card', { hasText: label }).first().boundingBox();
     expect(box, `${label} card`).not.toBeNull();
     expect(box.height).toBeGreaterThan(20);

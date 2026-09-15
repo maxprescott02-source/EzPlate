@@ -5903,11 +5903,46 @@ var kingQuery='';
    the filtered view - a summary of what you have, not of what you searched. Broken links are the
    one thing worth surfacing in the header, because they are silently costing plates nothing. */
 function kingHeadSummary(list){
-  var n=(list||[]).length; if(!n) return '';
-  var broken=0; list.forEach(function(k){ if(!byId[k.pid]) broken++; });
-  var bits=[n+' '+(n===1?'ingredient':'ingredients')];
-  if(broken) bits.push(broken+' '+(broken===1?'product':'products')+' missing');
+  var n=(list||[]).length, bits=[];
+  /* ⚠️ THE `if(!n) return ''` EARLY EXIT THAT WAS HERE HAD TO GO WHEN THE UNLINKED COUNT MOVED IN,
+     and it is worth saying why rather than just deleting it. It was right while this function only
+     counted INGREDIENTS: zero ingredients, nothing to say. The third clause counts PRODUCTS, and
+     zero-ingredients-many-products is the first-run state — the one the empty branch below calls
+     "EXACTLY when the wizard matters". Returning early there would have silently dropped the count
+     at the only moment it is the whole story, which is what `#kingProgress` used to print. A truly
+     empty app still says nothing: no ingredients and no products leaves `bits` empty. */
+  if(n){
+    var broken=0; list.forEach(function(k){ if(!byId[k.pid]) broken++; });
+    bits.push(n+' '+(n===1?'ingredient':'ingredients'));
+    if(broken) bits.push(broken+' '+(broken===1?'product':'products')+' missing');
+  }
+  var un=kingUnlinkedClause();
+  if(un) bits.push(un);
   return bits.join(', ');
+}
+/* 268: THE SETUP COUNT, WRITTEN ONCE AND RENDERED IN TWO PLACES THAT ARE NEVER BOTH ON SCREEN.
+   It was `#kingProgress`'s own line — "164 of 399 products have an ingredient" — floating detached
+   between the header bar and the search row, which is queue item 58's complaint and is true at
+   desktop widths, where the header sub is the obvious home for it.
+   ⚠️ IT CANNOT SIMPLY MOVE THERE, AND THE ITEM COULD NOT SEE WHY. `.scr-sub` is `display:none`
+   until 768 (css/style.css §2) — the subtitle slot DOES NOT EXIST ON A PHONE — so putting the count
+   in it and deleting the line would have removed the count entirely from the device this app is
+   mostly used on, silently, with every test green. Found by rendering the screen at 380, not by
+   reading. So: ONE function computes the clause, `kingHeadSummary` puts it in the sub and
+   `renderKingProgress` puts it in `#kingProgress`, and CSS shows exactly one of them at each width
+   off the SAME 768 breakpoint the sub uses. That is not two copies of a number — it is one string
+   with two sinks, which is the pattern `#kingWizBtn`'s own `data-mobile-home` already uses on this
+   screen, three lines away in the markup.
+   ⚠️ AND THE ITEM'S PROPOSED WORDING WAS ARITHMETICALLY WRONG: "164 ingredients, 235 products
+   unlinked" reads the old line's 164 as an ingredient count. 164 was the count of LINKED PRODUCTS
+   (`kingLinkableProducts().length` minus this function's `un`); the ingredient count is a different
+   figure. Only the unlinked half is carried, because it is the half that names work left to do and
+   the half #kingWizBtn acts on.
+   Counts PRODUCTS, not the filtered view, exactly as the old line did — so it stays true while a
+   search is on, which is the property renderKitchenPanel's own comment recorded. */
+function kingUnlinkedClause(){
+  var un=kingUnlinkedProducts().length;                              // called plainly: a `typeof` guard here would turn a missing helper into a silently absent count, which on a counting screen is the worse of the two failures
+  return un ? un+' '+(un===1?'product':'products')+' with no ingredient' : '';
 }
 function renderKitchenPanel(){
   var box=document.getElementById('kingList'); if(!box) return;
@@ -6100,14 +6135,29 @@ function kingRepointGuard(oldBaseUnit, newBaseUnit){
   return {needsConfirm: !!(oldCat && newCat && oldCat!==newCat), oldCat:oldCat, newCat:newCat};
 }
 function unitCatWord(c){ return c==='kg'?'kg':c==='l'?'litre':'unit'; }
+/* 268: `#kingProgress` now prints the SAME clause the header sub does (kingUnlinkedClause), not its
+   own "N of M" sentence, and CSS hides it at ≥768 where the sub carries it. See that function for
+   why the count did not simply move into the sub.
+   ⚠️ The sub is NOT refreshed here, deliberately. Every caller that can CHANGE the counts
+   (kingWizAdd, skip, unskip, rename, delete, import) goes through renderKitchenPanel, which writes
+   the sub and then calls this; the three callers that reach this alone are the wizard opening and
+   closing, which links nothing. */
 function renderKingProgress(){
   var pr=document.getElementById('kingProgress'), wb=document.getElementById('kingWizBtn'); if(!pr||!wb) return;
-  var total=kingLinkableProducts().length, un=kingUnlinkedProducts().length, done=total-un;
+  var total=kingLinkableProducts().length;
   var todo=kingWizOutstanding(), skipped=kingWizSkipIds().length;
   // hide only when there is nothing left to propose AND nothing skipped to recover — otherwise skipping everything would strand the Unskip list behind a hidden button
-  if(!total || (!todo && !skipped && !kingWizOpen)){ pr.style.display='none'; wb.style.display='none'; return; }
-  pr.textContent=done+' of '+total+' products have an ingredient';   // stays literal: a skipped product genuinely has no ingredient, so it still counts as not-done here
-  pr.style.display=un?'block':'none';
+  if(!total || (!todo && !skipped && !kingWizOpen)){ pr.classList.remove('is-on'); wb.style.display='none'; return; }
+  var clause=kingUnlinkedClause();
+  pr.textContent=clause;
+  /* ⚠️ A CLASS, NOT `pr.style.display`, AND THE INLINE VERSION WAS WRITTEN FIRST AND WAS WRONG.
+     `.king-progress` has to be HIDDEN at >=768, where the header sub carries this same clause — and
+     an inline style beats a stylesheet rule outright, regardless of specificity or source order, so
+     `pr.style.display='block'` would have shown the count in BOTH places on every desktop. That is
+     css.md's "a declaration is not an enforcement" in a third costume, after `[hidden]` losing to an
+     author rule and `min=0` on an input nothing validates. Toggling a class hands the decision to
+     the cascade, which is the only thing that knows about the breakpoint. */
+  pr.classList.toggle('is-on', !!clause);
   wb.style.display='';                                              // stays visible while open so "Close setup" is always reachable
   wb.innerHTML=kingWizOpen?'Close<span class="btn-noun"> setup</span>':'Set up<span class="btn-noun"> from products</span>';   // v44 item 5: the noun span hides on phones so the pantry pair fits one line
 }
@@ -9250,7 +9300,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v216';
+var APP_VERSION='v217';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -9549,11 +9599,16 @@ async function loadTeam(){
 
 function teamMemberHtml(m){
   var you=(authUser && authUser.id===m.user_id);
-  return '<div class="team-row"><span class="team-em">'+esc(m.email||'')+(you?' <span class="team-you">you</span>':'')
-    +'</span><span class="team-role">'+esc(m.role==='owner'?'Owner':'Staff')+'</span></div>';
+  /* 268: one badge geometry for all three tags on this row family. They were three — `.team-role`
+     mono/uppercase/letterspaced, `.team-you` and `.team-pend` plain small caps-less text in two
+     different colours — so three tags meaning role, identity and state looked like three unrelated
+     kinds of thing. `.team-tag` is the shape; `.is-pending` is the ONE colour variance kept, because
+     "invited" is the only one of the three that names work somebody still has to do. */
+  return '<div class="team-row"><span class="team-em">'+esc(m.email||'')+(you?' <span class="team-tag">you</span>':'')
+    +'</span><span class="team-tag team-role">'+esc(m.role==='owner'?'Owner':'Staff')+'</span></div>';
 }
 function teamInviteHtml(v){
-  return '<div class="team-row"><span class="team-em">'+esc(v.email||'')+' <span class="team-pend">invited</span></span>'
+  return '<div class="team-row"><span class="team-em">'+esc(v.email||'')+' <span class="team-tag is-pending">invited</span></span>'
     +'<button type="button" class="btn stg-danger team-x" data-revoke="'+esc(v.id)+'">Revoke</button></div>';
 }
 
@@ -10000,7 +10055,7 @@ function wireAccount(){
 function renderSettingsTab(){
   var c=document.getElementById('setCogsInput'); if(c) c.value=cogsPct;
   var g=document.getElementById('setGstDefault'); if(g) g.value=gstDefault;
-  var v=document.getElementById('setVersion'); if(v) v.textContent=APP_VERSION;
+  var v=document.getElementById('setVersion'); if(v) v.textContent=APP_VERSION.replace(/^v/,'');   // 268: the markup already says "Version"; APP_VERSION keeps its `v` because the six cache spots mirror it verbatim
   var ai=document.getElementById('setAiInvoiceChk'); if(ai) ai.checked=aiInvoiceCheck;   // v81
   var as=document.getElementById('setAiSuggestChk'); if(as) as.checked=aiSuggestions;    // v81
   syncThemeSeg();                                                                       // v136
