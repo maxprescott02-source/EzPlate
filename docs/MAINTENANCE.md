@@ -1354,3 +1354,34 @@ The helper set `.toast.show` and then `setTimeout(…, 300)` - a bet that 300ms 
 **The mechanism, if it is wanted:** a `PreToolUse` hook matching `Write|Edit`, reading the target path out of the tool input, and returning the matching rule file's path as `additionalContext`. Claude Code's own documentation names `PreToolUse` as the thing to reach for when an instruction must hold regardless of what the model decides.
 
 ⚠️ **It is filed rather than built, deliberately.** 263 had just filtered and bounded the one existing hook after it ran 134 test files on every edit; building a second hook class on the same day, in the batch whose whole job was to make the instruction layer *less* risky, and unasked by the item, is the wrong order. **Whoever takes it owns proving it fires** - a hook that silently does nothing is worse than the gap, because it reads as closed.
+
+## C — from batch 267 (item 57, 15 Sep 2026)
+
+### A category, brand or supplier typed on a form can FORK an existing value, and nothing notices
+
+Queue item 57 asked for *"normalise whitespace on save"*, naming the double space in `HERBS  SPICES & SEASONINGS`. **That fix, taken literally, is worse than the defect.** The double-spaced strings are on dozens of production rows, so saving one product with the collapsed form leaves `HERBS  SPICES & SEASONINGS` on forty products and `HERBS SPICES & SEASONINGS` on one — two categories that `catLabel` renders **identically**, in the same filter list, one of which will look empty. The item's own requirement says *"store as-is"*, and the two halves of it disagree.
+
+**Nothing user-visible is gained by normalising alone:** `catLabel` already collapses whitespace at every read-only render (`renderIngredients`, `renderKitchenPanel`, both `fillFilter` category selects, and `updateKingCat` as of 267), so a user never sees the double space outside the Tidy modal, which exists to show it.
+
+**The fix worth building is a canonicaliser, not a normaliser**, and it prevents forks instead of causing them:
+
+```
+canonicalValue(existing, input)
+  key = input.trim().replace(/\s+/g,' ').toLowerCase()
+  → an existing value whose own key matches, VERBATIM        // reuse, never fork
+  → else input.trim().replace(/\s+/g,' ')                    // a genuinely new value, tidied
+```
+
+Applied on save at the six combobox fields that write one of these three columns: `f_category`/`f_brand`/`f_sup` (create), `ig_cat`/`ig_brand`/`ig_sup` (edit), and the invoice add-new's `ni_cat`/`ni_brand`/`ni_sup`. It catches the CASE fork too — typing `desserts` where `DESSERTS` exists is the commoner of the two and today makes a second category.
+
+⚠️ **It is a WRITE-path change to strings the invoice parser matches on**, which is why it is filed rather than ridden: `tests/cat-label.test.js`'s scope guard exists precisely to keep a display transform off the write path, and this is a different thing that will look like the same thing to the next reader. It needs its own regression test proving the reuse arm returns the STORED spelling byte for byte, plus a parser-corpus run either side. Ride it with whichever batch next opens `openIngEdit` or the add-new form.
+
+**It does NOT fix the rows already forked or already double-spaced.** That is a rewrite of production data and is Max's, every time.
+
+### `.mnu-sec` renders a data value in forced capitals, and 267 deliberately left it
+
+The Menu screen's group row prints a section name (`sp.category` / `m.section`) through `text-transform:uppercase`, so a menu reads `MAINS` where the Plates library's `.plib-cat`, the Add-dish picker's `.ad-meta` and the Menu's own category filter all say `Mains`. Same string, two voices, one screen apart — the class item 57 was about.
+
+**Kept, considered, not missed.** It is a GROUP HEADING, which is the one place this design system's small caps are a typographic device rather than a shout, and `css/style.css` records it as *"the mock's uppercase group row"*. Item 57's own requirement says to drop the transform for product NAMES and keep it for labels, and a group row is a label for the rows beneath it.
+
+**Recorded because the judgement could go the other way**, and if it does it belongs to **consolidated item 61** (the Menu screen), not to a casing sweep: changing it changes the Menu screen's rhythm and wants deciding beside 61's chip-vocabulary work, in one look at one screen.

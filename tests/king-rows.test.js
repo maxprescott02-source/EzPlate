@@ -105,7 +105,14 @@ test('the row markup: broken links are loud, drift is classed, category is DERIV
 
 test('kingProductLabel carries description — brand · supplier, in that order', () => {
   // eslint-disable-next-line no-new-func
-  const f = new Function('BYID', `"use strict"; var byId=BYID; ${extractFn(SRC, 'kingProductLabel')} return kingProductLabel;`)(
+  /* 267: the FORMAT moved into productIdentity/productIdentityMeta so six screens share one
+     definition, and both are EXTRACTED rather than stubbed — a stub written from the same belief as
+     the code is this repo's most-recorded defect. The assertions below are unchanged, which is the
+     point: they still pin the format, and they now pin it wherever it is used. */
+  const f = new Function('BYID', `"use strict"; var byId=BYID;
+    ${extractFn(SRC, 'productIdentityMeta')}
+    ${extractFn(SRC, 'productIdentity')}
+    ${extractFn(SRC, 'kingProductLabel')} return kingProductLabel;`)(
     { P1: { description: 'Tartare Sauce 2.4L', brand: 'Masterfoods', supplier: 'Bidfood' }, P2: { description: 'Eggs' } });
   assert.equal(f({ pid: 'P1' }), 'Tartare Sauce 2.4L — Masterfoods · Bidfood');
   assert.equal(f({ pid: 'P2' }), 'Eggs', 'no brand, no supplier — no dangling separators');

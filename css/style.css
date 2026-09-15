@@ -588,7 +588,16 @@ input[type=checkbox]{
 .opt:last-child{border-bottom:0}
 .opt:hover,.opt.hi{background:var(--hover)}
 .opt .nm{flex:1;font-size:var(--fs-base);color:var(--text)}
-.opt .ca{font-size:var(--fs-xs);color:var(--muted2);text-transform:uppercase;letter-spacing:.04em}
+/* 267 — `.ca` UNDER `.opt` IS NOT A LABEL CLASS, whatever its name suggests, so it may not shout.
+   It carries, at four call sites: a linked product's description (renderDrop), a brand and a unit
+   cost (renderKingProdDrop), and a whole phrase (renderPlateSuggest — "menu item · no plate yet ·
+   Uncategorised"). Only the three category combos put a real label in it, and that word is now
+   "Exists" rather than "exists", so it reads as a tag without the transform.
+   The defect this fixes is the queue item's headline: you picked `→ CHEDDAR CHEESE BLOCK 2KG` out of
+   the builder's search and the row it became said `→ Cheddar Cheese Block 2kg · Bega`. One object,
+   two typographic voices, one click apart. The tracking goes with the capitals — .04em is letter
+   spacing for capitals and makes lower case look loose. */
+.opt .ca{font-size:var(--fs-xs);color:var(--muted2)}
 .opt .uc{font-family:var(--mono);font-size:var(--fs-sm);color:var(--text2);white-space:nowrap}
 .opt mark{background:var(--accent-weak);color:var(--accent-ink);border-radius:3px;font-weight:700}
 .db-tools{display:flex;gap:var(--sp-2);flex-wrap:wrap;margin-top:var(--sp-3)}
@@ -617,7 +626,7 @@ input[type=checkbox]{
 .suggest-drop .sug-opt:last-child{border-bottom:0}
 .suggest-drop .sug-opt:hover{background:var(--hover)}
 .suggest-drop .sug-opt .nm{font-size:var(--fs-base);color:var(--text);font-weight:500}
-.suggest-drop .sug-opt .ca{font-size:var(--fs-xs);color:var(--muted2);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+.suggest-drop .sug-opt .ca{font-size:var(--fs-xs);color:var(--muted2);white-space:nowrap}   /* 267: this one holds a sentence — "menu item · no plate yet · Uncategorised" — and a sentence in capitals is not a label. See the note at .opt .ca. */
 
 /* ----------------------------------------------------------------------
    8-9. THE PLATE BUILDER — a full page (F7 / v146)

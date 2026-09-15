@@ -61,7 +61,9 @@ test('the invoice add-new form labels the object it creates: an Ingredient', () 
 });
 
 test('its placeholder still EXPLAINS the field (explanatory phrasing is allowed)', () => {
-  assert.match(appCode, /placeholder="the name you\\u2019ll use when building plates"/);
+  // 267: sentence case, per the placeholder rule pinned at the bottom of this file. The guard here
+  // is about the WORDS — explaining the field without naming a fifth object — and they are unchanged.
+  assert.match(appCode, /placeholder="The name you\\u2019ll use when building plates"/);
 });
 
 test('no "kitchen word" / "kitchen name" survives in shippable code', () => {
@@ -91,6 +93,55 @@ test('v86: "dish" is no longer a UI noun — the object is a Plate (Max, 25 Jul 
     bad.push(`${appCode.slice(0, m.index).split('\n').length}: ${literal.slice(0, 110)}`);
   }
   assert.deepEqual(bad, []);
+});
+
+/* ---- 267: ONE CASING SYSTEM for placeholders ----------------------------------
+   The rule, and it is the whole rule: A PLACEHOLDER STARTS WITH A CAPITAL LETTER OR A DIGIT.
+   The one exception is a literal email address, which is lower case because that is how an email
+   address is written — capitalising it would be teaching the user something false about their own
+   address.
+
+   Before this, 44 placeholders came in three unstated styles: sentence case ("Search your products…"),
+   lower case ("search suppliers…", "qty", "unit price"), and "e.g. " prefixes ("e.g. Chips",
+   "e.g. 65.00"). Two of the three appeared in ONE modal, in adjacent fields.
+
+   ⚠️ THE `e.g. ` CAME OFF THE TEXT FIELDS AND STAYED ON THE NUMERIC ONES, and that is a decision
+   rather than an oversight. A greyed "Chips" in a product-name field cannot be mistaken for a value
+   the app has already filled in. A greyed "24.00" in "Sell price on this menu ($)" CAN, and this is a
+   costing app — a number the user believes is already there is the expensive kind of wrong. So the
+   four number-shaped examples keep an explicit marker and wear it in sentence case: "E.g. 24.00".
+   Both halves satisfy the one rule above, which is why the rule is about the FIRST CHARACTER and not
+   about the wording.
+
+   This is asserted over BOTH files, and comments are stripped first — a grep over source searches
+   PROSE as well as code (roster 183(a)), and this very paragraph quotes four of the old placeholders. */
+test('267: every placeholder starts with a capital or a digit — an email address is the one exception', () => {
+  const EMAIL = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i;      // a literal address, e.g. you@example.com
+  const bad = [];
+  for (const [name, text] of [['index.html', html.replace(/<!--[\s\S]*?-->/g, '')], ['js/app.js', appCode]]) {
+    const re = /placeholder=(\\?["'])((?:\\.|(?!\1)[^\\\n])*)\1/g;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      const value = m[2].replace(/\\u2019/g, '’').replace(/&#10;/g, '\n').split('\n')[0];
+      if (!value) continue;
+      if (EMAIL.test(value)) continue;
+      if (/^[A-Z0-9]/.test(value)) continue;
+      bad.push(`${name} :: ${value}`);
+    }
+  }
+  assert.deepEqual(bad, [], 'these placeholders start lower case');
+});
+
+test('267: the assertion above can actually see a bad placeholder', () => {
+  /* The guard on the guard, because an assertion that scans two large files for a pattern is exactly
+     the shape that goes vacuous when the pattern stops matching (roster 167/205): a regex that found
+     NOTHING and a regex that found nothing WRONG produce the same empty array. So: it must find the
+     real ones, and it must reject an injected bad one. */
+  const re = /placeholder=(\\?["'])((?:\\.|(?!\1)[^\\\n])*)\1/g;
+  const found = (html.match(re) || []).length + (appCode.match(re) || []).length;
+  assert.ok(found > 30, `the placeholder pattern must still match the real attributes — found ${found}`);
+  assert.ok(/^[A-Z0-9]/.test('Search suppliers…'), 'sanity: the accept side');
+  assert.ok(!/^[A-Z0-9]/.test('search suppliers…'), 'sanity: the reject side — the exact string this batch fixed');
 });
 
 /* ---- the naming inversion: these must NEVER be renamed to match the labels ---- */

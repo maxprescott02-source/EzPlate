@@ -72,8 +72,20 @@ const EMPTY_OK = ['app_settings'];
    The session lives in localStorage rather than a page global so it SURVIVES THE RELOAD that
    authApply performs, which is what lets a spec drive sign-in end to end. `purgeLocalState` cannot
    touch it: it removes `cafeDB_`/`cafeCost_` keys only, by construction. */
+/* 267 — `opts.productPatch` is `{ pid: {field: value} }`, merged into the served rows.
+   It exists because `PRODUCTS` and `byId` are declared `let` in `js/app.js`, so unlike
+   `kitchenIngredients` (a `var`, and therefore a window property every spec already pokes) there is
+   NO route from a spec to a product object at all — the only door is the table these rows come
+   through, which is this function.
+   The case that needed it: the committed fixture has a supplier on **0 of 393** products while
+   production has **19 of 412**, so the worst case a real café reaches — a product carrying a brand
+   AND a supplier, which is the longest identity line the app can print — is not expressible from the
+   fixture. Adding a supplier to `tests/fixtures/base-products.json` would instead make the catalogue
+   claim something about Scoopy's data that is not true; patching it at the seam states the worst
+   case as the spec's own assumption, where a reader can see it. */
 async function installBoot(page, opts = {}) {
-  const rows = opts.noProducts ? [] : Object.values(PRODUCTS).map((p) => ({ ...p, is_custom: false }));
+  const patch = opts.productPatch || {};
+  const rows = opts.noProducts ? [] : Object.values(PRODUCTS).map((p) => ({ ...p, is_custom: false, ...(patch[p.id] || {}) }));
   await page.addInitScript(
     ([ingredientRows, emptyOk, noClient, nonMemberOpt, rpcFailsAfter, signedOut, role, invited, claimLoops, createFails]) => {
       if (noClient) return;
