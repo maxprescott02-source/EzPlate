@@ -245,11 +245,16 @@ test('F7: a write that resolves AFTER a further edit must NOT claim the plate wa
 
 /* ---------------------------------------------- 7. the saved-plate-only controls (fix 2) */
 
-test('F7: Clear plate hides Duplicate and Delete, because it drops the plate id', () => {
+test('F7: the discard hides Duplicate and Delete, because it drops the plate id', () => {
   /* Found by the F7 pre-push review, end to end including the dead click. Both controls read
-     `loadedPlateId`, "Clear plate" is the app's explicit discard and sets it to null, and neither
+     `loadedPlateId`, #clearBtn ("Start over" since 273, "Clear plate" when this was written) is the
+     app's explicit discard and sets it to null, and neither
      openBuilder nor saveCurrentPlate runs on that path — so both stayed visible and both became
      silent no-ops. §R4: never a control that does nothing.
+
+     ⚠️ THE LABEL IS NOT WHAT THIS TEST PINS and it is named by id on purpose — 273 renamed the
+     button and this assertion is about the HANDLER dropping `loadedPlateId`, which is unchanged.
+     `tests/builder-discard.test.js` is where the label and the colour are pinned.
 
      ⚠️ THIS TEST RUNS THE REAL HANDLER, and the first draft of it did not — it called
      syncBuilderPlateActions() from its own shim, which tested the helper and not the WIRING, and

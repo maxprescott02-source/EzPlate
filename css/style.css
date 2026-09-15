@@ -547,8 +547,20 @@ input[type=checkbox]{
 .btn.primary:hover{background:var(--accent-press);border-color:var(--accent-press)}
 .btn.small{padding:8px 13px;font-size:13px;min-height:40px;border-radius:10px}
 .btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
-#clearBtn{color:var(--bad)}
-#clearBtn:hover{background:var(--bad-bg)}
+/* 273 (queue item 47's last bullet) — `#clearBtn{color:var(--bad)}` and its `--bad-bg` hover are
+   DELETED here, and the deletion is the change rather than a tidy-up.
+   Measured in Chromium on a saved plate, both themes: #clearBtn and #bldDelete computed the
+   IDENTICAL colour — rgb(192,57,47) light, rgb(229,135,125) dark — and at 1360x900 both were on
+   screen at once (y=279 and y=681). Two controls in the same red, in the same `<verb> plate`
+   grammar, meaning different things: one discards the working draft while the SAVED PLATE SURVIVES
+   on the server, the other destroys the plate.
+   ⚠️ --bad IS NOT "this button is scary", IT IS THE APP'S DESTRUCTIVE SIGNAL, and a second wearer
+   that is not destructive spends it. On this screen it now belongs to #bldDelete alone. The button
+   keeps its plain `.btn` treatment beside #printBtn; what tells the two apart is the word, which is
+   why the rename ("Clear plate" -> "Start over") and this deletion are ONE change and not two.
+   `tests/builder-discard.test.js` pins the source rule and
+   `tests/visual/273-builder-discard.spec.js` pins the PAINTED colours, because a rule removed here
+   can be reintroduced anywhere and only the computed value can tell. */
 .x{
   flex:0 0 auto;border:0;background:none;color:var(--muted2);font-size:22px;line-height:1;
   cursor:pointer;padding:4px 8px;border-radius:10px;min-height:44px;min-width:44px;

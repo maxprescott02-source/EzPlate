@@ -1,9 +1,9 @@
 {
-  "batch": 272,
-  "deploy_version": 221,
+  "batch": 273,
+  "deploy_version": 222,
   "first_unstruck_group": "G5",
   "open_ab_count": 14,
   "newest_audit": "AUDIT-v217.md",
-  "newest_handover": "HANDOVER-272-modal-footers.md",
+  "newest_handover": "HANDOVER-273-builder-discard.md",
   "written_at": "2026-09-15"
 }

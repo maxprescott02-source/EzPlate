@@ -72,10 +72,6 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 ⚠️ **G5 IS SIX TO NINE BATCHES, NOT ONE, AND THE RULE THAT SAYS SO IS IN THIS FILE'S OWN HEADER.** The Design law's *"one screen per change set, one PR, one review; never mix shell work with screen work"* forbids combining them — so **take ONE of these per batch** and do not be tempted by two that look adjacent. 64 is the shell item and shares a batch with nothing.
 ⚠️ **AND A GREEN PRE-PUSH HOOK IS NOT A GREEN SUITE FOR ANY OF THESE.** The hook does not run Playwright and every one of these items changes whether a control exists or where it sits. Run `npx playwright test` before pushing, every time.
 
-## next  47 · The builder's two red verbs: "Clear plate" sits beside "Delete plate" and they mean different things  **[B]**
-**Full item:** consolidated item 47 — **and FOUR of its five bullets shipped in batch 272 (`ezplate-v221`).** The modal-footer pattern, the Done buttons, `.del-link` and `.use` are done; what is left is this one bullet, which is builder-screen work rather than modal work and was split out for that reason rather than dropped.
-⚠️ **272 measured the corrections into the consolidated item — every line number in this bullet was wrong, and the SCREEN moved under it in batch 271.** `#clearBtn` is now disabled by `syncBuilderPlateActions` when there is nothing to clear, and on a phone it is one of only two controls `#bCost` still carries. Read the item's own warning before planning, and re-measure at 380.
-
 ## next  49 · The builder between 768 and 1200 wide: side cards stack at half width, names truncate to seven characters, Save falls below the fold  **[B]**
 **Full item:** consolidated item 49.
 *(Batch 271 changed this screen — `#saveBtn` is now disabled until the plate has a name and a line, with `#saveHint` under it, and `#bCost` gains `is-bare`. Re-measure at 768–1200 rather than planning off the item's figures.)*
@@ -112,6 +108,15 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ## next  65 · Empty and zero states: two primary CTAs at once, two secondaries shortened for a constraint that moved, a search ✕ on every empty field  **[B]**
 **Full item:** consolidated item 65.
+
+## next  96 · The builder's "Start over" bins an unsaved plate with no confirm and no undo, and batch 273 removed the only signal it had  **[B]**
+
+Problem: `#clearBtn` wipes the lines, the name, the menu link and `loadedPlateId`, and calls `clearPlateDraft`, which does `removeItem(DRAFTKEY)`. **On a plate that was never saved, the work is then unrecoverable** — `guardUnfinishedPlate` reads that same draft, so it cannot offer it back either. There is no confirm and no undo.
+⚠️ **RAISED BY BATCH 273, WHICH CAUSED THE HALF OF THIS THAT IS NEW AND SAYS SO RATHER THAN LEAVING IT FOR AN AUDIT.** That batch deleted `#clearBtn`'s `--bad` colour — correctly, because it was the identical red to `#bldDelete` and the saved plate survives the discard — but the red was also the only "this is heavy" signal the button carried. **The behaviour is unchanged and was not made worse; the warning around it was made quieter, and the two were one edit.**
+**The asymmetry is the actual argument, and it is the app's own:** `guardUnfinishedPlate` asks Resume/Discard before binning a draft **implicitly** (leaving the page, opening another plate). Nothing asks before binning it **explicitly**. A defensible reading is that an explicit discard has already been consented to — which is why this is a queue item and not a bug report.
+Requirements: either the discard cannot silently destroy unsaved work, or the app states why the explicit path deliberately does not ask. Whichever way it goes, `js/app.js`'s v82/273 comment block at the handler is where the reason is recorded.
+Out of scope: the label and the colour — both shipped in 273 and are not to be revisited as part of this. `#bldDelete` already confirms and is not in question.
+⚠️ **The measurement, so this is not re-derived:** the loss window is an UNSAVED plate only. With a saved plate loaded, Start over detaches the builder and the plate is untouched on the server — reopen it from Plates. That is the case 273 measured and the reason the red came off; it is not the case this item is about.
 
 ---
 
