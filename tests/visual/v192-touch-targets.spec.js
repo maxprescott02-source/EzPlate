@@ -206,3 +206,47 @@ test('text links: the linklike family and the prose privacy links take taps well
   expect(await hit(page, lb.x + lb.width / 2, lb.y + 2, '#invzPrivacyLink')).toBe(true);
   expect(await hit(page, lb.x + lb.width / 2, lb.y + lb.height - 2, '#invzPrivacyLink')).toBe(true);
 });
+
+/* 272 — `.use`, added by consolidated item 47's last bullet.
+ *
+ * It is the "Use" button on the New-ingredient modal's "Link to one of these?" suggestions, and
+ * `docs/MAINTENANCE.md` recorded it at `min-height:36px` beside `.del-link` as the two sub-44
+ * targets the R5/R6 rows never named. `.del-link` retired with that batch's footer rewrite; this is
+ * the other one.
+ *
+ * ⚠️ THE `.pchip` SHORTFALL DOES NOT APPLY HERE AND THE DIFFERENCE IS THE POINT. That element is
+ * BORDERED, so its ::after is laid against the padding box and each edge buys about a pixel less
+ * than the rule says — which is why its probes are at ±8.5 for a nominal ±10. `.use` is `border:0`,
+ * so ±4 really is ±4. Probed at the full ±4 rather than a softened number: if the extension is ever
+ * changed to padding, or the border comes back, this goes red instead of quietly passing.
+ */
+test('272: the "Use" suggestion button reaches 44px effective without growing its chip', async ({ page }) => {
+  const errs = [];
+  page.on('pageerror', e => errs.push(String(e)));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installBoot(page);
+  await page.addInitScript(SEED);
+  await page.goto('/');
+  await page.waitForTimeout(1500);
+  await page.evaluate(() => {
+    const b = document.querySelector('.install-banner'); if (b) b.remove();
+  });
+
+  // New ingredient, then type enough of a real product name for the matcher to suggest it
+  await page.evaluate(() => { window.showTab('pantry'); window.openKingModal(); });
+  await page.waitForTimeout(400);
+  await page.locator('#king_name').fill('Chips');
+  await page.waitForTimeout(500);
+  const use = page.locator('#king_alts .use').first();
+  await expect(use, 'the suggestion list must actually render, or this test measures nothing').toBeVisible();
+
+  const bb = await clientBox(page, use);
+  // the VISUAL box stays as designed — the extension is an ::after, invisible to layout
+  expect(bb.height).toBeLessThanOrEqual(38);
+  // …and the effective target clears 44: 36 + 4 + 4
+  expect(bb.height + 8).toBeGreaterThanOrEqual(44);
+  const ux = bb.x + bb.width / 2;
+  expect(await hit(page, ux, bb.y - 3.5, '.use')).toBe(true);
+  expect(await hit(page, ux, bb.y + bb.height + 3.5, '.use')).toBe(true);
+  expect(errs, errs.join('|')).toHaveLength(0);
+});

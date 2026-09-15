@@ -6,9 +6,10 @@
  *
  * 1. THE ONBOARDING LINK HAD NO COLOUR. `catalogueHintHtml()` is the one sentence offering a new cafe
  *    its first ingredient, and its anchor carried no class while css/style.css carried no anchor rule
- *    at all — so it painted the UA's blue in both themes. The app owns exactly three <a> elements and
- *    the other two carry a class that sets a colour, which is how a whole sheet came to say nothing
- *    about anchors.
+ *    at all — so it painted the UA's blue in both themes. The app owned three <a> elements and the
+ *    other two carried a class that sets a colour, which is how a whole sheet came to say nothing
+ *    about anchors. (272: two now — `.del-link`'s anchor became a real <button>. The count is not
+ *    asserted anywhere on purpose; the test below derives the list from `index.html`.)
  *
  * 2. renderManageMenus DEAD-ENDED AT ZERO MENUS. It rendered a sentence telling the user to go to
  *    another screen and returned, with nothing to press — while the two Save buttons silently create
@@ -59,17 +60,37 @@ test('190: css/style.css carries a BARE anchor colour rule — its absence was t
   assert.doesNotMatch(rule[2], /#[0-9a-fA-F]{3,8}\b/, 'a literal hex here cannot be theme-aware');
 });
 
-test('190: the anchor rule stays WEAKER than the two classed anchors, which set their own colour', () => {
-  // Specificity: `a` is 0-0-1 and both of these are 0-1-0, so they win wherever they apply. This is
+test('190: the anchor rule stays WEAKER than every classed anchor, each of which sets its own colour', () => {
+  // Specificity: `a` is 0-0-1 and a class is 0-1-0, so the classes win wherever they apply. This is
   // asserted rather than assumed because the fix could plausibly have been written `a{...!important}`
-  // or as `body a`, and either would silently repaint the phone number and the delete link.
+  // or as `body a`, and either would silently repaint them.
   const bare = CSS_CODE.match(/(^|[};])\s*a\s*\{([^}]*)\}/);
-  assert.doesNotMatch(bare[2], /!important/, 'an !important here would beat .linklike and .del-link');
-  for (const cls of ['linklike', 'del-link']) {
-    const m = CSS_CODE.match(new RegExp('\\.' + cls + '\\s*\\{([^}]*)\\}'));
-    assert.ok(m, `.${cls} must still exist — the bare rule is only safe because it does`);
-    assert.match(m[1], /color\s*:/, `.${cls} must set its own colour, or the new bare rule changes it`);
+  assert.doesNotMatch(bare[2], /!important/, 'an !important here would beat every classed anchor');
+  /* ⚠️ 272: THIS NAMED `linklike` AND `del-link` AS LITERALS AND WENT RED WHEN `.del-link` WAS
+     DELETED — correctly, because it could not tell "the class is gone" from "the class stopped
+     setting a colour", and only the second is the defect. #ed_delete is a real <button> now and
+     wears no anchor class at all.
+     The list is DERIVED from `index.html` instead of retyped, so it cannot rot the same way twice:
+     whatever anchors the app has, each one that carries a class with a rule of its own must set a
+     colour in it. A new classed anchor is covered the day it is added, and a deleted one takes
+     itself off the list. */
+  const classed = new Set();
+  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  for (const m of html.matchAll(/<a\b[^>]*class="([^"]+)"/g)) {
+    for (const c of m[1].trim().split(/\s+/)) classed.add(c);
   }
+  let checked = 0;
+  for (const cls of classed) {
+    const m = CSS_CODE.match(new RegExp('\\.' + cls.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\{([^}]*)\\}'));
+    if (!m) continue;                                             // a layout-only class competes for no colour
+    assert.match(m[1], /color\s*:/,
+      `.${cls} is worn by an <a> and has a rule of its own that sets no colour — the bare rule then ` +
+      'decides it, which is the thing 190 fixed');
+    checked++;
+  }
+  /* Roster 205: a loop that asserts nothing is silently satisfied when it has nothing to iterate,
+     and this one iterates over a grep of another file. */
+  assert.ok(checked >= 1, `no classed anchor was checked at all (found classes: ${[...classed].join(', ') || 'none'})`);
 });
 
 /* ⚠️ THE TEST ABOVE PASSED WHILE THE SHEET WAS WRONG, and the pre-push review found what it missed.

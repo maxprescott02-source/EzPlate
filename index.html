@@ -102,7 +102,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=220">
+<link rel="stylesheet" href="css/style.css?v=221">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -1505,7 +1505,7 @@
            entry point already explains it (and the old string shipped literal unicode escapes) -->
       <div id="smemList"></div>
     </div>
-    <div class="mfoot"><button class="btn primary" id="smemDone" type="button">Done</button></div>
+    <div class="mfoot"><button class="btn" id="smemDone" type="button">Done</button></div>
   </div>
 </div>
 
@@ -1583,8 +1583,12 @@
       <!-- v112: #ed_plateActions ("Restore to Menu" / "Permanently delete") removed — it was only ever
            shown by the orphan-plate edit mode, which no click path could reach. See setEditMode in app.js. -->
     </div>
-    <div class="mfoot"><button class="btn ghost" id="editCancel" type="button">Cancel</button><button class="btn primary" id="editSave" type="button">Save</button></div>
-    <div class="edit-delete-row" id="ed_deleteRow"><a class="del-link" id="ed_delete" role="button" tabindex="0">Delete item</a></div>
+    <!-- 272: "Delete item" was an <a role="button" tabindex="0"> in its own `.edit-delete-row`
+         BELOW this footer, centred, which was the third of three mechanisms for one intent. It is a
+         real <button> in the footer now, left, like the other two edit forms.
+         ⚠️ ITS WORDS DO NOT CHANGE. "item" is CLAUDE.md's known surviving fifth object noun in this
+         modal, awaiting its own brief and explicitly not a bug to fix on sight. -->
+    <div class="mfoot"><button class="btn danger ghost" id="ed_delete" type="button">Delete item</button><button class="btn ghost" id="editCancel" type="button">Cancel</button><button class="btn primary" id="editSave" type="button">Save</button></div>
   </div>
 </div>
 
@@ -1655,7 +1659,7 @@
       <div id="histFixList" class="hf-list" role="group" aria-labelledby="histFixTitle"></div>
     </div>
     <div class="mfoot">
-      <button class="btn ghost" id="histFixDone" type="button">Done</button>
+      <button class="btn" id="histFixDone" type="button">Done</button>
     </div>
   </div>
 </div>
@@ -1687,7 +1691,10 @@
         </div>
       </div>
     </div>
-    <div class="mfoot ig-foot"><button class="btn danger ghost" id="ingDelete" type="button">Delete product</button><span class="mfoot-spacer"></span><button class="btn ghost" id="ingCancel" type="button">Cancel</button><button class="btn primary" id="ingSave" type="button">Save</button></div>
+    <!-- 272: `ig-foot` and its `.mfoot-spacer` span are gone. This footer was the only one shaped
+         right and it did it with an empty element and a modal-specific class, so the pattern could
+         not spread without copying both. `.mfoot > .btn.danger:first-child` carries it now. -->
+    <div class="mfoot"><button class="btn danger ghost" id="ingDelete" type="button">Delete product</button><button class="btn ghost" id="ingCancel" type="button">Cancel</button><button class="btn primary" id="ingSave" type="button">Save</button></div>
   </div>
 </div>
 
@@ -1716,7 +1723,11 @@
       </div>
       <div id="king_alts" class="king-alts" style="display:none"></div>
     </div>
-    <div class="mfoot"><button class="btn ghost king-remove" id="kingModalRemove" type="button" style="display:none">Delete ingredient</button><button class="btn ghost" id="kingModalCancel" type="button">Cancel</button><button class="btn primary" id="kingModalSave" type="button" disabled>Save</button></div>
+    <!-- 272: was `btn ghost king-remove`, positioned left by `margin-right:auto` on its OWN ID and
+         coloured by that same id rule — the second of the three mechanisms. It wears the same
+         `danger ghost` as the other two destructive footer buttons now, and `.king-remove` is
+         deleted because no rule in any file ever matched it. Still hidden until edit mode. -->
+    <div class="mfoot"><button class="btn danger ghost" id="kingModalRemove" type="button" style="display:none">Delete ingredient</button><button class="btn ghost" id="kingModalCancel" type="button">Cancel</button><button class="btn primary" id="kingModalSave" type="button" disabled>Save</button></div>
   </div>
 </div>
 
@@ -1748,7 +1759,7 @@
       </div>
       <div id="tidyValues" class="tidy-values"></div>
     </div>
-    <div class="mfoot"><button class="btn primary" id="tidyManageDone" type="button">Done</button></div>
+    <div class="mfoot"><button class="btn" id="tidyManageDone" type="button">Done</button></div>
   </div>
 </div>
 
@@ -1813,7 +1824,7 @@
            notice with nothing behind it is the one kind of copy this whole item exists to avoid. -->
       <p class="pv-changed">This notice changes if what we send changes &mdash; and it is intended to, by moving to a paid tier Google may not train on. The current version is always the one on this screen.</p>
     </div>
-    <div class="mfoot"><button class="btn primary" id="privacyDone" type="button">Close</button></div>
+    <div class="mfoot"><button class="btn" id="privacyDone" type="button">Close</button></div>
   </div>
 </div>
 <div class="modal-overlay" id="tidyModal" aria-hidden="true">
@@ -1931,7 +1942,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=220"></script>
+<script src="js/app.js?v=221"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —

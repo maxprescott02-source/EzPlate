@@ -343,10 +343,16 @@ input,select,textarea{font-size:16px!important} /* stops iOS zoom-on-focus */
 button,.btn,.navbtn,input,select{min-height:44px}   /* touch targets */
 ::placeholder{color:var(--muted2);opacity:.8}
 /* 190 — ANCHORS HAD NO COLOUR RULE AT ALL, in either theme, so every one painted the UA's blue.
-   The app owns exactly three <a> elements and two of them carry a class that sets a colour
+   The app owned exactly three <a> elements and two of them carried a class that sets a colour
    (.linklike, .del-link), which is why this went unnoticed: the only bare one is #bhGo, the single
    sentence offering a brand-new cafe its first ingredient. It is the first thing that cafe reads,
    and it read as violet-blue on the dark surface.
+   ⚠️ 272: `.del-link` IS GONE - #ed_delete is a real <button> now - so that count is two anchors,
+   one classed and one bare. The rule below is unchanged and is now MORE load-bearing, not less:
+   half the anchors in the app are the bare one this was written for. The hover paragraph below is
+   kept in full and its worked example is deliberately not rewritten to a live class, because the
+   MEASUREMENT is the evidence and re-measuring it against a different class would be inventing a
+   figure. Read it as the mechanism it names, not as a claim about a class that still exists.
    Written as a BASE rule rather than #bhGo's own, because nothing in this sheet has ever spoken
    about anchors — an id rule would fix this link and leave the next one blue.
    Specificity is 0-0-1, so both classed anchors keep winning; each sets `color` explicitly.
@@ -547,11 +553,11 @@ input[type=checkbox]{
   transition:background var(--t-fast) var(--ease),color var(--t-fast) var(--ease);
 }
 .x:hover{background:var(--hover);color:var(--accent-ink)}
-.del-link{
-  display:inline-block;font-size:13px;font-weight:700;color:var(--bad);
-  text-decoration:none;cursor:pointer;padding:10px 12px;border-radius:10px;
-}
-.del-link:hover{background:var(--bad-bg);text-decoration:none}
+/* 272 tombstone: `.del-link` lived here. It was worn by exactly one element, #ed_delete, an <a>
+   with role="button" and tabindex="0" and a CLICK handler only - so Enter and Space did nothing on
+   it, which no test and no audit had noticed. It is a real <button> in the footer now and gets both
+   keys from the platform. Its ~37px height, the sub-44 target `docs/MAINTENANCE.md` records beside
+   `.use`, retires with it: `.mfoot .btn` is 40px and the modal footer is not a ≤767 tap surface. */
 
 /* ----------------------------------------------------------------------
    7. SEARCH + DROPDOWNS
@@ -660,11 +666,20 @@ input[type=checkbox]{
 .pchip .pen{opacity:.55;font-size:11px}
 .pchip .pin{width:72px;border:0;outline:none;font-family:var(--mono);font-size:13px!important;padding:2px 0;background:transparent;color:var(--text);min-height:0}
 .edited{color:var(--warn);font-size:var(--fs-xs);font-family:var(--ui);margin-left:4px;font-weight:600}
+/* 272 — "Use" is 36px tall and sits in a list of suggested names, so the R5 `::after` treatment
+   takes its TAP target to 44 without growing the chip. Extension rather than padding, for the
+   `.pchip` reason pinned in `tests/visual/v192-touch-targets.spec.js`: the visual box is the design
+   and only the hit area moves.
+   ⚠️ `.pchip`'s ±1px shortfall does NOT apply here. That lesson is about a BORDERED element, where
+   the pseudo's box is laid against the padding box and each edge buys about a pixel less than it
+   says; `.use` is `border:0`, so ±4 is ±4. Measured with a real hit test rather than trusted. */
 .use{
+  position:relative;
   border:0;background:var(--good-bg);color:var(--good);font-weight:700;font-size:12px;
   padding:8px 13px;border-radius:var(--radius-chip);cursor:pointer;min-height:36px;
   transition:filter var(--t-fast) var(--ease);
 }
+.use::after{content:'';position:absolute;left:0;right:0;top:-4px;bottom:-4px}
 .use:hover{filter:brightness(.95)}
 .nocost{font-size:var(--fs-sm);color:var(--warn);font-family:var(--mono)}
 
@@ -1266,7 +1281,34 @@ body.scroll-locked{position:fixed;left:0;right:0}
 .mhead .x{color:var(--muted2)}
 .mhead .x:hover{background:var(--hover);color:var(--text)}
 .mbody{padding:var(--sp-5)}
-.mfoot{display:flex;justify-content:flex-end;gap:var(--sp-2);padding:var(--sp-4) var(--sp-5);border-top:1px solid var(--border)}
+.mfoot{display:flex;align-items:center;justify-content:flex-end;gap:var(--sp-2);padding:var(--sp-4) var(--sp-5);border-top:1px solid var(--border)}
+/* 272 — THE ONE MODAL-FOOTER PATTERN, and it is scoped to a SHAPE rather than to a modal.
+   An edit form's destructive action is written FIRST in the footer and sits left, away from Save;
+   Cancel and Save stay right. Three modals wear it (#ingModal, #kingModal, #editModal) and before
+   this they had three separate mechanisms for it: an empty `.mfoot-spacer` span under a modal-named
+   class, `margin-right:auto` on one button's own id, and a whole extra `.edit-delete-row` BELOW the
+   footer. None of the three could be reused without being copied.
+   ⚠️ IT IS DELIBERATELY NOT `.mfoot .btn.danger`, and the difference is the whole safety of it.
+   A CONFIRM dialog's destructive action is its PRIMARY - #delChoiceModal's "Delete everything" is
+   the right-hand button and belongs there, because in that shape destroying is what the user came
+   to do. Keying on `:first-child` means a danger button written where Cancel goes is never dragged
+   left by a rule meant for a different kind of dialog. The two shapes are pinned apart in
+   `tests/modal-footers.test.js`.
+   A hidden first child (#kingModalRemove outside edit mode) is `display:none`, so it leaves the
+   flex line entirely and the remaining two sit right, which is correct rather than lucky. */
+.mfoot > .btn.danger:first-child{margin-right:auto}
+/* 272 — AND THE PATTERN NEEDS ROOM TO BE VISIBLE, which at 380 it did not have. Measured, not
+   reasoned: "Delete ingredient" (162px) + Cancel (88) + Save (74) + two 8px gaps + 40px of footer
+   padding is 380 on the nose, so `margin-right:auto` had ZERO free space to distribute and the
+   destructive button sat 8px from Cancel - the adjacency the whole pattern exists to prevent, in
+   the one modal with the longest label. Edit product cleared it by 25px and Edit menu item by more,
+   so nothing would have shown this except measuring all three.
+   Trimming the footer buttons' own side padding below 420 buys ~32px, which is the separation
+   back. It is scoped to `.mfoot .btn` so it cannot reach the buttons on any screen, and the 40px
+   min-height (the touch target) is untouched. */
+@media (max-width:420px){
+  .mfoot .btn{padding-left:12px;padding-right:12px}
+}
 .confirm-msg{margin:0;font-size:15px;line-height:1.5;color:var(--text)}
 #confirmOk{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
 #confirmOk:hover{background:var(--accent-press);border-color:var(--accent-press)}
@@ -1312,7 +1354,8 @@ body.scroll-locked{position:fixed;left:0;right:0}
 /* v54: unit type is create-only on the product EDIT form — shown, not editable */
 #ig_unit:disabled{opacity:.75;cursor:not-allowed;background:var(--surface2)}
 .ro-note{display:block;margin-top:4px;font-weight:400;color:var(--muted2)}
-.edit-delete-row{padding:var(--sp-3) var(--sp-5) var(--sp-4);text-align:center;border-top:1px solid var(--border);background:var(--surface2);border-radius:0 0 var(--radius-card) var(--radius-card)}
+/* 272 tombstone: `.edit-delete-row` lived here - a second bordered strip below #editModal's own
+   footer, holding one centred link. One modal footer, one row of actions. */
 /* v112: #ed_plateActions removed with the unreachable orphan-plate edit mode. */
 
 /* ----------------------------------------------------------------------
@@ -2350,7 +2393,7 @@ input:focus,textarea:focus,select:focus,.menu-search input:focus{
 .dash-chart.empty .chart-hint{max-width:32em;margin:0 auto;color:var(--text2)}
 
 .modal{max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px);display:flex;flex-direction:column}
-.mhead,.mfoot,.edit-delete-row{flex:0 0 auto}
+.mhead,.mfoot{flex:0 0 auto}   /* 272: .edit-delete-row is deleted; the modal has one footer */
 .mbody{overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 
 /* v99: .ing-per stays VISIBLE — it carries the price basis (per kg/unit/litre), correctness info
@@ -2746,8 +2789,10 @@ svg .ax{font-size:11px;paint-order:stroke;stroke:var(--card,#fff);stroke-width:3
 /* item 8: don't let taps highlight chart chrome (scoped to the chart + interactive chrome only) */
 .dash-chart, .dash-chart svg, .tp-tip, .ref-pill, .vbadge, .flag-mismatch, .flag-review, .conf, .cand-chip, .remembered-chip{-webkit-user-select:none;user-select:none}
 /* item 4: delete button styling + footer layout */
-.mfoot.ig-foot{display:flex;align-items:center;gap:8px}
-.mfoot.ig-foot .mfoot-spacer{flex:1}
+/* 272 tombstone: `.mfoot.ig-foot` and `.mfoot-spacer` lived here. They put the Edit-product
+   footer's Delete on the left with an empty <span>, in a class named for ONE modal, which is why
+   the other two edit forms each invented their own way of doing the same thing. The rule that
+   replaces both is beside `.mfoot` itself, at the top of the modal section. */
 /* v115: the v22 hardcoded .btn.danger pair is deleted — the tokened pair below is the live one */
 
 /* ===== batch 3 / design pass (v24) ===== */
@@ -3408,8 +3453,14 @@ body.ptr-active .sync-banner{opacity:0 !important;pointer-events:none !important
    button-role card; Remove is the modal's muted destructive action, parked left of Cancel/Save. */
 /* F3 (v139) tombstone: `.king-row`'s cursor and its OUTWARD focus ring moved into §27, which
    insets the ring — an outward one dies in the list container's overflow clip. */
-#kingModalRemove{margin-right:auto;color:var(--bad);border-color:var(--danger-ctl-br)}   /* v115 called this "a visible edge at rest" and set it to the TINT: 1.16 light, 1.08 dark. Item 8 makes it true. */
-#kingModalRemove:hover{border-color:var(--bad)}
+/* 272 tombstone: #kingModalRemove's own rule is gone. It hand-rolled `margin-right:auto` plus the
+   exact colour and border `.btn.danger` already gives, so the button now wears `danger ghost` like
+   the other two destructive footer buttons and the shared rule places it. The item-8 decision the
+   old comment recorded is unchanged and now reaches it through the token rather than past it: the
+   border is --danger-ctl-br at rest, from `.btn.danger`.
+   ⚠️ ITS HOVER MOVES, deliberately. The id rule changed only the border on hover; `.btn.danger:hover`
+   fills. That is the point of the pass - two buttons that destroy comparable things behaved
+   differently under the pointer. */
 /* item 1: the unified pack control's red required mood — same control, mismatch state */
 .pack-teach.pt-required .pt-group{border-color:var(--bad)}
 .pack-teach.pt-required .pt-group:focus-within{border-color:var(--bad);box-shadow:0 0 0 1px var(--bad)}
