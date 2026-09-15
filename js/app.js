@@ -2056,11 +2056,32 @@ function lineProduct(l){
    the unit cost in capitals. Same object, four voices. These two build the line so the format has ONE
    definition; the em dash separates the product from its metadata, the middle dot joins metadata parts.
    Pure and DOM-free on purpose, so both are unit-tested directly.
-   ⚠️ NOT every surface takes it, and the two refusals are deliberate rather than missed:
-     - the Products card (renderIngredients) is a COLUMN TABLE by mock §3.5 — brand, category and
-       supplier are separate cells because the columns are the design, not a sentence to be collapsed;
-     - the print docket (printDocketFor) is a KITCHEN PREP SHEET. A chef reading it wants the name they
-       cook with, not the distributor's. */
+
+   ⚠️ THIS IS NOT AN EXHAUSTIVE SWEEP AND MUST NOT BE READ AS ONE. The first draft of this comment
+   named two refusals and let the reader infer that everything else had been migrated; the pre-push
+   review caught that, and it was right to — it is this repo's "a comment records the defect correctly
+   and files it under the wrong consequence" shape, where the reassurance is the author's own frame.
+   Worse, the inference was FALSE in a way that mattered: `openKingModal` is the third writer of
+   `#king_prod` and had been left behind, so opening Edit and then picking from the picker showed two
+   formats in one field, one click apart. That is now fixed and the honest list is below.
+
+   MIGRATED: renderDrop · renderPlate (both arms) · kingProductLabel · renderKingCreateSuggest ·
+   renderKingProdDrop · openKingModal · kingWizRowHtml (both arms) · kingWizSkippedHtml.
+
+   NOT MIGRATED, each for a stated reason rather than by omission:
+     - `renderIngredients` — the Products card is a COLUMN TABLE by mock §3.5. Brand, category and
+       supplier are separate cells because the columns are the design, not a sentence to collapse.
+     - `printDocketFor` — a KITCHEN PREP SHEET. A chef wants the name they cook with, not the
+       distributor's.
+     - `prodOptions` / `invMatchOptions` — the invoice review's product-match `<option>`s. A supplier
+       on 400 option labels lengthens the densest control on the highest-stakes screen, and
+       `invMatchOptions` appends a coverage percentage AFTER the label, which a native select
+       truncates from the right. `.claude/rules/invoice.md` makes that screen regression-test
+       territory, so it is a change with a corpus run attached, not a casing tidy. Filed.
+     - `trendChart`/Dig-in row names (grep `val:Math.abs(pct)`) — these `name` strings reach
+       `api/insight` as FACTS. Changing what the model is given is not a presentation change, and the
+       money/number law means facts are handled deliberately or not at all. Filed.
+   Both "filed" entries are in `docs/MAINTENANCE.md` under batch 267. */
 function productIdentityMeta(p){                                      // "Brand · Supplier" — '' when the product has neither
   if(!p) return '';
   var bits=[];
@@ -6103,9 +6124,12 @@ function kingWizGroups(){                                             // proposa
 }
 function kingWizRowHtml(g,gi){
   var one=g.products.length===1, p0=g.products[0];
+  /* 267: both arms through productIdentity. This ONE function used to render the same join two ways
+     \u2014 a middle dot when there was one product and an em dash when there were several \u2014 so the
+     wizard disagreed with itself depending on how many candidates a name happened to match. */
   var prodBit=one
-    ? '<span class="kw-prod">'+esc(p0.description)+(p0.brand?' \u00b7 '+esc(p0.brand):'')+'</span>'
-    : '<select class="kw-pick" aria-label="Which product">'+g.products.map(function(p,pi){ return '<option value="'+esc(p.id)+'"'+(pi?'':' selected')+'>'+esc(p.description)+(p.brand?' \u2014 '+esc(p.brand):'')+'</option>'; }).join('')+'</select>';
+    ? '<span class="kw-prod">'+esc(productIdentity(p0))+'</span>'
+    : '<select class="kw-pick" aria-label="Which product">'+g.products.map(function(p,pi){ return '<option value="'+esc(p.id)+'"'+(pi?'':' selected')+'>'+esc(productIdentity(p))+'</option>'; }).join('')+'</select>';
   return '<div class="kw-row" data-gi="'+gi+'">'
     +'<input class="kw-name" type="text" value="'+esc(g.name)+'" aria-label="Ingredient name">'
     +prodBit
@@ -6121,7 +6145,7 @@ function kingWizSkippedHtml(ids){
   if(kingWizShowSkipped){
     html+=ids.map(function(id){
       var p=byId[id];
-      var lbl=p ? (p.description+(p.brand?' \u00b7 '+p.brand:'')) : '(this product no longer exists)';
+      var lbl=p ? productIdentity(p) : '(this product no longer exists)';   // 267: the same line the row above it shows, so Unskip names what Skip named
       return '<div class="kw-srow" data-pid="'+esc(id)+'"><span class="kw-prod">'+esc(lbl)+'</span>'
         +'<button class="linklike kw-unskip" type="button">Unskip</button></div>';
     }).join('');
@@ -6274,7 +6298,14 @@ function openKingModal(kid){
   document.getElementById('kingModalTitle').textContent=isEdit?'Edit ingredient':'New ingredient';
   var nameEl=document.getElementById('king_name'), prodEl=document.getElementById('king_prod');
   nameEl.value=isEdit?(k?k.name:''):''; nameEl.disabled=false;                 // ITEM 2 (v35): edit mode can rename. Plates persist {kid, qty} only (see the lines map in savePlate) and read the label live via kById, so a rename is display-only and cannot touch a recipe.
-  prodEl.value=isEdit&&k&&byId[k.pid]?(byId[k.pid].description+(byId[k.pid].brand?' \u2014 '+byId[k.pid].brand:'')):'';
+  /* \u26a0\ufe0f 267, AND THIS ONE WAS A DEFECT THIS BATCH CREATED rather than one it inherited. This is the
+     THIRD writer of #king_prod's value; the other two (renderKingCreateSuggest, renderKingProdDrop)
+     were moved onto productIdentity and this was not, so opening Edit showed "Cheddar \u2014 Bega" and
+     picking the same product from the picker one click later showed "Cheddar \u2014 Bega \u00b7 Bidfood" \u2014
+     the item's own defect, in the field the item's own fix had just touched.
+     Found by the pre-push review, which named the neighbourhood and not this site. GREP THE FIELD,
+     not the function: three writers, and nothing but this comment says how many there are. */
+  prodEl.value=isEdit&&k&&byId[k.pid]?productIdentity(byId[k.pid]):'';
   kingChosenPid=isEdit&&k?k.pid:null;
   var err=document.getElementById('king_err'); if(err)err.style.display='none';
   document.getElementById('king_prodDrop').style.display='none';

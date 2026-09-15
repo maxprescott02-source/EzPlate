@@ -76,28 +76,74 @@ test('a product with no description falls back to its metadata rather than a lea
    The call sites — the half that makes the helper worth having.
    ============================================================================ */
 
-test('every surface that prints a product BESIDE another one goes through the shared builder', () => {
-  /* Source assertions, and they are honest about what they can see: these six sites are where the
-     four voices lived. A site that hand-rolls `p.description + ' — ' + p.brand` again is what this
-     catches, because that is precisely how the four voices arose in the first place — each was
-     correct when it was written, and none knew about the others. */
-  for (const fn of ['renderDrop', 'kingProductLabel', 'renderKingCreateSuggest', 'renderKingProdDrop']) {
-    assert.match(extractFn(src, fn), /productIdentity(Meta)?\(/,
-      `${fn} must build its product line from the shared helper`);
-  }
-  assert.match(extractFn(src, 'renderPlate'), /productIdentity\(p\)/,
-    'the builder row prints the SAME line the search dropdown offered a click earlier');
+/* The migrated set. Named here rather than inline because two assertions below walk it. */
+const MIGRATED = ['renderDrop', 'renderPlate', 'kingProductLabel', 'renderKingCreateSuggest',
+  'renderKingProdDrop', 'openKingModal', 'kingWizRowHtml', 'kingWizSkippedHtml'];
+
+/* Comments quote the old hand-rolled form while explaining it, so they come off before any of these
+   look at a body. Roster 183(a): a grep over source searches PROSE as well as code. */
+const bodyOf = (fn) => extractFn(src, fn)
+  .replace(/\/\*[\s\S]*?\*\//g, ' ')
+  .split('\n').map((l) => l.replace(/(^|[^:'"`\\])\/\/.*$/, '$1')).join('\n');
+
+test('no migrated surface hand-rolls the identity line, at ANY of its call sites', () => {
+  /* ⚠️ THIS IS AN ABSENCE ASSERTION AND THE PRESENCE ONE BELOW IS NOT ENOUGH ON ITS OWN. The first
+     draft of this test asserted only that `productIdentity(` APPEARS somewhere in each function, and
+     the pre-push review killed it: `renderKingProdDrop` has TWO call sites — one building the list,
+     one filling the input on click — so reverting the click handler alone would reintroduce the exact
+     "two typographic voices, one click apart" bug this batch exists to fix, and the regex would still
+     match the other site. A presence check cannot see a partial revert.
+     `openKingModal` is in this list because a partial revert is not hypothetical: it was the real
+     state of the branch when the review ran, and it is the THIRD writer of one field. */
+  const HANDROLLED = /description\s*\)?\s*\+\s*\([^)]*\bbrand\b/;
+  const offenders = MIGRATED.filter((fn) => HANDROLLED.test(bodyOf(fn)));
+  assert.deepEqual(offenders, [],
+    'these build a product line by hand instead of calling productIdentity/productIdentityMeta');
 });
 
-test('the two deliberate refusals stay refused, and are not "missed" call sites', () => {
-  /* renderIngredients is a COLUMN TABLE (mock §3.5): brand, category and supplier are separate cells
-     because the columns are the design. printDocketFor is a kitchen prep sheet: a chef wants the name
-     they cook with, not the distributor's. Both are recorded at the helper's own site; this pins that
-     a later "consistency" pass cannot quietly collapse either into a sentence. */
-  assert.ok(!/productIdentity/.test(extractFn(src, 'renderIngredients')),
-    'the Products card keeps its cells — see the note at productIdentityMeta');
-  assert.ok(!/productIdentity/.test(extractFn(src, 'printDocketFor')),
-    'the print docket keeps the kitchen name alone — see the note at productIdentityMeta');
+test('and each of them really does call the shared builder', () => {
+  /* The positive half. On its own it is weak (see above); together with the absence assertion it
+     pins both directions — you cannot delete the call and you cannot add a second voice beside it. */
+  for (const fn of MIGRATED) {
+    assert.match(bodyOf(fn), /productIdentity(Meta)?\(/,
+      `${fn} must build its product line from the shared helper`);
+  }
+});
+
+test('the guard can SEE a hand-rolled line — it is not a regex that matches nothing', () => {
+  /* Roster 205: an assertion that scans source for a pattern goes vacuous the moment the pattern
+     stops matching, and "found nothing" is indistinguishable from "found nothing wrong". So the
+     regex is run against the exact strings this batch deleted. */
+  const HANDROLLED = /description\s*\)?\s*\+\s*\([^)]*\bbrand\b/;
+  for (const old of [
+    "p.description+(p.brand?' \\u2014 '+p.brand:'')",
+    "esc(p.description)+(p.brand?' \\u00b7 '+esc(p.brand):'')",
+    "byId[k.pid].description+(byId[k.pid].brand?' \\u2014 '+byId[k.pid].brand:'')",
+  ]) {
+    assert.ok(HANDROLLED.test(old), `the guard must match the real deleted form: ${old}`);
+  }
+  assert.ok(!HANDROLLED.test('return productIdentity(p);'), 'and must not match the shared call');
+});
+
+test('renderPlate pins BOTH arms — the kid line and the legacy pid line', () => {
+  /* They print different things (the full line vs the metadata alone) and a fix that moved only one
+     would leave a saved pre-v31 plate reading in the old voice, which nothing else would notice. */
+  const body = bodyOf('renderPlate');
+  assert.match(body, /productIdentity\(p\)/, 'the kid arm prints the full identity line');
+  assert.match(body, /productIdentityMeta\(p\)/, 'the legacy arm prints the metadata under the name');
+});
+
+test('the deliberate refusals stay refused, and are not "missed" call sites', () => {
+  /* Four surfaces are NOT migrated, each for a reason written at the helper's own site: the Products
+     card is a column table (mock §3.5); the print docket is a kitchen prep sheet; the invoice review's
+     match options are the densest control on the highest-stakes screen and need a corpus run; the
+     Dig-in row names reach `api/insight` as FACTS, where the money/number law applies.
+     This pins that a later "consistency" pass cannot quietly collapse any of them — which is the
+     direction a reader of the MIGRATED list above is most likely to push. */
+  for (const fn of ['renderIngredients', 'printDocketFor', 'prodOptions', 'invMatchOptions']) {
+    assert.ok(!/productIdentity/.test(extractFn(src, fn)),
+      `${fn} is a stated refusal — see the NOT MIGRATED list at productIdentityMeta`);
+  }
 });
 
 /* ============================================================================

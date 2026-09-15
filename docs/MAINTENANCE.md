@@ -1385,3 +1385,12 @@ The Menu screen's group row prints a section name (`sp.category` / `m.section`) 
 **Kept, considered, not missed.** It is a GROUP HEADING, which is the one place this design system's small caps are a typographic device rather than a shout, and `css/style.css` records it as *"the mock's uppercase group row"*. Item 57's own requirement says to drop the transform for product NAMES and keep it for labels, and a group row is a label for the rows beneath it.
 
 **Recorded because the judgement could go the other way**, and if it does it belongs to **consolidated item 61** (the Menu screen), not to a casing sweep: changing it changes the Menu screen's rhythm and wants deciding beside 61's chip-vocabulary work, in one look at one screen.
+
+### Two product-identity surfaces batch 267 deliberately did NOT migrate
+
+267 put `Product — Brand · Supplier` behind one builder (`productIdentity`) and moved eight render sites onto it. Two more print the same object and were left hand-rolled, on purpose. Both are recorded at the helper's own site; they are here so they are findable by someone who is not already reading that comment.
+
+- **`prodOptions` / `invMatchOptions`** — the invoice review's product-match `<option>`s. Migrating adds a supplier to ~400 option labels in the densest control on the screen where a wrong pick stores a wrong price, and `invMatchOptions` appends the coverage percentage **after** the label, which a native select truncates from the right — so the thing lost first is the number the user is choosing on. `.claude/rules/invoice.md` makes that screen regression-test territory: whoever takes it owes a `tests/parser-corpus/run.js` pass either side and a look at the select at 380.
+- **The trend/Dig-in row names** (grep `val:Math.abs(pct)`) — these `name` strings are passed to `api/insight` as FACTS. Changing what the model is given is not a presentation change. The money/number law says an AI helper may only phrase numbers the app already computed, and the validator rejects a phrasing carrying a number absent from the facts; a supplier name is not a number, so this is safe rather than forbidden — but it is a change to the model's input and wants deciding as one.
+
+**Ride either with a batch that already opens its screen.** Neither is a defect today: each is internally consistent, and the reason they are worth recording is that the MIGRATED list is now long enough to read as complete.

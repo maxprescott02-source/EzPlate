@@ -508,7 +508,7 @@ Opener `New <object>` · commit `Add <object>` · join a list `Add to menu` · e
 
 **Test:** `tests/visual/` at 900 asserts the three figures are in the DOM and visible; a unit test on the scope button label asserts the `%`.
 
-## next  57 · One casing system and one product identity line: forced capitals in the dropdown, category fields in capitals against title-case lists, placeholders in three styles, a double-spaced category, and a product written four ways  **[B, the same object in two typographic voices one click apart]**
+## ~~57 · One casing system and one product identity line~~  **SHIPPED, batch 267, `ezplate-v216` — with three sub-items REFUSED and the reasons recorded**
 
 ⚠️ **PREMISE-CHECKED 15 Sep 2026 (batch 266), and EVERY SYMBOL AND LINE CITATION BELOW IS WRONG. The defects are real; the map to them is not.** Spot-verified against the working tree, not taken from the checker's word.
 **Three of the named symbols do not exist anywhere in the repo:** `renderKingRows`, `renderIngRows` and `buildCatOptions` return zero hits in `js/app.js` and `index.html`. **The real sites are `renderDrop` (`:2079`), `renderIngredients` (`:5559`), `renderKitchenPanel` (`:5853`), `catLabel` (`:5526`) and `tidyValuesCombined` (`:12915`)** - grep them, do not trust these numbers either.
@@ -524,6 +524,15 @@ Opener `New <object>` · commit `Add <object>` · join a list `Add to menu` · e
 - **Tidy lists opened from Menu mixes product categories in capitals with plate categories in title case, sorted by product count (U9):** split into Plate categories and Product categories, open on the one matching the launching screen.
 
 **Test:** `tests/terminology.test.js` gains a placeholder-casing assertion over `index.html`; a unit test on the identity-line builder asserts the three parts in order for a fixture product.
+
+✅ **SHIPPED, batch 267 (`ezplate-v216`).** `productIdentity` / `productIdentityMeta` are the one definition of "Product — Brand · Supplier", behind EIGHT render sites; `.opt .ca` and `.sug-opt .ca` stop forcing capitals (that class carries names, brands, unit costs and whole phrases, not labels); 19 placeholders to sentence case under one stated rule, pinned by `tests/terminology.test.js`; the pack-size example out of its `<label>`, where it was inheriting `text-transform:uppercase`; `catLabel` on the Ingredient modal's derived category; the Tidy door into its own `<optgroup>`. New: `tests/product-identity.test.js` and `tests/visual/267-identity-line.spec.js` (380 and 1280).
+
+⚠️ **THREE SUB-ITEMS WERE REFUSED, and they are refusals rather than omissions — do not re-queue them as unfinished work.**
+- **"Normalise whitespace on save" is REFUSED as specified, because it is the more damaging of the two options.** `HERBS  SPICES & SEASONINGS` is on dozens of production rows, so saving one product with the collapsed form leaves two categories that `catLabel` renders IDENTICALLY, in one filter list, one of which looks empty. Nothing user-visible is gained: `catLabel` already collapses whitespace at every read-only render. The fix worth building is a **canonicaliser that reuses an existing value** rather than a normaliser that forks it, and it is filed with its algorithm in `docs/MAINTENANCE.md` under batch 267.
+- **Title-casing the category FIELD, its combo options and the Tidy list is REFUSED.** Those are the VALUE, not a label; this item's own requirement says "store as-is". Tidy in particular is the raw-value editor — it is where you go to SEE that a category has a double space in it, so normalising its display hides the thing you opened it to fix.
+- **Splitting the Tidy list into Plate and Product categories is REFUSED and is MAX'S to reverse if he wants it.** `tidyValuesCombined`'s own comment records the combining as his call (v59 item 6b), and a split would cost the single action: one row saying "14 products · 3 plates" is what lets one Rename flow to products, ingredients and plates at once.
+
+**Also found and left alone, routed to item 61:** `.mnu-sec` prints a section name in forced capitals while three other surfaces title-case it. Kept as a group heading; it belongs with the Menu screen's own vocabulary work.
 
 ## next  58 · Screen subtitles and status copy: the subtitle slot means four things, the Invoices subtitle contradicts its own dropzone, "Recent imports" apologises for its absence, Account and Settings carry roadmap notes, and four copy slips  **[B, the eye learns to read the slot one way and is wrong on the next screen]**
 
