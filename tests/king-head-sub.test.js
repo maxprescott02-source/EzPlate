@@ -93,8 +93,10 @@ test('268: singulars', () => {
 });
 
 /* ⚠️ THE TWO HOMES, AND THIS IS THE TEST THAT EXISTS BECAUSE THE FIRST ATTEMPT WAS WRONG.
- * Item 58 says to move the count into the header sub. `.scr-sub` is `display:none` below 768 — the
- * subtitle slot does not exist on a phone — so moving it and deleting `#kingProgress` renders
+ * Item 58 says to move the count into the header sub. `.scr-sub` is `display:none` below 768 — on
+ * this screen the subtitle slot does not exist on a phone (the Menu screen's `#menuHeadSub`
+ * overrides that by id and is the one exception; see `.claude/rules/css.md`) — so moving the count
+ * there and deleting `#kingProgress` renders
  * correctly at 1360 and DELETES THE COUNT ON THE PHONE, with the entire suite green. It was caught
  * by rendering the screen at 380, which is why `docs/PHONE.md`'s replacement (a browser agent) is
  * part of the loop rather than an optional extra.
@@ -178,4 +180,45 @@ test('268: the setup count has ONE source and two mutually exclusive homes', () 
   assert.ok(!/pr\.style\.display/.test(body),
     'renderKingProgress must not write #kingProgress\'s display inline — it would beat both CSS rules and show the count at every width');
   assert.match(body, /pr\.classList/, 'it toggles a class instead, so the cascade decides');
+});
+
+/* ⚠️ THE EXCEPTION, PINNED, BECAUSE THE RULE WAS WRITTEN AS AN ABSOLUTE AND THE ABSOLUTE WAS WRONG.
+ * Batch 268 wrote "the subtitle slot does not exist on a phone AT ALL" into `.claude/rules/css.md`,
+ * and AUDIT-v217 caught it the next day: `#menuHeadSub` sets `display:block` OUTSIDE any media
+ * query, at id specificity, so the Menu screen's subtitle is the one that survives below 768.
+ * It is deliberate and the reason is at its own rule — on Menu the current menu's NAME otherwise
+ * lives only in a switcher that scrolls away under the pinned bar.
+ *
+ * This is pinned rather than merely written down because the absolute is the version that gets
+ * quoted, and quoting it at consolidated item 61 — which IS the Menu screen — would manufacture
+ * exactly the two-places bug 268 spent a batch removing. A test names which screen is the
+ * exception, so the next reader gets the qualified fact rather than the tidy one.
+ */
+test('268/269: .scr-sub is desktop-only on six screens, and #menuHeadSub is the stated exception', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'css', 'style.css'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.match(css, /\.scr-sub\{display:none/, 'the default is hidden');
+
+  const idx = css.indexOf('#menuHeadSub{display:block');
+  assert.ok(idx > 0,
+    '#menuHeadSub must still force itself visible — without it the Menu screen shows a bare "Menu" on a phone with the menu name scrolled away');
+
+  /* AND IT MUST BE OUTSIDE A MEDIA QUERY, which is the whole of why it is an exception. Walk every
+     @media block and assert none of them contains it: inside one, it would inherit that block's
+     width condition and stop being the phone's answer. */
+  const blocks = [];
+  let at = css.indexOf('@media');
+  while (at >= 0) {
+    let i = css.indexOf('{', at), depth = 0, end = -1;
+    for (; i < css.length; i++) {
+      if (css[i] === '{') depth++;
+      else if (css[i] === '}' && --depth === 0) { end = i; break; }
+    }
+    if (end < 0) break;
+    blocks.push([at, end]);
+    at = css.indexOf('@media', end);
+  }
+  const inside = blocks.some(([a, b]) => idx > a && idx < b);
+  assert.equal(inside, false,
+    '#menuHeadSub{display:block} must sit OUTSIDE every media query — inside one it picks up that width condition and the Menu screen loses its name on a phone');
 });

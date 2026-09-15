@@ -68,9 +68,16 @@ test('STATE.json deploy_version is sw.js CACHE, and newest_audit is the highest 
 });
 
 test('STATE.json open_ab_count counts every item heading in docs/QUEUE.md, whatever its status', () => {
-  // Counted here off the raw file rather than via queueItems(), for the same reason as above.
+  /* Counted here off the raw file rather than via queueItems(), for the same reason as above.
+     ⚠️ THIS PATTERN REQUIRED A DIGIT UNTIL AUDIT-v217, AND SO DID `tools/state.js`'s, WHICH IS WHY
+     NEITHER CAUGHT THE OTHER. Batch 265 let one un-numbered process item hold a slot; both regexes
+     skipped it, `open_ab_count` read 3 against four headings, and this assertion passed because
+     the two wrong beliefs matched. **Deriving a check from the same assumption as the code makes
+     it a mirror, not a second opinion** — the roster's oldest entry, in the test file written to
+     police a derived value. The independence here is that this reads the RAW MARKDOWN and
+     `tools/state.js` parses it; that only pays off if the patterns can disagree. */
   const queue = fs.readFileSync(path.join(ROOT, 'docs', 'QUEUE.md'), 'utf8');
-  const heads = queue.split('\n').filter((l) => /^##\s+(next|blocked|doing)\s+\d/.test(l));
+  const heads = queue.split('\n').filter((l) => /^##\s+(next|blocked|doing)\s+\S/.test(l));
   assert.strictEqual(onDisk.open_ab_count, heads.length,
     `docs/STATE.json says ${onDisk.open_ab_count} open items; docs/QUEUE.md has ${heads.length} headings. Run: node tools/state.js`);
   assert.ok(heads.length <= 20, 'docs/QUEUE.md is capped at 20 items by its own header');

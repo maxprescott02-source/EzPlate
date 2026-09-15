@@ -59,7 +59,11 @@ That matters here because "anchor it `position:fixed` to the input's viewport re
 
 (Batch 268, 15 Sep 2026, queue item 58. Found by rendering the screen at 380; the whole suite was green with the defect in.)
 
-**`.scr-sub` - the screen-header subtitle worn by seven screens - is `display:none` in its base rule and `display:block` only inside `@media (min-width:768px)`.** The §2 mobile header is deliberately compact, so **the subtitle slot does not exist on a phone at all.**
+**`.scr-sub` - the screen-header subtitle worn by seven screens - is `display:none` in its base rule and `display:block` only inside `@media (min-width:768px)`.** The §2 mobile header is deliberately compact, so **on six of the seven screens the subtitle slot does not exist on a phone.**
+
+⚠️ **THE SEVENTH IS `#menuHeadSub` AND THIS RULE SAID "AT ALL" FOR ONE DAY** (corrected by AUDIT-v217, the audit immediately after the batch that wrote it). `css/style.css` sets `#menuHeadSub{display:block}` **outside any media query, at id specificity**, and the comment above it gives the reason: on Menu at <=767 the current menu's NAME otherwise lives only in the switcher below the header, which scrolls away under the pinned bar, so a pinned bare "Menu" would identify nothing.
+**The absolute was the more dangerous half of a correct finding**, and the direction is what makes it worth recording: consolidated item **61 is the Menu screen**, one of its bullets reads *"the pinned header names the menu in full"*, and that bullet is TRUE on a phone precisely because of this exception. A batch running 61 with "at all" in hand would have concluded the name was invisible on mobile and duplicated it into the body - **manufacturing the two-places bug this very section exists to prevent.**
+**So the rule is: CHECK THE SCREEN, not the class.** `.scr-sub` is a default, and one screen overrides it by id for a stated reason. Grep `#<id>` before concluding a slot is absent.
 
 That is correct and is not the trap. The trap is what it does to any instruction of the form *"move this line into the header sub"*, which is how a tidy-up is naturally phrased and is what item 58 asked for in two places. **Moving content there DELETES it below 768**, silently:
 

@@ -131,7 +131,9 @@ Each names the context a batch loads once. Items are referenced by their consoli
 **Context:** the bootstrap fatal-read list, the three-valued-guard family, RLS and `as restrictive`, `create or replace` ancestry, PostgREST-as-the-client verification.
 *(This named `ensureDefaultMenu` and its call-site gate until 10 Sep 2026. Batch 246 DELETED both — the `menus` read is fatal now, so there is no branch left to gate. AUDIT-v207 §2a.6.)*
 
-**Items:** 38, 39, ~~40~~ (243), 41, 42, 73, ~~91~~ (255 + Max's answer, 10 Sep) · `docs/QUEUE.md`'s ~~13~~ (242), ~~14~~ (243), ~~15~~ (244) by reference
+**Items:** **24**, 38, 39, ~~40~~ (243), 41, 42, **45**, 73, ~~91~~ (255 + Max's answer, 10 Sep) · `docs/QUEUE.md`'s ~~13~~ (242), ~~14~~ (243), ~~15~~ (244) by reference
+
+⚠️ **24 AND 45 WERE ADDED BY AUDIT-v217 AND HAD BEEN IN NO GROUP AT ALL.** 24 is tier **B** - the insight validator can be satisfied by the wrong sentence in three ways - and it loads `api/insight`, the money/number law and the validator on both ends, which is this group's `api/` half. 45 (Google sign-in) is C and blocked on a credential only Max can create, and it belongs beside 38-42's auth surface.
 *(20 was here until 9 Sep 2026 and moved to G1; the reason is at G1.)*
 
 ⚠️ **91 WAS ADDED HERE ON 10 SEP 2026 BY THE PRE-PUSH REVIEW OF THE BATCH THAT RAISED IT — which had just spent a paragraph fixing G1 for the identical omission on item 90, in the same commit.** Batch 252 wrote *"a batch that raises an item routes it in BOTH files, or the group it belongs to silently under-counts"*, added 91 to `docs/QUEUE.md` and the consolidated file, and did not add it here.
@@ -157,7 +159,10 @@ It belongs in G3 on context: it is `as restrictive for delete`, one migration, m
 
 **Context:** specificity-before-source-order, the `:not([hidden])` idiom, `position:fixed` containing blocks, the breakpoint map, the silent-syntax-error guard.
 
-**Items:** 47, 49, 50, 56, 59, 61, 62, 63, 64, 65, 68, 75
+**Items:** 47, 49, 50, **53**, **54**, 56, 59, 61, 62, 63, 64, 65, 68, 75 · **85** (blocked)
+
+⚠️ **53, 54 AND 85 WERE ADDED BY AUDIT-v217.** 53 and 54 are tier **B** and were in no group at all, so the refill could never reach them: 53 is the edit modals hiding the number the user came to react to, 54 is the add-to-menu picker's ordering - both are screen work on the Menu and Products surfaces this group already owns, and 53 sits directly beside 47's modal-footer pass.
+**85 was named in this group's PROSE below and not in the `**Items:**` line**, which is the same defect one level quieter: the line is what `tools/state.js` and `tests/queue-routing.test.js` read, and prose is not a field. It keeps its blocked status; listing it is not promoting it.
 
 **Blocked members:** ~~66~~ (answered 10 Sep 2026, SHIPPED batch 258) and 85 (his priority call). 85 drops out until answered; the rest do not wait on it.
 
@@ -175,7 +180,10 @@ It belongs in G3 on context: it is `as restrictive for delete`, one migration, m
 
 **Context:** Playwright meaning and vacuity, the mutation gate and its targets, staging auth, the persona protocol.
 
-**Items:** 44, 79, 80, ~~82~~ (257), 84, **94** (no dependency) · 27, 28, 29 (dependent) · 83, **95** (blocked on Max)
+**Items:** **43**, 44, 79, 80, ~~82~~ (257), 84, **94** (no dependency) · 27, 28, 29 (dependent) · 83, **95** (blocked on Max)
+
+⚠️ **43 was added by AUDIT-v217 and had been in no group.** It is the inventory of settings that live outside the repo - the Supabase Site URL default that cost a real stranger their sign-up, which nothing in the repo could see. It is a `docs/` record, which is this group.
+**AUDIT-v217's own top finding is the same class:** `enforce_admins` was `false` in four documents and `true` on the server for three days. **43 is the item that would have caught it**, and that is the argument for its priority rather than a note.
 
 **This is the interleave group.** The no-dependency items ship no client asset and need no version bump, so they fill the time a batch spends waiting on a Tranche 0 answer. 27 is blocked on the staging account and unblocks 28, 29 and fourteen skipped screenshot tests.
 **94 and 95 were raised by batch 265**, from `docs/audits/WORKFLOW-AUDIT-2026-09-09.md`'s recommendations 1 and 2 under the closure gate in `tests/audit-closure.test.js`. 94 is read-only and collides with no branch, so it interleaves with anything; 95 is the one process item that could hold a slot in `docs/QUEUE.md` once Max answers it.

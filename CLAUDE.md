@@ -31,7 +31,7 @@ EzPlate is a plate/menu-costing PWA for a real cafe ("Scoopy's Family Cafe"). Th
 
 | | |
 |---|---|
-| Outstanding work - tier A and B only, capped at 20. **The WORKING SET, not the backlog** | `docs/QUEUE.md` |
+| Outstanding work - tier A and B, **plus at most ONE process item**, capped at 20. **The WORKING SET, not the backlog** | `docs/QUEUE.md` |
 | The backlog - 72 items from the 8 Sep 2026 consolidation, struck as they ship | `docs/QUEUE-2026-09-08-CONSOLIDATED.md` |
 | Which of those load the same context, and the promotion order `/batch` refills from | `docs/QUEUE-GROUPS.md` |
 | Tier C - internal quality, ridden along by whichever batch already touches the file | `docs/MAINTENANCE.md` |
@@ -153,7 +153,7 @@ GitHub `main` → Vercel auto-deploys → installed PWAs pick it up via the netw
 
 ## Independent review before merge
 
-Max has no human reviewer, so this is the only second reader the code gets. **Branch protection is ON**: `unit tests` and `smoke (jsdom)` are required, the mutation gate and the review-artifact check run inside `unit`, **Playwright is NOT required**, and `enforce_admins` is FALSE, so an admin merge bypasses everything.
+Max has no human reviewer, so this is the only second reader the code gets. **Branch protection is ON**: `unit tests` and `smoke (jsdom)` are required, the mutation gate and the review-artifact check run inside `unit`, **Playwright is NOT required**, and **`enforce_admins` is TRUE as of 15 Sep 2026 - the required checks bind Max too, and there is no admin bypass.** ⚠️ **This line said FALSE for three days after he turned it on** (AUDIT-v217), in the direction that tells every batch the wall is not a wall. **Verify with `gh api repos/.../branches/main/protection`, never from a document.**
 
 - **The `code-review` agent is MANDATORY. Runs BEFORE push**, adversarially, on the branch diff, after the suite is green. Its definition is `.claude/agents/code-review.md`, in the repo. **Never show it the brief.** **Mandatory whenever the diff changes WHAT RUNS** - app code, tests, CI workflows, the harness. **Skip it only for pure prose.**
 - **It must run on a DIFFERENT model from the batch**, because a model reviewing its own work is not a second reader. The definition pins `opus` against the Sonnet default; **when the BATCH is itself on Opus - migrations, RLS, whole-`app.js` work - override the reviewer to Sonnet for that run and say so in the handover.** Only the batch knows which model it is, so the pin cannot do this alone.

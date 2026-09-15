@@ -9,9 +9,13 @@
  * group order at all. Deriving the same thing twice, in two languages, from prose, is the repo's
  * most-recorded defect wearing a different hat.
  *
- * EVERY FIELD IS DERIVED FROM A FILE, NEVER FROM MEMORY OR FROM A STATUS MARKER. There is nothing
- * here a batch has to remember to update, which is the only property that makes it survive a
- * context clear. If a derivation cannot be made, this script THROWS and writes nothing - a state
+ * EVERY FIELD BUT ONE IS DERIVED FROM A FILE, NEVER FROM MEMORY OR FROM A STATUS MARKER. There is
+ * nothing here a batch has to remember to update, which is the only property that makes it survive
+ * a context clear. ⚠️ The exception is `written_at`, which is the clock - this line said "EVERY
+ * FIELD" until AUDIT-v217 while the per-field docs below said otherwise, so the file disagreed with
+ * itself about its own central claim. It is harmless because `batch` is cross-checked against the
+ * handovers directory, and that is what actually catches staleness; the headline is corrected
+ * rather than the field removed, because a date IS what that field means. If a derivation cannot be made, this script THROWS and writes nothing - a state
  * file that is partly guessed is worse than none, because it gets trusted.
  *
  *   batch                the highest-numbered docs/handovers/HANDOVER-<n>-*.md. This is the batch
@@ -20,8 +24,11 @@
  *                        spot list rather than a second regex.
  *   first_unstruck_group the group `skills/batch`'s refill step would promote from next. See
  *                        firstUnstruckGroup() for what "unstruck" has to mean and why.
- *   open_ab_count        item headings in docs/QUEUE.md, any status. That file is capped at 20 and
- *                        holds tier A and B only, so its headings ARE the open A/B work.
+ *   open_ab_count        item headings in docs/QUEUE.md, any status, NUMBERED OR NOT. That file is
+ *                        capped at 20 and holds tier A and B plus at most one process item
+ *                        (docs/QUEUE.md's own header, batch 265), so its headings ARE the working
+ *                        set. ⚠️ This said "tier A and B only" and the regex demanded a number
+ *                        until AUDIT-v217, which is how an un-numbered item went uncounted.
  *   newest_audit         the highest-numbered docs/audits/AUDIT-vNN.md. That is the counter
  *                        `skills/batch` step 10 compares against sw.js; the dated audits in that
  *                        directory (UX-, PARSER-, WORKFLOW-) are not part of it and are excluded.
@@ -77,12 +84,22 @@ function audits(root) {
 /* Item headings in docs/QUEUE.md. Same shape queue-routing.test.js reads, asked a different
    question: that test asks WHICH items are routed, this asks HOW MANY are open. A heading with no
    number (the design-law sections) is not an item and is skipped rather than guessed at. */
+/* ⚠️ AN ITEM NEED NOT BE NUMBERED, AND THIS FUNCTION REQUIRED A NUMBER UNTIL AUDIT-v217.
+   Batch 265 gave `docs/QUEUE.md` the right to hold ONE un-numbered process item in a slot, and
+   `project-audit` is exactly that shape. The old regex demanded `(\d+[a-z]?)·`, so it skipped one
+   - `open_ab_count` read 3 against four real headings, and `tests/state-file.test.js` used a regex
+   with the SAME requirement, so the two agreed and the suite was green. **Two readers derived from
+   one wrong belief agree with each other; that is not corroboration.**
+   The name is now optional: a heading is an item if it carries a status word. The design-law
+   sections have no status word and are still correctly skipped, which is what the old number
+   requirement was really standing in for. */
+const QUEUE_ITEM = /^##\s+(?:next|blocked|doing)\s+(?:(\d+[a-z]?)\s*·|`?([A-Za-z][\w-]*)`?\s{2,})/;
 function queueItems(root) {
   root = root || ROOT;
   return read(root, 'docs/QUEUE.md').split('\n')
-    .map((l) => /^##\s+(?:next|blocked|doing)\s+(\d+[a-z]?)\s*·/.exec(l))
+    .map((l) => QUEUE_ITEM.exec(l))
     .filter(Boolean)
-    .map((m) => m[1]);
+    .map((m) => m[1] || m[2]);
 }
 
 /* The promotion order, read from docs/QUEUE-GROUPS.md's own `## The order` list rather than from
@@ -202,8 +219,10 @@ function consolidatedItems(root) {
 /* The group `skills/batch`'s refill would promote from next.
  *
  * ⚠️ "UNSTRUCK" IS NOT ENOUGH ON ITS OWN, and reading it that way would name G1 forever. G1's only
- * survivors are four tier-C riders, and docs/QUEUE.md holds tier A and B only - so they can never
- * be promoted, the queue would never refill, and the group would read as current for good. That
+ * survivors are four tier-C riders, and PROMOTION into docs/QUEUE.md is tier A and B only - so they
+ * can never be promoted, the queue would never refill, and the group would read as current for
+ * good. (The one process item that file may also hold is put there BY HAND, never by the refill,
+ * so it does not affect this derivation - the distinction matters since batch 265.) That
  * group's own entry says this in prose ("a group whose only survivors are C is DONE for promotion
  * purposes"), and prose is not something a derivation can read. So: the first group in the order
  * with at least one unstruck item graded A or B. An item's blockedness is NOT a filter - a blocked
