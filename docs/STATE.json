@@ -1,9 +1,9 @@
 {
-  "batch": 269,
-  "deploy_version": 218,
+  "batch": 270,
+  "deploy_version": 219,
   "first_unstruck_group": "G4",
   "open_ab_count": 3,
   "newest_audit": "AUDIT-v217.md",
-  "newest_handover": "HANDOVER-269-audit-v217.md",
+  "newest_handover": "HANDOVER-270-one-date-style.md",
   "written_at": "2026-09-15"
 }

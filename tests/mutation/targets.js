@@ -55,6 +55,23 @@ const targets = [
      `productsById={}` leaves PRODUCTS and byId still holding the previous café while the store they
      derive from reads empty. */
   { fn: 'resetTenantState', tests: ['tenant-switch.test.js'] },
+  /* 270 (item 60) — THE ONE FUNCTION THAT DECIDES EVERY DATE THE APP SHOWS. It is listed for 184's
+     reason rather than because anything is suspected: it was written this batch, it replaced eight
+     separate renderers, and a function that is not a target has never been asked the question.
+     What makes it worth the slot is that its mutants are all SILENT — a boundary moved by one day
+     or a comparison flipped still prints a plausible date beside a real price, which is this repo's
+     worst failure shape and the reason the gate exists. `dateMs` is listed separately rather than
+     folded in: it is the typed guard in front of the isFinite('') family, Number([]) is 0, and the
+     first draft of it turned an empty array into 1 Jan 1970. Both confirmed red by hand before
+     being listed — the threshold, the month table, the calendar-day arithmetic and the type guard
+     were each mutated and each turned the file red. */
+  { fn: 'fmtDate', tests: ['fmt-date.test.js'] },
+  { fn: 'dateMs', tests: ['fmt-date.test.js'] },
+  /* The axis formatter yields exactly ONE mutant (its longSpan ternary) and it is killed. Listed
+     anyway, and the low count is the argument rather than against it: the axis is the one surface
+     item 60's relative rule deliberately does NOT reach, so the mutant that flips its two branches
+     is precisely the change a future "one date style" sweep would make by accident. */
+  { fn: 'trendFmtDate', tests: ['fmt-date.test.js', 'trend-reframe.test.js'] },
   /* 243 — the invitation chooser. `invitesOf` decides which server rows become a button somebody
      can press, and `renderInviteChoices` decides what that button SAYS — the café name and the role
      being accepted, which is what the old server function chose silently. Both were confirmed red

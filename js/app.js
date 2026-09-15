@@ -3551,6 +3551,53 @@ function setCogs(pct, persist){
   });
 }
 function fmt2(x){return '$'+Number(x).toFixed(2);}
+/* ONE DATE STYLE (item 60). Every moment this app shows a user goes through fmtDate, the way every
+   amount goes through fmt2. Under seven days it is RELATIVE, because the reader's question is "how
+   stale is this" and a date makes them do the subtraction; from seven days it is "29 Aug 2026",
+   because past a week the subtraction is the noise and the date is the fact.
+
+   ⚠️ THE MONTH TABLE IS HARD-CODED AND THAT IS THE POINT — it is not a missing i18n call, and
+   restoring toLocaleDateString here re-opens the item. Measured, not reasoned, on this repo's ICU:
+   `{day:'numeric',month:'short'}` renders "8 Sept" beside "24 Aug" on en-AU and en-GB — four
+   letters against three, which is the defect this was raised for — and en-US reorders the whole
+   string to "Sep 8, 2026", or to "9/8/2026" with no options at all. A device setting is not a
+   product decision, and one café's invoice date must not read differently on a borrowed phone.
+
+   CALENDAR days, not elapsed hours, because that is what "yesterday" means: a change made at 11pm
+   is yesterday's change when it is read at 10am, and the app already keys its trend markers on the
+   local calendar day for the same reason (a café's day is a local day). Math.round over two local
+   midnights is what makes the 23- and 25-hour DST days come out as one day rather than 0.96.
+
+   `nowMs` is injectable ONLY so the unit test can pin the thresholds without racing local midnight
+   — the fragility class docs/MAINTENANCE.md recorded against tests/trend-reframe.test.js. Nothing
+   that ships passes it. */
+var MON3=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+/* ⚠️ TYPE FIRST, THEN isFinite, and the empty array is why rather than the nulls. app-guards.md's
+   oldest client rule is that isFinite('') is TRUE because Number('') is 0 — and Number([]) is 0 as
+   well, so the first draft of this function turned `[]` into 1 Jan 1970 and every caller would have
+   printed it beside a real price as a real date. Caught by tests/fmt-date.test.js, which was
+   written with that rule open. Nothing but a number, a parseable string or a Date gets through. */
+function dateMs(v){
+  if(v instanceof Date){ var dt=v.getTime(); return isFinite(dt)?dt:NaN; }
+  if(typeof v==='number') return isFinite(v)?v:NaN;
+  if(typeof v==='string' && v.trim()){ var st=new Date(v).getTime(); return isFinite(st)?st:NaN; }
+  return NaN;   // the app stores epoch ms and ISO strings; anything else is a bug upstream, not a date
+}
+function fmtDateAbs(v){
+  var t=dateMs(v); if(!isFinite(t)) return '';
+  var d=new Date(t);
+  return d.getDate()+' '+MON3[d.getMonth()]+' '+d.getFullYear();
+}
+function fmtDate(v, nowMs){
+  var t=dateMs(v); if(!isFinite(t)) return '';
+  var sod=function(ms){ var d=new Date(ms); return new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime(); };
+  var days=Math.round((sod((nowMs==null)?Date.now():nowMs)-sod(t))/86400000);
+  if(days<0) return fmtDateAbs(t);        // a future stamp is a clock skew, not "in 3 days" — show the date
+  if(days===0) return 'today';
+  if(days===1) return 'yesterday';
+  if(days<7) return days+' days ago';
+  return fmtDateAbs(t);
+}
 function analyze(cost, menuPrice){
   const suggested = cost>0 ? cost/foodTarget() : 0;   // sell price at the target food cost
   if(!menuPrice || menuPrice<=0 || suggested<=0)
@@ -4481,19 +4528,16 @@ function recentChangeRows(scope){
   out.sort(function(a,b){ return b.t-a.t; });
   return out.slice(0,5);
 }
-/* Relative, not absolute, because the row's job is "how stale is this" and a date makes the reader
-   do the subtraction. Weeks past a fortnight for the same reason sinceLineHtml switches there — an
-   intermittent user's last change is routinely three weeks old and "21 days ago" reads as noise. */
-function relDayLabel(ms){
-  var d=(Date.now()-ms)/86400000;
-  if(d<1) return 'today';
-  if(d<2) return 'yesterday';
-  if(d<14) return Math.round(d)+' days ago';
-  var w=Math.round(d/7);
-  if(w<9) return w+' week'+(w===1?'':'s')+' ago';
-  var mo=Math.round(d/30);
-  return mo+' month'+(mo===1?'':'s')+' ago';
-}
+/* 270 (item 60): this row's own relDayLabel is GONE and the row reads fmtDate, which is the same
+   word every other date in the app now uses. The deleted helper's reasoning was right about the
+   near days and is preserved in fmtDate: relative, because the row's job is "how stale is this"
+   and a date makes the reader do the subtraction. Where it differed was the far end — it counted
+   "3 weeks ago" and "2 months ago" out to any age, on the argument that an intermittent user's
+   last change is routinely three weeks old and "21 days ago" reads as noise.
+   ⚠️ THAT ARGUMENT SURVIVES THE CHANGE RATHER THAN LOSING TO IT: the noise it names is the
+   day-counting, and fmtDate answers a three-week-old change with "29 Aug 2026", not "21 days ago".
+   What it gives up is one reading of recency at a glance; what it buys is that this row and the
+   since-line directly above it stop printing two different words for one moment in time. */
 /* 241 (item 18) — THE DISHES THE HEADLINE LEAVES OUT, NAMED.
    The bound is only half a fix. A figure that silently drops a dish is the same class of defect as
    one that silently includes it: both are a number nobody can reconcile against the menu in front of
@@ -4535,7 +4579,7 @@ function recentChangesHtml(scope, current){
       var up=r.delta>0;   // a cost going UP is bad news, not "positive" — the same anchoring .dig-v carries
       return '<li class="mv-row"><span class="mv-main">'
         +'<span class="mv-name">'+esc(r.name)+'</span>'
-        +'<span class="mv-sub">'+(r.kindWord?esc(r.kindWord)+' \u00b7 ':'')+esc(relDayLabel(r.t))+'</span></span>'
+        +'<span class="mv-sub">'+(r.kindWord?esc(r.kindWord)+' \u00b7 ':'')+esc(fmtDate(r.t))+'</span></span>'
         +'<span class="dig-v '+(up?'up':'down')+'">'+(up?'+':'−')+money(Math.abs(r.delta))+'</span>'
         +'</li>';
     }).join('')+'</ul>';
@@ -5061,10 +5105,11 @@ function historyPointScopeLabel(menuId){
   return m && m.name ? m.name : 'a menu that no longer exists';
 }
 /* The same date wording the trend's own scrub tooltip uses, so a point named in the confirm reads the
-   way it reads on the chart it came from. */
+   way it reads on the chart it came from. 270: both are fmtDate now, so "the same wording" is a
+   shared function rather than two copies of one options object that agreed by hand. */
 function historyPointWhen(p){
   var ms=ptMs(p);
-  return isFinite(ms) && ms ? new Date(ms).toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}) : 'an unknown date';
+  return (isFinite(ms) && ms) ? (fmtDate(ms) || 'an unknown date') : 'an unknown date';
 }
 function historyPointLabel(p){
   if(!p) return '';
@@ -7247,9 +7292,13 @@ function sinceLineHtml(scope, current){
   var drop=e.avgBefore-e.avgAfter;
   var ageDays=(Date.now()-e.t)/86400000;
   var lead;
+  /* The 14-day branch is a DURATION ("nothing has happened in a while"), a different sentence from a
+     date and not item 60's business. The third branch was a date and had its own third vocabulary —
+     "today" or "N days ago", on the same screen as the Recent-changes rows, which said something
+     else for the same moment. It reads fmtDate now. */
   if(ageDays>=14){ var wks=Math.round(ageDays/7); lead='No changes for '+wks+' week'+(wks===1?'':'s')+'.'; }
   else if(drop>0.05) lead='Your last change cut '+drop.toFixed(1)+' pts.';   // same figure style as the anchor line above it
-  else lead='Your last change was '+(ageDays<1.5?'today':Math.round(ageDays)+' days ago')+'.';
+  else lead='Your last change was '+(fmtDate(e.t)||'earlier')+'.';
   var drift=current-e.avgAfter, gap='';
   if(drift>=0.1) gap=' Costs up '+drift.toFixed(1)+' pts since.';
   else if(drift<=-0.1) gap=' Costs down '+(-drift).toFixed(1)+' pts since.';
@@ -7319,12 +7368,18 @@ function trendPlotSize(){
    Anchoring: `start` on the first and `end` on the last, `middle` between. The first tick sits at
    x=padL and the last at W-padR, so a centred label at either end would overhang the viewBox and be
    clipped — which is exactly how the y-axis gutter bug (v52) presented. */
+/* ⚠️ THE AXIS STAYS ABSOLUTE, and item 60's "relative under seven days" does NOT reach it. An axis
+   tick is a POSITION on a scale, not a reference to a moment: "6 days ago" printed under a reading
+   says nothing about where the reading sits relative to the one beside it, and the labels stop
+   being monotone the moment two of them fall inside the same week. What WAS wrong here is the
+   month vocabulary — en-AU ICU renders "8 Sept" beside "24 Aug" — so the ticks take fmtDate's MON3
+   table and keep their own compact two-branch form. */
 function trendFmtDate(t, longSpan){
-  var d=new Date(typeof t==='string'?t:Number(t));
-  if(!isFinite(d.getTime())) return '';
+  var ms=dateMs(t); if(!isFinite(ms)) return '';
+  var d=new Date(ms);
   return longSpan
-    ? d.toLocaleDateString(undefined,{month:'short',year:'2-digit'})
-    : d.toLocaleDateString(undefined,{day:'numeric',month:'short'});
+    ? MON3[d.getMonth()]+' '+String(d.getFullYear()%100).padStart(2,'0')
+    : d.getDate()+' '+MON3[d.getMonth()];
 }
 function trendXTicks(pts, W){
   if(!pts || pts.length<2) return [];
@@ -8291,14 +8346,21 @@ function costAtLines(lines, ms){
 /* the unit word that matches perDisplayValue's scaling — g is shown per kg, ml per L, ea per unit.
    Anything else has no comparable display unit, so the price-gap family skips it. */
 function unitWordFor(base){ return base==='g'?'kg':base==='ml'?'L':base==='ea'?'unit':''; }
-/* v120: the What-moved row's time phrase. Deliberately vague-but-true — the log records WHEN a
-   price changed and nothing about what caused it, so this never says "last invoice". */
+/* v120: the What-moved row's time phrase. Deliberately vague about the CAUSE — the log records WHEN
+   a price changed and nothing about what moved it, so this never says "last invoice". 270 (item 60):
+   the vagueness about the DATE was never part of that and is gone. It said "this month" for a change
+   made an hour ago and "August" for one made on any of thirty-one days; the log holds the moment, so
+   the row prints fmtDate's word for it. "recently" stays as the no-timestamp case. */
 function moverWhen(ms){
-  if(ms==null || !isFinite(ms)) return 'recently';
-  var d=new Date(ms), now=new Date();
-  if(d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth()) return 'this month';
-  return monthLabel(ms);
+  return (ms==null || !isFinite(ms)) ? 'recently' : (fmtDate(ms) || 'recently');
 }
+/* ⚠️ monthLabel IS NOT A DATE RENDER AND MUST NOT BE FOLDED INTO fmtDate. It is a month NOUN, and
+   its four callers put it inside a sentence that only takes one: "higher than at March prices",
+   "cost $1.40 more than in June", "over target through every cost change since April". "at
+   29 Aug 2026 prices" is not English, and tests/insights.test.js calls a null one "no reference
+   month". It also names a WINDOW start — the Biggest-movers subtitle — where a precise day would
+   claim a precision the window does not have. Considered and refused under item 60; the refusal is
+   pinned by tests/fmt-date.test.js so the next date sweep does not re-open it. */
 function monthLabel(ms){
   var d=new Date(ms), now=new Date();
   var opts=(now.getFullYear()===d.getFullYear())?{month:'long'}:{month:'long', year:'numeric'};
@@ -9207,7 +9269,7 @@ function renderDashboard(){
       if(idx!==lastIdx || mkKey!==lastMk){                           // …but the REPORTED value snaps to the nearest real reading
         lastIdx=idx; lastMk=mkKey;
         var p=g.pts[idx];
-        var when=p.t?new Date(p.t).toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}):('reading #'+(idx+1));
+        var when=(p.t?fmtDate(p.t):'')||('reading #'+(idx+1));
         tip.innerHTML='<span class="tp-d">'+esc(when)+'</span><b class="tp-v">'+p.v.toFixed(1)+'%</b>'
           +(mkNear?('<span class="tp-mk">You made '+(mkNear.count>1?mkNear.count+' changes':'a change')+' — down '+(Math.round(mkNear.drop*10)/10)+' pts</span>'):'');
       }
@@ -9300,7 +9362,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v218';
+var APP_VERSION='v219';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -10322,6 +10384,10 @@ function lastImportStamp(){
 }
 function exportBackup(){
   try{
+    /* ⚠️ THIS IS NOT fmtDate's JOB AND MUST NOT BECOME IT (item 60, batch 270, considered and
+       refused). A filename is sorted, not read: year-month-day zero-padded is what puts a folder of
+       exports in order, and "15 Sep 2026" would scatter them alphabetically by month. The one date
+       in this app whose reader is a file manager. `tests/smoke.js` pins the shape. */
     var d=new Date(), pad=function(x){return (x<10?'0':'')+x;};
     var name='ezplate-backup-'+d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'.json';
     var blob=new Blob([JSON.stringify(buildBackup(),null,2)],{type:'application/json'});
@@ -10606,8 +10672,7 @@ function restoreFromBackupFile(file){
              '\n\nRestoring it would be rejected part-way through, so nothing has been changed.');
       return;
     }
-    var when=b.exported_at ? new Date(b.exported_at) : null;
-    var whenTxt=(when && isFinite(when.getTime())) ? when.toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}) : 'an unknown date';
+    var whenTxt=(b.exported_at ? fmtDate(b.exported_at) : '') || 'an unknown date';
     var msg='Exported '+whenTxt+' by EzPlate '+(b.version||'(unknown version)')+'.\n\n'+
             'Everything below REPLACES what’s on the server:\n• '+backupSummary(b).join('\n• ')+
             '\n\nAnything saved since that export is replaced and can’t be recovered. '+
@@ -14453,7 +14518,11 @@ function showImportSummary(changes, added, overBefore, overAfter, kings, kept, a
 }
 function updateLastImport(){
   var d=null; try{d=localStorage.getItem('cafeDB_lastImport');}catch(e){}
-  var txt=d?('Prices last updated: '+new Date(d).toLocaleDateString()):'No invoice imported yet';
+  /* 270 (item 60): this was a bare toLocaleDateString() — the ONE site with no options at all, so
+     the café's own import date read "29/08/2026" on his phone and "8/29/2026" on a US-locale one.
+     fmtDate is the whole fix; do not re-add an options object here. */
+  var when=d?fmtDate(d):'';
+  var txt=when?('Prices last updated: '+when):'No invoice imported yet';
   ['lastImport','lastImport2','lastImport3'].forEach(function(id){var el=document.getElementById(id);if(el)el.textContent=txt;});   // F8 (v147): lastImport3 is the Invoices screen — the only import fact the app actually stores
 }
 

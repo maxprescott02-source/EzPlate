@@ -15,7 +15,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { loadApp, extractFn, extractVar } = require('./_extractfn');
+const { loadApp, extractFn, extractVar, dateKit } = require('./_extractfn');
 
 const APP = loadApp();
 /* ---------------------------------------------------------------- the fixture café
@@ -86,6 +86,7 @@ function digHarness() {
        so the count exercises the plate-line->pid path. */
     var kitchenIngredients=[];
     ${extractFn(APP, 'productRefs')}
+    ${dateKit(APP)}
     ${extractFn(APP, 'moverWhen')}
     ${extractVar(APP, 'FOOD_COST_SANE_MAX')}
     ${extractFn(APP, 'digData')}

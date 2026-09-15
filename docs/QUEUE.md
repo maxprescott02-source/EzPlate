@@ -70,15 +70,14 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 ⚠️ **This heading read "Promoted 9 Sep 2026 — group G1, the costing core" until batch 266, and the three items under it are G4's.** G1 drained, batch 261's refill promoted 57, 58 and 60 out of G4, and the heading above them went on naming the group they are not in. **A section heading is not a status field and nothing re-checks one**, which is why the current group is now DERIVED into `docs/STATE.json` by `node tools/state.js` instead: first group in `docs/QUEUE-GROUPS.md`'s order with an unstruck A or B item. Read that when the two disagree, and fix the heading.
 **The date came off the heading in the same edit.** It recorded which promotion happened to fill the file and went stale on the next one; the group is the fact worth carrying.
 
-## next  60 · Dates render three ways  **[B — one app, one date style]**
+## next  51 · Builder readiness and copy: Save is live on an empty plate, Print and Clear on an empty docket, an "Editing:" line in the accent colour, a lower-case helper, a grammar slip, and a duplicate line with no warning  **[B — the primary button says nothing about readiness and the screen disagrees with the New ingredient modal's rule]**
 
-**Full item:** consolidated item 60.
+**Full item:** consolidated item 51.
 
-**Problem:** `29/08/2026` in monospace on Invoices, "today" / "6 days ago" on the Dashboard, "24 Aug" and "8 Sept" on the chart axis, "August" under What moved.
-
-**Requirements:** **relative under seven days, then `29 Aug 2026`**, everywhere, through ONE `fmtDate` helper.
-**Test:** a unit test on the helper across all four thresholds, plus a grep asserting no other `toLocaleDateString` call site survives.
-⚠️ **A grep assertion searches PROSE as well as code** (`CLAUDE.md` roster 183a) — strip comments, or assert the count of call sites rather than their absence.
+**Promoted by batch 270's refill, and it is the LAST unstruck A-or-B item in G4** — `docs/QUEUE-GROUPS.md` lists it there as *"the copy half of 51"*, and `tools/state.js` derives G4 as still current because of this one item. When it ships, G4 is drained for promotion purposes (78 is C and rides) and the next refill opens **G5**.
+⚠️ **G4's context is COPY — the four object nouns, the verb table, the `.scr-sub` rule — and this item is not only copy.** Three of its six bullets are readiness BEHAVIOUR (`syncBuilderPlateActions`, the duplicate-line merge, the empty Cost card), which is builder logic rather than vocabulary. **Decide at execution whether the behaviour half wants its own batch and say so**; taking the copy half alone and leaving the rest is legitimate and is what the group line actually promises, but then the residue must be written back into the consolidated item rather than left implied.
+⚠️ **Every line number in the full item is a POINTER TO GREP.** Batch 270's own item was short by a factor of two and carried a citation 665 lines stale; run `premise-check` before planning, per `skills/batch` step 1.
+⚠️ **The builder is a FULL PAGE, not a modal, and leaving it is not a data risk** (`CLAUDE.md`) — the plate survives in memory and in the draft. Do not "fix" the readiness bullets into a guard that traps the user on the page.
 
 ---
 

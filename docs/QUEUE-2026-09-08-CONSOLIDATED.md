@@ -574,9 +574,22 @@ Opener `New <object>` · commit `Add <object>` · join a list `Add to menu` · e
 
 **Test:** `tests/visual/` spec asserting `.invz`'s left edge equals `#tab-dashboard`'s content left edge at 1360, and `.inv-privacy`'s left equals the dropzone's.
 
-## next  60 · Dates render three ways  **[B, one app, one date style]**
+## ~~60 · Dates render three ways~~  **SHIPPED, batch 270, `ezplate-v219` — the rule as written, at EIGHT sites rather than four, with three exclusions recorded**
 
-"29/08/2026" in monospace on Invoices (`updateLastImport`, grep), "today" and "6 days ago" on the Dashboard (`relDayLabel`, `js/app.js:3822`), "24 Aug" and "8 Sept" on the chart axis, "August" under What moved (UX U28). Rule: relative under seven days, then "29 Aug 2026" everywhere, one `fmtDate` helper. **Test:** unit test on the helper across the four thresholds; grep asserts no other `toLocaleDateString` call site remains.
+⚠️ **THE ENUMERATION WAS SHORT BY A FACTOR OF TWO, which is the eighth item in a row to be so and is the pattern this file's own header names.** It listed four surfaces; `premise-check` found **eight** date-rendering call sites, all in `js/app.js` and none in `index.html`, `api/` or `tests/`. The four it missed were `historyPointWhen`, the trend scrub tooltip, the restore-backup confirm, and — on the same screen as the Dashboard row it DID name, printing a different word for the same moment — `sinceLineHtml`'s *"Your last change was N days ago."*
+
+**Two of its stated facts were also wrong, and both in the direction that makes the defect worse rather than better:**
+- `relDayLabel` was at `:4487`, not `:3822`.
+- **`updateLastImport` did not render "29/08/2026". It was a bare `toLocaleDateString()` with NO options at all**, so the string was whatever the DEVICE's locale gives — "8/29/2026" on en-US. The item described one café's symptom as if it were the code's behaviour.
+
+**Shipped:** one `fmtDate(ms, nowMs)` — relative under seven days (`today` / `yesterday` / `N days ago`), then `29 Aug 2026`, counted in LOCAL CALENDAR DAYS rather than elapsed hours, so an 11pm change reads "yesterday" at 10am. The absolute half builds from a fixed `MON3` table, which is the actual fix for "8 Sept" beside "24 Aug" (measured: en-AU and en-GB ICU render a four-letter September, en-US reorders the whole string). `relDayLabel` is deleted.
+
+**Three exclusions, each recorded at its site and pinned so the next date sweep does not "finish the job":**
+1. **`monthLabel` stays a month NOUN** — its four callers put it inside *"than at March prices"*, *"more than in June"*, *"since April"*. A date there is not English, and digits in insight copy run at the AI money/number law. Pinned by `tests/fmt-date.test.js`.
+2. **The chart axis stays absolute** — a tick is a position on a scale, not a reference to a moment. What was wrong there was the month vocabulary, and that moved.
+3. **The backup filename stays ISO-ordered** (`ezplate-backup-2026-09-15.json`) so the files sort; already pinned by `tests/smoke.js`.
+
+**Test:** `tests/fmt-date.test.js`, 13 tests — every threshold either side, the calendar-day boundary, a 23- and a 25-hour DST day (the timezone is forced to `Australia/Sydney` at the top of the file, because on a UTC runner those assertions are vacuous), the `isFinite('')` family including `Number([]) === 0`, and a **census** assertion that every surviving locale date call in `js/app.js` is one of `monthLabel`'s — a count by identity with comments stripped, per roster 183(a), and proved to stay green when a comment merely names `toLocaleDateString`.
 
 ## next  61 · Menu screen: chip words and row words disagree, pills wrap and do not truncate, the pill row and the search do not share a baseline, the sticky header has no divider, a command hides inside a filter, and two header buttons are two heights  **[B, the filter vocabulary and the row vocabulary should be the same three words]**
 
