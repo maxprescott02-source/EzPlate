@@ -60,11 +60,15 @@ Checked and reproduced, one at a time: **13 `cafe*` keys with a 14th hit that is
 
 ## 2b. DEAD TRAPS - recommended for removal
 
+⚠️ **WHAT `tests/audit-closure.test.js` ACTUALLY POLICES IN THIS FILE, because batch 269 believed it was more and the pre-push review measured it: THIS SECTION ONLY.** The gate opens on a heading matching `recommendations?`/`recommended for`/`what to change`/`what to do`/`proposed fixes`, and **`2b` is the only heading here that does.** The numbered findings in `2a`, `2c` and `3` are never examined - so the `done:` / `#nn` markers they carry are **a convention this audit chose, not a gate that would redden without them.**
+The first version of this file also wrote its one recommendation as *"Recommendation 1:"*, which the gate's `NUMBERED` pattern does not match either - so **the file passed with every marker stripped out.** Measured by running the unmodified checker against the unmodified file, then against a copy with all markers deleted: `[]` both times. It is written as `**1. …**` now and the gate bites.
+**The gate was not widened.** Its own site records why a bare `recommend` was rejected, and that reasoning still holds; what was wrong was this file's shape and the reader's belief about its reach. **If a future audit wants its findings policed, put them under a heading the gate recognises** - do not assume markers elsewhere are load-bearing.
+
 **None.** Every subject named in `CLAUDE.md` and in `.claude/rules/*.md` is live in `js/app.js` with tests behind it - 16 of 16 checked, 3-21 test files each. `addProduct` is dead in the app and **deliberately kept**, which is a decision entry and stays whatever the code does.
 
 Classified so the next audit does not redo it: the **`min="0"` entry is a rule whose subject is deliberately kept**; the **parser-region entry survives the lifting of its own protection** because the two anchor literals are still load-bearing for `tests/_extract.js`; the **`ensureDefaultMenu` paragraph was already rewritten by 246** and `tests/menu-default.test.js` pins its absence.
 
-**Recommendation 1: narrow this check's standing instruction.** — **done: batch 269**
+**1. Narrow this check's standing instruction.** — **done: batch 269**
 It exists because *"Tier 1 only grows and nothing prunes it."* Since batch 264 that premise no longer holds: `CLAUDE.md` is capped at 200 lines and 32KB by `tests/claude-md-split.test.js`, the rule files load only on a matching read, and `MANIFEST` makes a deletion a deliberate visible act. **Two audits running have found nothing.** Narrow it from *"walk every Tier 1 entry"* to *"walk any entry added since the last audit, plus any rule whose named code the invariant sweep did not find"* - the sweep in section 1 already produces that list for free.
 *(Applied to the `project-audit` agent definition by batch 269. ⚠️ That definition lives OUTSIDE this repo, at `~/.claude/agents/project-audit/project-audit.md`, so there is no diff of the change here - which is consolidated item 83's whole point.)*
 

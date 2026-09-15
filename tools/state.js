@@ -93,13 +93,27 @@ function audits(root) {
    The name is now optional: a heading is an item if it carries a status word. The design-law
    sections have no status word and are still correctly skipped, which is what the old number
    requirement was really standing in for. */
-const QUEUE_ITEM = /^##\s+(?:next|blocked|doing)\s+(?:(\d+[a-z]?)\s*·|`?([A-Za-z][\w-]*)`?\s{2,})/;
+/* ⚠️ THE STATUS WORD IS THE WHOLE TEST, AND A TWO-ALTERNATIVE PATTERN WAS THE FIRST FIX AND HAD A
+   HOLE. That version matched either `<digits>·` or a backticked word, and a heading like
+   `## next  24hrs of X` matched NEITHER - the digits are not followed by `·` and the first
+   character is not a letter - so it would have under-counted exactly as before. The pre-push review
+   found it while inventing adversarial headings.
+   So: a heading is an item **iff it carries a status word**, full stop. The id is then whatever
+   identifies it - the `N·` form when it has one, else the first word - and extracting the id is
+   deliberately a SECOND step that cannot change the answer to "is this an item". The design-law
+   sections have no status word and are still skipped, which is what the old digit requirement was
+   standing in for all along. */
+const QUEUE_ITEM = /^##\s+(?:next|blocked|doing)\s+(\S.*?)\s*$/;
 function queueItems(root) {
   root = root || ROOT;
   return read(root, 'docs/QUEUE.md').split('\n')
     .map((l) => QUEUE_ITEM.exec(l))
     .filter(Boolean)
-    .map((m) => m[1] || m[2]);
+    .map((m) => {
+      const rest = m[1];
+      const id = /^(\d+[a-z]?)\s*·/.exec(rest);
+      return id ? id[1] : rest.replace(/^`?([^`\s]+)`?.*$/, '$1');
+    });
 }
 
 /* The promotion order, read from docs/QUEUE-GROUPS.md's own `## The order` list rather than from
