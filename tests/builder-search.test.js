@@ -97,6 +97,10 @@ function makeDropHarness() {
     var placed=[], reset=0;
     function anchorDrop(el, anchor){ placed.push({ openAtCall: el.classList.contains('open'), anchor: anchor }); }
     function resetDrop(){ reset++; }
+    /* 267: renderDrop's option now prints the shared product identity line, so the two builders are
+       EXTRACTED into the harness rather than stubbed — the roster's oldest rule. */
+    ${extractFn(SRC, 'productIdentityMeta')}
+    ${extractFn(SRC, 'productIdentity')}
     ${extractFn(SRC, 'renderDrop')}
     ${extractFn(SRC, 'closeDrop')}
     return { renderDrop:renderDrop, closeDrop:closeDrop, dropEl:dropEl, qEl:qEl,

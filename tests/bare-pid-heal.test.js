@@ -484,6 +484,11 @@ function kingModal(opts) {
     function renderKingAlts(){} function kingSyncSave(){} function show(){}
     function renderKingProdDrop(){} function renderKingCreateSuggest(){} function resetDrop(){}
     ${extractFn(SRC, 'barePidLinesFor')}
+    /* 267: openKingModal prefills #king_prod through the shared identity builder, so both halves are
+       EXTRACTED rather than stubbed — a stub here would be written from the same belief as the code
+       and would agree with it whenever the code was wrong. */
+    ${extractFn(SRC, 'productIdentityMeta')}
+    ${extractFn(SRC, 'productIdentity')}
     ${extractFn(SRC, 'openKingModal')}
     openKingModal(kingEditId);
     S.used=made['king_used'].textContent;

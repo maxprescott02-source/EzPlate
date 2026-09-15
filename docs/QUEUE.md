@@ -70,18 +70,6 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 ⚠️ **This heading read "Promoted 9 Sep 2026 — group G1, the costing core" until batch 266, and the three items under it are G4's.** G1 drained, batch 261's refill promoted 57, 58 and 60 out of G4, and the heading above them went on naming the group they are not in. **A section heading is not a status field and nothing re-checks one**, which is why the current group is now DERIVED into `docs/STATE.json` by `node tools/state.js` instead: first group in `docs/QUEUE-GROUPS.md`'s order with an unstruck A or B item. Read that when the two disagree, and fix the heading.
 **The date came off the heading in the same edit.** It recorded which promotion happened to fill the file and went stale on the next one; the group is the fact worth carrying.
 
-## next  57 · One casing system and one product identity line  **[B — the same object in two typographic voices one click apart]**
-
-**Full item:** consolidated item 57.
-
-**Problem:** a product is written four ways (Ingredients, the builder dropdown, the docket, Products), the dropdown forces capitals, category fields shout `DESSERTS` against title-case lists, placeholders come in three styles, and one category carries a double space.
-
-**Requirements:** one identity line everywhere — **Product, then Brand muted, Supplier where known**. Drop `text-transform:uppercase` for product NAMES and keep it for labels. Title-case categories **at the display boundary and store as-is** (the naming inversion is about identifiers; supplier categories are data). Capitalise every placeholder. Move the pack-size example out of the label into helper text. Normalise whitespace on save and split the valued/valueless option groups.
-
-**Out of scope:** renaming any identifier, class, id, `data-tab` value or column — `CLAUDE.md` Tier 1.
-
----
-
 ## next  58 · Screen subtitles and status copy  **[B — the eye learns to read the slot one way and is wrong on the next screen]**
 
 **Full item:** consolidated item 58.

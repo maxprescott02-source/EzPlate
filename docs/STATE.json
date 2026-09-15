@@ -1,9 +1,9 @@
 {
-  "batch": 266,
-  "deploy_version": 215,
+  "batch": 267,
+  "deploy_version": 216,
   "first_unstruck_group": "G4",
-  "open_ab_count": 5,
+  "open_ab_count": 4,
   "newest_audit": "AUDIT-v207.md",
-  "newest_handover": "HANDOVER-266-state-file.md",
+  "newest_handover": "HANDOVER-267-casing-identity.md",
   "written_at": "2026-09-15"
 }

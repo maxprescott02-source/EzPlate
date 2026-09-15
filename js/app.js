@@ -2049,6 +2049,52 @@ function lineProduct(l){
   if(l.kid){ var k=kById[l.kid]; return (k && byId[k.pid]) || null; }
   return byId[l.pid] || null;
 }
+/* 267 — THE ONE PRODUCT IDENTITY LINE: "Product — Brand · Supplier".
+   A product was written four ways within one click of itself: the builder's search dropdown showed
+   the description alone in forced capitals, the row that search produced showed "Product · Brand" in
+   sentence case, the Ingredients row showed all three parts, and the link picker showed the brand and
+   the unit cost in capitals. Same object, four voices. These two build the line so the format has ONE
+   definition; the em dash separates the product from its metadata, the middle dot joins metadata parts.
+   Pure and DOM-free on purpose, so both are unit-tested directly.
+
+   ⚠️ THIS IS NOT AN EXHAUSTIVE SWEEP AND MUST NOT BE READ AS ONE. The first draft of this comment
+   named two refusals and let the reader infer that everything else had been migrated; the pre-push
+   review caught that, and it was right to — it is this repo's "a comment records the defect correctly
+   and files it under the wrong consequence" shape, where the reassurance is the author's own frame.
+   Worse, the inference was FALSE in a way that mattered: `openKingModal` is the third writer of
+   `#king_prod` and had been left behind, so opening Edit and then picking from the picker showed two
+   formats in one field, one click apart. That is now fixed and the honest list is below.
+
+   MIGRATED: renderDrop · renderPlate (both arms) · kingProductLabel · renderKingCreateSuggest ·
+   renderKingProdDrop · openKingModal · kingWizRowHtml (both arms) · kingWizSkippedHtml.
+
+   NOT MIGRATED, each for a stated reason rather than by omission:
+     - `renderIngredients` — the Products card is a COLUMN TABLE by mock §3.5. Brand, category and
+       supplier are separate cells because the columns are the design, not a sentence to collapse.
+     - `printDocketFor` — a KITCHEN PREP SHEET. A chef wants the name they cook with, not the
+       distributor's.
+     - `prodOptions` / `invMatchOptions` — the invoice review's product-match `<option>`s. A supplier
+       on 400 option labels lengthens the densest control on the highest-stakes screen, and
+       `invMatchOptions` appends a coverage percentage AFTER the label, which a native select
+       truncates from the right. `.claude/rules/invoice.md` makes that screen regression-test
+       territory, so it is a change with a corpus run attached, not a casing tidy. Filed.
+     - `trendChart`/Dig-in row names (grep `val:Math.abs(pct)`) — these `name` strings reach
+       `api/insight` as FACTS. Changing what the model is given is not a presentation change, and the
+       money/number law means facts are handled deliberately or not at all. Filed.
+   Both "filed" entries are in `docs/MAINTENANCE.md` under batch 267. */
+function productIdentityMeta(p){                                      // "Brand · Supplier" — '' when the product has neither
+  if(!p) return '';
+  var bits=[];
+  if(p.brand) bits.push(p.brand);
+  if(p.supplier) bits.push(p.supplier);
+  return bits.join(' · ');
+}
+function productIdentity(p){                                          // "Chips 10mm Straight Cut — Safries · Bidfood"
+  if(!p) return '';
+  var d=p.description||'', meta=productIdentityMeta(p);
+  if(!d) return meta;
+  return meta ? (d+' — '+meta) : d;
+}
 /* a stable line signature for dirty-detection (kid + misc aware) */
 function lineSig(l){
   if(!l) return '';
@@ -2092,7 +2138,7 @@ function renderDrop(){
   dropEl.innerHTML=curList.map((it,i)=>{
     const p=byId[it.pid];
     return `<div class="opt king-opt" role="option" data-i="${i}" data-kid="${esc(it.id)}">
-       <span class="nm">${hl(it.name,q)} <span class="ca">${p?'\u2192 '+esc(p.description):'\u2192 (product missing)'}</span></span>
+       <span class="nm">${hl(it.name,q)} <span class="ca">${p?'\u2192 '+esc(productIdentity(p)):'\u2192 (product missing)'}</span></span>
        <span class="uc">${p?unitCostStr(p):'\u2014'}</span></div>`;
   }).join('');
   /* 212: the builder's ingredient list is placed by the ENGINE now, not by `.drop`'s CSS.
@@ -2289,7 +2335,7 @@ function renderPlate(){
     const p=lineProduct(l);
     const isKid=!!l.kid;
     const kName=isKid?((kById[l.kid]&&kById[l.kid].name)||'Ingredient'):null;
-    const qtyCell=`<span class="bld-qty"><input type="number" min="0" step="1" value="${l.qty==null?'':l.qty}" placeholder="qty" aria-label="quantity" oninput="setQty(${l.uid},this.value)">`;
+    const qtyCell=`<span class="bld-qty"><input type="number" min="0" step="1" value="${l.qty==null?'':l.qty}" placeholder="Qty" aria-label="quantity" oninput="setQty(${l.uid},this.value)">`;
     /* 177: the mock's × in the last column, not the word "Remove". The ACCESSIBLE name is unchanged
        and stays a sentence — a glyph button with no aria-label is a button that announces itself as
        "times", and the docket has one of these per row. */
@@ -2313,9 +2359,13 @@ function renderPlate(){
       : `<span>${unitCostStr(p)}</span>`;
     // v45 items 6/7 (declutter, Max's call): no "· new"/"· edited" badges and no category — that
     // stays deleted. The kitchen word leads and its linked product is the muted second line.
+    // 267: both arms go through productIdentity/productIdentityMeta — the kid arm's linked product is
+    // the SAME line the builder's search dropdown offered a click earlier, and it used to gain a
+    // supplier and lose its capitals on the way across.
+    const idMeta = productIdentityMeta(p);
     const nameBlock = isKid
-      ? `<b>${esc(kName)}</b><span class="bld-sub">→ ${esc(p.description)}${p.brand?' · '+esc(p.brand):''}</span>`
-      : `<b>${esc(p.description)}</b>${p.brand?`<span class="bld-sub">${esc(p.brand)}</span>`:''}`;   // legacy direct-product line (pre-v31 saved plates)
+      ? `<b>${esc(kName)}</b><span class="bld-sub">→ ${esc(productIdentity(p))}</span>`
+      : `<b>${esc(p.description)}</b>${idMeta?`<span class="bld-sub">${esc(idMeta)}</span>`:''}`;   // legacy direct-product line (pre-v31 saved plates)
     return `<div class="bld-row" data-uid="${l.uid}">
       <span class="bld-ing">${nameBlock}</span>
       ${qtyCell}<span class="bld-u">${unitNoun(p)}</span></span>
@@ -5536,11 +5586,20 @@ function catLabel(s){
 /* `fmt` relabels the options WITHOUT touching their values — see catLabel. It is opt-in rather than
    applied to every filter because this helper also fills supplier names, plate categories and menu
    sections, and those are Max-authored strings that are already cased the way he wrote them. */
+/* 267 — THREE KINDS OF ENTRY, THREE GROUPS, because a flat list made a COMMAND look like a VALUE.
+   The select holds the no-filter default (""), the real values, and `TIDY_DOOR` — which is not a
+   thing to filter by at all: choosing it opens the Tidy modal. In one flat list "✎ Manage list…" sat
+   as a sibling of "Desserts" with nothing but a glyph to say it behaved differently, and it was the
+   LAST entry, which is exactly where a hurried thumb lands. `<optgroup>` is the markup that says so,
+   and it costs nothing: `sel.value=cur` restores across groups, and `select.value` reads the same. */
 function fillFilter(sel, list, label, fmt){
   if(!sel) return; var cur=sel.value;
   var show=(typeof fmt==='function')?fmt:function(v){return v;};
-  var html='<option value="">'+label+'</option>'+list.map(function(v){return '<option value="'+esc(v)+'">'+esc(show(v))+'</option>';}).join('');
-  if(sel.dataset && sel.dataset.tidyField) html+='<option value="'+TIDY_DOOR+'">✎ Manage list…</option>';   // one door per category/supplier filter
+  // the group's heading is the filter's own label with its "All " prefix off — "All categories" -> "Categories"
+  var grp=/^All /.test(label) ? (label.charAt(4).toUpperCase()+label.slice(5)) : label;
+  var html='<option value="">'+label+'</option>';
+  if(list.length) html+='<optgroup label="'+esc(grp)+'">'+list.map(function(v){return '<option value="'+esc(v)+'">'+esc(show(v))+'</option>';}).join('')+'</optgroup>';
+  if(sel.dataset && sel.dataset.tidyField) html+='<optgroup label="Edit this list"><option value="'+TIDY_DOOR+'">✎ Manage list…</option></optgroup>';   // one door per category/supplier filter
   sel.innerHTML=html; if(cur && list.indexOf(cur)>=0) sel.value=cur;
 }
 /* F4 (v140): the mock's §3.5 header subtitle. The mock's own slot holds a strapline; this app's
@@ -5819,7 +5878,7 @@ function saveIngEdit(){
 function kingProductLabel(k){                                        // "Chips 10mm Straight Cut — Safries · Bidfood" (Q5: the leading → is CSS on .king-link, presentation not content)
   var p=byId[k.pid];
   if(!p) return '(product missing)';
-  return p.description+(p.brand?' \u2014 '+p.brand:'')+(p.supplier?' \u00b7 '+p.supplier:'');   // v103: the price lives in .king-price; Q5 (v124): supplier joins the sentence, per the design
+  return productIdentity(p);   // v103: the price lives in .king-price; Q5 (v124): supplier joins the sentence, per the design. 267: the FORMAT moved to productIdentity so every screen shares one definition \u2014 this function keeps its name and keeps owning the missing-product answer.
 }
 // v59 item 6a: an ingredient's category is DERIVED, live, from its linked product \u2014 never stored on
 // the ingredient. Repointing the link or editing the product's category changes it automatically.
@@ -6065,9 +6124,12 @@ function kingWizGroups(){                                             // proposa
 }
 function kingWizRowHtml(g,gi){
   var one=g.products.length===1, p0=g.products[0];
+  /* 267: both arms through productIdentity. This ONE function used to render the same join two ways
+     \u2014 a middle dot when there was one product and an em dash when there were several \u2014 so the
+     wizard disagreed with itself depending on how many candidates a name happened to match. */
   var prodBit=one
-    ? '<span class="kw-prod">'+esc(p0.description)+(p0.brand?' \u00b7 '+esc(p0.brand):'')+'</span>'
-    : '<select class="kw-pick" aria-label="Which product">'+g.products.map(function(p,pi){ return '<option value="'+esc(p.id)+'"'+(pi?'':' selected')+'>'+esc(p.description)+(p.brand?' \u2014 '+esc(p.brand):'')+'</option>'; }).join('')+'</select>';
+    ? '<span class="kw-prod">'+esc(productIdentity(p0))+'</span>'
+    : '<select class="kw-pick" aria-label="Which product">'+g.products.map(function(p,pi){ return '<option value="'+esc(p.id)+'"'+(pi?'':' selected')+'>'+esc(productIdentity(p))+'</option>'; }).join('')+'</select>';
   return '<div class="kw-row" data-gi="'+gi+'">'
     +'<input class="kw-name" type="text" value="'+esc(g.name)+'" aria-label="Ingredient name">'
     +prodBit
@@ -6083,7 +6145,7 @@ function kingWizSkippedHtml(ids){
   if(kingWizShowSkipped){
     html+=ids.map(function(id){
       var p=byId[id];
-      var lbl=p ? (p.description+(p.brand?' \u00b7 '+p.brand:'')) : '(this product no longer exists)';
+      var lbl=p ? productIdentity(p) : '(this product no longer exists)';   // 267: the same line the row above it shows, so Unskip names what Skip named
       return '<div class="kw-srow" data-pid="'+esc(id)+'"><span class="kw-prod">'+esc(lbl)+'</span>'
         +'<button class="linklike kw-unskip" type="button">Unskip</button></div>';
     }).join('');
@@ -6173,7 +6235,8 @@ function renderKingCreateSuggest(){
   var cands=(rankCandidates(nm)||[]).slice(0,3).map(function(c){ return byId[c.id]; }).filter(Boolean);
   if(!cands.length){ box.style.display='none'; box.innerHTML=''; return; }
   box.innerHTML='<div class="ka-head">Link to one of these?</div>'+cands.map(function(p){
-    return '<div class="ka-row"><span class="ka-name">'+esc(p.description)+(p.brand?' <span class="ca">'+esc(p.brand)+'</span>':'')+'</span>'
+    var kaMeta=productIdentityMeta(p);   // 267: brand AND supplier, the same line the row this creates will show
+    return '<div class="ka-row"><span class="ka-name">'+esc(p.description)+(kaMeta?' <span class="ca">'+esc(kaMeta)+'</span>':'')+'</span>'
       +'<span class="ka-price">'+esc(unitCostStr(p))+'</span>'
       +'<button class="use" type="button" data-pid="'+esc(p.id)+'">Use</button></div>';
   }).join('');
@@ -6181,7 +6244,7 @@ function renderKingCreateSuggest(){
   box.querySelectorAll('.use').forEach(function(b){ b.addEventListener('click',function(){
     var pid=b.getAttribute('data-pid'); var p=byId[pid]; if(!p) return;
     kingChosenPid=pid;
-    var inp=document.getElementById('king_prod'); if(inp) inp.value=p.description+(p.brand?' \u2014 '+p.brand:'');
+    var inp=document.getElementById('king_prod'); if(inp) inp.value=productIdentity(p);   // 267: the picked product reads the same as it did in the list
     /* The ONE place a clear-\u00d7 field is filled programmatically with a NON-empty value. Assigning
        `.value` fires no `input` event, so the delegated listener never sees it and the \u00d7 would stay
        hidden on a field that now has something to clear \u2014 the mirror of the bug being fixed. */
@@ -6200,7 +6263,11 @@ function updateKingCat(){
   var el=document.getElementById('king_cat'); if(!el) return;
   var pid=kingChosenPid || (kingEditId && kById[kingEditId] ? kById[kingEditId].pid : null);
   var p=pid!=null?byId[pid]:null; var c=p&&p.category;
-  el.textContent=c?c:'—';
+  // 267: catLabel here too. This is a READ-ONLY display of the derived category, so it obeys the same
+  // display boundary the Ingredients row and the Products card already do — without it the modal said
+  // DESSERTS while the row behind it said Desserts, one click apart. The VALUE is untouched: nothing
+  // saves from this element.
+  el.textContent=c?catLabel(c):'—';
 }
 function renderKingProdDrop(){
   var inp=document.getElementById('king_prod'), drop=document.getElementById('king_prodDrop'); if(!inp||!drop) return;
@@ -6215,12 +6282,13 @@ function renderKingProdDrop(){
   }
   if(!scored.length){ drop.innerHTML='<div class="opt muted">No products match</div>'; drop.style.display='block'; anchorDrop(drop); return; }
   drop.innerHTML=scored.map(function(p){
-    return '<div class="opt cat-opt" data-pid="'+esc(p.id)+'">'+esc(p.description)+(p.brand?' <span class="ca">'+esc(p.brand)+'</span>':'')+' <span class="ca">'+esc(unitCostStr(p))+'</span></div>';
+    var meta=productIdentityMeta(p);   // 267: one identity line here too — and .opt .ca no longer shouts it, nor the unit cost beside it
+    return '<div class="opt cat-opt" data-pid="'+esc(p.id)+'">'+esc(p.description)+(meta?' <span class="ca">'+esc(meta)+'</span>':'')+' <span class="ca">'+esc(unitCostStr(p))+'</span></div>';
   }).join('');
   drop.style.display='block'; anchorDrop(drop);   // v59 item 2: escape the modal-body clip
   drop.querySelectorAll('.cat-opt').forEach(function(o){ o.addEventListener('mousedown',function(e){ e.preventDefault();
     var pid=o.getAttribute('data-pid'); var p=byId[pid]; if(!p) return;
-    kingChosenPid=pid; inp.value=p.description+(p.brand?' \u2014 '+p.brand:''); drop.style.display='none'; resetDrop(drop); kingSyncSave();
+    kingChosenPid=pid; inp.value=productIdentity(p); drop.style.display='none'; resetDrop(drop); kingSyncSave();   // 267: the picked product reads the same as it did in the list
   }); });
 }
 function openKingModal(kid){
@@ -6230,7 +6298,14 @@ function openKingModal(kid){
   document.getElementById('kingModalTitle').textContent=isEdit?'Edit ingredient':'New ingredient';
   var nameEl=document.getElementById('king_name'), prodEl=document.getElementById('king_prod');
   nameEl.value=isEdit?(k?k.name:''):''; nameEl.disabled=false;                 // ITEM 2 (v35): edit mode can rename. Plates persist {kid, qty} only (see the lines map in savePlate) and read the label live via kById, so a rename is display-only and cannot touch a recipe.
-  prodEl.value=isEdit&&k&&byId[k.pid]?(byId[k.pid].description+(byId[k.pid].brand?' \u2014 '+byId[k.pid].brand:'')):'';
+  /* \u26a0\ufe0f 267, AND THIS ONE WAS A DEFECT THIS BATCH CREATED rather than one it inherited. This is the
+     THIRD writer of #king_prod's value; the other two (renderKingCreateSuggest, renderKingProdDrop)
+     were moved onto productIdentity and this was not, so opening Edit showed "Cheddar \u2014 Bega" and
+     picking the same product from the picker one click later showed "Cheddar \u2014 Bega \u00b7 Bidfood" \u2014
+     the item's own defect, in the field the item's own fix had just touched.
+     Found by the pre-push review, which named the neighbourhood and not this site. GREP THE FIELD,
+     not the function: three writers, and nothing but this comment says how many there are. */
+  prodEl.value=isEdit&&k&&byId[k.pid]?productIdentity(byId[k.pid]):'';
   kingChosenPid=isEdit&&k?k.pid:null;
   var err=document.getElementById('king_err'); if(err)err.style.display='none';
   document.getElementById('king_prodDrop').style.display='none';
@@ -9175,7 +9250,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v215';
+var APP_VERSION='v216';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -12908,6 +12983,18 @@ function tidyPlan(products, field, action, from, to){               // action: '
 // would orphan its taught packs unless the memory entries move too. This pure planner lists the re-keys needed;
 // the entry's phrase_norm is already normalised, so the new id is memKey(to,·) == normSupplier(to)+'|'+phrase_norm
 // — reconstructable WITHOUT re-entering the protected parser region. Clearing a supplier drops its memories.
+/* ⚠️ 267 CONSIDERED SPLITTING THIS INTO "Plate categories" AND "Product categories" AND DECLINED.
+   Queue item 57 asked for it, on the grounds that the Tidy list mixes product categories in capitals
+   with plate categories in title case. Two reasons it stays combined, and the second is the one that
+   matters:
+     - the SPLIT would cost the single action. A value that is both a product category and a plate
+       category has ONE row here saying "14 products · 3 plates", and Rename on that row flows to
+       products, ingredients and plates at once. Two sections cannot say that without saying it twice.
+     - the CASING is not a defect here. This modal is the RAW-VALUE editor — it is where you come to
+       see that `HERBS  SPICES & SEASONINGS` has a double space in it. `catLabel` deliberately does not
+       run on these rows, because a normalised display would hide the exact thing you opened it to fix.
+   Everything read-only DOES go through catLabel (renderIngredients, renderKitchenPanel, both category
+   fillFilters, updateKingCat). This is the boundary, and it is on the correct side of it. */
 // v59 item 6b: the Category picker spans BOTH product categories AND plate categories (Max's call).
 // This pure planner returns the product patches (via dbPushIngredient) and, for category only, the
 // plate patches (via dbPushPlate) — so one Rename/Merge/Clear flows to products, ingredients (which
@@ -13132,7 +13219,7 @@ function makeInlineCombo(inpId, dropId, listFn){
   function render(){
     var q=inp.value.trim(), items=listFn();
     var scored=items.map(function(c){return {c:c,s:catScore(c,q)};}).filter(function(o){return o.s>=0;}).sort(function(a,b){return b.s-a.s;}).slice(0,6);
-    var html=''; scored.forEach(function(o){var ex=o.c.toLowerCase()===q.toLowerCase();html+='<div class="opt cat-opt" data-v="'+esc(o.c)+'">'+esc(o.c)+(ex?' <span class="ca">exists</span>':'')+'</div>';});
+    var html=''; scored.forEach(function(o){var ex=o.c.toLowerCase()===q.toLowerCase();html+='<div class="opt cat-opt" data-v="'+esc(o.c)+'">'+esc(o.c)+(ex?' <span class="ca">Exists</span>':'')+'</div>';});
     var hasExact=items.some(function(c){return c.toLowerCase()===q.toLowerCase();});
     if(q && !hasExact) html+='<div class="opt cat-opt cat-create" data-new="'+esc(q)+'">\u2795 Create new: \u201c'+esc(q)+'\u201d</div>';
     if(!html) html='<div class="opt muted">Type to search\u2026</div>';
@@ -13238,13 +13325,13 @@ function expandNewItem(i){
      +'<div class="ni-grid">'
      /* v37: every field is label-line + control-line; the auto-filled chip lives INLINE on the label — one place, every field, no overlap possible */
      +'<label class="ni-f">'+niLab('Name',fName.src)+'<input id="ni_name'+i+'" type="text"'+afA('name',fName.filled)+' value="'+esc(fName.val)+'"></label>'
-     +'<label class="ni-f">'+niLab('Brand',fBrand.src)+'<span class="cat-wrap"><input id="ni_brand'+i+'" type="text"'+afA('brand',fBrand.filled)+' value="'+esc(fBrand.val)+'" autocomplete="off" placeholder="search brands\u2026"><span id="ni_brandDrop'+i+'" class="cat-drop" style="display:none"></span></span></label>'
-     +'<label class="ni-f">'+niLab('Category',fCat.src)+'<span class="cat-wrap"><input id="ni_cat'+i+'" type="text"'+afA('cat',fCat.filled)+' value="'+esc(fCat.val)+'" autocomplete="off" placeholder="search categories\u2026"><span id="ni_catDrop'+i+'" class="cat-drop" style="display:none"></span></span></label>'
-     +'<label class="ni-f">'+niLab('Supplier',fSup.src)+'<span class="cat-wrap"><input id="ni_sup'+i+'" type="text"'+afA('sup',fSup.filled)+' value="'+esc(fSup.val)+'" autocomplete="off" placeholder="search suppliers\u2026"><span id="ni_supDrop'+i+'" class="cat-drop" style="display:none"></span></span></label>'
+     +'<label class="ni-f">'+niLab('Brand',fBrand.src)+'<span class="cat-wrap"><input id="ni_brand'+i+'" type="text"'+afA('brand',fBrand.filled)+' value="'+esc(fBrand.val)+'" autocomplete="off" placeholder="Search brands\u2026"><span id="ni_brandDrop'+i+'" class="cat-drop" style="display:none"></span></span></label>'
+     +'<label class="ni-f">'+niLab('Category',fCat.src)+'<span class="cat-wrap"><input id="ni_cat'+i+'" type="text"'+afA('cat',fCat.filled)+' value="'+esc(fCat.val)+'" autocomplete="off" placeholder="Search categories\u2026"><span id="ni_catDrop'+i+'" class="cat-drop" style="display:none"></span></span></label>'
+     +'<label class="ni-f">'+niLab('Supplier',fSup.src)+'<span class="cat-wrap"><input id="ni_sup'+i+'" type="text"'+afA('sup',fSup.filled)+' value="'+esc(fSup.val)+'" autocomplete="off" placeholder="Search suppliers\u2026"><span id="ni_supDrop'+i+'" class="cat-drop" style="display:none"></span></span></label>'
      +'<label class="ni-f">'+niLab('Unit type',src)+'<select id="ni_unit'+i+'"'+afA('unit',!!r.unit)+'><option value="kg">per kg</option><option value="g">per g</option><option value="litre">per litre</option><option value="ml">per ml</option><option value="unit">per unit/each</option></select></label>'
      +'<label class="ni-f">'+niLab('Price per unit ($)',src)+'<input id="ni_price'+i+'" type="number" min="0" step="0.01"'+afA('price',pv!=='')+' value="'+pv+'"></label>'
-     +'<label class="ni-f">'+niLab('Pack size (optional)',src)+'<input id="ni_pack'+i+'" type="text" placeholder="e.g. 6 x 2.5kg"></label>'
-     +'<label class="ni-f ni-full">'+niLab('Ingredient name (optional)',src)+'<span class="cat-wrap"><input id="ni_king'+i+'" type="text" autocomplete="off" placeholder="the name you\u2019ll use when building plates"><span id="ni_kingDrop'+i+'" class="cat-drop" style="display:none"></span></span></label>'
+     +'<label class="ni-f">'+niLab('Pack size (optional)',src)+'<input id="ni_pack'+i+'" type="text" placeholder="E.g. 6 x 2.5kg"></label>'
+     +'<label class="ni-f ni-full">'+niLab('Ingredient name (optional)',src)+'<span class="cat-wrap"><input id="ni_king'+i+'" type="text" autocomplete="off" placeholder="The name you\u2019ll use when building plates"><span id="ni_kingDrop'+i+'" class="cat-drop" style="display:none"></span></span></label>'
      +'</div><div class="ferr" id="ni_err'+i+'" style="display:none"></div>';
     panel.dataset.built='1';
     var _nc=panel.querySelector('.ni-close'); if(_nc){ _nc.onclick=function(ev){ ev.preventDefault(); closeNewItem(i); }; }
@@ -13468,7 +13555,7 @@ function renderInvReview(){
     var rebShow=(reb && !r.uncertain && !r.gemMatchReview);
     var pv=(r.unitPrice!=null)?r.unitPrice.toFixed(2):'';
     var unitWordOf=function(u){return u==='ea'?'units':u==='l'?'L':u==='ml'?'mL':(u||'');};
-    var upriceHtml='<div class="uprice-edit"><span class="dol">$</span><input type="number" class="invPrice" min="0" step="0.01" placeholder="unit price" value="'+pv+'"><span class="upu">'+uLbl+'</span></div>';
+    var upriceHtml='<div class="uprice-edit"><span class="dol">$</span><input type="number" class="invPrice" min="0" step="0.01" placeholder="Unit price" value="'+pv+'"><span class="upu">'+uLbl+'</span></div>';
     // v44 item 1: ONE pack control, two moods. The "Pack: N units \u2014 change" chip is gone; every row
     // with pack context shows the same always-visible [qty][unit][\u2713] row, prefilled with the known pack.
     // A mismatch/unresolved row is the SAME control in its red required state (.pt-required) \u2014 no second
@@ -13492,7 +13579,7 @@ function renderInvReview(){
       teachHtml='<span class="pack-teach'+(required?' pt-required':'')+'" data-i="'+i+'">'
         +'<span class="pt-lbl sr-only">How many in one pack?</span>'
         +'<span class="pt-group">'
-        +'<input type="number" class="invPackQty" inputmode="decimal" min="0" step="0.01" placeholder="qty" title="How many in one pack?" value="'+pq+'">'
+        +'<input type="number" class="invPackQty" inputmode="decimal" min="0" step="0.01" placeholder="Qty" title="How many in one pack?" value="'+pq+'">'
         +'<select class="invPackUnit" aria-label="pack unit">'+invPackUnitOpts(baseCat0, puNow).map(function(u){var lbl=unitWordOf(u); return '<option value="'+u+'"'+(u===puNow?' selected':'')+'>'+lbl+'</option>';}).join('')+'</select>'
         +'</span>'
         +'<button type="button" class="pt-done" title="Done" aria-label="Done">\u2713</button>'
@@ -14854,7 +14941,7 @@ function makeCatCombo(inpId, dropId, newId, state){
     var q=inp.value.trim(), drop=document.getElementById(dropId), cats=menuCats();
     var scored=cats.map(function(c){return {c:c,s:catScore(c,q)};}).filter(function(o){return o.s>=0;}).sort(function(a,b){return b.s-a.s;});
     var html='';
-    scored.forEach(function(o){var ex=o.c.toLowerCase()===q.toLowerCase();html+='<div class="opt cat-opt" data-cat="'+esc(o.c)+'">'+esc(o.c)+(ex?' <span class="ca">exists</span>':'')+'</div>';});
+    scored.forEach(function(o){var ex=o.c.toLowerCase()===q.toLowerCase();html+='<div class="opt cat-opt" data-cat="'+esc(o.c)+'">'+esc(o.c)+(ex?' <span class="ca">Exists</span>':'')+'</div>';});
     var hasExact=cats.some(function(c){return c.toLowerCase()===q.toLowerCase();});
     if(q && !hasExact) html+='<div class="opt cat-opt cat-create" data-new="'+esc(q)+'">\u2795 Create new category \u201c'+esc(q)+'\u201d</div>';
     if(!html) html='<div class="opt muted">No categories yet</div>';
@@ -15263,7 +15350,7 @@ function renderCatDrop(){
   var q=inp.value.trim(), drop=document.getElementById('mi_catDrop'), cats=menuCats();
   var scored=cats.map(function(c){return {c:c,s:catScore(c,q)};}).filter(function(o){return o.s>=0;}).sort(function(a,b){return b.s-a.s;});
   var html='';
-  scored.forEach(function(o){var ex=o.c.toLowerCase()===q.toLowerCase();html+='<div class="opt cat-opt" data-cat="'+esc(o.c)+'">'+esc(o.c)+(ex?' <span class="ca">exists</span>':'')+'</div>';});
+  scored.forEach(function(o){var ex=o.c.toLowerCase()===q.toLowerCase();html+='<div class="opt cat-opt" data-cat="'+esc(o.c)+'">'+esc(o.c)+(ex?' <span class="ca">Exists</span>':'')+'</div>';});
   var hasExact=cats.some(function(c){return c.toLowerCase()===q.toLowerCase();});
   if(q && !hasExact) html+='<div class="opt cat-opt cat-create" data-new="'+esc(q)+'">\u2795 Create new category \u201c'+esc(q)+'\u201d</div>';
   if(!html) html='<div class="opt muted">No categories yet</div>';
