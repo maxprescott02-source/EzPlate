@@ -133,9 +133,17 @@ function groupOrder(root) {
  * consolidated one would vanish from its group entirely - the group could then read as finished
  * with promotable work left in it, which is the exact failure the refill rule cannot survive.
  * Parenthesised asides hold batch numbers, so they are removed before item numbers are read, and
- * only 16..199 is accepted - the consolidated file numbers from 16 and batch numbers are past 239. */
-function groupMembers(root) {
+ * the range accepted is 16 to the HIGHEST NUMBER THE CONSOLIDATED FILE ACTUALLY USES - the backlog
+ * numbers from 16, and a stray batch number is above the top of it.
+ *
+ * ⚠️ THE CEILING IS DERIVED BECAUSE THE FIRST DRAFT WROTE 200 AND THE PRE-PUSH REVIEW PRICED IT.
+ * It held only while the backlog stayed in the 90s; the day an item number reaches 200 a real item
+ * drops out of its group's membership silently, and nothing anywhere would say so. A constant that
+ * is true today and false later, with no assertion on it, is the same defect as the status marker
+ * this whole file exists to replace. */
+function groupMembers(root, ceiling) {
   root = root || ROOT;
+  if (ceiling === undefined) ceiling = Math.max(...Object.keys(consolidatedItems(root)).map(Number));
   const md = read(root, 'docs/QUEUE-GROUPS.md');
   const parts = md.split(/^### (G\d) · /m);
   const members = {};
@@ -144,7 +152,7 @@ function groupMembers(root) {
     const line = parts[i + 1].split('\n').find((l) => l.startsWith('**Items:**'));
     if (!line) throw new Error(`docs/QUEUE-GROUPS.md group ${g} has no **Items:** line`);
     const bare = line.replace(/\([^)]*\)/g, ' ');
-    const nums = [...bare.matchAll(/\b(\d+)\b/g)].map((m) => Number(m[1])).filter((n) => n >= 16 && n < 200);
+    const nums = [...bare.matchAll(/\b(\d+)\b/g)].map((m) => Number(m[1])).filter((n) => n >= 16 && n <= ceiling);
     members[g] = [...new Set(nums)].sort((a, b) => a - b);
   }
   if (!Object.keys(members).length) throw new Error('docs/QUEUE-GROUPS.md holds no "### GN ·" group');
@@ -152,21 +160,42 @@ function groupMembers(root) {
 }
 
 /* Every consolidated item: struck or not, and its tier letter. A struck heading is `## ~~16 · …~~`;
-   an open one is `## next  57 · …  **[B, …]**`. The tier is the first letter in the bracket, so
-   "[C until a second client exists, then A]" is C, which is what it is today. */
+ * an open one is `## next  57 · …  **[B, …]**`. The tier is the first letter in the bracket, so
+ * "[C until a second client exists, then A]" is C, which is what it is today.
+ *
+ * ⚠️ IT REFUSES TO SKIP A HEADING IT CANNOT READ, which is the whole reason this is not a `continue`.
+ * The pre-push review of this batch found the first draft silently passing over
+ * `## ~~blocked~~  91 · original item` - the `\s+` it wanted after `blocked` is a `~` there - and a
+ * skipped heading is INDISTINGUISHABLE FROM A STRUCK ITEM to firstUnstruckGroup() below. That is a
+ * group silently reading as finished with open work in it, which is the exact failure this file was
+ * written to remove, arriving through the file that removes it. Every `## ` heading in that file
+ * carries a `·` (its sections are single-`#`), so anything with a `·` that will not parse is a
+ * shape nobody has seen, and being loud about it costs one run.
+ *
+ * Struck is decided by whether the ITEM NUMBER is inside a `~~…~~` span, not by the line starting
+ * with one - the 91 heading above strikes only the status word, and an open item wearing a struck
+ * status word must not read as shipped. */
 function consolidatedItems(root) {
   root = root || ROOT;
   const md = read(root, 'docs/QUEUE-2026-09-08-CONSOLIDATED.md');
   const items = {};
+  const unreadable = [];
   for (const line of md.split('\n')) {
-    const m = /^##\s+(?:~~)?(?:(?:next|blocked|doing)\s+)?(?:~~\s*)?(\d+)\s*·/.exec(line);
-    if (!m) continue;
+    if (!/^##\s/.test(line) || !line.includes('·')) continue;
+    const m = /^##\s*(?:(?:next|blocked|doing)\s+)?(\d+)\s*·/.exec(line.replace(/~~/g, ''));
+    if (!m) { unreadable.push(line.trim().slice(0, 80)); continue; }
     const n = Number(m[1]);
-    const struck = line.includes(`~~${n} ·`) || /^##\s+~~/.test(line);
+    const struck = [...line.matchAll(/~~([^~]*)~~/g)].some((s) => new RegExp(`^\\s*${n}\\s*·`).test(s[1]));
     const tier = (/\*\*\[([ABC])/.exec(line) || [])[1] || null;
     // First heading wins: item 91 keeps a struck "original item" heading below its closed one.
     if (!(n in items)) items[n] = { struck, tier };
   }
+  if (unreadable.length) {
+    throw new Error(`docs/QUEUE-2026-09-08-CONSOLIDATED.md has ${unreadable.length} item heading(s) `
+      + `this cannot read, and a heading it skips is indistinguishable from a struck item: `
+      + unreadable.join(' | '));
+  }
+  if (!Object.keys(items).length) throw new Error('docs/QUEUE-2026-09-08-CONSOLIDATED.md holds no item heading');
   return items;
 }
 
@@ -183,8 +212,8 @@ function consolidatedItems(root) {
 function firstUnstruckGroup(root) {
   root = root || ROOT;
   const order = groupOrder(root);
-  const members = groupMembers(root);
   const items = consolidatedItems(root);
+  const members = groupMembers(root, Math.max(...Object.keys(items).map(Number)));
   for (const g of order) {
     const mine = members[g];
     if (!mine) throw new Error(`docs/QUEUE-GROUPS.md's order names ${g}, which has no "### ${g} ·" section`);

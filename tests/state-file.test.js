@@ -87,6 +87,43 @@ test('every other field agrees with the files too, and written_at is a real past
     `written_at ${onDisk.written_at} is in the future`);
 });
 
+/*
+ * ⚠️ THE ONE FIELD THAT HAD NO INDEPENDENT CHECK, and the pre-push review named it.
+ * Every other field above is compared against a second reading of the real tree. first_unstruck_group
+ * was exercised only by the fixtures below and by `derive() === STATE.json` - and BOTH SIDES OF THAT
+ * ARE THE SAME FUNCTION, which is the stub-agrees-with-itself shape this file's own header warns
+ * about. A firstUnstruckGroup() that named the wrong group on the real files would be written into
+ * docs/STATE.json and every test would stay green.
+ *
+ * So this checks it against a third file the derivation never consults for this field: the WORKING
+ * SET. docs/QUEUE.md holds what the last refill promoted, and skills/batch promotes from the current
+ * group - so if the state file names a group that none of the promoted items belong to, one of the
+ * two is wrong and a reader has no way to tell which. Read off the raw section text, not through
+ * groupMembers(), so a broken membership parse cannot satisfy it.
+ */
+test('the current group is one docs/QUEUE.md was actually refilled from', () => {
+  const named = onDisk.first_unstruck_group;
+  if (named === null) return;   // every group promotable-empty is a legitimate state
+  const groups = fs.readFileSync(path.join(ROOT, 'docs', 'QUEUE-GROUPS.md'), 'utf8');
+  const section = groups.split(new RegExp(`^### ${named} · `, 'm'))[1];
+  assert.ok(section, `docs/STATE.json names ${named}, which has no "### ${named} ·" section`);
+  const itemsLine = section.split('\n').find((l) => l.startsWith('**Items:**'));
+
+  // The promoted items are QUEUE.md's headings numbered 16 or above; its own 1-15 predate the
+  // consolidation and belong to no group. tests/queue-routing.test.js already requires each to be
+  // routed somewhere, so "routed, but not in the group we call current" is the gap this closes.
+  const promoted = fs.readFileSync(path.join(ROOT, 'docs', 'QUEUE.md'), 'utf8').split('\n')
+    .map((l) => /^##\s+(?:next|blocked|doing)\s+(\d+)[a-z]?\s*·/.exec(l))
+    .filter(Boolean).map((m) => Number(m[1])).filter((n) => n >= 16);
+  if (!promoted.length) return;   // a working set of pre-consolidation items only says nothing here
+
+  const mine = promoted.filter((n) => new RegExp(`\\b${n}\\b`).test(itemsLine));
+  assert.ok(mine.length,
+    `docs/STATE.json says the current group is ${named}, but none of docs/QUEUE.md's promoted items `
+    + `(${promoted.join(', ')}) appear in that group's Items line. Either the refill took from a `
+    + `different group or first_unstruck_group is wrong.`);
+});
+
 /* ---- newest-by-NUMBER, against synthetic directories ----
  *
  * ⚠️ ADDED BECAUSE A HAND-MUTATION SURVIVED. Replacing audits()' `a.n - b.n` with a filename
@@ -157,7 +194,7 @@ const GROUPS_OK = [
   '',
   '### G3 · third',
   '',
-  '**Items:** 21',
+  '**Items:** 21 · shipped in 266, routed by 999',
   '',
   '## The order',
   '',
@@ -221,6 +258,69 @@ test('membership reads item numbers, not the batch numbers in the asides beside 
     // `~~16~~ (239)` must contribute 16 and NOT 239. Struck items stay in the membership list on
     // purpose: the consolidated file, not this one, is what says whether an item is finished.
     assert.deepStrictEqual(state.groupMembers(dir).G1, [16, 17, 18]);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a number above the backlog\'s highest item is a batch number, not a member', () => {
+  // G3's line reads "21 · shipped in 266, routed by 999" - bare numbers, no parentheses to strip.
+  // The ceiling is the consolidated file's own top item, so both are excluded.
+  const dir = fixtureRoot(GROUPS_OK, CONSOLIDATED_OK);
+  try {
+    assert.deepStrictEqual(state.groupMembers(dir).G3, [21]);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('and the ceiling MOVES WITH THE BACKLOG, so an item numbered past 200 is still a member', () => {
+  /* ⚠️ THIS IS THE HALF THE TEST ABOVE CANNOT PROVE, and hand-mutation is what showed it: reverting
+     the derived ceiling to the first draft's literal `n < 200` left that test green, because 266 and
+     999 are above 200 as well. The defect only appears once the BACKLOG reaches 200 - a real item
+     dropping silently out of its group's membership - so the fixture has to get there. */
+  const groups = [
+    '### G1 · first', '', '**Items:** 210, 211 (shipped in 266)', '',
+    '## The order', '', '1. **G1** - all of it.', '',
+  ].join('\n');
+  const consolidated = [
+    '## next  210 · an A one past the old ceiling  **[A, launch is unsafe without it]**',
+    '## ~~211 · a shipped one~~  **SHIPPED, batch 266**',
+    '',
+  ].join('\n');
+  const dir = fixtureRoot(groups, consolidated);
+  try {
+    assert.deepStrictEqual(state.groupMembers(dir).G1, [210, 211],
+      'a literal ceiling drops both and the group reads as empty');
+    assert.strictEqual(state.firstUnstruckGroup(dir), 'G1',
+      'with 210 dropped from membership this returns null - a finished backlog that is not finished');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('an item heading it cannot read is a hard stop, never a skip', () => {
+  // A skipped heading is indistinguishable from a struck item to firstUnstruckGroup, so the group
+  // reads as finished with open work in it. Found by the pre-push review on the real file's
+  // `## ~~blocked~~  91 · original item`.
+  const dir = fixtureRoot(GROUPS_OK, `${CONSOLIDATED_OK}## next 22 - no middot but a heading · ish\n`
+    .replace('## next 22 - no middot but a heading · ish', '## item twenty-two · a shape nobody has seen'));
+  try {
+    assert.throws(() => state.consolidatedItems(dir), /cannot read/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a struck STATUS WORD on an open item does not make the item struck', () => {
+  // `## ~~blocked~~  91 · original item` strikes the status, not the item. Reading the leading ~~
+  // as "shipped" would drop a live A or B item out of its group with no symptom.
+  const dir = fixtureRoot(GROUPS_OK, CONSOLIDATED_OK
+    .replace('## next  19 · a B one  **[B, a real person sees it]**',
+      '## ~~blocked~~  19 · a B one  **[B, a real person sees it]**'));
+  try {
+    assert.strictEqual(state.consolidatedItems(dir)[19].struck, false);
+    assert.strictEqual(state.firstUnstruckGroup(dir), 'G2', 'item 19 is still open, so G2 is still current');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
