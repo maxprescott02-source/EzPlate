@@ -451,7 +451,10 @@ Opener `New <object>` · commit `Add <object>` · join a list `Add to menu` · e
 
 **What must be true:** the popover's left edge equals its field's left edge, and its width the field's width, in every modal above, at 1360 and 390, light and dark. **Test:** a Playwright spec opening each modal, typing into each combobox, and asserting the two rects (no `not.toBe`; the equality is the assertion).
 
-## next  49 · The builder between 768 and 1200 wide: side cards stack at half width, names truncate to seven characters, Save falls below the fold  **[B, the desktop band most laptops open the app in]**
+## ~~49 · The builder between 768 and 1200 wide~~  **SHIPPED, batch 274, `ezplate-v223`.**  **[B, the desktop band most laptops open the app in]**
+
+✅ Six changes: the wrapped rail fills its row (the 340 cap left 290/360/428px of nothing beside it), `.bld-main`'s basis 480→500 so two-column never starts at a docket the row cannot draw (moving the wrap point to **1076**), a 140px floor on the name track (it collapsed to **70** and clipped), a 95px floor on the unit-cost track (the price chip's own width), one left edge for the qty inputs, and `#bldSaveBar` shown to 1075 so the band has a reachable commit at all.
+⚠️ **And a defect neither the item nor the audit saw: `.bld-bar` renders UNDER the nav rail.** The nav is a 78px left rail from **640** (224px from 1024) at `z-index:75` against the bar's 25, so its figures sit at x=16 behind it. **Present on `main` at 640-767 already**, measured on a worktree; 274 widened it and fixed all of it. `tests/visual/274-builder-tablet.spec.js` pins the bar's left against the rail's measured right edge at six widths.
 
 ⚠️ **RE-MEASURED 16 SEP 2026 (batch 274's premise check and repro). EVERY VALUE THE 8 SEP MEASUREMENT NAMED IS STILL CORRECT AND EVERY LINE NUMBER IS STALE, AND THREE OF THE FIGURES WERE WRONG IN THE DIRECTION THAT UNDERSTATES THE DEFECT.** Two batches (271, 273) edited these files after it was written. **Plan off the table below, not off the paragraph under it, which is kept as the record of what was originally seen.**
 
