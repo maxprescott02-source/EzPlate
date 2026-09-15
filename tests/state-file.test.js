@@ -68,9 +68,16 @@ test('STATE.json deploy_version is sw.js CACHE, and newest_audit is the highest 
 });
 
 test('STATE.json open_ab_count counts every item heading in docs/QUEUE.md, whatever its status', () => {
-  // Counted here off the raw file rather than via queueItems(), for the same reason as above.
+  /* Counted here off the raw file rather than via queueItems(), for the same reason as above.
+     ⚠️ THIS PATTERN REQUIRED A DIGIT UNTIL AUDIT-v217, AND SO DID `tools/state.js`'s, WHICH IS WHY
+     NEITHER CAUGHT THE OTHER. Batch 265 let one un-numbered process item hold a slot; both regexes
+     skipped it, `open_ab_count` read 3 against four headings, and this assertion passed because
+     the two wrong beliefs matched. **Deriving a check from the same assumption as the code makes
+     it a mirror, not a second opinion** — the roster's oldest entry, in the test file written to
+     police a derived value. The independence here is that this reads the RAW MARKDOWN and
+     `tools/state.js` parses it; that only pays off if the patterns can disagree. */
   const queue = fs.readFileSync(path.join(ROOT, 'docs', 'QUEUE.md'), 'utf8');
-  const heads = queue.split('\n').filter((l) => /^##\s+(next|blocked|doing)\s+\d/.test(l));
+  const heads = queue.split('\n').filter((l) => /^##\s+(next|blocked|doing)\s+\S/.test(l));
   assert.strictEqual(onDisk.open_ab_count, heads.length,
     `docs/STATE.json says ${onDisk.open_ab_count} open items; docs/QUEUE.md has ${heads.length} headings. Run: node tools/state.js`);
   assert.ok(heads.length <= 20, 'docs/QUEUE.md is capped at 20 items by its own header');
@@ -370,4 +377,51 @@ test('write() refuses and leaves the old file alone when a source file is unread
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+/* ⚠️ THIS TEST EXISTS BECAUSE A FIX SHIPPED WITH NOTHING EXERCISING IT, AND THE PRE-PUSH REVIEW
+ * SAID SO. AUDIT-v217 found that `queueItems()` required a queue heading to be NUMBERED, so the
+ * un-numbered process item batch 265 allows went uncounted. Batch 269 fixed the parser — and in the
+ * SAME commit deleted the only un-numbered heading in `docs/QUEUE.md` (the `project-audit` item,
+ * closed by filing the audit). So the branch the fix added was live for exactly zero lines of real
+ * input, and every other check here reads the real file.
+ *
+ * **A fix whose only evidence is the file it was written against stops being tested the moment that
+ * file changes.** Synthetic input is the answer: these headings are the shapes the parser must get
+ * right, including the two that the first fix got wrong.
+ */
+test('269: queueItems counts an item by its STATUS WORD, numbered or not', () => {
+  const os = require('os');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ezplate-queue-'));
+  fs.mkdirSync(path.join(dir, 'docs'));
+  const write = (body) => fs.writeFileSync(path.join(dir, 'docs', 'QUEUE.md'), body);
+
+  write([
+    '# Queue',
+    'Prose that mentions next and blocked and must not count.',
+    '',
+    '# Design law — a section heading with no status word',
+    '## next  58 · A numbered item',
+    '## blocked  2b · A lettered id',
+    '## doing  `project-audit`  A backticked, un-numbered item',
+    '## next  project-audit  The same thing unbackticked',
+    '## next  24hrs to do a thing  **[C]**',   // digits NOT an id — the hole in the first fix
+    '## Where things live',                     // no status word: not an item
+    '## The order',                             // ditto
+  ].join('\n'));
+
+  assert.deepStrictEqual(state.queueItems(dir),
+    ['58', '2b', 'project-audit', 'project-audit', '24hrs'],
+    'every heading carrying a status word is an item; the two without one are not');
+
+  /* THE DIRECTION THAT MATTERS: a heading with no status word must never count, or the design-law
+     sections in the real file inflate open_ab_count and the cap looks breached. */
+  write('## Design law — the v3 fold-in\n## Where things live\n## The order\n');
+  assert.deepStrictEqual(state.queueItems(dir), [], 'no status word, no items');
+
+  /* And the id extraction must not silently merge two different items into one count. */
+  write('## next  58 · One\n## next  58b · Another\n');
+  assert.deepStrictEqual(state.queueItems(dir), ['58', '58b'], 'a lettered suffix is its own item');
+
+  fs.rmSync(dir, { recursive: true, force: true });
 });

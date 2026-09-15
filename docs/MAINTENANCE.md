@@ -1040,6 +1040,22 @@ Filed 9 Sep 2026 by batch 240. Neither is load-bearing and neither is worth a de
 
 *"A primary action must not live inside a node that re-renders."* Earned by a real defect: Save lived inside `#bFootSum`, which was replaced between touchstart and touchend, so the click was dropped. It was parked on Max's yes **the day before that requirement was reversed**, and the reversal's own justification was that a parked rule sat unapplied while the thing it warned about cost a diagnose cycle. ⚠️ **The reversal does not reach edits proposed BEFORE it** — that is the gap, and `HANDOVER-172`'s proposal is in the same state.
 
+### ⚠️ FOR MAX: `AGENTS.md` forbids commit co-authorship and every commit does it anyway
+
+Flagged verbatim by `HANDOVER-264` - *"which one is wrong is his call"* - and it then reached **neither `docs/QUEUE.md` nor `docs/PHONE.md` nor this file**, which AUDIT-v217 found and is why it is written here now.
+
+**Measured 15 Sep 2026:** `AGENTS.md` says *"Never add yourself as commit co-author."* The last eight merge commits on `main` carry **13** `Co-Authored-By:` trailers between them. They arrive because the **harness instructs it** in the session prompt, not because a batch chose to.
+
+**Neither side can be called wrong by a batch, which is the whole problem.** `AGENTS.md` is Max's working-preferences file; the trailer is the environment's. A batch that edits `AGENTS.md` is overruling his stated preference, and a batch that follows `AGENTS.md` is disobeying its own harness.
+
+**The cost is not the trailers. It is that a repo rule which every single commit breaks teaches every reader to discount the file it lives in** - and `AGENTS.md` is the file carrying "reproduce before fixing", "enumerate before changing" and "no em dashes", which are rules this repo actually relies on.
+
+**Two answers, and it is one line either way:**
+- **Keep the trailers:** delete that line from `AGENTS.md`, or qualify it to *"never add a human as co-author; the harness's own trailer is expected"*.
+- **Drop the trailers:** the line stays, and the harness instruction has to be overridden per-session, which nothing in the repo can enforce - so this only works if he wants it enough to notice when it lapses.
+
+**Recommended: the first.** The rule as written has been false on every commit for months, and a preference nothing can honour is worse than no preference. **But it is his file and his call; do not take it on a free slot.**
+
 ### `tests/king-wizskip.test.js` hand-rolls `kingLinkableProducts` instead of extracting it
 Found by batch 268 while writing `tests/king-head-sub.test.js` against the same neighbourhood.
 `tests/king-wizskip.test.js:44` writes its own `function kingLinkableProducts(){ return PRODUCTS_.filter(function(p){ return p && p.description && p.is_food!==false; }); }` rather than extracting the shipped one. It is byte-identical today, which is exactly the state the roster's first entry describes: **a stub written from the same belief as the code passes against the defect it was written to catch.** Change the `is_food!==false` predicate in `js/app.js` — widen it, or start excluding a second column — and that file stays green while `kingUnlinkedProducts` returns a different set.
@@ -1321,8 +1337,8 @@ The helper set `.toast.show` and then `setTimeout(…, 300)` - a bet that 300ms 
 | E2 | The PostToolUse hook ran the whole suite after every edit: no path filter, no timeout, wrong concurrency | ✅ **263.** `tools/post-edit-tests.js`, filtered and bounded, pinned |
 | E3 | `CLAUDE.md` is 163,583 bytes and loads every turn; no `.claude/rules/` split | ✅ **264.** 1,078 lines to 175; the evidence moved verbatim to seven `paths:`-scoped files in `.claude/rules/` plus `docs/rules/process.md`, and `tests/claude-md-split.test.js` is the detector that was missing |
 | E4 | The reviewer definition, `AGENTS.md` and `.agents/` all lived outside the repo, so a fresh clone carried none of them | ✅ **264.** `.claude/agents/code-review.md` and `AGENTS.md` are in the repo; 263 had already un-ignored `.agents/` and `skills-lock.json`. ⚠️ **Three EzPlate-specific SKILLS are still outside it** — see the entry below |
-| E5 | `enforce_admins` is false, so an admin merge bypasses every required check | **OPEN.** One API call plus a decision about whether Max wants to be able to override his own gate |
-| E6 | Six cache literals, four of them unchecked by anything | **OPEN.** One bump script and one test over all six |
+| E5 | `enforce_admins` is false, so an admin merge bypasses every required check | ✅ **DONE BY MAX**, and this row said OPEN for three days afterwards. The API returns `"enforce_admins":{"enabled":true}` (verified 15 Sep 2026, AUDIT-v217). The decision half is made: he chose to be bound by his own gate. ⚠️ **Three other documents carried the same stale claim** — the fact lives outside the repo, so nothing here could notice it change |
+| E6 | Six cache literals, four of them unchecked by anything | ✅ **265.** `tools/bump-version.js` does all six or refuses, and `tests/cache-version.test.js` reads that script's own `readSpots()` rather than keeping a second set of greps. ⚠️ **This row said OPEN until AUDIT-v217**, one batch after the file carrying "a done-mark is not a strike" — the batch shipped the remedy and did not come back to strike the row asking for it |
 | E7 | Skills state figures that are wrong by an order of magnitude | ✅ **263** for the four measured (`skills/verify`'s suite duration, the mutation-gate duration, the pre-push check count, `skills/handover`'s line counts). **The class is open**: nothing stops the next one |
 | E8 | Process fixes are all tier C, behind ~61 consolidated items, so an audit's recommendations never surface again | **OPEN.** This section is a partial answer to it |
 | E9 | A fresh clone runs no gate and looks identical to one that passed | ✅ **263.** `npm install` now installs the hook path |

@@ -26,9 +26,11 @@ batches this pin matches the author. **The batch overrides the reviewer to
 Sonnet for that run and says so in the handover.** It is the batch that knows
 which model it is; this file cannot.
 
-You are the only second reader this project has: there is no AI review in CI, no
-human reviewer, and `enforce_admins` is false, so nothing downstream catches what
-you miss.
+You are the only second reader this project has: there is no AI review in CI and
+no human reviewer, so nothing downstream reads the code you do not. The required
+checks do bind everyone (`enforce_admins` was turned on 15 Sep 2026), but they are
+`unit tests` and `smoke (jsdom)` — they run the suite, and no suite catches a
+wrong premise, a backwards comment or a control that does nothing. That is you.
 
 ## What to review
 

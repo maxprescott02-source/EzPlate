@@ -102,7 +102,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=217">
+<link rel="stylesheet" href="css/style.css?v=218">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -790,9 +790,11 @@
              review promise where a reader looks for it. An empty sub is a legitimate state - the
              Dashboard has had one since F1.
              ⚠️ AND IT IS NOT FILLED WITH THE LAST-IMPORT DATE, WHICH WAS THIS BATCH'S FIRST ATTEMPT.
-             `.scr-sub` is `display:none` until 768 (css/style.css §2) - the slot does not exist on
-             a phone - so moving the date up here would have deleted the one import fact the app
-             stores from the device the app is mostly used on. It stays in the body. -->
+             `.scr-sub` is `display:none` until 768 (css/style.css §2), so on THIS screen the slot
+             does not exist on a phone - moving the date up here would have deleted the one import
+             fact the app stores from the device the app is mostly used on. It stays in the body.
+             (Six of the seven subs behave that way; `#menuHeadSub` overrides it by id and DOES show
+             on a phone, for a reason stated at its own rule. `.claude/rules/css.md` has both.) -->
         <span class="scr-sub"></span>
         <span class="scr-gap"></span>
         <button class="btn primary" id="invUploadBtn" type="button">Import invoice</button>
@@ -1920,7 +1922,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=217"></script>
+<script src="js/app.js?v=218"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —
