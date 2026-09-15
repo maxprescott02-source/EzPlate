@@ -176,22 +176,43 @@ for (const width of [900, 1076, 1360]) {
   });
 }
 
-test('6: from 1024 to 1075 the save bar starts at the sidebar\'s right edge, not under it', async ({ page }) => {
-  await openPlate(page, 1024);
-  const m = await page.evaluate(() => {
+/* ⚠️ THIS RAN AT 1024 ONLY, AND THAT IS WHY IT DID NOT CATCH THE DEFECT ITS OWN BATCH SHIPPED.
+   The nav is a left rail from **640**, not from 1024: 78px wide at 640-1023 and 224px from 1024. The
+   first cut of this spec asserted the bar's left edge at the one width that already had a rule, so
+   13/13 was green while the bar sat under the 78px rail at every width from 640 to 1023 - and, as it
+   turned out, had been doing so on `main` at 640-767 all along.
+   The lesson is the fixture's, not the assertion's: a spec that checks the boundary it just wrote a
+   rule for has checked its own work. Run it at every width the ELEMENT can appear at. */
+for (const width of [640, 768, 900, 1023, 1024, 1075]) {
+  test(`6: at ${width} the save bar clears the nav rail rather than sitting under it`, async ({ page }) => {
+    await openPlate(page, width);
+    const m = await page.evaluate(() => {
     /* `.bld-bar` is the BAR; `#bldSaveBar` is the Save button inside it, which the stylesheet's own
        comment says must not be the same element. The left edge belongs to the bar. */
     const bar = document.querySelector('.bld-bar').getBoundingClientRect();
-    /* the sidebar is the bottom nav element promoted to a left rail at 1024 — discriminated by
-       ORIENTATION rather than by width, per `.claude/rules/tests.md`: a left rail is taller than it
-       is wide, and comparing its width against the viewport misfires. */
-    const cands = [...document.querySelectorAll('nav, .bottomnav, .sidebar')]
-      .map((el) => el.getBoundingClientRect())
-      .filter((r) => r.width > 0 && r.height > r.width);
-    return { barLeft: Math.round(bar.left), barBottom: Math.round(bar.bottom), rail: cands.length ? Math.round(cands[0].right) : null };
+      /* the nav is ONE element that becomes a left rail — discriminated by ORIENTATION rather than
+         by width, per `.claude/rules/tests.md`: a left rail is taller than it is wide, and comparing
+         its width against the viewport misfires (`.bottomnav` measures 370 at a 380 viewport). */
+      const cands = [...document.querySelectorAll('nav, .bottomnav, .sidebar')]
+        .map((el) => el.getBoundingClientRect())
+        .filter((r) => r.width > 0 && r.height > r.width);
+      const figs = document.querySelector('.bfs-figs');
+      return {
+        barLeft: Math.round(bar.left), barBottom: Math.round(bar.bottom),
+        barPainted: bar.width > 0 && bar.height > 0,
+        rail: cands.length ? Math.round(cands[0].right) : null,
+        figLeft: figs ? Math.round(figs.getBoundingClientRect().left) : null,
+      };
+    });
+
+    expect(m.barPainted, 'precondition: the bar is not painted at this width, so this measures nothing').toBe(true);
+    expect(m.rail, 'precondition: no left rail found, so this test measures nothing').not.toBeNull();
+    expect(m.barLeft,
+      'the bar is position:fixed;left:0 by default, so it runs under the nav rail — 78px of it at 640-1023, 224px from 1024').toBe(m.rail);
+    /* and the consequence, asserted separately from the cause: the figures are what the collision
+       actually swallowed, at x=16 inside a 78px rail. A left edge can be right while the content
+       inside it is not, and this is the half a user would have reported. */
+    expect(m.figLeft, 'the bar\'s figures must start clear of the rail').toBeGreaterThanOrEqual(m.rail);
+    expect(m.barBottom, 'and it must dock on the viewport floor, not against a bottom nav that is not there').toBeLessThanOrEqual(801);
   });
-  expect(m.rail, 'precondition: no left rail found at 1024, so this test measures nothing').not.toBeNull();
-  expect(m.barLeft,
-    'the bar is position:fixed;left:0 by default, which runs it under the sidebar').toBe(m.rail);
-  expect(m.barBottom, 'and it docks against a bottom nav that does not exist at this width').toBeLessThanOrEqual(801);
-});
+}

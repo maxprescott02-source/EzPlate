@@ -1131,9 +1131,18 @@ input.bld-nameinput:focus{background:var(--surface);border-color:var(--accent);b
      · **95 on UNIT COST is the price chip's own width**, and it is the floor this pass was missing
        on its first cut: at `minmax(70px,...)` the 95px chip overflowed a 79px track and collided
        with the unit noun beside it. A track floor under its content's width is not a floor.
-     Grid sizes the minmax tracks toward their maxima before the `1fr` grows, so at the narrowest
-     two-column width the name sits at its 140 while the chips are compressed, and only widens once
-     they are back at 110/110/90.
+     Grid sizes the minmax tracks toward their maxima before the `1fr` grows, so the name sits at its
+     140 while the chips are compressed, and only widens once they are back at 110/110/90.
+     ⚠️ THAT SETTLES AT ABOUT 1250, NOT AT THE WRAP BOUNDARY, AND THE FIRST DRAFT OF THIS COMMENT
+     IMPLIED OTHERWISE. Caught by 274's pre-push review, which diffed the rendered tracks against
+     `origin/main` rather than reading the rule: at **1200** this renders `140 107 110 85 40` where
+     main rendered `132 110 110 90 40`. Nothing clips - every track is above its own floor - but the
+     chips are 3px and 5px narrower than they used to be across roughly 175px of ordinary desktop
+     width, and "the narrowest two-column width" was the wrong way to describe that.
+     **It is the intended trade rather than a defect, stated so it is not re-litigated:** at 1200 the
+     docket cannot hold a 140 name AND 110/110/90 of chips (140+110+110+90+40 + 48 gaps + 32 padding
+     = 570 against a 564 docket), so something gives. This pass chose the NAME, which is item 49's
+     whole subject. At 1360 the tracks are identical to main's.
      THIS TEMPLATE AND `#lines .bld-row`'s BELOW MUST STAY IDENTICAL - they are separate grids and
      the columns only line up because the two strings match. Change one, change both. */
   .bld-band{
@@ -1219,13 +1228,27 @@ input.bld-nameinput:focus{background:var(--surface);border-color:var(--accent);b
 @media (min-width:1076px){
   .bld-bar{display:none}
 }
-/* the bar is `position:fixed;left:0` with its bottom measured against `.bottomnav`, and BOTH of those
-   assume the phone shell. From 1024 the nav is a 224px left SIDEBAR and there is no bottom bar at
-   all, so without this the bar would run under the sidebar and dock 64px up against nothing. The
-   224 is `body{padding-left:224px}`'s, duplicated here rather than tokenised because introducing a
-   shell token is shell work and the Design law keeps that out of a screen change set - the spec
-   asserts the bar's left edge against the sidebar's right edge instead, which pins the relationship
-   rather than the number. */
+/* ⚠️ THE BAR IS `position:fixed;left:0`, AND FROM 640 UP THE NAV IS A LEFT RAIL - SO IT HAS RUN
+   UNDERNEATH IT AT EVERY WIDTH THE BAR WAS EVER SHOWN AT. Two rails, not one: `.bottomnav` becomes a
+   **78px** rail at 640 and a **224px** sidebar at 1024, and `.bld-bar` has `z-index:25` against the
+   nav's 75, so the nav paints on top.
+   ⚠️ THIS IS NOT A 274 REGRESSION AND THE PRE-PUSH REVIEW SAID IT WAS. It called the collision
+   "brand-new, introduced by this change" on the grounds that the bar was hidden at >=768 before -
+   true - and did not check the band BELOW that, where the bar was already shown. Measured on an
+   `origin/main` worktree at 640, 700, 760 and 767: the bar sits at left:0 under a [0,78] rail and
+   the "Plate cost" figure renders at x=16, **entirely behind it**, on main, today.
+   So the finding's DEFECT was real and its SCOPE was the half it had not measured - `CLAUDE.md`'s
+   rule that a finding carries separable claims, arriving in the direction that understates.
+   274 widened the exposure from 640-767 to 640-1023 by showing the bar further up, and fixes the
+   whole of it rather than only the part it widened.
+   The 78 and the 224 are `body{padding-left:...}`'s own numbers, duplicated rather than tokenised
+   because introducing a shell token is shell work and the Design law keeps that out of a screen
+   change set. `tests/visual/274-builder-tablet.spec.js` asserts the bar's left edge against the
+   RAIL'S measured right edge at four widths instead, which pins the relationship rather than either
+   number, and would have caught this. */
+@media (min-width:640px) and (max-width:1023px){
+  .bld-bar{left:78px}
+}
 @media (min-width:1024px) and (max-width:1075px){
   .bld-bar{left:224px;bottom:0}
 }
