@@ -664,13 +664,18 @@ Two hints under one chart saying overlapping things. Read them together and cut 
 (9 Aug 2026) It needs the manage-menus modal to stack over the open builder and the cost panel to refresh when menus change underneath — both untested territory that was not riding a redesign batch. The panel's "On menus" list ships without it; publishing still lives one tap away on the plate card.
 **F7 rebuilds the builder as a full page and rehouses publishing, so re-read this against F7's result rather than against Q6's.**
 
-### The Cost card paints an EMPTY 16px bordered box on the phone for an unpublished plate
+### ~~The Cost card paints an EMPTY 16px bordered box on the phone for an unpublished plate~~ — **DONE, batch 271 (`ezplate-v220`), consolidated item 51**
+✅ `renderBuilderCost` puts `is-bare` on `#bCost` when the plate is on no menu — which is exactly when all four body children are hidden below 768 — and the `@media (max-width:767px)` block hides `.bld-cardbody`, in the same block as the `.bld-kv` hide it depends on. A class rather than an inline style, so the rule can still lose at 1280.
+⚠️ **THE MEASUREMENT BELOW HAD GONE STALE IN THE DIRECTION THAT WOULD HAVE DELETED TWO CONTROLS.** Re-measured at 380 before fixing: the card is **60px**, not 16, and `#bCost > h2` does not exist. 177 rebuilt it — the empty part is `.bld-cardbody` (28px of padding) and the rest is Print docket and Clear plate, which the phone has nowhere else. Hiding "the card when it has nothing to show", which is what this entry and the queue item both asked for, would have taken both buttons off the phone (§R3). The entry was right about the defect and wrong about its size, three markup revisions later.
+
 (Found 11 Aug 2026 while measuring the builder for the fill-order item, 170. **Pre-existing since F7/v146 — not introduced by that change.**)
 `#bCost` has three children and below 768 all three can be hidden at once: `@media (max-width:767px)` hides `#bCost > h2` and `#bCost .bld-kv` (the summary bar carries those two figures, §7), and `.bld-menus` is `display:none` whenever the plate is on no menu. What is left is `.bld-cardbody`'s padding inside `.bld-card`'s border.
 **Measured at 380px on an unpublished plate: height 16, `display:block`, nothing painted inside it.** Every plate is unpublished until it is saved and added to a menu, so a brand-new plate shows it every time.
 Not fixed here because it is a different screen region from the one the item scoped, and the fix is a judgement call rather than a line: hide the card when it has nothing to show (needs a JS hand, since CSS cannot see that all three children are hidden), or give the phone SOMETHING in it. Do not reach for `:has()` without checking it against the browsers the PWA actually runs in.
 
-### The plate name now appears three times on the builder page
+### ~~The plate name now appears three times on the builder page~~ — **DONE, batch 271 (`ezplate-v220`), consolidated item 51**
+✅ Twice, which is the right number: the header field and `#plateName` are the same control, and `#editTag` now says **"Editing a saved plate"** — saved-vs-new, which was always its job, in a neutral pill instead of accent-bold mono. `tests/builder-readiness.test.js` asserts the rendered text does not contain the plate's name, over a fixture whose plate is named.
+
 (Found 11 Aug 2026, same measurement. **This one IS a consequence of 170** and is recorded rather than fixed because changing the tag's copy was not in the item.)
 Header title (`#bldTitle`, added by 170 as the mock's static §3.7 title), the `#plateName` field in step 2, and `#editTag`'s "Editing: Fish & Chips" directly under it. Before 170 it was twice — the header field and the tag.
 `#editTag`'s real job is saying **saved plate vs new plate**, and the name is the part of its sentence that is now redundant three ways. `updateEditTag` is its one writer. It is a status label, not a control, so R3 does not apply, but the useful information in it should survive whatever is done.

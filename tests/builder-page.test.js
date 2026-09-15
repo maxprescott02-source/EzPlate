@@ -45,7 +45,11 @@ function savedState(opts) {
     var document={getElementById:function(id){
       if(id==='bldSaved') return S.el;
       if(id==='plateName') return {value:S.name, focus:function(){}};
-      return {value:'', style:{}, textContent:'', hidden:false, focus:function(){}};
+      /* 271: removeAttribute is part of a real element's contract and syncBuilderPlateActions now
+         uses it to clear Save's title. A stub that omits it throws on a path the browser takes
+         every time the plate becomes saveable. */
+      return {value:'', style:{}, textContent:'', hidden:false, disabled:false, title:'',
+              focus:function(){}, removeAttribute:function(a){ if(a==='title') this.title=''; }};
     }, querySelector:function(){ return {focus:function(){}}; }};
     function toast(){} function updateEditTag(){} function renderAnalysis(){} function renderPlatesTab(){}
     function clearPlateDraft(){} function logHistory(){} function logChangeIfSaved(){}
@@ -67,8 +71,10 @@ function savedState(opts) {
     ${extractVar(SRC, '_uidSeq')}
     ${extractFn(SRC, 'uidRandom')}
     ${extractFn(SRC, 'uid')}
-    var businessRole='owner';   // 188: syncBuilderPlateActions consults isOwner — staff are not offered Delete plate
+    var businessRole='owner';   // 188: syncBuilderPlateActions consulted isOwner; 255 removed the gate, the stub stays harmless
     ${extractFn(SRC, 'isOwner')}
+    ${extractFn(SRC, 'builderSaveBlocker')}
+    ${extractFn(SRC, 'builderPlateName')}
     ${extractFn(SRC, 'syncBuilderPlateActions')}
     function savePlateDraft(){}
     ${extractFn(SRC, 'setBuilderSaved')}
@@ -263,12 +269,15 @@ test('F7: Clear plate hides Duplicate and Delete, because it drops the plate id'
     var plate=[{uid:1}], loadedPlateId='SP1', menuTouched=true, uidc=2;
     var menuLinkEl={value:'MI1'};
     var document={getElementById:function(id){
-      if(!S.els[id]) S.els[id]={hidden:false, value:'x', style:{}, textContent:''};
+      if(!S.els[id]) S.els[id]={hidden:false, value:'x', style:{}, textContent:'', disabled:false, title:'',
+        removeAttribute:function(a){ if(a==='title') this.title=''; }};
       return S.els[id];
     }};
     function hideMatchPrompt(){} function updateEditTag(){} function clearPlateDraft(){} function renderPlate(){}
     var businessRole='owner';   // 188: see the other harnesses in this file
     ${extractFn(SRC, 'isOwner')}
+    ${extractFn(SRC, 'builderSaveBlocker')}
+    ${extractFn(SRC, 'builderPlateName')}
     ${extractFn(SRC, 'syncBuilderPlateActions')}
     var run=eval('(' + HANDLER + ')');
     return function(){ syncBuilderPlateActions(); return { before:{d:S.els.bldDuplicate.hidden, x:S.els.bldDelete.hidden}, run:function(){ run(); return {d:S.els.bldDuplicate.hidden, x:S.els.bldDelete.hidden}; } }; };

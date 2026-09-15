@@ -641,7 +641,13 @@ input[type=checkbox]{
    re-price control, now in the Unit-cost column), .nocost, .edit-tag,
    .flag (worn by .bld-flag), .suggest-drop, .use, .edited.
    ---------------------------------------------------------------------- */
-.edit-tag{font-size:var(--fs-sm);color:var(--accent-ink);font-weight:700;font-family:var(--mono)}
+/* 271: a NEUTRAL pill. It said "Editing: Big Breakfast" in accent-ink bold mono, which gave a
+   permanent status label the weight of an alert and printed the plate name a third time. It now says
+   only saved-or-new, so it is chrome that should read as chrome — see updateEditTag. */
+.edit-tag{
+  display:inline-flex;align-items:center;font-size:var(--fs-sm);color:var(--text2);
+  border:1px solid var(--border);border-radius:var(--radius-chip);padding:2px 9px;background:var(--surface2);
+}
 .flag{font-size:var(--fs-sm);color:var(--warn);font-family:var(--mono)}
 .pchip{
   display:inline-flex;align-items:center;gap:5px;cursor:pointer;
@@ -948,11 +954,26 @@ input.bld-nameinput:focus{background:var(--surface);border-color:var(--accent);b
    phone; both hidden would be no commit at all, so these two rules are a PAIR and neither may be
    changed alone. "On menus", the price input and the warning are NOT duplicated by the bar (which
    names only the worst menu) and stay at both widths. */
+/* 271 — #saveHint JOINS THAT PAIR AS A THIRD, and it has to: it explains why #saveBtn is disabled,
+   so leaving it visible below 768 would print a reason next to no button while the phone's real
+   Save (#bldSaveBar) sat unexplained in the sticky bar. The bar's own #bFootLine carries the
+   sentence there — one source, builderSaveBlocker, two sinks, one breakpoint, per `.claude/rules/css.md`.
+   And `.is-bare` hides a body with nothing in it: below this width `.bld-kv` is already gone, so a
+   plate on no menu leaves 28px of padding inside the card's border. renderBuilderCost sets the class
+   from `on.length`, and it is a CLASS rather than an inline style precisely so this rule can win. */
 @media (max-width:767px){
-  #bCost .bld-sumhead,#bCost .bld-kv,#bCost .bld-sumacts > #saveBtn{display:none}
+  #bCost .bld-sumhead,#bCost .bld-kv,#bCost .bld-sumacts > #saveBtn,#bCost .bld-sumacts > #saveHint{display:none}
   #bCost .bld-cardbody{padding-top:14px}
+  #bCost.is-bare .bld-cardbody{display:none}
   #bCost .bld-menus{border-top:0;padding-top:0}
 }
+/* the reason Save is refused, under the button it refers to. The invoice screen's Confirm All set
+   this pattern (a `.btn:disabled` plus a hint saying why); the condition that made it right there
+   holds here too — the button's own label cannot say what is missing.
+   ⚠️ It deliberately does NOT wear `.bld-note`, which is declared ~15 lines BELOW this and would
+   win the margin at equal specificity — the "a rule that looks right in the file and does nothing on
+   screen" family, one file over. One class, one declaration, no cascade to lose. */
+.bld-savehint{margin:8px 0 0;font-size:12px;color:var(--muted2);line-height:1.45}
 .bld-menus{display:flex;flex-direction:column;gap:6px;border-top:1px solid var(--border);padding-top:10px}
 .bld-menus-cap{font-weight:500}
 .bld-menu{display:flex;justify-content:space-between;gap:var(--sp-3);font-size:12.5px;color:var(--text2)}
@@ -997,6 +1018,10 @@ input.bld-nameinput:focus{background:var(--surface);border-color:var(--accent);b
 .bfs-total{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:17px;font-weight:600;color:var(--text)}
 .bfs-line{flex:1 1 100%;font-size:12.5px;color:var(--text2)}
 .bfs-line b{font-family:var(--mono)}
+/* 271: while this line says why Save is refused it is also the way there, so it has to LOOK like a
+   thing you can press — an undiscoverable tap target is the same as none. Underlined rather than
+   button-shaped, because a second button beside the primary is what §7 forbids. */
+.bfs-line.bfs-fix{color:var(--text);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
 /* 177: the phone's commit. `margin-left:auto` rather than a `.bfs-fig{flex:1}` so the figures keep
    their natural widths and the button hugs the right edge whether there are one or two of them. */
 .bfs-save{margin-left:auto;flex:0 0 auto;min-height:44px;padding:0 18px}

@@ -59,25 +59,58 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
-# Promoted by refill — group G4, copy and terminology
+# Promoted by refill — the working set
 
-**These came from `docs/QUEUE-2026-09-08-CONSOLIDATED.md` by promotion, per `docs/QUEUE-GROUPS.md`.** They are referenced, not copied: **the full item — mechanism, sites, acceptance, the test that pins it — is in the consolidated file under the number given, and that file is the one to read before planning.** One description, in one place.
-**When one ships, delete it here AND strike it there**, with the batch and deploy version. `skills/batch` step 10 carries the rule; the strike is what stops finished work being re-promoted.
-**Their C riders are NOT promoted** — 69, 76, 77 and 81 ride whichever batch opens their function, per `docs/MAINTENANCE.md`'s standing rule. *(25 rode 15 in batch 244 and is struck; the naming of a rider on the item it rides is what made that work, and it is the pattern to copy.)*
+**Promoted items come from `docs/QUEUE-2026-09-08-CONSOLIDATED.md`, per `docs/QUEUE-GROUPS.md`.** They are referenced, not copied: **the full item — mechanism, sites, acceptance, the test that pins it — is in the consolidated file under the number given, and that file is the one to read before planning.** One description, in one place.
+**When one ships, delete it here AND strike it there**, with the batch and deploy version — **and in `docs/QUEUE-GROUPS.md`'s `**Items:**` line too**, which is a field rather than prose. `skills/batch` step 10 carries the rule; the strike is what stops finished work being re-promoted.
+**C riders are NOT promoted** — they ride whichever batch opens their function, per `docs/MAINTENANCE.md`'s standing rule. *(25 rode 15 in batch 244 and is struck; the naming of a rider on the item it rides is what made that work, and it is the pattern to copy.)*
 
-⚠️ **Every line number in these items is a POINTER TO GREP, not a fact** — the consolidated file says so of itself, and the blind audit above is why. **Step one of each is the repro**, and "it does not reproduce" deletes the item and says so in the handover.
-*(G1's only [B — wrong number] item, 15, shipped in batch 244; what is left of the group is below. The two headings were folded into one when it went, because a section with a title and no items reads as work nobody has got to.)*
-⚠️ **This heading read "Promoted 9 Sep 2026 — group G1, the costing core" until batch 266, and the three items under it are G4's.** G1 drained, batch 261's refill promoted 57, 58 and 60 out of G4, and the heading above them went on naming the group they are not in. **A section heading is not a status field and nothing re-checks one**, which is why the current group is now DERIVED into `docs/STATE.json` by `node tools/state.js` instead: first group in `docs/QUEUE-GROUPS.md`'s order with an unstruck A or B item. Read that when the two disagree, and fix the heading.
-**The date came off the heading in the same edit.** It recorded which promotion happened to fill the file and went stale on the next one; the group is the fact worth carrying.
+⚠️ **Every line number in a promoted item is a POINTER TO GREP, not a fact** — the consolidated file says so of itself, and the blind audit above is why. **Step one of each is the repro**, and "it does not reproduce" deletes the item and says so in the handover.
+⚠️ **THE GROUP IS NO LONGER NAMED IN THIS HEADING, and that is the fix rather than an omission.** It said "group G1, the costing core" while holding G4's items, for five batches, because a section heading is not a status field and nothing re-checks one. The current group is DERIVED into `docs/STATE.json` by `node tools/state.js`: the first group in `docs/QUEUE-GROUPS.md`'s order with an unstruck A or B item. **Read it there.** *(G1, G2 and — since batch 271 — G4 are all drained of A-and-B work.)*
 
-## next  51 · Builder readiness and copy: Save is live on an empty plate, Print and Clear on an empty docket, an "Editing:" line in the accent colour, a lower-case helper, a grammar slip, and a duplicate line with no warning  **[B — the primary button says nothing about readiness and the screen disagrees with the New ingredient modal's rule]**
+**REFILLED BY BATCH 271 FROM G5** — CSS layout and responsive, whose context is `css/style.css` and `tests/visual/`: specificity-before-source-order, the `:not([hidden])` idiom, `position:fixed` containing blocks, the breakpoint map, the silent-syntax-error guard. Twelve items, in that group's stated order. **68, 75 and 85 are NOT here and are not missing: they are tier C**, and this file holds A and B only.
+⚠️ **G5 IS SIX TO NINE BATCHES, NOT ONE, AND THE RULE THAT SAYS SO IS IN THIS FILE'S OWN HEADER.** The Design law's *"one screen per change set, one PR, one review; never mix shell work with screen work"* forbids combining them — so **take ONE of these per batch** and do not be tempted by two that look adjacent. 64 is the shell item and shares a batch with nothing.
+⚠️ **AND A GREEN PRE-PUSH HOOK IS NOT A GREEN SUITE FOR ANY OF THESE.** The hook does not run Playwright and every one of these items changes whether a control exists or where it sits. Run `npx playwright test` before pushing, every time.
 
-**Full item:** consolidated item 51.
+## next  47 · One modal footer pattern: Delete left, Cancel and Save right, and the builder's two red verbs told apart  **[B]**
+**Full item:** consolidated item 47.
 
-**Promoted by batch 270's refill, and it is the LAST unstruck A-or-B item in G4** — `docs/QUEUE-GROUPS.md` lists it there as *"the copy half of 51"*, and `tools/state.js` derives G4 as still current because of this one item. When it ships, G4 is drained for promotion purposes (78 is C and rides) and the next refill opens **G5**.
-⚠️ **G4's context is COPY — the four object nouns, the verb table, the `.scr-sub` rule — and this item is not only copy.** Three of its six bullets are readiness BEHAVIOUR (`syncBuilderPlateActions`, the duplicate-line merge, the empty Cost card), which is builder logic rather than vocabulary. **Decide at execution whether the behaviour half wants its own batch and say so**; taking the copy half alone and leaving the rest is legitimate and is what the group line actually promises, but then the residue must be written back into the consolidated item rather than left implied.
-⚠️ **Every line number in the full item is a POINTER TO GREP.** Batch 270's own item was short by a factor of two and carried a citation 665 lines stale; run `premise-check` before planning, per `skills/batch` step 1.
-⚠️ **The builder is a FULL PAGE, not a modal, and leaving it is not a data risk** (`CLAUDE.md`) — the plate survives in memory and in the draft. Do not "fix" the readiness bullets into a guard that traps the user on the page.
+## next  49 · The builder between 768 and 1200 wide: side cards stack at half width, names truncate to seven characters, Save falls below the fold  **[B]**
+**Full item:** consolidated item 49.
+*(Batch 271 changed this screen — `#saveBtn` is now disabled until the plate has a name and a line, with `#saveHint` under it, and `#bCost` gains `is-bare`. Re-measure at 768–1200 rather than planning off the item's figures.)*
+
+## next  50 · Toasts land on controls: "Loaded" on Clear plate and the misc input, any toast on the builder's Save, a toast on a bottom sheet  **[B]**
+**Full item:** consolidated item 50.
+*(This is the one `docs/MAINTENANCE.md` records as "the bottom stack's OTHER pair". It was offered to batch 271 as a C rider on `renderBuilderCost` and DECLINED there: the fix is the `--install-banner-clear` mechanism pointed at a second element, which is the toast's docking rather than the builder's readiness, and mixing them would have made one PR out of two subsystems. Nothing about it moved.)*
+
+## next  53 · Edit modals hide the number the user is there to react to: the menu item form shows no cost, the product form changes the unit of thought, and money fields do not look like money  **[B]**
+**Full item:** consolidated item 53. Added to G5 by AUDIT-v217, which found it in no group at all; it sits directly beside 47's modal-footer pass.
+
+## next  54 · The add-to-menu picker lists the plates already on this menu ahead of the ones that are not, is offered when there are no menus, and sits far from the menu it applies to  **[B]**
+**Full item:** consolidated item 54. Also added to G5 by AUDIT-v217.
+
+## next  56 · Dashboard polish: the tablet drops two of three headline figures, the scope button drops its % sign, two cards do not share a bottom edge, chart annotations collide and clip, and the chart does not re-measure on resize  **[B]**
+**Full item:** consolidated item 56.
+
+## next  59 · The Invoices screen has no page inset, its privacy line hangs left of the column, and it has two identical doors with a third of the width between them  **[B]**
+**Full item:** consolidated item 59.
+
+## next  61 · Menu screen: chip words and row words disagree, pills wrap and do not truncate, the pill row and the search do not share a baseline  **[B]**
+**Full item:** consolidated item 61.
+⚠️ **One of its bullets reads "the pinned header names the menu in full", and that bullet is TRUE ON A PHONE ALREADY** — `#menuHeadSub` is the one screen that overrides `.scr-sub`'s mobile hide, at id specificity, for a stated reason. `.claude/rules/css.md` carries the measurement. Do not duplicate the name into the body on the strength of the general rule.
+
+## next  62 · Plates and Products lists: the Published column wears the action colour on most rows, and the subtitle names problems there is no filter for  **[B]**
+**Full item:** consolidated item 62.
+
+## next  63 · Settings and Account chrome: a 720px column under a full-width header hairline, theme set in three places, a manifest naming a palette the app does not use  **[B]**
+**Full item:** consolidated item 63.
+
+## next  64 · Shell and navigation: the sidebar splits the data chain across a gap, the tablet rail hides four screens behind More with room for eight  **[B]**
+**Full item:** consolidated item 64.
+⚠️ **This is SHELL work and the Design law forbids mixing it with screen work.** It shares a batch with nothing in this group.
+
+## next  65 · Empty and zero states: two primary CTAs at once, two secondaries shortened for a constraint that moved, a search ✕ on every empty field  **[B]**
+**Full item:** consolidated item 65.
 
 ---
 

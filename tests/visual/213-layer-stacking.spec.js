@@ -169,7 +169,12 @@ test('picking an option still adds the line once the layer is portaled', async (
   await page.locator('#q').click();
   await page.locator('#q').type('chip', { delay: 12 });
   await page.waitForTimeout(400);
-  await page.locator('#drop .king-opt').first().click();
+  /* ⚠️ 271: NOT `.first()`. The seeded plate is PL1, whose one line is K1, and K1 is "Chip variety 1"
+     — the first option "chip" matches alphabetically. Since 271 addKitchenLine REFUSES an ingredient
+     already on the plate, so picking that option correctly adds nothing and this spec would fail for
+     a reason that has nothing to do with portaling. Pick one the plate does not already have; the
+     duplicate rule is pinned in tests/builder-readiness.test.js, not here. */
+  await page.locator('#drop .king-opt:not([data-kid="K1"])').first().click();
   await page.waitForTimeout(400);
   const after = await page.evaluate(() => ({
     lines: document.querySelectorAll('#lines .bld-row').length,
