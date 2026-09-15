@@ -343,16 +343,18 @@ input,select,textarea{font-size:16px!important} /* stops iOS zoom-on-focus */
 button,.btn,.navbtn,input,select{min-height:44px}   /* touch targets */
 ::placeholder{color:var(--muted2);opacity:.8}
 /* 190 — ANCHORS HAD NO COLOUR RULE AT ALL, in either theme, so every one painted the UA's blue.
-   The app owned exactly three <a> elements and two of them carried a class that sets a colour
-   (.linklike, .del-link), which is why this went unnoticed: the only bare one is #bhGo, the single
-   sentence offering a brand-new cafe its first ingredient. It is the first thing that cafe reads,
-   and it read as violet-blue on the dark surface.
-   ⚠️ 272: `.del-link` IS GONE - #ed_delete is a real <button> now - so that count is two anchors,
-   one classed and one bare. The rule below is unchanged and is now MORE load-bearing, not less:
-   half the anchors in the app are the bare one this was written for. The hover paragraph below is
-   kept in full and its worked example is deliberately not rewritten to a live class, because the
-   MEASUREMENT is the evidence and re-measuring it against a different class would be inventing a
-   figure. Read it as the mechanism it names, not as a claim about a class that still exists.
+   It went unnoticed because the anchors anyone looked at carried a class that set a colour; the one
+   that did not is #bhGo, the single sentence offering a brand-new cafe its first ingredient. It is
+   the first thing that cafe reads, and it read as violet-blue on the dark surface.
+   ⚠️ NO COUNT OF ANCHORS HERE ON PURPOSE. This said "exactly three <a> elements" and was wrong when
+   it was written - `index.html` has nine, four of them classed, and the boot gate's four were never
+   in the three. 272 then EDITED THE SENTENCE AND ASSERTED A NEW WRONG NUMBER ("two anchors") while
+   deleting `.del-link`, which is this repo's most-recorded rot happening inside the fix for it; the
+   pre-push review caught it. The enumeration is deleted rather than re-counted, because it was never
+   what made the rule work - `tests/onboarding-zero.test.js` derives the live list from the markup.
+   The hover paragraph below keeps its worked example on `.del-link` even though that class is gone:
+   the MEASUREMENT is the evidence, and re-pointing it at a class nobody measured would be inventing
+   a figure. Read it as the mechanism it names, not as a claim about a class that still exists.
    Written as a BASE rule rather than #bhGo's own, because nothing in this sheet has ever spoken
    about anchors — an id rule would fix this link and leave the next one blue.
    Specificity is 0-0-1, so both classed anchors keep winning; each sets `color` explicitly.

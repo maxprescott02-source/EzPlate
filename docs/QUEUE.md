@@ -72,8 +72,9 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 ⚠️ **G5 IS SIX TO NINE BATCHES, NOT ONE, AND THE RULE THAT SAYS SO IS IN THIS FILE'S OWN HEADER.** The Design law's *"one screen per change set, one PR, one review; never mix shell work with screen work"* forbids combining them — so **take ONE of these per batch** and do not be tempted by two that look adjacent. 64 is the shell item and shares a batch with nothing.
 ⚠️ **AND A GREEN PRE-PUSH HOOK IS NOT A GREEN SUITE FOR ANY OF THESE.** The hook does not run Playwright and every one of these items changes whether a control exists or where it sits. Run `npx playwright test` before pushing, every time.
 
-## next  47 · One modal footer pattern: Delete left, Cancel and Save right, and the builder's two red verbs told apart  **[B]**
-**Full item:** consolidated item 47.
+## next  47 · The builder's two red verbs: "Clear plate" sits beside "Delete plate" and they mean different things  **[B]**
+**Full item:** consolidated item 47 — **and FOUR of its five bullets shipped in batch 272 (`ezplate-v221`).** The modal-footer pattern, the Done buttons, `.del-link` and `.use` are done; what is left is this one bullet, which is builder-screen work rather than modal work and was split out for that reason rather than dropped.
+⚠️ **272 measured the corrections into the consolidated item — every line number in this bullet was wrong, and the SCREEN moved under it in batch 271.** `#clearBtn` is now disabled by `syncBuilderPlateActions` when there is nothing to clear, and on a phone it is one of only two controls `#bCost` still carries. Read the item's own warning before planning, and re-measure at 380.
 
 ## next  49 · The builder between 768 and 1200 wide: side cards stack at half width, names truncate to seven characters, Save falls below the fold  **[B]**
 **Full item:** consolidated item 49.

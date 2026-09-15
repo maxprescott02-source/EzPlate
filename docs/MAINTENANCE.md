@@ -642,7 +642,10 @@ Struck rather than deleted so the decision is visible where the question was ask
 ### The publish dialog and the Menu row print the same ratio at different precision
 Whole-number % vs one decimal (HANDOVER-125). Same `cost/price` ratio, two displays — align them or record the split as deliberate at both sites.
 
-### Two more sub-44 touch targets the R5/R6 audit rows never named
+### ~~Two more sub-44 touch targets the R5/R6 audit rows never named~~ — **DONE, batch 272 (`ezplate-v221`), consolidated item 47**
+✅ `.use` reaches 44 effective through an `::after` extension, probed with a real hit test in `tests/visual/v192-touch-targets.spec.js`. `.del-link` did not need a treatment: it was worn by exactly one element, and that element is now a `.btn` in the modal footer, where `.mfoot .btn{min-height:40px}` and a modal footer is not a ≤767 tap surface.
+⚠️ **The entry's own warning was checked and does NOT apply to `.use`**: the ~1px-per-edge shortfall is a property of a BORDERED element, whose pseudo is laid against the padding box. `.use` is `border:0`, so ±4 is ±4, and the probe is at the full depth rather than a softened one.
+
 Found by batch 233 while doing R5+R6, out of that step's scope (Max's plan enumerated the rows).
 `.use` ("Use this name", king wizard rows) is `min-height:36px`; `.del-link` ("Delete item", edit modal) measures ~37px with its existing 10px padding.
 Both clear WCAG 2.5.8's 24px floor, so this is polish, not a violation.

@@ -88,6 +88,27 @@ test('190: the anchor rule stays WEAKER than every classed anchor, each of which
       'decides it, which is the thing 190 fixed');
     checked++;
   }
+  /* ⚠️ THE DERIVED LOOP ABOVE IS NOT ENOUGH ON ITS OWN, and the 272 pre-push review caught the gap
+     in the rewrite rather than in the original. It `continue`s past a class with no own-name rule -
+     correctly, because `.privacy-open` is coloured by ancestor selectors and competes for nothing by
+     name - but that same `continue` fires when a rule is DELETED. So deleting `.linklike{...}`
+     outright, which is the exact regression 190 exists to prevent, would have left this green.
+     Hence a literal floor as well: the classes that colour themselves BY NAME today. Both halves are
+     needed and they fail for different reasons.
+     ⚠️ AND WHEN THIS LINE GOES RED, READ WHICH OF THE TWO HAPPENED before editing it. The original
+     list named `.del-link`, 272 deleted that element, and the right response was to remove that ONE
+     literal - not, as the first cut of this rewrite did, to remove the floor and lose the guard. A
+     class that legitimately disappears comes off the list; a class that stops setting a colour is
+     the defect this test is for. */
+  const SELF_COLOURED = ['linklike'];
+  for (const cls of SELF_COLOURED) {
+    assert.ok(classed.has(cls),
+      `no <a> wears .${cls} any more — if that is deliberate, take it off SELF_COLOURED; if it is ` +
+      'not, an anchor lost the class that gives it its colour');
+    const m = CSS_CODE.match(new RegExp('\\.' + cls + '\\s*\\{([^}]*)\\}'));
+    assert.ok(m, `.${cls}'s own rule is gone, so the bare anchor rule now decides its colour`);
+    assert.match(m[1], /color\s*:/, `.${cls} must set its own colour`);
+  }
   /* Roster 205: a loop that asserts nothing is silently satisfied when it has nothing to iterate,
      and this one iterates over a grep of another file. */
   assert.ok(checked >= 1, `no classed anchor was checked at all (found classes: ${[...classed].join(', ') || 'none'})`);
