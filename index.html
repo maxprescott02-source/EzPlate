@@ -102,7 +102,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=221">
+<link rel="stylesheet" href="css/style.css?v=222">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -474,9 +474,18 @@
                  the one source; the phone's copy of this sentence is #bFootLine, because #saveBtn
                  and this line both hide below 768 (see the @media pair on #bCost). -->
             <p class="bld-savehint" id="saveHint" hidden></p>
+            <!-- 273 — "Start over", NOT "Clear plate", and it STAYS IN THIS ROW. Queue item 47 asked
+                 for the rename and for the button to move into the docket header; the rename and the
+                 red coming off (see css/style.css, where #clearBtn's --bad rules are deleted) are
+                 what fixed the defect, and the move is deliberately NOT taken. Measured at 380:
+                 `.bld-mast` is 322px of 11px mono with `white-space:nowrap;overflow:hidden` already
+                 holding a title and #dCount, so a 44px control there clips one of them or breaks the
+                 touch target; and below 768 this row is the ONLY thing #bCost still shows, so moving
+                 Clear out leaves a bordered card containing one button. The two verbs were 402px
+                 apart at 1360 already - distance was never what made them read alike. -->
             <div class="bld-actrow">
               <button class="btn" id="printBtn" type="button">Print docket</button>
-              <button class="btn" id="clearBtn" type="button">Clear plate</button>
+              <button class="btn" id="clearBtn" type="button">Start over</button>
             </div>
           </div>
         </section>
@@ -1942,7 +1951,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=221"></script>
+<script src="js/app.js?v=222"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —

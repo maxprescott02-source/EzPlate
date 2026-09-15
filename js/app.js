@@ -2667,6 +2667,10 @@ function renderBuilderPublish(sp, on){
 
 // v82: explicit discard clears the draft. F7 (v146): it also drops loadedPlateId, so the two
 // saved-plate-only rail controls have to follow it - see syncBuilderPlateActions.
+// 273: the button reads "Start over" and is no longer painted --bad. THE BEHAVIOUR IS UNCHANGED and
+// the label is the more honest description of it: this wipes the lines, the name, the menu link and
+// loadedPlateId, which is a blank builder rather than an operation on a plate. The saved plate, if
+// one was loaded, is untouched on the server - which is why --bad went to #bldDelete alone.
 document.getElementById('clearBtn').addEventListener('click',function(){plate=[];document.getElementById('plateName').value='';menuLinkEl.value='';loadedPlateId=null;menuTouched=false;hideMatchPrompt();updateEditTag();syncBuilderPlateActions();clearPlateDraft();renderPlate();});
 // v60 item 3: ONE docket renderer, shared by the builder's Print button and the plate card's Print
 // docket action (load-then-print not needed \u2014 it prints straight from the passed lines). "lines" are
@@ -9408,7 +9412,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v221';
+var APP_VERSION='v222';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -11547,7 +11551,8 @@ function setBuilderSaved(on){
 }
 /* F7 (v146) — ONE owner for the two controls that only mean anything on a SAVED plate.
    ⚠️ It must be called from every path that changes `loadedPlateId`, not just the ones that open
-   the page. The F7 pre-push review found the gap: "Clear plate" is the app's explicit discard, it
+   the page. The F7 pre-push review found the gap: #clearBtn ("Start over" since 273, "Clear plate"
+   when this was written) is the app's explicit discard, it
    sets loadedPlateId=null, and it is nowhere near openBuilder - so both buttons stayed visible and
    both became silent no-ops (duplicateCurrentPlate returns on `if(!sp)`, the delete handler is
    gated on loadedPlateId). A visible control that does nothing is exactly what §R4 forbids, and
@@ -11595,10 +11600,12 @@ function focusBuilderBlocker(){
 /* 271 — ONE owner for the builder's action controls, extended from the two below.
    Save is disabled until the plate has a name and a line, which is the rule #kingModalSave has
    followed since the New ingredient modal shipped; Print is disabled on an empty docket, because a
-   docket with no lines prints "Untitled plate · 0 ingredients"; and Clear is disabled only when
-   there is NOTHING to clear. Clear is deliberately NOT keyed on plate.length alone: it also drops
-   the name, the menu link and loadedPlateId, so a typed name with no lines is still work to
-   discard, and disabling it there would strand the user with a name they could not get rid of. */
+   docket with no lines prints "Untitled plate · 0 ingredients"; and #clearBtn ("Start over") is
+   disabled only when there is NOTHING to discard. It is deliberately NOT keyed on plate.length
+   alone: it also drops the name, the menu link and loadedPlateId, so a typed name with no lines is
+   still work to discard, and disabling it there would strand the user with a name they could not
+   get rid of. That three-part condition is exactly what the label now says - "start over" is true
+   of a named-but-empty builder, which "clear plate" was not. */
 function syncBuilderPlateActions(){
   var on=!!loadedPlateId;
   var dup=document.getElementById('bldDuplicate'); if(dup) dup.hidden=!on;
