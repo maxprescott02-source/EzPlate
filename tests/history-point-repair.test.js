@@ -24,7 +24,7 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
-const { loadApp, extractFn, extractVar } = require('./_extractfn');
+const { loadApp, extractFn, extractVar, dateKit } = require('./_extractfn');
 
 const SRC = loadApp();
 
@@ -37,6 +37,7 @@ function build(ph, mh, ml) {
     ${extractVar(SRC, 'FOOD_COST_SANE_MAX')}
     ${extractFn(SRC, 'ptMs')}
     ${extractFn(SRC, 'badHistoryPoints')}
+    ${dateKit(SRC)}
     ${extractFn(SRC, 'historyPointScopeLabel')}
     ${extractFn(SRC, 'historyPointWhen')}
     ${extractFn(SRC, 'historyPointLabel')}

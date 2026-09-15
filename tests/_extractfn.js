@@ -139,4 +139,18 @@ function noComments(src, ...styles) {
         : /<!--[\s\S]*?-->/g, kind === 'line' ? '$1' : ''), src);
 }
 
-module.exports = { loadApp, extractFn, extractVar, sliceBetween, noComments, APP_PATH };
+/* dateKit(src) — the app's date primitives as one slice, for any sandbox whose code prints a date.
+ *
+ * Batch 270 folded eight date renderers into `fmtDate`, so four existing harnesses that had each
+ * extracted a different date helper now all need the SAME four declarations. One list here rather
+ * than four copies, for the reason `_extractfn.js` itself exists: the copies drift, and a sandbox
+ * missing one of them fails with `ReferenceError` rather than a wrong date, which is at least loud.
+ *
+ * ⚠️ ORDER MATTERS FOR `MON3` AND ONLY FOR `MON3`. The three functions are declarations and hoist;
+ * `var MON3` hoists as `undefined` and is assigned in source order, so it must come first or a
+ * sandbox that calls fmtDateAbs during its own setup reads `undefined[8]`. */
+function dateKit(src) {
+  return [extractVar(src, 'MON3'), extractFn(src, 'dateMs'), extractFn(src, 'fmtDateAbs'), extractFn(src, 'fmtDate')].join('\n');
+}
+
+module.exports = { loadApp, extractFn, extractVar, sliceBetween, noComments, dateKit, APP_PATH };

@@ -13,7 +13,7 @@
  */
 const test = require('node:test');
 const assert = require('node:assert');
-const { loadApp, extractFn } = require('./_extractfn');
+const { loadApp, extractFn, dateKit } = require('./_extractfn');
 
 const SRC = loadApp();
 
@@ -36,6 +36,7 @@ function chart(opts) {
     function dashRangePts(series){ return series ? series.slice() : PTS; }   // v115: the scoped chart passes the menu's own series
     function esc(s){ return (s==null?'':String(s)); }
     ${extractFn(SRC, 'ptMs')}
+    ${dateKit(SRC)}
     ${extractFn(SRC, 'fmtTargetPct')}
     ${extractFn(SRC, 'tcTangents')}
     ${extractFn(SRC, 'tcPath')}
@@ -62,7 +63,20 @@ function chart(opts) {
 }
 
 const DAY = 86400000;
-const now = Date.now();
+/* ⚠️ LOCAL NOON TODAY, NOT Date.now(), and every fixture in this file is derived from it.
+   (docs/MAINTENANCE.md, "One unit test fails for 60 seconds a day", caught live at 23:59:53 on
+   10 Aug 2026 — three runs, three failures, passing a minute later.)
+   The clustering test below builds two entries 60 seconds apart and asserts they land on ONE
+   marker. trendMarkers keys on the LOCAL CALENDAR DAY, which is right — a café's day is a local
+   day — so a module loaded in the last minute before midnight put its two entries on different
+   dates and the assertion failed. A ~0.07% window, and the app was never wrong.
+   Noon is the furthest a fixed time of day can be from either edge, so an offset of N days from it
+   is N calendar days in every timezone and on both sides of a DST transition. Anchoring here
+   rather than at each site is what covers the whole file, which is what that entry asked for.
+   ⚠️ Do NOT "fix" this class by keying the app on UTC — that is a real behaviour change to serve
+   a test. */
+const _n = new Date();
+const now = new Date(_n.getFullYear(), _n.getMonth(), _n.getDate(), 12, 0, 0).getTime();
 // Ten daily readings ending today. `make(vals)` spaces them a day apart.
 function series(vals) {
   return vals.map((v, i) => ({ t: now - (vals.length - 1 - i) * DAY, v }));

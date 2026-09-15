@@ -29,7 +29,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { loadApp, extractFn } = require('./_extractfn');
+const { loadApp, extractFn, dateKit } = require('./_extractfn');
 
 const APP = loadApp();
 const DAY = 86400000;
@@ -46,7 +46,25 @@ function harness(opts) {
     var changeLog=LOG;
     var savedPlates=PLATES;
     var _now=NOW;
-    var Date={ now:function(){ return _now; } };
+    /* 270: this was a bare object with a now() on it, which was enough while the only thing the
+       sandbox asked the clock was Date.now(). fmtDate also constructs a Date to reach the local
+       calendar day, and a bare object is not constructible — so the shim delegates to the real
+       constructor and overrides only the reading of "now". Kept as a shim rather than removed
+       because the frozen clock is what makes every threshold assertion below deterministic.
+       NO BACKTICKS IN THIS COMMENT — see the esc note below; one ends the template literal. */
+    /* ⚠️ globalThis.Date, NOT Date. The var below hoists to the top of this sandbox as undefined,
+       so capturing plain Date here captures undefined and every construction throws — the same
+       hoisting rule app-guards.md records for duplicate top-level vars, met from the other side. */
+    var _RealDate=globalThis.Date;
+    /* ⚠️ EVERY argument is forwarded, and that is not defensive padding. fmtDate reaches the local
+       calendar day with the THREE-argument form; a shim taking only the first turned
+       new Date(2026, 8, 14) into the epoch plus 2026 milliseconds, both midnights collapsed to the
+       same instant, and "yesterday" came back "today" — a stub that mirrors a real function has to
+       mirror its contract, tests.md's oldest rule, and an arity IS the contract. */
+    var Date=class extends _RealDate {
+      constructor(){ if(arguments.length) super(...arguments); else super(_now); }
+      static now(){ return _now; }
+    };
     function money(n){ return '$'+Number(n).toFixed(2); }
     function sinceLineHtml(){ return '<p class="since"></p>'; }
     /* esc is EXTRACTED, not stubbed. The first draft of this file stubbed it as String(s) and the
@@ -54,9 +72,10 @@ function harness(opts) {
        esc that disagreed with the shipped one, twice, once missing the closing angle bracket
        entirely. CLAUDE.md's remedy is this line.
        NO BACKTICKS IN THIS COMMENT - it sits inside a template literal, and one would end it. */
-    ${['esc', 'dashRangeCutoff', 'changeName', 'changeKindWord', 'recentChangeRows', 'relDayLabel', 'recentChangesHtml']
+    ${dateKit(APP)}
+    ${['esc', 'dashRangeCutoff', 'changeName', 'changeKindWord', 'recentChangeRows', 'recentChangesHtml']
       .map((n) => extractFn(APP, n)).join('\n')}
-    return { rows:recentChangeRows, html:recentChangesHtml, rel:relDayLabel, name:changeName,
+    return { rows:recentChangeRows, html:recentChangesHtml, rel:fmtDate, name:changeName,
              cutoff:dashRangeCutoff };
   `)(opts.now || 1e12, opts.log || [], opts.plates || [], opts.range || '3m');
 }
@@ -149,16 +168,35 @@ test('an entry with an unusable timestamp is dropped rather than sorted unpredic
 
 /* ------------------------------------------------------------------ how it reads */
 
-test('relative dates, because the row answers "how stale is this"', () => {
+/* ⚠️ REWRITTEN AT BATCH 270, NOT DELETED TO GO GREEN, AND THE OLD ASSERTIONS ARE WORTH READING.
+   This pinned relDayLabel, which counted "3 weeks ago" and "4 months ago" out to any age. Item 60
+   folded every date in the app into fmtDate: relative under seven days, then the date itself. So
+   "21 days ago" and "4 months ago" are gone and a real date stands in their place — the row still
+   answers "how stale is this", it just stops being the only screen that answers it in weeks.
+   The clock is frozen at NOW, and the fixtures are built BACKWARD FROM LOCAL MIDNIGHT rather than
+   from a raw offset, because fmtDate counts calendar days: 1e12 is 11:46am in this repo's timezone
+   and an offset of exactly 2*DAY from a different local time of day would land on a different
+   answer in a different timezone. Same fragility docs/MAINTENANCE.md records against
+   tests/trend-reframe.test.js, avoided at the point of writing rather than found at midnight. */
+test('under seven days it is relative; from seven it is the date (item 60)', () => {
   const { rel } = harness({});
-  const ago = (ms) => rel(1e12 - ms);
-  assert.strictEqual(ago(2 * 3600000), 'today');
-  assert.strictEqual(ago(1.2 * DAY), 'yesterday');
-  assert.strictEqual(ago(5 * DAY), '5 days ago');
-  assert.strictEqual(ago(21 * DAY), '3 weeks ago');
-  assert.strictEqual(ago(7 * DAY), '7 days ago', 'a week still reads in days until the fortnight');
-  assert.strictEqual(ago(120 * DAY), '4 months ago', 'and months once weeks stop being readable');
-  assert.ok(!/NaN|Infinity|undefined/.test([1, 8, 15, 40, 90, 400].map((d) => ago(d * DAY)).join(' ')));
+  const NOON = new Date(2026, 8, 15, 12, 0, 0).getTime();       // 15 Sep 2026, local noon
+  const at = (daysBack, hour) => new Date(2026, 8, 15 - daysBack, hour == null ? 12 : hour, 0, 0).getTime();
+  const ago = (daysBack, hour) => rel(at(daysBack, hour), NOON);
+
+  assert.strictEqual(ago(0), 'today');
+  assert.strictEqual(ago(0, 1), 'today', 'still today at 1am — the boundary is the calendar day');
+  assert.strictEqual(ago(1, 23), 'yesterday', 'eleven hours ago is YESTERDAY, which elapsed hours got wrong');
+  assert.strictEqual(ago(2), '2 days ago');
+  assert.strictEqual(ago(6), '6 days ago', 'the last relative day');
+  assert.strictEqual(ago(7), '8 Sep 2026', 'seven is the switch, and it is the date rather than a week');
+  assert.strictEqual(ago(21), '25 Aug 2026', 'no more "3 weeks ago"');
+  assert.strictEqual(ago(400), '11 Aug 2025', 'and the year is always there, so two Augusts differ');
+
+  // The device must not get a vote: this is the string on every phone, not the locale's idea of one.
+  assert.strictEqual(rel(new Date(2026, 8, 8, 12).getTime(), NOON), '8 Sep 2026',
+    'Sep, never the four-letter "Sept" en-AU and en-GB render — that is the defect item 60 names');
+  assert.ok(!/NaN|Infinity|undefined/.test([1, 8, 15, 40, 90, 400].map((d) => ago(d)).join(' ')));
 });
 
 test('the empty state names the week only at the range where that is true', () => {
