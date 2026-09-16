@@ -26,7 +26,7 @@ Ranked by consequence. Each verified against the code.
 
 **b. `analyze().absPct` has no reader in the app, and queue item 99 is built on it having one.** `absPct` appears at `js/app.js:3703`, `:3705`, `:3710` and nowhere else; the only other hits are in `tests/menu-margin.test.js`. `docs/MAINTENANCE.md:580` and consolidated item 76 both already say it lost its last reader in v122. Item 99 — written a week ago, currently `next` — sends a batch looking for a third printed percentage that does not exist.
 
-**c. `menusList` has FOUR writers, not three.** `CLAUDE.md` and `.claude/rules/app-data.md` both say *"Three writers… If you add a fourth, this is what it owes."* The fourth is `rollbackMenuDelete` (`js/app.js:15156`), added by batch 254. **The invariant is not violated** — it restores a menu the server still holds — but the count is the exact "exactly N" form both files tell you to grep rather than believe.
+**c. `menusList` has FOUR writers, not three.** `CLAUDE.md` and `.claude/rules/app-data.md` both say *"Three writers… If you add a fourth, this is what it owes."* The fourth is `rollbackMenuDelete` (declared `js/app.js:15146`; its `menusList` write is the `splice` at `:15156`), added by batch 254. **The invariant is not violated** — it restores a menu the server still holds — but the count is the exact "exactly N" form both files tell you to grep rather than believe.
 
 **d. `cafeCost_env` is a third localStorage category and `CLAUDE.md` says there is no third category.** `ENV_STAMP_KEY` at `js/app.js:43`, survived by name in `purgeLocalState`'s keep-list. Not a view preference, not a derived cache, not the plate draft. Known — consolidated item 78, `docs/MAINTENANCE.md:1134` — and unfixed.
 

@@ -23,7 +23,7 @@ EzPlate is a plate/menu-costing PWA for a real cafe ("Scoopy's Family Cafe"). Th
 | `.claude/rules/invoice.md` | `js/app.js` | the parser region and its two anchor literals · the corpus · review-render invariants · auto-tick · taught packs · supplier renames |
 | `.claude/rules/sql.md` | `supabase/**` | column DEFAULTs and the restore · DEFAULT vs BEFORE trigger · cross-tenant FKs · `as restrictive` · `anon` and `revoke … from public` · `create or replace` · `ON CONFLICT` · the client's role vs the MCP's · who may delete what |
 | `.claude/rules/css.md` | `css/style.css` | `@media` specificity · the `:not([hidden])` guard · `position:fixed` containing blocks · offsets on a static box · a silent syntax error |
-| `.claude/rules/tests.md` | `tests/**`, `.github/workflows/**` | the 22-incident roster of tests that could not fail · the mutation gate · viewport-geometry assertions |
+| `.claude/rules/tests.md` | `tests/**`, `.github/workflows/**` | the roster of tests that could not fail (**no count here on purpose** - it said 22 against 24 until AUDIT-v227, and `.claude/rules/tests.md` already records that its own number is not a census) · the mutation gate · viewport-geometry assertions |
 | `.claude/rules/api.md` | `api/**` | the server functions · the money/number law · untrusted model output |
 | `docs/rules/process.md` | nothing - read it by hand | the full record behind every Tier 3 rule below, and the full text of anything compressed here |
 
