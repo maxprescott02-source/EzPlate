@@ -15484,10 +15484,17 @@ function openMenuEdit(id){
 
    ⚠️ IT RENDERS THE EXISTING FIGURES, IT DOES NOT COMPUTE ANY. `menuMarginPreview` is the pure
    function the publish dialog already uses and it wraps `analyze()`, which is where the green/amber/
-   red rule lives — so this modal, the publish dialog, the builder's docket verdict and the Menu row
-   cannot disagree about the same dish. The queue item said to render rather than recompute and was
-   RIGHT about that while naming the wrong function: it credited `publishPlan`, which returns
+   red rule lives — so this modal, the publish dialog and the builder's docket verdict cannot
+   disagree about the same dish. The queue item said to render rather than recompute and was RIGHT
+   about that while naming the wrong function: it credited `publishPlan`, which returns
    `{action, existingId, unlinked}` and no figure at all.
+   ⚠️ THAT CLAIM IS SCOPED TO THE `cost>0` FAMILY AND AN EARLIER DRAFT SAID "AND THE MENU ROW",
+   WHICH IS A WIDER CLAIM THAN IT CAN CARRY (277's pre-push review). The Plates library's
+   `plateCostText` gates on `plateFullyCosted` — `miss===0` and a line count — rather than on
+   `cost>0`, so a plate whose only line is a misc cost of exactly $0.00 reads "$0.00" there and
+   "not costed" here. Pre-existing, reachable only through that one shape, and filed in
+   `docs/MAINTENANCE.md`; named here because the next reader of this comment would otherwise
+   inherit an absolute that is not true.
 
    ⚠️ AND IT REFUSES TO PRICE A PLATE IT CANNOT FULLY COST, which is 222's rule and the reason this
    reads `costDetail` rather than `costFromLines`. A plate with one uncostable line has a TOTAL that

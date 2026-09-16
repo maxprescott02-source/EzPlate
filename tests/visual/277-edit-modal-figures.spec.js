@@ -132,11 +132,21 @@ test('an uncosted plate says "not costed" and prices nothing', async ({ page }) 
 });
 
 /* U22's third field. The builder's misc input is rendered by innerHTML on every structural change,
-   so it is padded in the MARKUP rather than by a listener — and the risk of doing it there is that
-   a rebuild lands mid-keystroke and rewrites what is being typed. `setMiscCost` calls updateTotals,
-   which calls renderBuilderCost and NOT renderPlate, so the row survives; this is what proves it,
-   because reading the call graph is what a wrong version of this change would also have done. */
-test('the builder misc cost pads on render and is NOT rewritten while it is being typed', async ({ page }) => {
+   so it is padded in the MARKUP rather than by a listener.
+   WHAT THIS TEST PROVES, stated narrowly on purpose: typing in the field does not rebuild the field.
+   `setMiscCost` calls `updateTotals`, which calls `renderBuilderCost` and NOT `renderPlate`, so the
+   row survives its own keystrokes — which is the path padding could plausibly have broken.
+   ⚠️ IT DOES NOT PROVE THE FIELD IS SAFE FROM EVERY REBUILD, AND AN EARLIER DRAFT OF THIS COMMENT
+   SAID IT DID. (277's pre-push review, which went looking for exactly that overclaim.) `renderPlate`
+   is also called from `bootstrapSync`, which `.claude/rules/app-guards.md` records as re-run by the
+   `online` listener whenever the connection returns. Measured by calling `renderPlate()` directly
+   with the field focused mid-edit: the node is REPLACED, `document.activeElement` moves off it, and
+   the input re-renders from the stored value.
+   **That hazard predates this change** — the innerHTML rebuild has always worked this way and only
+   the padding is new — so it is recorded in `docs/MAINTENANCE.md` rather than fixed here. The point
+   of saying so is that a comment claiming "proved safe" is worse than no comment: it tells the next
+   reader the question has been settled when only half of it has. */
+test('the builder misc cost pads on render and is NOT rewritten by its OWN keystrokes', async ({ page }) => {
   await boot(page, 380);
   await page.evaluate(() => window.showTab('builder'));
   await page.locator('#plateList .plib-row').first().click();
