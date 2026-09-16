@@ -72,6 +72,22 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 ⚠️ **G5 IS SIX TO NINE BATCHES, NOT ONE, AND THE RULE THAT SAYS SO IS IN THIS FILE'S OWN HEADER.** The Design law's *"one screen per change set, one PR, one review; never mix shell work with screen work"* forbids combining them — so **take ONE of these per batch** and do not be tempted by two that look adjacent. 64 is the shell item and shares a batch with nothing.
 ⚠️ **AND A GREEN PRE-PUSH HOOK IS NOT A GREEN SUITE FOR ANY OF THESE.** The hook does not run Playwright and every one of these items changes whether a control exists or where it sits. Run `npx playwright test` before pushing, every time.
 
+## next  project-audit · The version has advanced 10 since the last audit
+
+**Trigger, and it is derived rather than remembered:** the newest `docs/audits/AUDIT-vNN.md` is **v217**; `sw.js` is **v227**. `skills/batch` step 10 puts this item above every unblocked one at a gap of 10 or more, and the deploy version increments about once per batch, so the version IS the counter.
+
+Run the `project-audit` agent. It is read-only and hands the report back rather than saving it — **YOU file it**, to `docs/audits/AUDIT-v227.md`, at the version it audited. An unfiled report leaves the counter unchanged and the next audit never gets queued, which is the one way this mechanism fails silently.
+
+**What it is for:** every documented claim re-checked against the code, contradictions between decisions taken in different batches, dead traps worth deleting, and follow-ups that were flagged and never done.
+**Its findings default to tier C** and land in `docs/MAINTENANCE.md`; one reaches `docs/QUEUE.md` only by passing the tier test in this file's header. `project-audit` reports, it does not add queue items.
+
+⚠️ **Worth pointing at these five in particular, because this run of batches touched them and each left something behind:**
+- the **bottom stack** now has four publishers and a three-link chain (275, 276) — `--install-banner-clear`, `--bld-bar-clear`, `--sheet-foot-clear`, `--sync-banner-clear`. Four variables and four readers is the point at which a shared accumulator starts being the smaller mechanism, and 276's handover says so.
+- **`.claude/rules/tests.md` grew a rule about pipelines eating exit codes** (278), after four runs in one session reported green while specs failed. Check whether anything else in the repo reads a test result through a pipe.
+- **`docs/MAINTENANCE.md` gained four entries in five batches** (the sync-banner pair, the misc-input rebuild, the zero-cost plate divergence, the 1024-1059 wrap). That file's own header warns about append-only growth.
+- **the Chromium segfault is on its eighth occurrence and its second on Playwright 1.62.1.** The entry now says to count per version; check whether that is still the right threshold.
+- **items 98 and 99** were split out of 53 and **54's own bullets included one already fixed four batches earlier and one naming a control that has never existed.** Consolidated-file entries are drifting from the code faster than they are being run.
+
 ## next  98 · New product and Edit product ask for different things, so a pack reopens as a per-unit price with an empty pack  **[B]**
 
 Problem: the two forms think in different units. **New product** (`#modal`, `index.html:1341`) asks pack size + pack unit + pack price and derives the unit cost into `#f_calc`. **Edit product** (`#ingModal`, `index.html:1695`) asks unit type (a `<select>` that is `disabled`), price per unit, and pack size as an OPTIONAL afterthought.
