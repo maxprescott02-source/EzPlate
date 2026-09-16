@@ -324,12 +324,19 @@ function setSync(state){
      \u2014 working offline" \u2014 both halves false \u2014 one pill's width from a full-screen message saying no
      data has been lost. Two messages telling the user different stories is worse than either alone,
      and the wrong one is the one that mentions losing things. Found by driving it, not by a test. */
-  if(state==='none'){ clearTimeout(el.__t); el.hidden=true; return; }
+  /* 97 \u2014 EVERY PATH THAT CHANGES WHETHER THIS PILL IS ON SCREEN REPUBLISHES ITS CLEARANCE, and
+     there are three of them: 'none', the ok auto-hide 1400ms later, and every other state. The
+     pill is sized by its TEXT (87 "Saved" through 273 "Can't reach server"), so its reach changes
+     with the state and not only with its presence. Missing the hide paths is the failure this
+     mechanism's own comments keep naming: a stale clearance for an element that has left the
+     screen, which reads as a design choice rather than a bug. */
+  if(state==='none'){ clearTimeout(el.__t); el.hidden=true; publishSyncBannerClear(); return; }
   var map={loading:'Loading latest data\u2026', saving:'Saving\u2026', ok:'Saved',
            offline:"Offline \u2014 changes won't save", error:"Can't reach server \u2014 working offline"};
   el.textContent=map[state]||''; el.setAttribute('data-state',state||''); el.hidden=false;
   clearTimeout(el.__t);
-  if(state==='ok'){ el.__t=setTimeout(function(){ el.hidden=true; }, 1400); }
+  if(state==='ok'){ el.__t=setTimeout(function(){ el.hidden=true; publishSyncBannerClear(); }, 1400); }
+  publishSyncBannerClear();
 }
 function online(){ return !!SUPA && navigator.onLine; }
 function errText(err){ return (err && (err.message||err.error_description||err.error||err.details||err.hint||err.code)) || 'unknown error'; }
@@ -9419,7 +9426,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v224';
+var APP_VERSION='v225';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -11022,13 +11029,73 @@ function publishBldBarClear(){
      banner ("a `.toast{bottom:171px}` written flat would pass every assertion above"). The banner
      can key on a class it removes; this bar hides four different ways (an empty docket, leaving the
      builder page, >=1100, a tab change), so the honest signal is its own measured height. */
-  if(!h){ document.documentElement.style.setProperty('--bld-bar-clear','0px'); return; }
+  if(!h){ document.documentElement.style.setProperty('--bld-bar-clear','0px'); publishSyncBannerClear(); return; }
   var dock=parseFloat(getComputedStyle(bar).bottom)||0;
   /* Same expression as the banner's, for the same reason: the used `bottom` of a fixed element has
      already resolved its own calc(), so env(safe-area-inset-bottom) is INSIDE this number and a
      reader must not add it back. */
   document.documentElement.style.setProperty('--bld-bar-clear', Math.ceil(dock+h)+'px');
+  /* 97 — THE STACK IS A CHAIN, NOT A FLAT LIST, AND THIS LINE IS THE LINK. The sync pill's own
+     `bottom` at >=1024 READS `--bld-bar-clear`, so changing the bar's clearance moves the pill, and
+     the pill's reach is what the toast above it clears. Publishing the bar without republishing the
+     pill leaves the toast docked against where the pill used to be. Order matters and is the whole
+     reason this is a call rather than two independent listeners. */
+  publishSyncBannerClear();
 }
+
+/* THE SYNC PILL, the third link. It is the one element on this stack whose size is pure TEXT: the
+   five states measure 87 / 99 / 176 / 230 / 273 wide, and the two that NEVER auto-dismiss are the
+   two widest, so the worst case is also the permanent one (css/style.css §H measured all five).
+   ⚠️ IT ONLY REACHES UP FROM THE FLOOR AT >=1024. Below that it is TOP-centred over the app header
+   (`top:calc(env(safe-area-inset-top) + 10px)`), where "how far up from the bottom" is meaningless
+   and publishing a number would lift the toast on a phone for no reason. The discriminator is read
+   from the CASCADE rather than from the literal 1024, for the same reason publishSheetFootClear
+   asks about `align-items`: the breakpoint can move and the relationship cannot.
+
+   ⚠️ AND THE OBVIOUS CASCADE READ DOES NOT WORK — `top` AND `bottom` BOTH LIE HERE. §H's corner
+   rule sets `top:auto`, so `getComputedStyle(sb).top === 'auto'` reads as the exact test for "is it
+   docked to the floor". It is not: **for a positioned element `getComputedStyle` returns the USED
+   value, and `auto` has already been resolved to a pixel offset.** Measured rather than reasoned —
+   at 1024 `top` comes back `740.406px`, and at 380 `bottom` comes back `738.812px`, so each
+   property reads as a real offset at the width where its own rule says `auto`. The first cut used
+   `top!=='auto'`, which is therefore true at EVERY width, so this published `0px` always and the
+   toast went on colliding with the pill exactly as it had before the fix.
+   `transform` is the honest one: §H's rule sets `transform:none` to cancel the base rule's
+   `translateX(-50%)`, and a computed `transform` is `none` or a matrix with nothing in between.
+   **The general shape is this file's own: a declaration is not an enforcement, and a COMPUTED value
+   is not the declared one.** When reading the cascade to ask which rule won, pick a property whose
+   computed value cannot be a resolved `auto`. */
+function publishSyncBannerClear(){
+  var sb=document.getElementById('syncBanner'); if(!sb) return;
+  var zero=function(){ document.documentElement.style.setProperty('--sync-banner-clear','0px'); };
+  var h=sb.getBoundingClientRect().height;
+  if(!h){ zero(); return; }                        // hidden, or between states
+  /* ⚠️ THE TWO CONDITIONS ARE SEPARATE STATEMENTS BECAUSE A COMBINED ONE HAD A CLAUSE THAT COULD
+     NEVER DECIDE ANYTHING. The first cut read `var cs = h ? getComputedStyle(sb) : null;` and then
+     `if(!h || !cs || cs.transform!=='none')`. `cs` is null exactly when `h` is 0, so `!cs` and `!h`
+     are the same test written twice and the `||` between them is unreachable either way — the
+     mutation gate found it by flipping that `||` to `&&` and watching nothing go red, which is the
+     correct verdict for a clause with no behaviour rather than a gap in the tests.
+     Written out, each line says one thing and each can fail. */
+  var cs=getComputedStyle(sb);
+  if(cs.transform!=='none'){ zero(); return; }     // top-centred below 1024: it does not reach up from the floor
+  var dock=parseFloat(cs.bottom)||0;
+  document.documentElement.style.setProperty('--sync-banner-clear', Math.ceil(dock+h)+'px');
+}
+(function(){
+  var sb=document.getElementById('syncBanner'); if(!sb) return;
+  /* The observer catches the text rewrapping at a narrow desktop width, which `setSync` cannot see
+     because the state did not change.
+     ⚠️ THE RESIZE LISTENER IS UNCONDITIONAL HERE, WHICH IS DIFFERENT FROM publishNavH'S, AND THE
+     DIFFERENCE IS THE POINT: there it is the FALLBACK for a missing ResizeObserver, so it is
+     registered only when there is none. Here the two watch different things. Crossing 1024 moves
+     this pill from the top band to the bottom corner WITHOUT CHANGING ITS SIZE, so the observer
+     stays silent through the one event that matters most. Registering it only as a fallback would
+     have left the breakpoint uncovered on every browser that has RO, which is all of them. */
+  if(window.ResizeObserver){ try{ new ResizeObserver(publishSyncBannerClear).observe(sb); }catch(e){} }
+  window.addEventListener('resize', publishSyncBannerClear);
+  window.addEventListener('load', publishSyncBannerClear);
+})();
 (function(){
   var bar=document.getElementById('bFootSum'); if(!bar) return;
   /* The observer is not belt-and-braces. The bar's height CHANGES while it is up — `.bfs-line` is

@@ -1,13 +1,19 @@
 /*
- * toast-bottom-stack.test.js — 275 (queue item 50).
+ * toast-bottom-stack.test.js — 275 (queue item 50) and 276 (queue item 97).
  *
- * THE BOTTOM STACK HAS THREE THINGS THAT REACH UP FROM THE FLOOR, AND THE TOAST READS ALL THREE.
+ * THE BOTTOM STACK IS A CHAIN, AND THE TOAST IS AT THE TOP OF IT.
  * 226 built the publish/read pattern for the install banner and its own comment stated the rule in
  * general terms ("the element that owns it publishes it; nothing that reads it may know a number").
- * It built one publisher because the banner was the only element anyone had measured. 275 adds the
- * other two — the builder's sticky summary bar, which carries SAVE, and an open bottom sheet's
- * footer, which carries the commit verb — and deletes the "Loaded: <plate>" toast that was firing
- * on top of them for no reason.
+ * It built one publisher because the banner was the only element anyone had measured. 275 added the
+ * builder's sticky summary bar, which carries SAVE, and an open bottom sheet's footer, which
+ * carries the commit verb, and deleted the "Loaded: <plate>" toast that was firing on top of them.
+ * 276 added the fourth, the sync pill, and turned the flat list into a CHAIN: the bar lifts the
+ * pill (§H's corner rule reads `--bld-bar-clear`), and the pill lifts the toast.
+ *
+ * ⚠️ THE CHAIN IS NOT DECORATION. Lifting the pill over the bar alone put the pill and the toast
+ * both at `bottom:111px` at 1024-1099, overlapping x440-520.5 — and `pushWrite` fires
+ * `setSync('error')` and `toast()` in the SAME BREATH, so that pair is the error path's normal
+ * case. Fixing one collision had created another, measured rather than predicted.
  *
  * WHY EACH TEST IS A REGRESSION RATHER THAN A DESCRIPTION:
  *
@@ -103,9 +109,16 @@ function publisher(name, env) {
     getElementById: (id) => env.byId[id] || null,
     querySelectorAll: (sel) => env.byQuery[sel] || [],
   };
+  /* 97: `publishBldBarClear` now CALLS `publishSyncBannerClear` on both its paths, because the
+     pill's own `bottom` reads `--bld-bar-clear` at >=1024 and the toast docks above the pill.
+     The real one is extracted alongside rather than stubbed, so the chain under test is the
+     shipped chain — a stub here would agree with whatever the caller believes, which is this
+     repo's most-recorded defect. A sandbox with no `#syncBanner` makes it a no-op, which is what
+     the bar-only tests want. */
   // eslint-disable-next-line no-new-func
   const factory = new Function('document', 'getComputedStyle', `
-    ${extractFn(SRC, name)}
+    ${extractFn(SRC, 'publishSyncBannerClear')}
+    ${name === 'publishSyncBannerClear' ? '' : extractFn(SRC, name)}
     return ${name};
   `);
   factory(doc, env.computed || (() => ({})))();
@@ -178,6 +191,78 @@ test('275: a sheet with no footer contributes nothing rather than throwing', () 
   assert.strictEqual(sheetClear([wiz]), '0px', 'the setup wizard is a full-height takeover with no .mfoot');
 });
 
+/* --------------------------------------------- 3b. the sync pill, and the chain it sits in (97) */
+
+/* The pill is bottom-docked only at >=1024; below that it is top-centred over the app header.
+   `transform` is the discriminator the shipped code uses and these fixtures mirror the real
+   computed values, which is the whole point of the test below it. */
+const pill = (h, opts) => ({ byId: { syncBanner: rect(0, 0, h) }, byQuery: {}, computed: () => opts });
+
+test('97: the sync pill publishes its dock plus its height when it is docked to the floor', () => {
+  const set = publisher('publishSyncBannerClear', pill(35.6, { transform: 'none', bottom: '24px' }));
+  assert.strictEqual(set['--sync-banner-clear'], '60px');   // 24 + 35.6 -> 60
+});
+
+test('97: lifted by the builder bar, the pill publishes the LIFTED reach', () => {
+  /* Its own `bottom` is max(24, --bld-bar-clear + 12), so at 1024 with the bar up it is 111 and the
+     pill reaches 147. That is the number the toast has to clear, not 60. */
+  const set = publisher('publishSyncBannerClear', pill(35.6, { transform: 'none', bottom: '111px' }));
+  assert.strictEqual(set['--sync-banner-clear'], '147px');
+});
+
+/* ⚠️ THE TEST THAT EXISTS BECAUSE THE FIRST CUT GOT IT WRONG, and it went wrong silently.
+   §H's corner rule sets `top:auto`, so `getComputedStyle(el).top === 'auto'` reads as the exact
+   test for "is this docked to the floor". It is not: for a positioned element getComputedStyle
+   returns the USED value, and `auto` has already been resolved to a pixel offset — measured, `top`
+   comes back `740.406px` at 1024 and `bottom` comes back `738.812px` at 380. The first cut used
+   `top!=='auto'`, which is true at EVERY width, so the publisher returned `0px` always and the
+   toast went on colliding with the pill exactly as before. Nothing went red; the repro just did not
+   move. These fixtures carry the real measured values so the wrong discriminator cannot pass. */
+test('97: top-centred below 1024, the pill publishes 0px — and `top`/`bottom` cannot tell you that', () => {
+  const below = pill(35.6, { transform: 'matrix(1, 0, 0, 1, -95, 0)', top: '10px', bottom: '738.812px' });
+  assert.strictEqual(publisher('publishSyncBannerClear', below)['--sync-banner-clear'], '0px');
+
+  const above = pill(35.6, { transform: 'none', top: '740.406px', bottom: '24px' });
+  assert.strictEqual(publisher('publishSyncBannerClear', above)['--sync-banner-clear'], '60px');
+
+  /* The point, stated as an assertion rather than a comment: neither offset distinguishes the two
+     states, so a publisher keyed on either is keyed on nothing. */
+  assert.notStrictEqual(below.computed().transform, above.computed().transform);
+  assert.ok(below.computed().top !== 'auto' && above.computed().top !== 'auto',
+    'both report a pixel `top`, so `top===auto` can never be the test');
+  assert.ok(below.computed().bottom !== 'auto' && above.computed().bottom !== 'auto',
+    'and both report a pixel `bottom`, so neither can `bottom===auto`');
+});
+
+test('97: a hidden pill publishes 0px', () => {
+  assert.strictEqual(publisher('publishSyncBannerClear', pill(0, { transform: 'none', bottom: '24px' }))['--sync-banner-clear'], '0px');
+});
+
+test('97: publishing the bar republishes the pill — the chain, not two independent listeners', () => {
+  /* Both elements present. The bar publishes its own reach AND drives the pill, because the pill's
+     `bottom` is computed FROM the bar's variable: publishing one without the other leaves the toast
+     docked against where the pill used to be. */
+  const set = publisher('publishBldBarClear', {
+    byId: { bFootSum: rect(701.5, 800, 98.5), syncBanner: rect(0, 0, 35.6) },
+    byQuery: {},
+    computed: (el) => (el.getBoundingClientRect().height === 98.5
+      ? { bottom: '0px' }                                    // the bar at 1024 docks on the floor
+      : { transform: 'none', bottom: '111px' }),             // …so the pill sits at 99 + 12
+  });
+  assert.strictEqual(set['--bld-bar-clear'], '99px');
+  assert.strictEqual(set['--sync-banner-clear'], '147px', 'the bar must drive the pill in the same call');
+});
+
+test('97: a bar going off screen republishes the pill too, on the 0px path', () => {
+  const set = publisher('publishBldBarClear', {
+    byId: { bFootSum: rect(0, 0, 0), syncBanner: rect(0, 0, 35.6) },
+    byQuery: {},
+    computed: () => ({ transform: 'none', bottom: '24px' }),
+  });
+  assert.strictEqual(set['--bld-bar-clear'], '0px');
+  assert.strictEqual(set['--sync-banner-clear'], '60px', 'the pill drops back to its own dock in the same call');
+});
+
 /* ------------------------------------------------------------------ 4. the reader's contract */
 
 /* The `.toast{...}` declaration block, brace-matched from its own selector rather than sliced to the
@@ -195,16 +280,16 @@ function toastBlock() {
   throw new Error('unterminated .toast rule');
 }
 
-const CLEAR_VARS = ['--install-banner-clear', '--bld-bar-clear', '--sheet-foot-clear'];
+const CLEAR_VARS = ['--install-banner-clear', '--bld-bar-clear', '--sheet-foot-clear', '--sync-banner-clear'];
 
-test('275: the toast reads all three published clearances, in ONE rule', () => {
+test('275: the toast reads all four published clearances, in ONE rule', () => {
   const block = toastBlock();
   const bottom = /bottom:([\s\S]*?);/.exec(block);
   assert.ok(bottom, '.toast must set its own bottom');
   CLEAR_VARS.forEach((v) => {
     assert.ok(bottom[1].includes(v), `the toast must clear ${v} — it is published by js/app.js and read nowhere else`);
   });
-  assert.ok(/\bmax\(/.test(bottom[1]), 'the three are combined with max(): the tallest wins, and none of them may know about the others');
+  assert.ok(/\bmax\(/.test(bottom[1]), 'the four are combined with max(): the tallest wins, and none of them may know about the others');
 });
 
 test('275: every var() in that bottom carries a 0px fallback', () => {

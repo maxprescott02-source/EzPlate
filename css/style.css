@@ -1874,9 +1874,15 @@ body.scroll-locked{position:fixed;left:0;right:0}
    own wrapped text made it: the install banner (`publishClear`), the builder's sticky summary bar
    (`publishBldBarClear`) and an open bottom SHEET's footer (`publishSheetFootClear`). The toast sits
    `--sp-3` above the tallest of them, or on its own dock when none of them is there.
+   ⚠️ 97 ADDED THE FOURTH, `--sync-banner-clear`, AND IT IS A CHAIN RATHER THAN A FLAT LIST.
+   The sync pill's own `bottom` at >=1024 reads `--bld-bar-clear` (see §H), so the bar lifts the
+   pill and the pill lifts this. Measured before it was added: lifting the pill over the bar alone
+   put both at `bottom:111px` at 1024-1099, overlapping x440-520.5 — and `pushWrite` fires
+   `setSync('error')` and `toast()` **in the same breath**, so that pair is the common case on the
+   error path rather than a contrived one. Fixing one collision had created another.
    ⚠️ THE FALLBACKS ARE `0px` AND THEY ARE LOAD-BEARING. An undefined custom property makes the whole
    declaration invalid at computed-value time — not "fall back to the base rule", but no `bottom` at
-   all — so every one of the three needs its `, 0px`, and a fourth publisher added later needs one on
+   all — so every one of the four needs its `, 0px`, and a fifth publisher added later needs one on
    the day it is added rather than the day it is first absent.
    ⚠️ 226's LIFT WAS `html.has-install-banner .toast`, AT (0,2,1), AND IT IS GONE. Its comment gave
    the specificity's reason as beating "the two `@media` blocks that re-`left` the toast" — those set
@@ -1892,7 +1898,8 @@ body.scroll-locked{position:fixed;left:0;right:0}
   bottom:max(calc(92px + env(safe-area-inset-bottom)),
              calc(var(--install-banner-clear, 0px) + var(--sp-3)),
              calc(var(--bld-bar-clear, 0px) + var(--sp-3)),
-             calc(var(--sheet-foot-clear, 0px) + var(--sp-3)));
+             calc(var(--sheet-foot-clear, 0px) + var(--sp-3)),
+             calc(var(--sync-banner-clear, 0px) + var(--sp-3)));
   transform:translateX(-50%) translateY(8px);
   background:var(--inverse);color:var(--on-inverse);padding:12px 18px;border-radius:var(--radius-ctl);
   font-size:var(--fs-base);font-weight:600;z-index:90;opacity:0;pointer-events:none;
@@ -2713,10 +2720,26 @@ input:user-invalid,textarea:user-invalid{border-color:var(--bad)}
    tests/visual/v141-sync-corner.spec.js. The loud channel is unchanged — a failed write still
    fires `toast()` in the same breath as `setSync('error')`, so nothing quiet got quieter. */
 .sync-banner{max-width:420px;white-space:normal;text-align:left}
+/* ⚠️ 275 MADE THIS A FOUR-WAY SPLIT AND THE COMMENT ABOVE STILL SAYS THREE. `.bld-bar` — the
+   builder's sticky summary bar — is a fixed element on the viewport floor that is hidden only at
+   1100 and up, so from 1024 to 1099 it is UNDER this corner. Measured at 1024, 1080 and 1099 with
+   a costed plate open, identical at all three: the banner's error state (x248-520.5, y740.4-776)
+   sits on `#bFootFigs` (x240-370, y712.5-755.3) — "Plate cost" and its number.
+   ⚠️ NEITHER CHANGE THAT CAUSED IT WAS WRONG, WHICH IS WHY NOTHING CAUGHT IT. v141 put the banner
+   here because the top band at 1024-1440 is owned by `.scr-head` and its primary action; 274 showed
+   the bar up to 1099 so that band would have a reachable commit control. Before 274 the bar was
+   hidden at >=768 and this corner was empty. `tests/visual/v141-sync-corner.spec.js` verifies the
+   banner clear of the toast and the install banner, which was the whole of the bottom chrome when
+   it was written — a spec cannot guard against an element that did not exist.
+   THE CORNER ITSELF IS UNCHANGED, and that is deliberate: §H's reasoning above is about the TOP
+   band, and lifting the banner by the bar's own published height keeps it bottom-left and out of
+   that band, so none of it has to be re-argued. What it floats over instead is the docket, which is
+   the CONTENT plane — the thing v141 explicitly permits, and `pointer-events:none` still makes it
+   cost a look rather than an action. */
 @media (min-width:1024px){
   .sync-banner{
     left:calc(224px + 24px);right:auto;transform:none;
-    top:auto;bottom:calc(24px + env(safe-area-inset-bottom));
+    top:auto;bottom:max(calc(24px + env(safe-area-inset-bottom)), calc(var(--bld-bar-clear, 0px) + var(--sp-3)));
   }
 }
 .side-brand span{min-width:0}

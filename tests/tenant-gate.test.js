@@ -281,16 +281,26 @@ test("'none' hides the pill rather than showing an empty one", () => {
   // An unmapped state would leave `textContent=''` with `hidden=false` — a blank pill sitting there.
   const el = { hidden: false, textContent: 'Loading latest data…', __t: 0, setAttribute() {} };
   // eslint-disable-next-line no-new-func
-  const setSync = new Function('E', `
+  /* 97: setSync now republishes the pill's own bottom-stack clearance on all three of its paths
+     (hide, auto-hide, show), because the pill is sized by its text and the toast docks above it.
+     Stubbed rather than extracted: this test is about the STATE MACHINE, and the clearance has its
+     own file. `tests/toast-bottom-stack.test.js` extracts the real pair and asserts the chain. */
+  const published = [];
+  const setSync = new Function('E', 'PUB', `
     "use strict";
     var document={getElementById:function(){ return E; }};
     var clearTimeout=function(){}, setTimeout=function(){ return 1; };
+    var publishSyncBannerClear=function(){ PUB.push(E.hidden); };
     ${extractFn(SRC, 'setSync')}
     return setSync;
-  `)(el);
+  `)(el, published);
   setSync('none');
   assert.strictEqual(el.hidden, true, 'hidden, not blank-but-visible');
   setSync('loading');
   assert.strictEqual(el.hidden, false, 'and every other state still behaves');
   assert.match(el.textContent, /Loading/);
+  /* Both paths republish, and the hide one is the half that has no visible symptom when it breaks:
+     a clearance left behind for a pill that is gone keeps the toast docked against nothing. */
+  assert.deepStrictEqual(published, [true, false],
+    'setSync republishes the clearance on the hide path AND the show path, in that order');
 });

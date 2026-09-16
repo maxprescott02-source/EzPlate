@@ -258,6 +258,17 @@ const REAL_TOAST = 'Couldn’t save plate — no database connection';
 
 async function raiseToast(page) {
   await page.evaluate(async (msg) => {
+    /* ⚠️ 276 — THE SYNC PILL IS SILENCED HERE, AND THAT IS A SCOPING DECISION RATHER THAN A DODGE.
+       97 made the stack a CHAIN: at >=1024 the pill docks above `.bld-bar` and the toast docks
+       above the PILL, so with the pill up the toast's dock is the pill's reach and not the bar's.
+       These tests are named for the bar and assert the bar's own arithmetic exactly; leaving the
+       boot's "Saved" pill on screen made that equality measure the pill instead, and it went red
+       (expected 111, received 159) the moment the chain landed. The test was over-specified rather
+       than wrong: it had encoded "the bar is the tallest thing on the stack", which was incidental.
+       The four-way interaction has its own home — `v141-sync-corner.spec.js` owns the split, and
+       this file owns each publisher's arithmetic. One concern per file, which is what that file's
+       own comment asks for. */
+    window.setSync('none');
     const el = document.querySelector('.toast');
     el.textContent = msg;
     el.classList.add('show');
