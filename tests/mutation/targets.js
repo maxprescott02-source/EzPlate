@@ -648,6 +648,18 @@ const targets = [
      only symptom was a repro that did not move. The discriminator is now `transform`, and this
      target is what asks the question the suite could not. */
   { fn: 'publishSyncBannerClear', tests: ['toast-bottom-stack.test.js'] },
+  /* 277 — the two functions item 53 added, and the first is on this list for the strongest reason
+     anything here is: `padMoney` formats a field that `saveIngEdit` reads straight into
+     `cost_per_base_unit`. The queue item's literal instruction was "format to two decimals", and
+     `toFixed(2)` over the real catalogue moves 44 of 384 products and turns the smallest per-kg
+     price, $0.0056, into $0.01. A rounding regression here is a silent write of a wrong cost, which
+     is the one thing this app must never do. `renderEditMargin` is listed because its refusal to
+     price a plate it cannot fully cost (222's rule) is a guard, and a guard nobody has asked the
+     question of has never been asked it.
+     ⚠️ `padMoneyEl`'s round-trip check is NOT a target and the test file says why: it is
+     unreachable while `padMoney` is value-preserving, so the gate would report it forever. */
+  { fn: 'padMoney', tests: ['edit-modal-figures.test.js'] },
+  { fn: 'renderEditMargin', tests: ['edit-modal-figures.test.js'] },
 ];
 
 /*

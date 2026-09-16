@@ -102,7 +102,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=225">
+<link rel="stylesheet" href="css/style.css?v=226">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -1600,6 +1600,14 @@
           <div id="ed_catNew" class="cat-new" style="display:none"></div>
         </div>
         <div class="field" id="ed_priceField"><label for="ed_price">Current sell price ($) *</label><input id="ed_price" type="number" min="0" step="0.10"></div>
+        <!-- 277 (item 53, U1) — THE NUMBER THE USER OPENED THIS MODAL TO REACT TO. The row behind it
+             shows cost, suggested and a food-cost %, and this form asked for a new price while
+             showing none of them, so re-pricing - the second most common task in the app - was done
+             blind. It reuses `.margin-preview` and the `mp-*` lights from the publish dialog rather
+             than a second treatment: same figures, same words, same colours, one stylesheet family.
+             EMPTY until there is something honest to say, which is why it is a bare div - see
+             renderEditMargin for the three states it can be in. -->
+        <div class="field full"><div class="margin-preview" id="ed_margin"></div></div>
       </div>
       <!-- v112: #ed_plateActions ("Restore to Menu" / "Permanently delete") removed — it was only ever
            shown by the orphan-plate edit mode, which no click path could reach. See setEditMode in app.js. -->
@@ -1963,7 +1971,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=225"></script>
+<script src="js/app.js?v=226"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —
