@@ -78,6 +78,16 @@ So the one shape where those disagree is a plate with lines, no missing costs, a
 **The decision it needs is which is right**, and that is a product call rather than a bug: "a plate that costs nothing" and "a plate we cannot cost" are different sentences and the app currently says both.
 Pre-existing — it arrived with `renderMenuMarginPreview`, not with 277.
 
+### The Menu switcher row wraps to two lines between 1024 and 1059
+(Measured by batch 278 while fixing the crushed-select regression its own review found. Accepted rather than fixed.)
+
+Queue item 54 (U32) rehomed `#menuAddDishBtn` into `#menuSwitchRow` at every width, so that row carries three flex children above 768 where it used to carry two.
+**Measured at 1024, 1060, 1100, 1150, 1200 and 1280: the row is 80px tall at 1024 and 56px at every width from 1060 up.** 1024 is exactly where the pill switcher replaces the `<select>`, and the three children are at their limit there.
+
+**C, and the reason is that nothing is lost.** The row WRAPS — it does not clip, crush or overflow (`scrollWidth - clientWidth` is 0 at every width measured). A wrapped switcher row is what the phone has always shown, so the shape is already in the app's vocabulary; what changes is that one desktop width sees it too.
+**The fix, if it is wanted, re-opens a shared contract.** `.plib-search` is pinned at 320-400 by §26 and that sizing is used by Ingredients, Products and Plates as well as Menu; letting it shrink here means re-measuring a hand-tuned row on four screens. That is why it was not taken inside an item about a picker.
+⚠️ **The related defect WAS fixed and must not be re-opened by any attempt at this one:** `.mnu-selwrap{min-width:150px}` at >=768, which stops the select being squeezed to 48px across 768-1023. The comment at that rule carries the before-and-after measurements.
+
 ## Displaced B items — promote when a `QUEUE.md` slot frees
 
 These passed the launch test and lost on priority against the 20-item cap. They are not C.

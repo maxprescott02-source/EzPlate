@@ -5250,7 +5250,24 @@ html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 80px)}
      screen's filter select; shrink 1 + its own ellipsis still bound a long menu name. Same 0-1-0
      specificities as the base rules these override, per the section header note. */
   .menu-picker-row{flex:1 1 0;justify-content:flex-end}
-  .mnu-selwrap{flex:0 1 auto}
+  /* ⚠️ 278 — THE FLOOR EXISTS BECAUSE THIS ROW GAINED A THIRD CHILD AND THE SIZING ABOVE WAS TUNED
+     FOR TWO. Until item 54 the row held the search and the picker; `#menuAddDishBtn` joined it below
+     768 only, via `data-mobile-home`, which is a width this block does not govern. 278 rehomed the
+     button permanently, so >=768 saw three children for the first time — and with the search pinned
+     at 400 and the picker on `flex:1 1 0`, the SELECT is what absorbed the shortfall.
+     Measured on this branch before the floor, against `main`: `#menuSelect` came out **48px at 768**
+     (blank), 72 at 800 and 110 at 900, against 141-157 on main — so the one control that names the
+     current menu was illegible across the whole 768-1023 band. Caught by the pre-push review, which
+     rendered both branches side by side; the batch had screenshotted 1280 and 380, which are exactly
+     the two widths where it looks right. That is this repo's own recorded mistake — measuring at the
+     ends and generalising — repeating one batch after 274 wrote it down.
+     150px is the content width of a two-word menu name plus the chevron, not a round number.
+     ⚠️ ACCEPTED, NOT FIXED: at 1024-1059 the row now WRAPS to two lines (56px to 80px) because that
+     is where the pill switcher replaces the select and the three children are at their limit. It is
+     the same wrap the phone has always had, nothing is crushed or clipped, and re-tuning the shared
+     `.plib-search` 320-400 contract to avoid it would re-open a hand-measured row that three other
+     screens share. Recorded in `docs/MAINTENANCE.md` with the band. */
+  .mnu-selwrap{flex:0 1 auto;min-width:150px}
   .mnu-band:not([hidden]){display:grid}
   .mnu-band{
     align-items:center;padding:9px var(--sp-4);

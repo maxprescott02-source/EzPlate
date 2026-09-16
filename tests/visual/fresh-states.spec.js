@@ -1305,15 +1305,20 @@ for (const size of SIZES) {
     expect(st.switcher, 'no option-less switcher over zero menus').toBe(false);
     expect(st.switcherSearch, 'and nothing to search either').toBe(false);
     expect(st.switcherPct, 'and no food-cost pill for a menu that does not exist').toBe(false);
-    if (size.width < 768) {
-      expect(st.rehomed, 'the rehomed action is in the row').toBe('menuSwitchRow');
-    } else {
-      expect(st.rehomed, 'at desktop the action is back in the header…').toBe('');
-      /* Zero HEIGHT, which is the part of the old `hidden` that was ever observable. The row keeps
-         its horizontal padding and is not literally absent — nothing paints in it, so the
-         difference is unobservable, and the assertion says height rather than implying more. */
-      expect(st.switchRowH, '…so the emptied row measures zero height').toBe(0);
-    }
+    /* ⚠️ 278 — THE ACTION NO LONGER RETURNS TO THE HEADER AT DESKTOP, AND THAT IS QUEUE ITEM 54's
+       FIX RATHER THAN A REGRESSION. `#menuAddDishBtn` adds a plate to the menu chosen in this very
+       row, and it used to sit in `.scr-head` a line above that choice; U32 rehomed it here at EVERY
+       width and `data-mobile-home` went with the move. So there is one answer now instead of two.
+       The zero-height assertion is KEPT and is the load-bearing half: at zero menus
+       `updateMenuAddDishBtn` hides the button (214), so the row holds nothing that paints and still
+       measures nothing — which is what made "the row keeps rendering" honest before and still does.
+       Found red by 278's pre-push review rather than by that batch, which is recorded in its
+       handover: a green unit suite says nothing about where a control lives. */
+    expect(st.rehomed, 'the action lives in the switcher row at every width since 278').toBe('menuSwitchRow');
+    /* Zero HEIGHT, which is the part of the old `hidden` that was ever observable. The row keeps
+       its horizontal padding and is not literally absent — nothing paints in it, so the
+       difference is unobservable, and the assertion says height rather than implying more. */
+    expect(st.switchRowH, 'and the emptied row measures zero height, at every width').toBe(0);
     expect(st.filters, 'no filter row over zero rows').toBe(false);
     expect(st.band, 'no column band over zero rows').toBe(false);
     expect(st.del, 'no Delete when there is no menu to delete').toBe(false);
