@@ -330,11 +330,61 @@ test('271 census: the phone hides the Cost card body by CLASS, in the block that
      inline style from JS would beat every rule in the file regardless of the media query — the
      mechanism `.claude/rules/css.md` records against #kingProgress. */
   const css = require('fs').readFileSync(require('path').join(__dirname, '..', 'css', 'style.css'), 'utf8');
-  const block = /@media \(max-width:767px\)\{([^}]*\}[^@]*?)\n\}/.exec(css.slice(css.indexOf('#bCost .bld-sumhead') - 40));
-  assert.ok(block, 'the max-width:767px block around #bCost is still findable');
+  /* ⚠️ 274 — THIS FOUND THE BLOCK BY THE LITERAL `@media (max-width:767px)` AND THAT NUMBER MOVED.
+     The rule it pins is "these two hides live in ONE block", which had nothing to do with 767; the
+     ceiling is now 1075, because the band where the rail wraps and the rail's Save is unreachable
+     runs to there rather than to the phone breakpoint. Pinning the number meant this went red for a
+     change that did not touch its invariant, and - worse in the other direction - it would have gone
+     GREEN if someone moved one hide into a different block that happened to be `767`.
+     So it locates the block by the rule it is about and walks braces from the query's own opening
+     `{` to its match, which is roster entry 268's fix for exactly this shape. */
+  const at = css.indexOf('#bCost .bld-sumhead');
+  assert.ok(at > 0, 'the #bCost hide block is still findable by its first rule');
+  const qAt = css.lastIndexOf('@media', at);
+  const open = css.indexOf('{', qAt);
+  let depth = 0, end = open;
+  for (let i = open; i < css.length; i++) {
+    if (css[i] === '{') depth++;
+    else if (css[i] === '}') { depth--; if (!depth) { end = i; break; } }
+  }
+  const query = css.slice(qAt, open).trim();
+  const block = [null, css.slice(open + 1, end)];
   assert.match(block[1], /#bCost\.is-bare \.bld-cardbody\{display:none\}/,
     'the bare-body hide must live in the SAME block as the .bld-kv hide it depends on');
   assert.match(block[1], /#bCost \.bld-kv/, 'precondition: that is the block being read');
+
+  /* ⚠️ THE THREE 274 MEDIA QUERIES MUST OVERLAP IN THE SAFE DIRECTION, AND AN EARLIER VERSION OF
+     THIS ASSERTION REQUIRED THEM TO MEET EXACTLY. That was wrong, and CI proved it: the wrap point
+     is where `.bld-body` reaches 800px of inner width, which depends on the SCROLLBAR as well as the
+     viewport, so a rule pinned one pixel past the macOS wrap leaves a band on a classic-scrollbar
+     machine where the query says "two-column" while flex is still wrapping - the bar hidden, and
+     #saveBtn restored to a rail under a full-height docket. A width with NO reachable commit.
+     ⚠️ SO THE TWO ERRORS ARE NOT SYMMETRIC AND THIS ASSERTS THE ASYMMETRY. The bar being shown
+     slightly past the wrap is harmless (one control, reachable, mildly redundant). The bar switching
+     off slightly before it is the defect. **Overlap is safe; a gap is not** - so the bar's threshold
+     must be strictly ABOVE the wrapped-rail band rather than adjacent to it.
+     ⚠️ AND THE HONEST LIMIT, because this test cannot see a browser: agreement between RULES is not
+     agreement with the LAYOUT. All three of these can be perfectly consistent and all three wrong
+     about where flex actually wraps, which is exactly what happened. What proves the property is
+     `tests/visual/274-builder-tablet.spec.js`'s sweep, which measures the wrap instead of naming it.
+     This file's job is only that the three numbers cannot drift APART. */
+  const ceiling = /max-width:(\d+)px/.exec(query);
+  assert.ok(ceiling, `the #bCost hide block must be bounded by a max-width, got "${query}"`);
+  const wrapBlock = /@media \(min-width:768px\) and \(max-width:(\d+)px\)\{\s*(?:\/\*[\s\S]*?\*\/\s*)?\.bld-rail\{max-width:none\}/.exec(css);
+  assert.ok(wrapBlock, 'the wrapped-rail block must still be findable — 274 added it');
+  const barBlock = /@media \(min-width:(\d+)px\)\{\s*\.bld-bar\{display:none\}/.exec(css);
+  assert.ok(barBlock, 'the save-bar hide block must still be findable');
+
+  const hideTo = Number(ceiling[1]);        // #bCost's figures and #saveBtn are hidden up to here
+  const wrapTo = Number(wrapBlock[1]);      // the rail is known-wrapped up to here
+  const barOff = Number(barBlock[1]);       // the sticky bar disappears from here
+
+  assert.strictEqual(barOff, hideTo + 1,
+    'the sticky bar must switch off exactly where #saveBtn comes back, or there is a width with two primary CTAs or none');
+  assert.ok(hideTo > wrapTo,
+    `the bar must be shown PAST the wrapped-rail band, not level with it: #bCost hides to ${hideTo} and the wrap band ends at ${wrapTo}. A scrollbar moves the real wrap point, and the two errors are not symmetric — overlapping is safe, a gap has no reachable commit.`);
+  assert.ok(hideTo - wrapTo >= 20,
+    `the margin between them is ${hideTo - wrapTo}px, which is under the ~17px a classic scrollbar can move the wrap point by. Widen it rather than trimming it.`);
   assert.ok(!/bCost[^\n]*style\.display/.test(SRC),
     'nothing may set the card body\'s display inline — an inline style cannot lose at 1280');
   assert.match(extractFn(SRC, 'renderBuilderCost'), /classList\.toggle\('is-bare'/,

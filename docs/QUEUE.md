@@ -72,11 +72,7 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 ⚠️ **G5 IS SIX TO NINE BATCHES, NOT ONE, AND THE RULE THAT SAYS SO IS IN THIS FILE'S OWN HEADER.** The Design law's *"one screen per change set, one PR, one review; never mix shell work with screen work"* forbids combining them — so **take ONE of these per batch** and do not be tempted by two that look adjacent. 64 is the shell item and shares a batch with nothing.
 ⚠️ **AND A GREEN PRE-PUSH HOOK IS NOT A GREEN SUITE FOR ANY OF THESE.** The hook does not run Playwright and every one of these items changes whether a control exists or where it sits. Run `npx playwright test` before pushing, every time.
 
-## next  49 · The builder between 768 and 1200 wide: side cards stack at half width, names truncate to seven characters, Save falls below the fold  **[B]**
-**Full item:** consolidated item 49.
-*(Batch 271 changed this screen — `#saveBtn` is now disabled until the plate has a name and a line, with `#saveHint` under it, and `#bCost` gains `is-bare`. Re-measure at 768–1200 rather than planning off the item's figures.)*
-
-## next  50 · Toasts land on controls: "Loaded" on Clear plate and the misc input, any toast on the builder's Save, a toast on a bottom sheet  **[B]**
+## next  50 · Toasts land on controls: "Loaded" on the builder discard and the misc input, any toast on the builder's Save, a toast on a bottom sheet  **[B]**
 **Full item:** consolidated item 50.
 *(This is the one `docs/MAINTENANCE.md` records as "the bottom stack's OTHER pair". It was offered to batch 271 as a C rider on `renderBuilderCost` and DECLINED there: the fix is the `--install-banner-clear` mechanism pointed at a second element, which is the toast's docking rather than the builder's readiness, and mixing them would have made one PR out of two subsystems. Nothing about it moved.)*
 

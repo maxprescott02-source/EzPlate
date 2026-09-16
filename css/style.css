@@ -885,7 +885,20 @@ input.bld-nameinput:focus{background:var(--surface);border-color:var(--accent);b
 /* v61 item 1: hide the number spinners so 4-5 digit quantities aren't clipped by the arrow gutter */
 .bld-qty input::-webkit-outer-spin-button,.bld-qty input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .bld-qty input{-moz-appearance:textfield;appearance:textfield}
-.bld-u{font-family:var(--mono);font-size:12.5px;color:var(--muted2)}
+/* ⚠️ 274 — THE `min-width` IS WHAT KEEPS THE QTY INPUTS ON ONE EDGE, and without it they are not.
+   `.bld-qty` is `justify-content:flex-end`, so the row's content is packed against the cell's right
+   edge and the INPUT's position is decided by whatever sits after it - this noun. "g", "ml" and "ea"
+   are three different widths, so a docket mixing gram-priced and each-priced products put its inputs
+   on three different left edges: measured 363 / 378 / 386 at 1100, a 23px stagger down a column of
+   otherwise aligned controls. Queue item 49, persona §9, which named the symptom and not this.
+   One track width for the noun fixes it for every unit the app has or will have; `text-align:left`
+   keeps the short ones against the number rather than floating at the far edge.
+   ⚠️ 2.5em IS MEASURED AND THE FIRST ATTEMPT AT 1.7em WAS A REGRESSION. The widest noun is not "ea"
+   - `unitNoun` returns the WORD **"unit"** for anything that is not g or ml, which is 30px natural
+   against "g"'s 21. At 1.7em (21.25px) the min-width was under the natural width, so at 1100 the
+   cell squeezed and "unit" rendered clipped: a rule that set out to align a column and truncated a
+   word instead. 2.5em is 31.25px at this font size, which clears the real widest. */
+.bld-u{font-family:var(--mono);font-size:12.5px;color:var(--muted2);display:inline-block;min-width:32px;text-align:left}
 .bld-unit{grid-column:2;grid-row:2;justify-self:start;font-size:12.5px;color:var(--text2)}
 .bld-lc{
   grid-column:2 / 4;grid-row:1;justify-self:end;align-self:center;
@@ -990,7 +1003,17 @@ input.bld-nameinput:focus{background:var(--surface);border-color:var(--accent);b
    And `.is-bare` hides a body with nothing in it: below this width `.bld-kv` is already gone, so a
    plate on no menu leaves 28px of padding inside the card's border. renderBuilderCost sets the class
    from `on.length`, and it is a CLASS rather than an inline style precisely so this rule can win. */
-@media (max-width:767px){
+/* ⚠️ 274 — THIS BLOCK'S CEILING MOVED FROM 767 TO 1075, AND IT MOVED AS A UNIT WITH `.bld-bar`
+   BELOW, because the comment above calls those two rules a PAIR and they still are. What changed is
+   only WHERE the pair switches over, and the number is measured rather than chosen: 1075 is the last
+   width at which `.bld-rail` wraps under the docket (see the wrap block further down), so from 768 to
+   1075 the rail's copy of Save sits below a full-height docket and is off the bottom of the screen.
+   Measured at a 800px-tall viewport with a five-line costed plate: #saveBtn at y=987 (768 and 900)
+   and y=936 (1024), against a fold at 800, and `#bldSaveBar` not painted at any of them - so the
+   whole band had NO reachable commit once the page was scrolled. Queue item 49.
+   Both halves still hold at the new number: the panel and the bar must not print the same two
+   figures (§7), and both hidden would be no commit at all. */
+@media (max-width:1099px){
   #bCost .bld-sumhead,#bCost .bld-kv,#bCost .bld-sumacts > #saveBtn,#bCost .bld-sumacts > #saveHint{display:none}
   #bCost .bld-cardbody{padding-top:14px}
   #bCost.is-bare .bld-cardbody{display:none}
@@ -1087,7 +1110,7 @@ input.bld-nameinput:focus{background:var(--surface);border-color:var(--accent);b
     display:flex;flex-direction:row;flex-wrap:wrap;gap:var(--sp-5);align-items:flex-start;
     max-width:1040px;padding:var(--sp-5) var(--sp-5) var(--sp-6);
   }
-  .bld-main{flex:1 1 480px;min-width:0}
+  .bld-main{flex:1 1 500px;min-width:0}
   .bld-rail{flex:1 1 280px;max-width:340px}
   /* the summary panel follows the docket down a long plate — the figure you are moving stays on
      screen while you move it. `top` clears the page container's own 32px top padding. */
@@ -1096,8 +1119,34 @@ input.bld-nameinput:focus{background:var(--surface);border-color:var(--accent);b
      10.5px letter-spaced caps, sitting on the paper rather than on a tinted table header. The 22px
      last track is the × column; the mock's own five widths, scaled to this app's editable unit-cost
      chip (which is a control, not the mock's bare unit noun). */
+  /* ⚠️ 274 — EVERY TRACK HAS A FLOOR NOW, AND THE FLOORS ARE MEASURED CONTENT WIDTHS RATHER THAN
+     TASTE. It was `minmax(0,1fr) 110px 110px 90px 40px`: four rigid tracks plus 48px of gaps, with
+     the NAME given whatever survives - so the name collapsed exactly where the layout was tightest.
+     Measured at 1100 before this: **70px**, which clipped "Mushrooms Sliced" and wrapped the rest
+     onto two lines, making `.bld-main` 734px tall against 616 at 1200. The name is what the row is
+     FOR; the chip and the two figures are not.
+     · 140 on the name is the floor the item asked for and holds at every width from 1076 up.
+     · 82 on QTY is the 44px input plus the 31px unit noun plus their gap - see `.bld-u` and
+       `.bld-qty input`, which are the other two thirds of one change.
+     · **95 on UNIT COST is the price chip's own width**, and it is the floor this pass was missing
+       on its first cut: at `minmax(70px,...)` the 95px chip overflowed a 79px track and collided
+       with the unit noun beside it. A track floor under its content's width is not a floor.
+     Grid sizes the minmax tracks toward their maxima before the `1fr` grows, so the name sits at its
+     140 while the chips are compressed, and only widens once they are back at 110/110/90.
+     ⚠️ THAT SETTLES AT ABOUT 1250, NOT AT THE WRAP BOUNDARY, AND THE FIRST DRAFT OF THIS COMMENT
+     IMPLIED OTHERWISE. Caught by 274's pre-push review, which diffed the rendered tracks against
+     `origin/main` rather than reading the rule: at **1200** this renders `140 107 110 85 40` where
+     main rendered `132 110 110 90 40`. Nothing clips - every track is above its own floor - but the
+     chips are 3px and 5px narrower than they used to be across roughly 175px of ordinary desktop
+     width, and "the narrowest two-column width" was the wrong way to describe that.
+     **It is the intended trade rather than a defect, stated so it is not re-litigated:** at 1200 the
+     docket cannot hold a 140 name AND 110/110/90 of chips (140+110+110+90+40 + 48 gaps + 32 padding
+     = 570 against a 564 docket), so something gives. This pass chose the NAME, which is item 49's
+     whole subject. At 1360 the tracks are identical to main's.
+     THIS TEMPLATE AND `#lines .bld-row`'s BELOW MUST STAY IDENTICAL - they are separate grids and
+     the columns only line up because the two strings match. Change one, change both. */
   .bld-band{
-    display:grid;grid-template-columns:minmax(0,1fr) 110px 110px 90px 40px;gap:0 12px;
+    display:grid;grid-template-columns:minmax(140px,1fr) minmax(82px,110px) minmax(95px,110px) minmax(60px,90px) 40px;gap:0 12px;
     padding:10px var(--sp-4) 5px;font-size:10.5px;font-weight:500;letter-spacing:.07em;
     text-transform:uppercase;color:var(--muted2);
   }
@@ -1110,14 +1159,23 @@ input.bld-nameinput:focus{background:var(--surface);border-color:var(--accent);b
   /* FIXED tracks, not auto — each row is its own grid, so auto tracks would size per-row and the
      columns would not line up down the table. Q6 (v125) measured exactly that on the docket; the
      v3 table has the same shape and the same exposure, and fresh-states.spec.js pins the result. */
+  /* 274: the same template as `.bld-band` above, for the reason stated there. Still deterministic
+     per-row rather than content-sized, so the original "FIXED tracks, not auto" guarantee holds -
+     `minmax` with two fixed bounds does not consult the row's contents. */
   #lines .bld-row{
-    grid-template-columns:minmax(0,1fr) 110px 110px 90px 40px;gap:0 12px;align-items:center;
+    grid-template-columns:minmax(140px,1fr) minmax(82px,110px) minmax(95px,110px) minmax(60px,90px) 40px;gap:0 12px;align-items:center;
     padding:10px var(--sp-4);min-height:0;
   }
   .bld-ing{grid-column:1;grid-row:1}
   .bld-ing b{font-size:13.5px}
   .bld-qty{grid-column:2;grid-row:1;justify-content:flex-end}
-  .bld-qty input{width:66px}
+  /* ⚠️ 274 — SHRINKABLE, NOT FIXED, and this is the other half of the `.bld-u` min-width above.
+     The cell has to hold the input AND the unit noun, so a rigid 66px input plus a 31px noun needs
+     97px of track - more than the qty track's floor. Measured at 1100 before this: the cell was 83px,
+     the pair overflowed it, and the thing that gave way was the NOUN, which is the one part that
+     cannot shrink without becoming a different word. Letting the input give instead keeps the noun
+     whole; 44px still shows a three-digit quantity and is the app's own touch minimum. */
+  .bld-qty input{flex:0 1 66px;width:auto;min-width:44px}
   .bld-unit{grid-column:3;grid-row:1;justify-self:end;text-align:right}
   .bld-lc{grid-column:4;grid-row:1;justify-self:end;font-size:13px}
   .bld-rm{grid-column:5;grid-row:1;justify-self:end}
@@ -1130,9 +1188,84 @@ input.bld-nameinput:focus{background:var(--surface);border-color:var(--accent);b
   /* the panel's secondary pair stays side by side at every width — it is the mock's shape, and the
      rule above would otherwise stack them. Written at 0-2-0 against that 0-1-1, a deliberate raise. */
   .bld-actrow .btn{flex:1 1 0;width:auto}
-  /* §7: the summary bar and the summary panel would print the same two figures. The panel wins on
-     the desktop the mock draws it for, and the bar is a phone element. */
+}
+/* ⚠️ 274 — THE WRAPPED STATE, EXPRESSED EXACTLY, AND THE COMMENT ABOVE SAID THIS COULD NOT BE DONE.
+   It says "a breakpoint cannot fix it, because the same viewport means two different container
+   widths depending on whether the shell is drawn". That is true of ONE breakpoint and false of two,
+   which is what it did not consider. Measured across 768-1360: `.bld-body`'s inner width minus the
+   viewport is a CONSTANT -276 at every width from 1024 up, and below 1024 the container plateaus at
+   680. So the relationship is exact inside each band, and the wrap point is not "about 1120" - it is
+   **1076 to the pixel**, where the container reaches 800 = `.bld-main`'s 500 basis + the rail's 280
+   + the 20px gap. Measured from both sides after the change: wrapped at 1075, side by side at 1076.
+   ⚠️ IT WAS 1056 UNTIL `.bld-main`'s BASIS WENT FROM 480 TO 500, AND THAT IS THE SAME EDIT, NOT A
+   SEPARATE ONE. 480 let the two columns split at a docket the five-track row cannot actually draw:
+   at 1056 the docket was 480 and the price chip collided with the unit noun. The basis is a
+   container-relative FLOOR - the comment above says so - so the honest fix for "the docket is too
+   narrow when two-column" is to raise the floor until it is not, which moves the wrap point with it.
+   500 is 140+82+95+60+40 of tracks, 48 of gaps and 32 of the docket's own padding, rounded up.
+   ⚠️ A CONTAINER QUERY WOULD HAVE BEEN THE OBVIOUS TOOL AND IS DELIBERATELY NOT USED.
+   `container-type:inline-size` on `.bld-body` establishes a containing block for `position:fixed`
+   descendants, and `#drop` is placed fixed by `anchorDrop` from `getBoundingClientRect()` numbers -
+   the exact pairing `.claude/rules/css.md` has a section about, which already cost batch 212 a
+   diagnosis when `.bld-docket`'s drop-shadow did the same thing by accident. A media query carries
+   none of that.
+   ⚠️ AND 1076 IS COUPLED TO THE SIDEBAR'S 224px. Nothing in CSS can notice that moving, so
+   `tests/visual/274-builder-tablet.spec.js` asserts the wrap from BOTH sides - wrapped at 1075, side
+   by side at 1076 - and that is the only thing standing between a sidebar change and a silently
+   wrong breakpoint here. */
+@media (min-width:768px) and (max-width:1075px){
+  /* the rail is on its own line, so it is the only thing in that line: the 340 cap is what left
+     290px of nothing beside it at 768, 360 at 900 and 428 at 1024 - more empty space than rail. The
+     cap is the mock's, and the mock is a 1360 drawing that never shows this state. */
+  .bld-rail{max-width:none}
+}
+/* §7: the summary bar and the summary panel would print the same two figures. The panel wins at the
+   widths where it is actually on screen, and the bar covers the rest.
+   ⚠️ 274 — THIS MOVED FROM `min-width:768px` TO `min-width:1100px`, and the 1100 is NOT the wrap
+   point. It is the wrap point plus a deliberate margin, and the margin is the whole correction.
+   THE FIRST CUT SET IT TO 1076, EXACTLY ONE ABOVE THE MEASURED WRAP, AND CI CAUGHT IT.
+   The wrap point is where `.bld-body`'s inner width reaches 800, and that width depends on the
+   SCROLLBAR as well as the viewport: macOS draws overlay scrollbars and the Linux runner draws a
+   classic one, so the same 1076 viewport is two-column here and STILL WRAPPED there.
+   `.claude/rules/tests.md` says this in as many words about assertions - the fixed containing block
+   is 370 inside a 380 viewport on that runner - and it is just as true of a rule as of a test.
+   ⚠️ THE FAILURE THAT CREATES IS THE DANGEROUS ONE, WHICH IS WHY THE MARGIN IS NOT TIDINESS: a
+   viewport where the media query says "two-column" while flex is still wrapping gets the bar hidden
+   AND #saveBtn restored to a rail that sits under a full-height docket - a width with NO REACHABLE
+   COMMIT, which is the exact defect this batch exists to remove.
+   ⚠️ AND NOTE WHAT DID NOT CATCH IT. `tests/builder-readiness.test.js` asserts the three media
+   queries agree with each OTHER, and they did: all three can be perfectly consistent and all three
+   wrong about where flex actually wraps. **Agreement between rules is not agreement with the
+   layout.** The spec now measures the wrap rather than naming a width.
+   So this threshold is deliberately LOOSE. Between the wrap point and 1100 the bar is shown while
+   the rail is already beside the docket - one commit control, reachable, slightly redundant - and
+   that is the harmless side of the error. Overlapping is safe; a gap is not. */
+@media (min-width:1100px){
   .bld-bar{display:none}
+}
+/* ⚠️ THE BAR IS `position:fixed;left:0`, AND FROM 640 UP THE NAV IS A LEFT RAIL - SO IT HAS RUN
+   UNDERNEATH IT AT EVERY WIDTH THE BAR WAS EVER SHOWN AT. Two rails, not one: `.bottomnav` becomes a
+   **78px** rail at 640 and a **224px** sidebar at 1024, and `.bld-bar` has `z-index:25` against the
+   nav's 75, so the nav paints on top.
+   ⚠️ THIS IS NOT A 274 REGRESSION AND THE PRE-PUSH REVIEW SAID IT WAS. It called the collision
+   "brand-new, introduced by this change" on the grounds that the bar was hidden at >=768 before -
+   true - and did not check the band BELOW that, where the bar was already shown. Measured on an
+   `origin/main` worktree at 640, 700, 760 and 767: the bar sits at left:0 under a [0,78] rail and
+   the "Plate cost" figure renders at x=16, **entirely behind it**, on main, today.
+   So the finding's DEFECT was real and its SCOPE was the half it had not measured - `CLAUDE.md`'s
+   rule that a finding carries separable claims, arriving in the direction that understates.
+   274 widened the exposure from 640-767 to 640-1023 by showing the bar further up, and fixes the
+   whole of it rather than only the part it widened.
+   The 78 and the 224 are `body{padding-left:...}`'s own numbers, duplicated rather than tokenised
+   because introducing a shell token is shell work and the Design law keeps that out of a screen
+   change set. `tests/visual/274-builder-tablet.spec.js` asserts the bar's left edge against the
+   RAIL'S measured right edge at four widths instead, which pins the relationship rather than either
+   number, and would have caught this. */
+@media (min-width:640px) and (max-width:1023px){
+  .bld-bar{left:78px}
+}
+@media (min-width:1024px) and (max-width:1099px){
+  .bld-bar{left:224px;bottom:0}
 }
 /* Below 640 the tab bar is a real bottom bar and the summary sits above it; from 640 up it is a
    left rail, so the bar sits on the viewport floor. The offset is measured against .bottomnav
