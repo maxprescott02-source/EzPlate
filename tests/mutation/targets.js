@@ -660,6 +660,12 @@ const targets = [
      unreachable while `padMoney` is value-preserving, so the gate would report it forever. */
   { fn: 'padMoney', tests: ['edit-modal-figures.test.js'] },
   { fn: 'renderEditMargin', tests: ['edit-modal-figures.test.js'] },
+  /* 278 — the add-dish picker's ordering. It is here because the WRONG implementation is the
+     tempting one: deciding "is this plate already on this menu" by reading `plateMenuSummary`, the
+     string the row already displays, instead of asking `menusOfPlate`. That reads as the simpler
+     version and is silently wrong the moment a plate is on two menus, because the summary collapses
+     to "2 menus" and names neither. The comparator and the flag are both mutated here. */
+  { fn: 'renderDishPicker', tests: ['add-dish-picker.test.js'] },
 ];
 
 /*

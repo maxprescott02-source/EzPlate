@@ -1,8 +1,8 @@
 {
   "batch": 277,
-  "deploy_version": 226,
+  "deploy_version": 227,
   "first_unstruck_group": "G5",
-  "open_ab_count": 13,
+  "open_ab_count": 12,
   "newest_audit": "AUDIT-v217.md",
   "newest_handover": "HANDOVER-277-edit-modal-figures.md",
   "written_at": "2026-09-16"

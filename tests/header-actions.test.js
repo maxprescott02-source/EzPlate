@@ -31,11 +31,26 @@ const APP_LIVE = APP.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/g
 const pairs = () => [...HTML_LIVE.matchAll(/id="([A-Za-z]+)"[^>]*data-mobile-home="([A-Za-z]+)"|data-mobile-home="([A-Za-z]+)"[^>]*id="([A-Za-z]+)"/g)]
   .map((m) => ({ action: m[1] || m[4], home: m[2] || m[3] }));
 
-test('179: the three screens the queue item names all carry the attribute', () => {
+/* ⚠️ MENU LEFT THIS SET IN BATCH 278 AND THAT IS THE ITEM'S FIX, NOT A REGRESSION. `#menuAddDishBtn`
+   adds a plate to the menu chosen in `#menuSwitchRow`, and it sat in `.scr-head` a row ABOVE that
+   choice — measured at 1280, the button at y37-75 against the switcher row at y80-136, with the
+   header hairline between them. Queue item 54 (U32) moved it INTO that row at every width, so it no
+   longer needs `data-mobile-home`: the markup now says permanently what the attribute said below
+   768, and the mechanism this file guards has one fewer user rather than a broken one.
+   The list is rewritten rather than loosened. `.claude/rules/tests.md` would call a change to
+   `length >= 2` the weaker assertion, and the point of naming the screens is that a FOURTH one
+   wired by hand is exactly what this file exists to catch. */
+test('179: the two screens still using the attribute carry it, and Menu no longer needs it', () => {
   const got = pairs();
   assert.deepEqual(got.map((p) => p.action).sort(),
-    ['importBtn', 'kingWizBtn', 'menuAddDishBtn'],
-    'Ingredients, Products and Menu — the three converted screens that shipped two header actions');
+    ['importBtn', 'kingWizBtn'],
+    'Ingredients and Products — Menu rehomed its action permanently in 278 (queue item 54)');
+  /* And it really is in the row rather than merely absent from the header, or "no longer needs it"
+     would be true of a button that had simply been deleted. */
+  assert.match(HTML_LIVE, /<div class="[^"]*plib-controls[^"]*" id="menuSwitchRow"[\s\S]*?id="menuAddDishBtn"[\s\S]*?<\/div>\s*<\/div>/,
+    '#menuAddDishBtn is authored inside #menuSwitchRow now');
+  assert.ok(!/id="menuAddDishBtn"[^>]*data-mobile-home/.test(HTML_LIVE),
+    'and it carries no data-mobile-home, because it never moves');
   /* ONE HOME, not three answers: every one of them names a `.plib-controls` row, which is the home
      Max chose on 12 Aug 2026. A screen pointed at a modal, a footer or a new row of its own would
      be the item's requirement quietly broken, and it would look fine on screen. */
@@ -107,8 +122,12 @@ test('179: a row that hosts an action hides its FILTERS at zero, never itself', 
 /* §6 — "screen title + one action max" on a phone. The markup half: each of the three headers has
    exactly two action buttons authored in it, so after the move each has one. A third would pass
    every layout assertion at 430 and wrap at 360, which is how this item started. */
-test('179: each converted header carries exactly two actions, so a phone sees one', () => {
-  ['tab-pantry', 'tab-ingredients', 'tab-analysis'].forEach((pane) => {
+/* ⚠️ `tab-analysis` (Menu) LEFT THIS LIST IN 278 for the reason above: its header now carries ONE
+   action, because the secondary moved permanently into the switcher row. The invariant the test is
+   really about is unchanged and is stated below it — a phone sees one action in the header — and
+   Menu satisfies it by having one at every width rather than by moving one away. */
+test('179: each header still using the move carries exactly two actions, so a phone sees one', () => {
+  ['tab-pantry', 'tab-ingredients'].forEach((pane) => {
     const start = HTML_LIVE.indexOf(`id="${pane}"`);
     const head = HTML_LIVE.indexOf('class="scr-head"', start);
     const bar = HTML_LIVE.slice(head, HTML_LIVE.indexOf('</div>', head));
@@ -119,4 +138,18 @@ test('179: each converted header carries exactly two actions, so a phone sees on
     assert.ok(/class="btn primary"/.test(buttons.find((b) => !/data-mobile-home=/.test(b[0]))[0]),
       `#${pane}'s survivor is the primary — the secondary is what leaves`);
   });
+});
+
+/* The same invariant, for the screen that now reaches it a different way. Menu's header holds ONE
+   button at every width, so there is nothing to move and nothing for a phone to lose. Asserted
+   rather than assumed, because "we removed a button" and "we rehomed a button" look identical from
+   the header's side and only one of them is what 278 did. */
+test('278: Menu\'s header carries one action at every width, and it is the primary', () => {
+  const start = HTML_LIVE.indexOf('id="tab-analysis"');
+  const head = HTML_LIVE.indexOf('class="scr-head"', start);
+  const bar = HTML_LIVE.slice(head, HTML_LIVE.indexOf('</div>', head));
+  const buttons = [...bar.matchAll(/<button[^>]*>/g)].filter((b) => !/scr-back/.test(b[0]));
+  assert.equal(buttons.length, 1, "Menu's header bar has one action since 278");
+  assert.match(buttons[0][0], /id="menuNewBtn"/, 'and it is New menu, whose subject is the screen');
+  assert.match(buttons[0][0], /class="btn primary"/);
 });

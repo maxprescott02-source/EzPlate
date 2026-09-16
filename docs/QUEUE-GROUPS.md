@@ -165,7 +165,7 @@ It belongs in G3 on context: it is `as restrictive for delete`, one migration, m
 
 **Context:** specificity-before-source-order, the `:not([hidden])` idiom, `position:fixed` containing blocks, the breakpoint map, the silent-syntax-error guard.
 
-**Items:** ~~47~~ (four bullets 272, `v221`; the builder's Clear/Delete pair 273, `v222`), ~~49~~ (274, `v223`), ~~50~~ (275, `v224`), **53**, **54**, 56, 59, 61, 62, 63, 64, 65, 68, 75, **96**, ~~97~~ (276, `v225`), **98**, **99** · **85** (blocked)
+**Items:** ~~47~~ (four bullets 272, `v221`; the builder's Clear/Delete pair 273, `v222`), ~~49~~ (274, `v223`), ~~50~~ (275, `v224`), ~~53~~ (277, `v226`), ~~54~~ (278, `v227`), 56, 59, 61, 62, 63, 64, 65, 68, 75, **96**, ~~97~~ (276, `v225`), **98**, **99** · **85** (blocked)
 
 ⚠️ **96 WAS RAISED BY BATCH 273 WHILE SHIPPING 47, AND IT IS IN THIS GROUP FOR THE REASON 53 AND 54 ARE: the group's TITLE says CSS, and its membership is screen-by-screen UI work.** 96 is the builder's discard binning an unsaved plate with no confirm — the same screen 47's last bullet was on, reached by the same batch, and its context is `#clearBtn`'s handler and `clearPlateDraft` rather than arithmetic. **It was deliberately NOT filed under G1**, whose A-and-B work is finished: putting a live B item back there would make `tools/state.js` derive G1 as the first unstruck group and tell the next refill to reopen a group nobody is working, which is the failure mode this file's own derivation section exists to avoid.
 

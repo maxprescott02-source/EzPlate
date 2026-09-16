@@ -1532,6 +1532,16 @@ body.scroll-locked{position:fixed;left:0;right:0}
 .ad-item:last-child{border-bottom:0}
 .ad-item:hover{background:var(--hover)}
 .ad-item.sel{background:var(--accent-weak);box-shadow:inset 3px 0 0 var(--accent)}
+/* 278 (item 54, U2): a plate already on the current menu is ranked last and dimmed, so the rows you
+   came to add read first. It stays a full control — selecting one UPDATES its existing entry rather
+   than duplicating it — so this dims the NAME and not the whole row, and leaves hover and the
+   selected state at full strength. Anything stronger would read as disabled, which it is not.
+   ⚠️ SCOPED TO `.is-on`, WHICH ONLY THE ADD-DISH PICKER SETS. `.ad-item` is worn by TWO pickers
+   since batch 228 — this one and the recipe-heal modal (`#plateHealModal`) — and `docs/QUEUE.md`'s
+   design law names that pair explicitly. A rule written on `.ad-item` itself would have restyled a
+   picker this item has nothing to do with. */
+.ad-item.is-on .ad-nm{color:var(--muted2);font-weight:600}
+.ad-item.is-on.sel .ad-nm{color:var(--text)}
 .ad-nm{font-weight:700;font-size:15px}
 .ad-meta{font-size:12px;color:var(--muted2)}
 .ad-empty{padding:16px;text-align:center;color:var(--muted2);font-size:var(--fs-base)}

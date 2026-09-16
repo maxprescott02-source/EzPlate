@@ -9469,7 +9469,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v226';
+var APP_VERSION='v227';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -15282,12 +15282,39 @@ function renderDishPicker(filter){
   var box=document.getElementById('ad_list'); if(!box) return;
   var q=(filter||'').trim().toLowerCase();
   var list=eligibleDishes().filter(function(sp){ var nm=(menuNameForPlate(sp)+' '+(sp.name||'')).toLowerCase(); return !q||nm.indexOf(q)>=0; });
-  list.sort(function(a,b){return (a.name||'').toLowerCase().localeCompare((b.name||'').toLowerCase());});
-  if(!list.length){ box.innerHTML='<div class="ad-empty">No costed plates found. Build and save a plate first.</div>'; return; }
-  box.innerHTML=list.map(function(sp){
-    var c=costFromLines(sp.lines); var on=plateMenuSummary(sp);
+  /* 278 (item 54, U2) — WHAT IS MISSING FROM THIS MENU COMES FIRST. This modal exists to add what
+     is not here, and it was listing everything alphabetically, so the plates already on the current
+     menu sat interleaved among the ones you came to add. Measured with two of four plates already
+     on the current menu: they landed at positions 1 and 3.
+     ⚠️ AND THE OLD SUBTITLE COULD NOT BE READ AT A GLANCE. Every row said "On <menu name>", so
+     "already here" and "on some other menu" were the SAME SHAPE and the reader had to compare the
+     name against the menu they had selected in the row behind the modal. The rows that are already
+     here now say so in words.
+     ⚠️ They are still SELECTABLE, and that is deliberate rather than an oversight: picking one
+     UPDATES the existing entry (`publishPlan` decides create-vs-update) rather than duplicating it,
+     which is what `renderAddDishUnlinked`'s own comment describes when it withdraws the Link
+     question for exactly these rows. Hiding them would remove a working path; dimming them ranks
+     them without lying about what they do.
+     The flag is computed ONCE per plate rather than inside the comparator - `menusOfPlate` walks
+     every dish, and a comparator calls it O(n log n) times. */
+  var cur=currentMenuId;
+  var rows=list.map(function(sp){
+    /* `menusOfPlate` is one of the four sanctioned plate<->dish resolution paths (CLAUDE.md), and
+       its key is `menuId` rather than `id`. Asking it directly rather than reading
+       `plateMenuSummary` matters: that summary collapses to "2 menus" once a plate is on two, and
+       the question here is about ONE specific menu. */
+    return {sp:sp, on:(!!cur && menusOfPlate(sp).some(function(x){ return x.menuId===cur; }))};
+  });
+  rows.sort(function(a,b){
+    if(a.on!==b.on) return a.on?1:-1;                                     // not on this menu first
+    return (a.sp.name||'').toLowerCase().localeCompare((b.sp.name||'').toLowerCase());
+  });
+  if(!rows.length){ box.innerHTML='<div class="ad-empty">No costed plates found. Build and save a plate first.</div>'; return; }
+  box.innerHTML=rows.map(function(r){
+    var sp=r.sp, c=costFromLines(sp.lines), on=plateMenuSummary(sp);
     var sel=(sp.id===adSelectedPlateId)?' sel':'';
-    return '<button type="button" class="ad-item'+sel+'" data-pid="'+esc(sp.id)+'"><span class="ad-nm">'+esc(sp.name||'Plate')+'</span><span class="ad-meta">'+esc(on?('On '+on):'Library')+' · cost '+fmt2(c)+'</span></button>';
+    var where=r.on?'Already on this menu':(on?('On '+on):'Library');
+    return '<button type="button" class="ad-item'+sel+(r.on?' is-on':'')+'" data-pid="'+esc(sp.id)+'"><span class="ad-nm">'+esc(sp.name||'Plate')+'</span><span class="ad-meta">'+esc(where)+' · cost '+fmt2(c)+'</span></button>';
   }).join('');
   box.querySelectorAll('.ad-item').forEach(function(b){ b.onclick=function(){ adSelectedPlateId=b.getAttribute('data-pid'); renderDishPicker(document.getElementById('ad_search').value); renderAddDishUnlinked(); }; });
 }
