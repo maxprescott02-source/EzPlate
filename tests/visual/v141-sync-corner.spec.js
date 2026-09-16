@@ -263,9 +263,16 @@ const SEED_PLATE = (king) => {
    extraordinary one** — a test that could not fail, in the shape this repo's roster is entirely
    about, and the mutation is the only thing that showed it.
    Both run now: dismissed is where the collision is, present is the full four-way stack. */
+/* ⚠️ BOTH PERSISTENT STATES, NOT JUST THE WIDEST — this file's own header says why, at the top:
+   "THE STATES ARE THE POINT... testing 'ok' alone is how this stayed invisible." The two that never
+   auto-dismiss are `error` (273px) and `offline` (230px), and asserting only the wider one assumes
+   the narrower cannot fail differently. It cannot here, and that was MEASURED rather than argued
+   (276's pre-push review reproduced every state across 1024-1099 and found no collision) — but a
+   coverage gap that happens not to hide a bug is still the thing this file was written about. */
 for (const width of [1024, 1080, 1099, 1100]) {
   for (const installBanner of [false, true]) {
-    test(`desktop ${width}${installBanner ? ' + install banner' : ''}: the bottom chrome splits FOUR ways on the builder, in the widest state`, async ({ page }) => {
+    for (const syncState of ['error', 'offline']) {
+    test(`desktop ${width}${installBanner ? ' + install banner' : ''}: the bottom chrome splits FOUR ways on the builder, ${syncState}`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await installBoot(page);
     await page.addInitScript(SEED_PLATE, KING);
@@ -278,8 +285,8 @@ for (const width of [1024, 1080, 1099, 1100]) {
     await page.locator('#plateList .plib-row').first().click();
     await expect(page.locator('#lines .bld-row').first()).toBeVisible();
 
-    const g = await page.evaluate(async () => {
-      window.setSync('error');                                   // the widest state, and one that never dismisses
+    const g = await page.evaluate(async (state) => {
+      window.setSync(state);                                     // a state that never auto-dismisses
       const inst = document.getElementById('installBanner');
       const toast = document.querySelector('.toast');
       /* `pushWrite` fires setSync('error') and toast() in the same breath (css/style.css §H says so
@@ -312,7 +319,7 @@ for (const width of [1024, 1080, 1099, 1100]) {
           ...(instUp ? { syncVsInstall: hit(sync, instR), toastVsInstall: hit(toastR, instR) } : {}),
         },
       };
-    });
+    }, syncState);
 
     /* THE PRECONDITIONS, ASSERTED RATHER THAN ASSUMED — every `false` below is only worth
        something if the elements were actually on screen. Below 1100 the bar must be drawn with a
@@ -326,8 +333,9 @@ for (const width of [1024, 1080, 1099, 1100]) {
       syncVsBar: false, syncVsFigs: false, syncVsToast: false, toastVsBar: false,
       ...(installBanner ? { syncVsInstall: false, toastVsInstall: false } : {}),
     };
-    expect(g.hits, `bottom chrome collision at ${width}px`).toEqual(expected);
+    expect(g.hits, `bottom chrome collision at ${width}px (${syncState})`).toEqual(expected);
     });
+    }
   }
 }
 

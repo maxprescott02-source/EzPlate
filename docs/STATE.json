@@ -1,9 +1,9 @@
 {
-  "batch": 275,
+  "batch": 276,
   "deploy_version": 225,
   "first_unstruck_group": "G5",
-  "open_ab_count": 13,
+  "open_ab_count": 12,
   "newest_audit": "AUDIT-v217.md",
-  "newest_handover": "HANDOVER-275-toast-bottom-stack.md",
+  "newest_handover": "HANDOVER-276-sync-banner-builder-bar.md",
   "written_at": "2026-09-16"
 }

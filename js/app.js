@@ -11067,9 +11067,18 @@ function publishBldBarClear(){
    computed value cannot be a resolved `auto`. */
 function publishSyncBannerClear(){
   var sb=document.getElementById('syncBanner'); if(!sb) return;
+  var zero=function(){ document.documentElement.style.setProperty('--sync-banner-clear','0px'); };
   var h=sb.getBoundingClientRect().height;
-  var cs=h?getComputedStyle(sb):null;
-  if(!h || !cs || cs.transform!=='none'){ document.documentElement.style.setProperty('--sync-banner-clear','0px'); return; }
+  if(!h){ zero(); return; }                        // hidden, or between states
+  /* ⚠️ THE TWO CONDITIONS ARE SEPARATE STATEMENTS BECAUSE A COMBINED ONE HAD A CLAUSE THAT COULD
+     NEVER DECIDE ANYTHING. The first cut read `var cs = h ? getComputedStyle(sb) : null;` and then
+     `if(!h || !cs || cs.transform!=='none')`. `cs` is null exactly when `h` is 0, so `!cs` and `!h`
+     are the same test written twice and the `||` between them is unreachable either way — the
+     mutation gate found it by flipping that `||` to `&&` and watching nothing go red, which is the
+     correct verdict for a clause with no behaviour rather than a gap in the tests.
+     Written out, each line says one thing and each can fail. */
+  var cs=getComputedStyle(sb);
+  if(cs.transform!=='none'){ zero(); return; }     // top-centred below 1024: it does not reach up from the floor
   var dock=parseFloat(cs.bottom)||0;
   document.documentElement.style.setProperty('--sync-banner-clear', Math.ceil(dock+h)+'px');
 }
