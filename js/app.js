@@ -11069,6 +11069,22 @@ function publishSheetFootClear(){
   }
   document.documentElement.style.setProperty('--sheet-foot-clear', Math.ceil(clear)+'px');
 }
+/* ⚠️ AND IT HAS TO REPUBLISH ON RESIZE, WHICH THE FIRST CUT OF THIS DID NOT — found by 275's
+   pre-push review, which reproduced it rather than reasoning about it. Open a sheet at 380, widen
+   past 768, and the SAME overlay is now a centred dialog whose footer is mid-screen; the two other
+   publishers are re-driven across a breakpoint by their ResizeObservers, and this one was only ever
+   called from openOverlay/closeOverlay, so `--sheet-foot-clear` kept its 127px and the toast stayed
+   lifted to 139 on a screen with nothing under it. Measured: align-items flex-end -> flex-start,
+   clear still 127px, toast still 139px.
+   **The stale value is exactly what this publisher's siblings are commented as preventing**, which
+   is what makes it a real gap rather than a nicety — the guard was stated as the point of the
+   mechanism and then omitted from one of the three.
+   NOT a ResizeObserver: the observed thing would be the overlays, of which there are twenty and
+   which come and go, while the event that matters is the VIEWPORT crossing 767. One window listener
+   is the smaller mechanism and it costs a querySelectorAll on a selector that is empty almost
+   always. Registered unconditionally, unlike publishNavH's, because there is no observer here for
+   it to be the fallback to. */
+window.addEventListener('resize', publishSheetFootClear);
 
 /* ===== Install banner ===== */
 (function(){

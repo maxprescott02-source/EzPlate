@@ -438,3 +438,51 @@ test('380px: a sheet footer taller than the toast\'s dock lifts it; the ordinary
   expect(after.clear).toBe('0px');
   expect(after.toastBottom).toBe('92px');
 });
+
+/* THE SHEET CLEARANCE SURVIVES A RESIZE, IN BOTH DIRECTIONS — 275's pre-push review, which
+   reproduced this rather than reasoning about it.
+   `publishSheetFootClear` is the one publisher of the three with no ResizeObserver behind it (the
+   thing that changes is the VIEWPORT crossing 767, not any one overlay's size), so before this it
+   was called only from openOverlay/closeOverlay. Widen past 768 with a sheet still open and the
+   same markup becomes a centred dialog whose footer is mid-screen, while `--sheet-foot-clear` kept
+   the sheet's 127px: measured align-items flex-end -> flex-start, clear still 127px, toast still
+   lifted to 139px with nothing beneath it.
+   BOTH DIRECTIONS are asserted because they fail differently and only one of them is visible: the
+   widen leaves a toast floating (cosmetic, reads as a design choice), and the NARROW leaves a toast
+   back on the delete-choice dialog's buttons, which is the defect this whole section exists for. */
+test('the sheet clearance is re-read when the viewport crosses the sheet breakpoint', async ({ page }) => {
+  await page.setViewportSize({ width: 380, height: 800 });
+  await installBoot(page);
+  await page.addInitScript(() => { try { localStorage.setItem('cafeCost_installDismissed', '1'); } catch (e) {} });
+  await page.goto('/');
+  await page.waitForFunction(() => typeof window.showTab === 'function');
+
+  const read = () => page.evaluate(() => ({
+    clear: getComputedStyle(document.documentElement).getPropertyValue('--sheet-foot-clear').trim(),
+    align: getComputedStyle(document.getElementById('delChoiceModal')).alignItems,
+    toastBottom: getComputedStyle(document.querySelector('.toast')).bottom,
+  }));
+
+  await openSheet(page, 'delChoiceModal');
+  const phone = await read();
+  expect(phone.align).toBe('flex-end');
+  expect(phone.clear).toBe('127px');
+  expect(phone.toastBottom).toBe('139px');
+
+  /* WIDEN, same overlay still open. */
+  await page.setViewportSize({ width: 1024, height: 800 });
+  await page.waitForTimeout(150);
+  const desk = await read();
+  expect(desk.align, JSON.stringify(desk)).toBe('flex-start');   // it is a centred dialog now
+  expect(desk.clear, JSON.stringify(desk)).toBe('0px');
+  expect(desk.toastBottom, JSON.stringify(desk)).toBe('92px');
+
+  /* AND BACK. The lift has to return, or the fix for the stale value has traded one silent
+     failure for the loud one. */
+  await page.setViewportSize({ width: 380, height: 800 });
+  await page.waitForTimeout(150);
+  const back = await read();
+  expect(back.align, JSON.stringify(back)).toBe('flex-end');
+  expect(back.clear, JSON.stringify(back)).toBe('127px');
+  expect(back.toastBottom, JSON.stringify(back)).toBe('139px');
+});
