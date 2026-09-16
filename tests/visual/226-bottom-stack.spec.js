@@ -33,10 +33,35 @@
  * nothing, so its fallback has always been the live value while a comment two rules away says it is
  * measured — the failure this file exists to make loud.
  *
+ * ──────────────────────────────────────────────────────────────────────────────────────────────
+ * 275 (queue item 50) — THE OTHER TWO PUBLISHERS. This file's title says "bottom stack" and it
+ * measured one element of it, because the banner was the only one anyone had measured. Two more
+ * reach up from the same floor and the toast was landing on both:
+ *
+ * (c) `.bld-bar`, THE BUILDER'S STICKY SUMMARY BAR, WHICH CARRIES SAVE. A real-length toast
+ *     overlapped it at EVERY width the bar is shown at — the item named 380 only. Measured at an
+ *     800px-tall viewport with a five-line costed plate: toast y616-708 against the bar at y635-735
+ *     (380, where it also covers `.bfs-save` at y646-690), y700-800 (768 and 900) and y701-800
+ *     (1024). Above 768 it reaches only the bar's top 8px, so the symptom is a clipped "Plate cost"
+ *     rather than a buried button — same defect, quieter.
+ *
+ * (d) AN OPEN BOTTOM SHEET'S FOOTER, AND NINETEEN OF TWENTY ARE ALREADY FINE. A standard `.mfoot`
+ *     is 76px against the toast's 92px dock, so it clears by 16 and must NOT move — a fix written
+ *     as "lift the toast over sheets" would have shifted all twenty for the sake of one.
+ *     `#delChoiceModal`'s footer STACKS three choices and is 127px, so the toast lands on it: one
+ *     sheet out of twenty, and it is the delete-choice dialog. Both halves are asserted below,
+ *     because the one that must not move is the half a blanket fix breaks silently.
+ *
+ * WHAT DID NOT NEED A NEW TEST, recorded so the next reader does not add one: `hide()` now removes
+ * the inline `--install-banner-clear` as well as the class, because 275 collapsed the lift into a
+ * single unconditional rule reading `var(…, 0px)` — and "dismissing the banner releases the reserve
+ * and the lift together", at the foot of this file, goes red on its own if that removal is dropped
+ * (a leftover inline value would hold the lift at 183px instead of 92).
+ *
  * Run: npx playwright test tests/visual/226-bottom-stack.spec.js
  */
 const { test, expect } = require('@playwright/test');
-const { installBoot } = require('./_boot');
+const { installBoot, gotoTab } = require('./_boot');
 
 /* 380 and 768 are the two dock offsets below the sidebar breakpoint; 1024 is where the banner
    becomes a right-aligned 400px panel and the toast starts being pushed by the sidebar; 1920 is
@@ -201,4 +226,215 @@ test('dismissing the banner releases the reserve and the lift together', async (
      dock being dropped. */
   expect(g.barBottom).toBe(Math.ceil(g.navH) + 'px');
   expect(g.bodyPad).toBe('84px');          // body's own base padding-bottom, banner gone
+});
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   275 — (c) THE BUILDER'S SUMMARY BAR AND (d) THE BOTTOM SHEET'S FOOTER
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+/* A mix of gram-priced products, five lines, so the bar carries real figures AND wraps its
+   `.bfs-line` to a second row — the height this publisher exists to measure is the wrapped one. */
+const KING = [
+  { id: 1, name: 'Mushrooms Sliced', pid: 'P0200' },
+  { id: 2, name: 'Bacon Middle Rindless', pid: 'P0004' },
+  { id: 3, name: 'Bags Garbage Prem', pid: 'P0005' },
+  { id: 4, name: 'Milk Full Cream', pid: 'P0100' },
+];
+const SEED_PLATE = (king) => {
+  localStorage.clear();
+  localStorage.setItem('cafeCost_installDismissed', '1');
+  localStorage.setItem('cafeDB_cogsPct', '40');
+  localStorage.setItem('cafeDB_king', JSON.stringify(king));
+  localStorage.setItem('cafeDB_plates', JSON.stringify([{
+    id: 'PL1', name: 'Big Breakfast', category: 'Mains',
+    lines: king.map((k) => ({ kid: k.id, qty: 120 })),
+  }]));
+};
+
+/* The longest real message the builder can produce. The length is the point: at 380 it wraps to
+   three lines and is 91.5px tall, which is what made it reach the bar in the first place. A short
+   fixture toast passes a broken lift. */
+const REAL_TOAST = 'Couldn’t save plate — no database connection';
+
+async function raiseToast(page) {
+  await page.evaluate(async (msg) => {
+    const el = document.querySelector('.toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    /* Poll until the rect stops moving rather than sleeping through the transform — the same
+       reasoning (and the same bug) as `raise()` at the top of this file. */
+    let last = null, still = 0;
+    for (let i = 0; i < 120 && still < 3; i++) {
+      await new Promise((r) => requestAnimationFrame(r));
+      const now = el.getBoundingClientRect().bottom;
+      still = (last !== null && Math.abs(now - last) < 0.01) ? still + 1 : 0;
+      last = now;
+    }
+  }, REAL_TOAST);
+}
+
+async function openCostedPlate(page, width) {
+  await page.setViewportSize({ width, height: 800 });
+  await installBoot(page);
+  await page.addInitScript(SEED_PLATE, KING);
+  await page.goto('/');
+  await gotoTab(page, 'builder');
+  await page.locator('#plateList .plib-row').first().click();
+  await expect(page.locator('#lines .bld-row').first()).toBeVisible();
+}
+
+const barGeom = () => {
+  const R = (n) => { if (!n) return null; const b = n.getBoundingClientRect(); return { l: b.left, r: b.right, t: b.top, b: b.bottom, h: b.height }; };
+  const el = document.querySelector('.toast');
+  const bar = document.getElementById('bFootSum');
+  return {
+    clear: getComputedStyle(document.documentElement).getPropertyValue('--bld-bar-clear').trim(),
+    dock: parseFloat(getComputedStyle(bar).bottom) || 0,
+    barDisplay: getComputedStyle(bar).display,
+    toastBottom: getComputedStyle(el).bottom,
+    toast: R(el), bar: R(bar), save: R(document.getElementById('bldSaveBar')),
+  };
+};
+
+/* 380 is where the toast covers `.bfs-save` itself; 768 and 900 are the band 274 opened the bar
+   into; 1024 is where the bar docks at 0 behind a 224px sidebar. All four had the overlap. */
+for (const width of [380, 768, 900, 1024]) {
+  test(`${width}px: the builder's summary bar says how tall it is, and the toast sits above it`, async ({ page }) => {
+    await openCostedPlate(page, width);
+    await raiseToast(page);
+    const g = await page.evaluate(barGeom);
+    const raw = JSON.stringify(g);
+
+    expect(g.barDisplay, raw).toBe('flex');
+
+    /* THE MECHANISM, and it is the load-bearing assertion: the published value is what the bar
+       actually occupies — its used `bottom` (which has already resolved env(safe-area-inset-bottom))
+       plus its measured height. Deleting the publish leaves the `0px` fallback and drops the toast
+       back onto the bar, which every geometry assertion below then catches too. */
+    expect(g.clear, raw).toBe(Math.ceil(g.dock + g.bar.h) + 'px');
+
+    /* …and the toast holds exactly it, so it cannot drift back to a constant. */
+    expect(g.toastBottom, raw).toBe(`${parseFloat(g.clear) + 12}px`);   // --sp-3 is 12
+
+    /* THE GEOMETRY, bounded on both sides — STACKED on the bar, not merely moved somewhere else.
+       Derived exactly as the banner's gap is, and for the same reason it can be this tight:
+         toast.bottom(viewport) = H - (clear + 12)
+         bar.top(viewport)      = H - (dock + h)
+         clear                  = ceil(dock + h)
+         gap = bar.top - toast.bottom = ceil(x) - x + 12,  x = dock + h
+       so it is in [12, 13) at every width. H cancels and so does the bar's height, which matters
+       because the height is TEXT and the Linux runner has no Geist — the font affects both sides of
+       the subtraction equally and drops out. */
+    const gap = g.bar.t - g.toast.b;
+    expect(gap, `gap ${gap} :: ${raw}`).toBeGreaterThanOrEqual(12);
+    expect(gap, `gap ${gap} :: ${raw}`).toBeLessThan(13);
+
+    /* The item's own name for the defect, kept as the failure message rather than as the weight —
+       roster 190. At 380 this was the Save button under an opaque pill; at 768+ it was the figures. */
+    expect(g.toast.b, `toast over .bfs-save :: ${raw}`).toBeLessThanOrEqual(g.save.t);
+  });
+}
+
+/* THE LIFT IS CONDITIONAL, and this is the half with no visible symptom. Without it a
+   `.toast{bottom:165px}` written flat passes every assertion above and floats the toast a third of
+   the way up an empty screen on every other screen in the app — the same trap the banner's own
+   conditional test at the top of this file exists for. At 1100 `.bld-bar` is `display:none`. */
+test('1100px: the bar is gone, the clearance is released, and the toast returns to its own dock', async ({ page }) => {
+  await openCostedPlate(page, 1100);
+  await raiseToast(page);
+  const g = await page.evaluate(barGeom);
+  expect(g.barDisplay).toBe('none');
+  expect(g.clear).toBe('0px');
+  expect(g.toastBottom).toBe('92px');
+});
+
+/* The builder page is not the only place a toast fires, and leaving it must release the bar too —
+   the bar lives inside #builderPage, so a tab change takes it off screen without changing any rule
+   that mentions it. */
+test('380px: leaving the builder releases the bar clearance', async ({ page }) => {
+  await openCostedPlate(page, 380);
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--bld-bar-clear').trim())).not.toBe('0px');
+  await gotoTab(page, 'analysis');
+  await raiseToast(page);
+  const g = await page.evaluate(barGeom);
+  expect(g.clear).toBe('0px');
+  expect(g.toastBottom).toBe('92px');
+});
+
+/* ───────────────────────── (d) the sheet footer ───────────────────────── */
+
+const sheetGeom = (id) => {
+  const R = (n) => { if (!n) return null; const b = n.getBoundingClientRect(); return { l: b.left, r: b.right, t: b.top, b: b.bottom, h: b.height }; };
+  const el = document.querySelector('.toast');
+  const foot = document.querySelector(`#${id} .mfoot`);
+  return {
+    clear: getComputedStyle(document.documentElement).getPropertyValue('--sheet-foot-clear').trim(),
+    align: getComputedStyle(document.getElementById(id)).alignItems,
+    toastBottom: getComputedStyle(el).bottom,
+    toast: R(el), foot: R(foot),
+    btns: [...document.querySelectorAll(`#${id} .mfoot .btn`)].map(R),
+  };
+};
+
+async function openSheet(page, id) {
+  await page.evaluate(async (i) => {
+    window.show(i);
+    /* `sheetUp` starts at translateY(24px). Wait for the sheet itself to stop moving before the
+       toast is raised, or the geometry read here is mid-animation — the failure this file's own
+       `raise()` records for the toast, one element along. */
+    const m = document.querySelector(`#${i} .modal`);
+    let last = null, still = 0;
+    for (let n = 0; n < 120 && still < 3; n++) {
+      await new Promise((r) => requestAnimationFrame(r));
+      const now = m.getBoundingClientRect().bottom;
+      still = (last !== null && Math.abs(now - last) < 0.01) ? still + 1 : 0;
+      last = now;
+    }
+  }, id);
+}
+
+test('380px: a sheet footer taller than the toast\'s dock lifts it; the ordinary one does not', async ({ page }) => {
+  await page.setViewportSize({ width: 380, height: 800 });
+  await installBoot(page);
+  await page.addInitScript(SEED_PLATE, KING);
+  await page.goto('/');
+  await page.waitForFunction(() => typeof window.showTab === 'function');
+
+  /* THE ONE THAT MUST MOVE. #delChoiceModal offers three choices, so its footer stacks to 127px —
+     past the toast's own 92px dock, which is why the toast landed on the buttons. */
+  await openSheet(page, 'delChoiceModal');
+  await raiseToast(page);
+  const tall = await page.evaluate(sheetGeom, 'delChoiceModal');
+  const rawT = JSON.stringify(tall);
+
+  expect(tall.align, rawT).toBe('flex-end');                       // it is a SHEET, not a centred dialog
+  expect(tall.clear, rawT).toBe(Math.ceil(tall.foot.h) + 'px');    // docked, so the footer's height IS its reach
+  expect(parseFloat(tall.clear), rawT).toBeGreaterThan(92);        // …and it is past the toast's own dock
+  expect(tall.toastBottom, rawT).toBe(`${parseFloat(tall.clear) + 12}px`);
+  const gap = tall.foot.t - tall.toast.b;
+  expect(gap, `gap ${gap} :: ${rawT}`).toBeGreaterThanOrEqual(12);
+  expect(gap, `gap ${gap} :: ${rawT}`).toBeLessThan(13);
+  tall.btns.forEach((b, i) => expect(tall.toast.b, `btn ${i} :: ${rawT}`).toBeLessThanOrEqual(b.t));
+
+  await page.evaluate(() => { window.hide('delChoiceModal'); document.querySelector('.toast').classList.remove('show'); });
+
+  /* THE NINETEEN THAT MUST NOT. A 76px footer clears the toast's own dock by 16px, so the max()
+     picks the dock and nothing moves. This is the assertion a blanket "lift the toast whenever a
+     sheet is open" fix fails, and it would fail it invisibly — the toast would simply sit higher
+     on every confirm in the app. */
+  await page.evaluate(() => window.askConfirm('Delete this plate?', 'This cannot be undone.', 'Delete', function () {}, 'Cancel'));
+  await openSheet(page, 'confirmModal');
+  await raiseToast(page);
+  const short = await page.evaluate(sheetGeom, 'confirmModal');
+  const rawS = JSON.stringify(short);
+  expect(short.clear, rawS).toBe(Math.ceil(short.foot.h) + 'px');   // published honestly…
+  expect(parseFloat(short.clear), rawS).toBeLessThan(92);           // …and smaller than the dock…
+  expect(short.toastBottom, rawS).toBe('92px');                     // …so the toast does not move.
+
+  /* AND CLOSING RELEASES IT. closeOverlay republishes before the reduced-motion early return, so
+     both close paths drop the clearance. */
+  await page.evaluate(() => window.hide('confirmModal'));
+  const after = await page.evaluate(sheetGeom, 'confirmModal');
+  expect(after.clear).toBe('0px');
+  expect(after.toastBottom).toBe('92px');
 });

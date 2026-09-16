@@ -2641,6 +2641,13 @@ function renderBuilderCost(tot){
       if(_blk){ footLine.className='bfs-line bfs-fix'; footLine.setAttribute('role','button'); footLine.setAttribute('tabindex','0'); }
       else { footLine.className='bfs-line'; footLine.removeAttribute('role'); footLine.removeAttribute('tabindex'); }
     }
+    /* 275 — this function is the ONE place the bar's presence and its content both change, so it is
+       where the toast is told how much room the bar takes. The ResizeObserver in the publisher's own
+       IIFE would catch this too, a frame later; the explicit call is here because a toast raised by
+       the same user action that hid or grew the bar must not be laid out against the previous state.
+       It is a two-line style write with no read of its own beyond the bar, so the cost is a layout
+       this function's innerHTML writes have already forced. */
+    publishBldBarClear();
   }
   renderBuilderPublish(sp, on);
 }
@@ -9412,7 +9419,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v223';
+var APP_VERSION='v224';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -10981,6 +10988,88 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', publishNavH);
 })();
 
+/* ===== 275: the bottom stack has THREE things that reach up from the floor, not one =====
+   226 built the pattern for the install banner and its comment already named the rule: "the element
+   that owns it publishes it, and nothing that reads it may know a number". It built ONE publisher,
+   because the banner was the only element anyone had measured. Two more were there all along:
+
+     `.bld-bar`  the builder's sticky summary bar — `position:fixed`, and it carries SAVE since 177.
+     `.mfoot`    an open bottom SHEET's footer — the row that carries Cancel and the commit verb.
+
+   ⚠️ MEASURED AT AN 800px-TALL VIEWPORT WITH A COSTED PLATE, and the queue item named one width of
+   the four: a real-length toast (y616-708 at 380) overlaps `.bld-bar` at EVERY width the bar is
+   shown at — 380 (bar y635-735, and the toast covers `.bfs-save` at y646-690), 768 and 900 (bar
+   y700-800), 1024 (bar y701-800). At 768 and up the toast only reaches the bar's top 8px, so the
+   symptom there is a clipped "Plate cost" label rather than a buried button; at 380 it is the
+   commit itself.
+   ⚠️ AND NINETEEN OF THE TWENTY SHEETS ARE ALREADY FINE, WHICH IS THE ARGUMENT FOR A MEASUREMENT
+   RATHER THAN A RULE ABOUT SHEETS. A standard `.mfoot` is 76px and the toast docks at 92, so it
+   clears by 16 and this publisher changes nothing for it. `#delChoiceModal`'s footer STACKS — it
+   offers three choices, not two — and is **127px**, so the toast lands squarely on it. One sheet
+   out of twenty, and it is the delete-choice dialog. A rule written as "lift the toast over sheets"
+   would have moved all twenty for the sake of one; the max() below moves exactly the one that
+   reaches past the toast's own dock, at whatever height it happens to be.
+
+   WHY NOT ONE VARIABLE WITH THE MAX TAKEN IN JS: the three change at different times and are owned
+   by three different pieces of code (a banner IIFE, the builder's renderer, the overlay open/close
+   pair). A shared accumulator is a fourth thing to keep in step, and the first of the three to
+   forget it wins silently. CSS `max()` takes it for free and cannot go stale. */
+function publishBldBarClear(){
+  var bar=document.getElementById('bFootSum'); if(!bar) return;
+  var h=bar.getBoundingClientRect().height;
+  /* PUBLISH 0, NEVER SKIP. A stale clearance for a bar that is no longer on screen floats the toast
+     a third of the way up an empty builder — which is the exact failure 226's spec guards for the
+     banner ("a `.toast{bottom:171px}` written flat would pass every assertion above"). The banner
+     can key on a class it removes; this bar hides four different ways (an empty docket, leaving the
+     builder page, >=1100, a tab change), so the honest signal is its own measured height. */
+  if(!h){ document.documentElement.style.setProperty('--bld-bar-clear','0px'); return; }
+  var dock=parseFloat(getComputedStyle(bar).bottom)||0;
+  /* Same expression as the banner's, for the same reason: the used `bottom` of a fixed element has
+     already resolved its own calc(), so env(safe-area-inset-bottom) is INSIDE this number and a
+     reader must not add it back. */
+  document.documentElement.style.setProperty('--bld-bar-clear', Math.ceil(dock+h)+'px');
+}
+(function(){
+  var bar=document.getElementById('bFootSum'); if(!bar) return;
+  /* The observer is not belt-and-braces. The bar's height CHANGES while it is up — `.bfs-line` is
+     `flex:1 1 100%`, so the blocker sentence and the price line wrap to a second row at some widths
+     and not others — and every breakpoint that moves it also changes its width (left:78 at 640,
+     left:224 at 1024, display:none at 1100), so the observer sees those too.
+     ⚠️ WHAT IT CANNOT SEE is the install banner appearing: that changes the bar's `bottom` and not
+     its size, so RO stays silent. The banner's own code calls this function — see the IIFE below. */
+  var observed=false;
+  if(window.ResizeObserver){ try{ new ResizeObserver(publishBldBarClear).observe(bar); observed=true; }catch(e){} }
+  if(!observed) window.addEventListener('resize', publishBldBarClear);
+  window.addEventListener('load', publishBldBarClear);
+})();
+
+/* THE SHEET'S FOOTER. Republished on every overlay open and close — see openOverlay/closeOverlay.
+   ⚠️ "IS THIS A BOTTOM SHEET" IS READ FROM THE CASCADE, NOT FROM 767. `.modal-overlay` is
+   `align-items:flex-end` with `padding:0` only inside `@media (max-width:767px)`; above it the
+   modal is a centred dialog at 12vh whose footer is nowhere near the floor, and a clearance
+   computed there would shove the toast halfway up a desktop screen. Asking the computed style is
+   the same discipline `.claude/rules/tests.md` requires of a viewport assertion — measure the
+   reference, never name it — and it survives the breakpoint moving.
+   ⚠️ AND THE VALUE IS MEASURED AGAINST THE SHEET, NOT THE VIEWPORT, WHICH IS WHAT MAKES IT SAFE TO
+   RUN MID-ANIMATION. `.modal-overlay.open > .modal` runs `sheetUp`, `from{transform:translateY(24px)}`,
+   and openOverlay publishes on the frame the class goes on — so a rect taken against the viewport
+   floor is 24px short for the length of the animation. `modal.bottom - foot.top` is the footer's
+   reach above the SHEET's own bottom edge, and a transform moves both sides equally, so it drops
+   out. (The sheet's bottom edge IS the floor here: flex-end, and the overlay's padding is 0.) */
+function publishSheetFootClear(){
+  var open=document.querySelectorAll('.modal-overlay.open'), clear=0;
+  for(var i=0;i<open.length;i++){
+    var ov=open[i];
+    if(getComputedStyle(ov).alignItems!=='flex-end') continue;      // a centred dialog, not a sheet
+    var dlg=ov.querySelector('.modal'), foot=ov.querySelector('.mfoot');
+    if(!dlg||!foot) continue;
+    var f=foot.getBoundingClientRect(); if(!f.height) continue;
+    var c=dlg.getBoundingClientRect().bottom - f.top;
+    if(c>clear) clear=c;                                            // overlays STACK (#confirmModal sits at z85 over z80)
+  }
+  document.documentElement.style.setProperty('--sheet-foot-clear', Math.ceil(clear)+'px');
+}
+
 /* ===== Install banner ===== */
 (function(){
   var KEY='cafeCost_installDismissed';
@@ -11016,7 +11105,11 @@ if ('serviceWorker' in navigator) {
     var dock = parseFloat(getComputedStyle(banner).bottom) || 0;
     document.documentElement.style.setProperty('--install-banner-clear', Math.ceil(dock + h) + 'px');
   }
-  if(window.ResizeObserver){ try{ new ResizeObserver(publishClear).observe(banner); }catch(e){} }
+  /* 275 — the bar rides on this number (`html.has-install-banner .bld-bar{bottom:var(…)}`), so every
+     republish of the banner's clearance is also a republish of the bar's. The iOS hint is the case
+     that makes this load-bearing rather than tidy: it grows the banner 87->143 at 380 while both are
+     on screen, and the bar's own size does not change, so its observer never fires. */
+  if(window.ResizeObserver){ try{ new ResizeObserver(function(){ publishClear(); try{ publishBldBarClear(); }catch(e){} }).observe(banner); }catch(e){} }
   function show(){
     if(dismissed()||standalone()) return;
     banner.style.display='flex';
@@ -11028,10 +11121,23 @@ if ('serviceWorker' in navigator) {
        114px instead, i.e. exactly main's behaviour, which is wrong on a phone and not broken. */
     try{ publishClear(); }catch(e){}
     document.documentElement.classList.add('has-install-banner');
+    /* AFTER the class, not before: `html.has-install-banner .bld-bar{bottom:var(--install-banner-clear)}`
+       is what moves the bar, so the bar's own clearance can only be measured once the class is on.
+       Guarded for the same reason publishClear() above is — a throw here must not leave the banner
+       visible with the class already added. */
+    try{ publishBldBarClear(); }catch(e){}
   }
   function hide(){
     banner.style.display='none';
     document.documentElement.classList.remove('has-install-banner');
+    /* ⚠️ THE INLINE PROPERTY GOES WITH THE CLASS, and 275 needs this where 226 did not. 226's lift
+       was `html.has-install-banner .toast{...}`, so dropping the class was enough to release it and
+       a leftover value was unreachable. The toast now reads `var(--install-banner-clear, 0px)` from
+       a single unconditional rule, so a value left behind by show() would keep the lift forever —
+       the "permanently reserved space reads as a design choice" failure, moved one layer along.
+       The class rule below it is still what supplies the pre-JS fallback. */
+    document.documentElement.style.removeProperty('--install-banner-clear');
+    try{ publishBldBarClear(); }catch(e){}
   }
   window.addEventListener('beforeinstallprompt',function(e){ e.preventDefault(); deferred=e; show(); });
   window.addEventListener('appinstalled',function(){ setDismissed(); hide(); });
@@ -11182,6 +11288,10 @@ function openOverlay(el){
     el.__opener=(opener && opener!==document.body && !el.contains(opener)) ? opener : null;
     focusOverlay(el);
   }
+  /* 275 — the bottom stack's third publisher. Here rather than in show() because show() is one of
+     several ways in: openOverlay is the chokepoint every path goes through, and it is idempotent,
+     so re-opening an already-open overlay republishes rather than being skipped. */
+  publishSheetFootClear();
 }
 function closeOverlay(el){
   if(!el) return;
@@ -11201,6 +11311,11 @@ function closeOverlay(el){
     var under=topOverlay();                                       // a stack: hand focus back to the layer underneath
     if(under && !under.contains(document.activeElement)) focusOverlay(under);
   }
+  /* 275 — BEFORE the reduced-motion early return, for the same reason syncBodyScrollLock is: both
+     close paths have to release the clearance, or the toast keeps a lift for a sheet that is gone.
+     `.open` has already been dropped above, so this re-reads the stack and finds whatever is still
+     open underneath — zero, or the layer this one was stacked on. */
+  publishSheetFootClear();
   if(!wasOpen || prefersReducedMotion()){ el.classList.remove('closing'); return; }
   el.classList.add('closing');                                    // .modal-overlay.closing re-asserts display + runs the fade-out (CSS §14)
   el.__closeT=setTimeout(function(){ el.classList.remove('closing'); }, 320);
@@ -11381,7 +11496,19 @@ function loadPlateState(id){
   hidePlateSuggest(); updateEditTag(); renderPlate();
   return sp;
 }
-function loadPlate(id){ var sp=loadPlateState(id); if(!sp) return; openBuilder(); toast('Loaded: '+(sp.name||'plate')); }
+/* 275 — NO TOAST HERE, AND THE DELETION IS THE POINT. It said `Loaded: <name>` on every open, which
+   is a non-event: the user has just tapped that plate's own row, and the builder's breadcrumb and
+   #plateName both name it the moment the page paints. A toast is the app's channel for something the
+   user could NOT otherwise know, and spending it on a confirmation of the tap they just made is what
+   put an opaque pill over the screen at the one scroll position every open starts from.
+   ⚠️ MEASURED, and the item understated it: at 768, 900 AND 1024 this toast landed ON `#clearBtn`
+   ("Start over") — toast y639-708 against the button at y687-731 at 768 and 900, y661-708 against
+   y637-680 at 1024. Those are PAGE content, not fixed chrome, so no clearance variable can reach
+   them; the only fix is not firing a toast nobody asked for at a scroll position it will cover.
+   `loadMenuItemBlank`'s toast is the sibling and it STAYS: "add ingredients to cost it" tells the
+   user what the app has just done to a blank menu item and what is expected next, which is not
+   knowable from the screen. */
+function loadPlate(id){ var sp=loadPlateState(id); if(!sp) return; openBuilder(); }
 
 /* ===== v54: Plates tab (card library) + builder popup + card action menu ===== */
 var ICON_PLATE_BIG='<svg class="es-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v4"/><path d="M9 3v4"/><path d="M12 3v4"/><path d="M6 7h6"/><path d="M9 7v14"/><path d="M18 3v18"/><path d="M18 3c-2.2 0-3.5 3-3.5 6 0 1.5 1.3 2 3.5 2"/></svg>';   // v57: fork + knife (matches the Plates nav glyph)
