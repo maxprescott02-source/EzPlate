@@ -85,6 +85,16 @@ The rule above is about YOUR edits. The reviewer makes its own: it hand-applies 
 **The tell is a count, not a failure.** Measured: `npx playwright test --list` reported **492 tests in 60 files**, and the run finished **exit 0, no failures, 474 passed + 14 skipped = 488**. Four tests neither passed, failed nor skipped. Nothing in the output says so; you have to know the number.
 **So check the total against `--list` every time, and treat any shortfall as a discarded run** — this repo already records `node --test` printing `fail 0` while exiting 1, and this is the same class in the other harness: a green exit code that has not run what you think it ran.
 
+⚠️ **AND DO NOT RUN IT THROUGH A PIPE, WHICH IS THE THIRD MEMBER OF THAT FAMILY AND THE ONE THAT COST A WHOLE SESSION** (batch 278, AUDIT-v227 recommendation 7).
+`npx playwright test | grep -v WebServer | tail -5` exits with **`tail`'s** status, not Playwright's. A run with two failing specs printed `exited with code 0`, and the five lines kept were the tail of a LIST the failures had already scrolled off — so the follow-up `grep -c "failed"` on the saved output agreed, because the saved output only ever held those five lines. **Four runs in one session were reported green that way.**
+
+```
+npx playwright test --reporter=line > /tmp/pw.txt 2>&1; echo "EXIT=$?"
+```
+
+Redirect, then read `$?` **on the command itself**. `set -o pipefail` also works. **The tell is any test command with a `|` in it.**
+The rule is in `.claude/rules/tests.md`, which loads on a READ of `tests/**` — it is restated here because this is the file you open when you are about to RUN Playwright, and running is not a read.
+
 **Run them in sequence: review, then Playwright.** They are both slow and the temptation to overlap them is the whole problem.
 
 ```

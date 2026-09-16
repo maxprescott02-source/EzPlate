@@ -95,7 +95,7 @@ UI labels and internal identifiers are deliberately CROSSED.
 
 **Menu deletion deletes its dishes and UNLINKS their plates - never the plates.** There is **no holding area** and **no last-menu guard**: any menu is deletable, including the last, and **zero menus is a legitimate state** that must be respected rather than seeded over. `fallbackMenuId()` never returns a deleted id and returns `null` when no menu exists.
 
-**`menusList` MEANS MENUS THE SERVER HAS, and `withPublishMenu` decides whether to create one by reading `menusList.length`.** Three writers, all of which wait for the server: `bootstrapSync`, `submitNewMenu`, `ensurePublishMenu`. **If you add a fourth, this is what it owes.** The `menus` read is REQUIRED at boot - its error raises the boot gate - because a seeder reached by a flaky read cannot tell an empty table from a failed request, and once invented a menu that hid every real dish.
+**`menusList` MEANS MENUS THE SERVER HAS, and `withPublishMenu` decides whether to create one by reading `menusList.length`.** **FOUR** writers, all of which wait for the server: `bootstrapSync`, `submitNewMenu`, `ensurePublishMenu`, `rollbackMenuDelete` (254; it restores a menu the server still holds, so the invariant stands - the COUNT said three until AUDIT-v227). **If you add a fifth, this is what it owes.** The `menus` read is REQUIRED at boot - its error raises the boot gate - because a seeder reached by a flaky read cannot tell an empty table from a failed request, and once invented a menu that hid every real dish.
 
 ## No new dependencies, no build step, no scope creep
 

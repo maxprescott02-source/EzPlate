@@ -78,6 +78,24 @@ That is correct and is not the trap. The trap is what it does to any instruction
 
 **The transferable question, and it is not about this one class: before moving anything into a shared slot, ask at which widths the slot is RENDERED.** A slot is a promise about layout, not a container. `tests/king-head-sub.test.js` pins the source/sink/breakpoint triple and the absence of an inline `display`.
 
+## A BREAKPOINT IS A MEASUREMENT, AND A WRONG ONE SHIPS
+
+(Named by AUDIT-v227 after the same mistake in THREE CONSECUTIVE BATCHES, each one made after the previous batch wrote the lesson into its own handover. The sentence below is 274's, promoted out of a write-once file because that is where it kept failing to reach anyone.)
+
+**A viewport-geometry ASSERTION must measure its reference rather than name it - and the same is true of a RULE. Unlike a test, a wrong breakpoint ships.**
+
+- **274** pinned a media query one pixel past a locally-measured wrap point. The wrap depends on the **scrollbar** as well as the viewport - overlay on macOS, classic on the Linux runner - so every classic-scrollbar machine got a band where the rule said "two-column", the bar hid, and there was **no reachable commit control**. That is the defect the batch existed to remove, reintroduced by its own fix. CI found it after the review had passed.
+- **275** took an item that measured the overlap at one width. Measured, it was at **all four** widths the bar is shown at.
+- **278** rehomed a button into a row whose `>=768` sizing had been tuned for two children. Measured against `main`: the menu `<select>` went to **48px at 768** - blank - across the whole 768-1023 band. The batch had screenshotted **1280 and 380**, which are exactly the two widths where it looks right.
+
+⚠️ **THE TELL IS NOT "I DID NOT MEASURE". ALL THREE MEASURED.** The tell is measuring at the ENDS of a range and generalising across the middle, or measuring on one machine and writing a number into a rule. A breakpoint, a `min-width`, a flex basis and a media query are all claims about every width in a band, and a screenshot at each end is evidence about two of them.
+
+**So, concretely, when a change moves anything in a row or crosses a breakpoint:**
+- **sweep the band**, not its ends - 768, 800, 900, 1023, 1024 is five cheap measurements and it is what found all three of these;
+- **measure against `main`** where a before-value exists, because "it looks fine" is a judgement and "141px became 48px" is not;
+- **ask what else is in that container.** 278's row had carried two children since it was written; nothing said so, and the sizing encoded it.
+- and **a number you measured on one machine is not a property of the app** - the scrollbar, the fonts and the platform all move it. Prefer a rule that expresses the relationship (a floor, a `max()`, a measured reference) over one that names a pixel.
+
 ## A CSS syntax error is SILENT, and it discards every rule after it
 
 (Max's yes, 12 Aug 2026, after it cost batch 176 a full diagnose cycle.)

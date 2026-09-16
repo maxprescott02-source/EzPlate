@@ -960,6 +960,10 @@ Two sibling series, written by the same function on the same event, with opposit
 
 ⚠️ **This is the BULK sweep and it is deliberately one pass over the whole list, not a rule.** The per-batch half - a read-only premise-checker invoked before any edit - is fix-plan item C4 and is harness rather than product; it does not belong in this file and must not be built here.
 
+⚠️ **THAT COMPLEMENT HAS SINCE SHIPPED, AND IT CHANGES WHAT THIS ITEM IS WORTH** (AUDIT-v227, recommendation 9, which DECLINED promoting this into the working set). `.claude/agents/premise-check.md` exists and `skills/batch` step 1 runs it on every item before any edit. **Measured over batches 270-278: nine of nine caught their item's enumeration short**, including the two this audit re-found by hand (item 53 crediting `publishPlan` with figures it computes none of; item 54 carrying a bullet fixed four batches before the item was written).
+**This item was written when NOTHING caught them.** The drift is still real and still measured - AUDIT-v227 sampled eight unrun items and found **6 of 6 line citations wrong** and two items wrong beyond position - but it is now caught at the point of use, at a cost of one agent run per batch, instead of being paid with an open branch and a written plan.
+**So it stays C.** Promoting it would spend a batch fixing citations that the next reader of each item re-checks anyway. What would change that verdict is premise-check MISSING one - that is the signal to promote, and it has not happened yet.
+
 **Do after:** nothing. It is read-only and collides with no branch.
 
 ## blocked  95 · Merge on a green pre-push hook instead of waiting for CI  **[B — 11 to 15 minutes of dead time per item, and the fix trades it for a window where `main` is red and auto-deploying]**

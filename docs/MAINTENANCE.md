@@ -88,6 +88,15 @@ Queue item 54 (U32) rehomed `#menuAddDishBtn` into `#menuSwitchRow` at every wid
 **The fix, if it is wanted, re-opens a shared contract.** `.plib-search` is pinned at 320-400 by §26 and that sizing is used by Ingredients, Products and Plates as well as Menu; letting it shrink here means re-measuring a hand-tuned row on four screens. That is why it was not taken inside an item about a picker.
 ⚠️ **The related defect WAS fixed and must not be re-opened by any attempt at this one:** `.mnu-selwrap{min-width:150px}` at >=768, which stops the select being squeezed to 48px across 768-1023. The comment at that rule carries the before-and-after measurements.
 
+### Six remembered packs are keyed to a supplier called `Document No:`
+(Moved here from `docs/PHONE.md` by AUDIT-v227, 16 Sep 2026. It had sat on the phone list since v107 and waited six weeks under a heading that said outright it was not a phone check.)
+
+A parser bug fixed long ago left them behind; they have been there since **3 August 2026** and were still six when production was measured on **10 Sep 2026**. They match nothing and cost nothing — they are just wrong.
+**Settings → Remembered packs → remove each row showing `Document No:`.** Two minutes, on a desktop, whenever. ⚠️ **The seventh row (`The Fruit Wagon` / avocado tray) is GENUINE — leave it.**
+
+**Why it moved rather than being done:** it is data in the café's production database, and `CLAUDE.md` makes anything that deletes or rewrites production data Max's to authorise. A batch can neither do it nor stop recording it, which is exactly what `docs/MAINTENANCE.md` is for.
+⚠️ **And the reason it is worth writing down twice:** `docs/PHONE.md`'s own retrospective calls this *"the clearest single example of why that list stopped working: it was never a phone check at all"* — and then kept it for another six weeks, under a heading admitting it. **A file that names its own defect in the entry that demonstrates it has a reader problem, not a writer problem.**
+
 ## Displaced B items — promote when a `QUEUE.md` slot frees
 
 These passed the launch test and lost on priority against the 20-item cap. They are not C.
@@ -424,7 +433,8 @@ The job's own annotation is the diagnosis — *"a segfault cannot be caused by t
 **The same commit's full Playwright run passed locally: 554 passed, 14 skipped, exit 0.**
 
 **What this adds to the entry below.** That one recorded the SEVENTH occurrence as *"the first on 1.62.1, so the bump from 1.61.1 did NOT fix it."* This is the second on 1.62.1, which is the beginning of a rate rather than a one-off on the new pin.
-**The count to watch is occurrences per Playwright version, not occurrences.** Two on 1.62.1 is not yet worth a version change — `tests/third-party-pins.test.js` remains the authority on which version is safe, and the newest release is not automatically it.
+**The count to watch is occurrences per Playwright version, not occurrences.** Two on 1.62.1 is not yet worth a version change, and the newest release is not automatically the safe one.
+⚠️ **AND THE VERSION IS NOT PINNED WHERE BOTH OF THESE ENTRIES SAID IT WAS** (AUDIT-v227). `grep -ci playwright tests/third-party-pins.test.js` returns **0** - that file scopes itself to the two scripts that SHIP TO PRODUCTION, pdf.js and supabase-js, and says so in its own header. Playwright is a devDependency at **`^1.62.1` in `package.json` - a caret, not an exact pin** - held still only by `package-lock.json`. A batch following this entry would have opened a file with nothing to tell it. Read `package.json` and the lockfile.
 The spec that ran immediately before was not captured this time; the next batch to hit one should take it from the report artifact, which the job uploads.
 
 ### The Chromium segfault has a SEVENTH occurrence, and HANDOVER-163's fingerprint method needs one correction
@@ -442,7 +452,7 @@ The spec that ran immediately before was not captured this time; the next batch 
 
 **So the rule is: compare the FAULT ADDRESS and the register signature, not the binary offset.** Compute the offset only to tell two crashes apart *within one build*. `docs/handovers/HANDOVER-163-browser-segv.md` is write-once and stays as it is; this entry is the correction, and the next batch to hit a segfault should read both.
 
-**Not queued, and the reason is the cost rather than the count.** `--retries=1` already absorbs it, the required checks (`unit tests`, `smoke`, `what changed`) are unaffected, and no client code is involved. What it costs is one CI job per occurrence and a batch's attention. **If it becomes frequent enough to matter, the variable is the pinned Playwright version and `tests/third-party-pins.test.js` is the authority on which one is safe** - note that this occurrence is the first on 1.62.1, so the bump from 1.61.1 did NOT fix it.
+**Not queued, and the reason is the cost rather than the count.** `--retries=1` already absorbs it, the required checks (`unit tests`, `smoke`, `what changed`) are unaffected, and no client code is involved. What it costs is one CI job per occurrence and a batch's attention. **If it becomes frequent enough to matter, the variable is the Playwright version in `package.json` (`^1.62.1`, a caret) and the lockfile that holds it still** - ~~`tests/third-party-pins.test.js` is the authority on which one is safe~~ **(corrected by AUDIT-v227: that file covers only the two production scripts and has zero Playwright hits)** - note that this occurrence is the first on 1.62.1, so the bump from 1.61.1 did NOT fix it.
 
 ### ~~The bottom stack's OTHER pair: a toast covers the builder's Save button, with no install banner involved~~ — **DONE, batch 275 (`ezplate-v224`), as queue item 50**
 ✅ `.bld-bar` publishes `--bld-bar-clear` from `publishBldBarClear` and the toast takes the max, which is exactly the remedy this entry names below. **It was RIGHT about the mechanism and short about the scope, which is this file's usual direction:** it measured 380 and called it "the builder's Save button", and the overlap is at **every width the bar is shown at** — 768, 900 and 1024 too, where the toast reaches the bar's top 8px and clips the "Plate cost" label instead of the button. Same defect, quieter symptom, and a fix written to the 380 measurement alone would have been judged complete.
@@ -536,8 +546,12 @@ Requirements: decide whether `loadPlateState` should degrade a `pid` line the wa
 Found by the v115 audit as **the strongest remaining candidate for an unfound root cause in this repo.** Fixed in `HANDOVER-v44`, `v49`, `v54` and `v70`, each as its own CSS correction. No handover names a shared cause and no Tier 1 entry was ever written — the signature of a symptom treated four times. `tests/empty-states.test.js` postdates all four, so it pins the current state rather than the thing that kept breaking.
 Requirements: read the four fixes together, name the shared cause or state positively that there isn't one, and if there is, write the trap.
 
-### `doDeleteMenu`'s unawaited dish deletes
-Flagged in v114, unchanged. Same class as the v112 sequencing fixes.
+### ~~`doDeleteMenu`'s unawaited dish deletes~~ - **DONE, batch 254. Struck by AUDIT-v227.**
+✅ `doDeleteMenu` calls `dbDeleteMenuAfterDishes`, which AWAITS the dish deletes before touching the menus row; `tests/delete-sequencing.test.js` pins the sequencing and `tests/change-log.test.js` asserts the call.
+⚠️ **It had read as OUTSTANDING for about 24 batches after being fixed** - the second instance of the class batch 275 found (an entry still reading as open fourteen deploy versions after its fix), and the third is `edDelArmed` below. **Three instances is the file, not the batches**: nothing here re-checks an entry against the code, which is what recommendation 10 of AUDIT-v227 is about.
+*(The original entry is kept below because its FK reasoning is still the right reading of that pair.)*
+
+Flagged in v114. Same class as the v112 sequencing fixes.
 Note `menu_items.menu_id → menus.id` is ON DELETE SET NULL, so unlike the plate case there is no FK to violate — this is about the change-log entry chaining off the write that actually decides the menu is gone, not about a 23503.
 
 ### `priceHistory` wholesale-replace at boot
@@ -574,8 +588,9 @@ So the buffer is load-bearing in two directions and there is nothing left to sim
 ### `ingredients.updated_at` is stale and means nothing
 It is NOT history and must never be read as such. Either make it honest or drop it — the reason it is recorded here is so nobody builds on it. (The Tier 1 trap in `CLAUDE.md` is the live protection; this item is the cleanup.)
 
-### `edDelArmed` is dead
-Declared at `js/app.js:7949`, written at `:7976` and `:7988`, read nowhere. Verified 7 Aug 2026, still true 11 Aug 2026. Delete it.
+### ~~`edDelArmed` is dead~~ - **DONE, batch 272. Struck by AUDIT-v227.**
+✅ Deleted with the edit-modal footer pass. Zero hits in `js/app.js`.
+⚠️ **Six batches stale here, and ALSO still unstruck in consolidated item 76's first bullet** - so a batch promoting 76 would plan against a variable that has not existed since 272. Two files carrying one dead fact is the shape `docs/QUEUE-GROUPS.md`'s own header warns about.
 
 ### `analyze().absPct` lost its last reader in v122
 The Q3 redesign replaced the "`32% under`" Variance cell — its only consumer — with the food-cost % composition. It is three lines inside `analyze` and part of that pure function's tested shape, so it was kept rather than trimmed mid-batch. Trim it (and its `Math.round`) the next time `analyze` is touched, or keep it deliberately — either way say so at the site.
@@ -687,7 +702,7 @@ Original requirement, kept as the record: **correct the record first**, everywhe
 
 ### FOUR process files live OUTSIDE the repo, so nothing can review or pin them (three skills and the `project-audit` agent)
 ⚠️ **The reviewer half of this item was FIXED on 12 Aug 2026 (batch 177) and is not the open part.** `~/.claude/skills/new-branch/SKILL.md` §6 had the two reviewers exactly backwards — it called the on-demand PR workflow "MANDATORY and runs itself" and the pre-push `code-review` agent "OPTIONAL". It now matches `CLAUDE.md`, its gotchas are re-pointed, and step 5's unconditional "wait for the user to approve the plan" now branches on whether the work came from the queue (approved) or from chat/a brief (not).
-**What remains is the reason it drifted, which no edit to that file fixes.** `new-branch`, `investigate` and `test-flows` live in `~/.claude/skills/`, outside the repo — the repo's own `.claude/skills/` holds `batch`, `cache-version`, `decide`, `handover`, `supabase*` and `verify`. An outside file cannot ride a PR, cannot be reviewed, and no test can pin it, which is how this one told every batch the wrong thing for **three audits running** (v135, v145, v156) while an in-repo copy would have been caught by the first reviewer to read the diff.
+**What remains is the reason it drifted, which no edit to that file fixes.** `new-branch`, `investigate` and `test-flows` live in `~/.claude/skills/`, outside the repo — the repo's own tracked skills live in **`skills/` at the repo root** and are **five**: `batch`, `cache-version`, `decide`, `handover`, `verify` (⚠️ corrected by AUDIT-v227 - `.claude/skills/` is GITIGNORED and holds symlinks, and the `supabase*` pair point outside the repo, so a clone gets five, not seven). An outside file cannot ride a PR, cannot be reviewed, and no test can pin it, which is how this one told every batch the wrong thing for **three audits running** (v135, v145, v156) while an in-repo copy would have been caught by the first reviewer to read the diff.
 It has now cost something real: `HANDOVER-176` records the first batch to ship to production with no pre-push review at all.
 Requirements: decide whether the three MOVE into `.claude/skills/`. If they do, they become reviewable and diffable like `batch` and `handover` already are; if they stay, say why and accept that they drift unpinned.
 Note this is Max's call in one respect only — they are his global config and moving them changes what other projects see. Everything else about it is mechanical.
