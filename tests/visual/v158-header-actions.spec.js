@@ -32,8 +32,16 @@ const { installBoot, gotoTab } = require('./_boot');
 const SCREENS = [
   { key: 'pantry', title: 'Ingredients', action: 'kingWizBtn', home: 'kingControls' },
   { key: 'ingredients', title: 'Products', action: 'importBtn', home: 'ingControls' },
-  { key: 'analysis', title: 'Menu', action: 'menuAddDishBtn', home: 'menuSwitchRow' },
 ];
+
+/* ⚠️ MENU LEFT `SCREENS` IN 278 AND IS ASSERTED SEPARATELY BELOW, BECAUSE IT NO LONGER MOVES.
+   `#menuAddDishBtn` adds a plate to the menu chosen in `#menuSwitchRow`, and it sat in `.scr-head`
+   a row above that choice - measured at 1280, the button at y37-75 against the row at y80-136.
+   Queue item 54 (U32) rehomed it into that row at EVERY width, so `data-mobile-home` went with it.
+   It is a separate constant rather than a deleted line: this file's subject is WHERE a screen's
+   second action lives, and Menu still has an answer to that - it is just a constant one. Dropping
+   the screen entirely would leave the rehoming with no browser coverage at all. */
+const PERMANENT = { key: 'analysis', title: 'Menu', action: 'menuAddDishBtn', home: 'menuSwitchRow' };
 
 /* ⚠️ THE SEED IS LOAD-BEARING SINCE 214, AND IT IS THE PRECONDITION RATHER THAN DECORATION.
    This file is about WHERE a rehomed action sits and whether it still works from there. It is not
@@ -175,7 +183,7 @@ test('380: each rehomed action still opens what it opened, in one tap', async ({
 /* THE DESKTOP HALF IS UNCHANGED, and that is a requirement of the item rather than a side effect —
    the mock allows a desktop header to carry both. This is what would go red if the media query were
    widened, or if the restore put the button back in the wrong place or not at all. */
-test('1280: both actions are back in the header, in their original order', async ({ page }) => {
+test('1280: the two moving actions are back in the header, in their original order', async ({ page }) => {
   await boot(page, 1280, 900);
   for (const { key, title, action } of SCREENS) {
     await gotoTab(page, key);
@@ -251,3 +259,36 @@ test('380: the empty state hides the FILTERS and keeps the rehomed action', asyn
   expect(m.rowBottom - m.rowTop, 'the row collapses onto its one remaining child')
     .toBeLessThanOrEqual(Math.round(btn.height) + 2);
 });
+
+/* 278 (queue item 54, U32) — MENU'S SECOND ACTION HAS ONE HOME AT EVERY WIDTH.
+   The two tests above pin a button that LEAVES the header below 768 and comes back above it. This
+   pins the opposite contract for the screen that stopped playing: `#menuAddDishBtn` is in
+   `#menuSwitchRow` at 380, at 767, at 768 and at 1280, and is never in `.scr-head`.
+   ⚠️ BOTH SIDES OF 767 ARE ASSERTED DELIBERATELY. The old behaviour was keyed on exactly that seam,
+   so a half-reverted change - markup moved but the mover still listing the button, or the attribute
+   re-added - shows up as the button jumping at one of those two widths and nowhere else. */
+for (const width of [380, 767, 768, 1280]) {
+  test(`${width}: Menu's second action never leaves the switcher row`, async ({ page }) => {
+    await boot(page, width, 900);
+    await gotoTab(page, PERMANENT.key);
+    const m = await page.evaluate(([a, home]) => {
+      const el = document.getElementById(a);
+      const head = document.querySelector('#tab-analysis .scr-head');
+      return {
+        hidden: el.hidden,
+        parent: el.parentElement.id,
+        inHead: head.contains(el),
+        headActions: [...head.querySelectorAll('button')].filter((b) => !b.classList.contains('scr-back')).map((b) => b.id),
+        rowContains: document.getElementById(home).contains(el),
+      };
+    }, [PERMANENT.action, PERMANENT.home]);
+    expect(m.hidden, 'the seed gives it a menu and a costed plate, so it is offered').toBe(false);
+    expect(m.parent, `at ${width} it is authored and stays in #${PERMANENT.home}`).toBe(PERMANENT.home);
+    expect(m.rowContains).toBe(true);
+    expect(m.inHead, 'and never returns to the header').toBe(false);
+    /* The counterweight: the header did not simply lose an action to a delete. It keeps exactly
+       one, and it is the primary — "New menu", whose subject is the screen rather than the
+       selection. Without this, deleting the button entirely would satisfy everything above. */
+    expect(m.headActions, `Menu's header carries one action at ${width}`).toEqual(['menuNewBtn']);
+  });
+}

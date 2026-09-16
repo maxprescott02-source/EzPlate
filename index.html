@@ -102,7 +102,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=226">
+<link rel="stylesheet" href="css/style.css?v=227">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -580,9 +580,15 @@
              faithful to at that width — and a label that changes between breakpoints is the thing §7
              forbids. The app's shipped wording since v86 fits both. Measured at 380 and 1280, not
              chosen: `tests/visual/v142-menu.spec.js` pins the header to one row at both. -->
-        <!-- 179: below 768 this moves into #menuSwitchRow, the row F5's R5 note below already chose
-             as the home for what the mobile mock's header could not carry. Same home, one item later. -->
-        <button id="menuAddDishBtn" type="button" class="plib-btn2" data-mobile-home="menuSwitchRow">Add plate</button>
+        <!-- 278 (item 54, U32) — "Add plate" IS NO LONGER HERE. It adds a plate to the menu that is
+             chosen in #menuSwitchRow, and it sat in the header a row above that choice: measured at
+             1280, the button at x1049-1147 y37-75 against the switcher row at y80-136, so the control
+             and its own subject were on different lines with the header rule between them.
+             It now lives at the END of the switcher row at EVERY width, which is where 179 had
+             already put it below 768 — `data-mobile-home="menuSwitchRow"` is gone with the move,
+             because the markup now says permanently what that attribute used to say conditionally.
+             `#menuNewBtn` stays: it makes a NEW menu, so its subject is the screen rather than the
+             current selection, and leaving one action here keeps §7's one-primary-per-region. -->
         <button id="menuNewBtn" type="button" class="btn primary">New menu</button>
       </div>
       <!-- The mock's §3.2 control row says "switcher left, search right", and this row DEVIATES
@@ -618,6 +624,11 @@
                pill, so this is hidden there rather than stated twice -->
           <span class="mnu-pct" id="menuScopePct" hidden></span>
         </div>
+        <!-- 278 (item 54, U32): rehomed from `.scr-head` above, at every width now rather than only
+             below 768. It sits AFTER `.menu-picker-row` so it reads as "…this menu → add a plate to
+             it", left-to-right, which is the order the sentence is in. `updateMenuAddDishBtn` still
+             owns whether it is shown at all (zero menus or zero costed plates hides it, 214). -->
+        <button id="menuAddDishBtn" type="button" class="plib-btn2">Add plate</button>
       </div>
       <!-- R3: the mock's Menu screen has no filters at all, so it has nothing to say about this row.
            The app's three survive, in the `.plib-controls` grammar every converted screen uses. -->
@@ -1971,7 +1982,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=226"></script>
+<script src="js/app.js?v=227"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —

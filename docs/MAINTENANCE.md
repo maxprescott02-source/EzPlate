@@ -78,6 +78,16 @@ So the one shape where those disagree is a plate with lines, no missing costs, a
 **The decision it needs is which is right**, and that is a product call rather than a bug: "a plate that costs nothing" and "a plate we cannot cost" are different sentences and the app currently says both.
 Pre-existing — it arrived with `renderMenuMarginPreview`, not with 277.
 
+### The Menu switcher row wraps to two lines between 1024 and 1059
+(Measured by batch 278 while fixing the crushed-select regression its own review found. Accepted rather than fixed.)
+
+Queue item 54 (U32) rehomed `#menuAddDishBtn` into `#menuSwitchRow` at every width, so that row carries three flex children above 768 where it used to carry two.
+**Measured at 1024, 1060, 1100, 1150, 1200 and 1280: the row is 80px tall at 1024 and 56px at every width from 1060 up.** 1024 is exactly where the pill switcher replaces the `<select>`, and the three children are at their limit there.
+
+**C, and the reason is that nothing is lost.** The row WRAPS — it does not clip, crush or overflow (`scrollWidth - clientWidth` is 0 at every width measured). A wrapped switcher row is what the phone has always shown, so the shape is already in the app's vocabulary; what changes is that one desktop width sees it too.
+**The fix, if it is wanted, re-opens a shared contract.** `.plib-search` is pinned at 320-400 by §26 and that sizing is used by Ingredients, Products and Plates as well as Menu; letting it shrink here means re-measuring a hand-tuned row on four screens. That is why it was not taken inside an item about a picker.
+⚠️ **The related defect WAS fixed and must not be re-opened by any attempt at this one:** `.mnu-selwrap{min-width:150px}` at >=768, which stops the select being squeezed to 48px across 768-1023. The comment at that rule carries the before-and-after measurements.
+
 ## Displaced B items — promote when a `QUEUE.md` slot frees
 
 These passed the launch test and lost on priority against the 20-item cap. They are not C.
@@ -405,6 +415,17 @@ QUEUE item 19 was a misc-cost field carrying `min="0"` while `setMiscCost` had n
 
 **It is C because it is UNMEASURED, not because it is small.** Three of the eleven are on the invoice review (`invPrice`, `invPackQty`, and the price cell at the row level), where a negative would be a wrong unit cost rather than a cosmetic slip — the same grade as the item that produced this entry. **Step one is the repro, one field at a time, and any that reproduces is a B and belongs in `docs/QUEUE.md`, not here.** Do not "fix" the eleven on sight: `costDetail` already refuses a negative line by either route since 245, so several of these may be harmless in a way that a blanket clamp would hide rather than prove.
 ⚠️ **And the invoice ones sit next to the protected parser region and next to consolidated items 17 and 26** (negative and $0.00 invoice lines), which are deciding what a negative line MEANS. Whatever they decide is the answer for those fields; do not settle it here first.
+
+### The Chromium segfault has an EIGHTH occurrence — batch 278, `238-confirm-link.spec.js:79`
+(16 Sep 2026. Recorded because the entry below asks for it, and it is the second on Playwright 1.62.1.)
+
+PR #307's `browser specs (Playwright)` job went red, and **not on an assertion**: it failed its own *"Did any spec pass only on a retry?"* gate, and the crash detector named `238-confirm-link.spec.js:79`.
+The job's own annotation is the diagnosis — *"a segfault cannot be caused by the code under test"* — and that spec is about a confirmation link, with nothing to do with 278's diff (a picker's sort order and a button's parent element).
+**The same commit's full Playwright run passed locally: 554 passed, 14 skipped, exit 0.**
+
+**What this adds to the entry below.** That one recorded the SEVENTH occurrence as *"the first on 1.62.1, so the bump from 1.61.1 did NOT fix it."* This is the second on 1.62.1, which is the beginning of a rate rather than a one-off on the new pin.
+**The count to watch is occurrences per Playwright version, not occurrences.** Two on 1.62.1 is not yet worth a version change — `tests/third-party-pins.test.js` remains the authority on which version is safe, and the newest release is not automatically it.
+The spec that ran immediately before was not captured this time; the next batch to hit one should take it from the report artifact, which the job uploads.
 
 ### The Chromium segfault has a SEVENTH occurrence, and HANDOVER-163's fingerprint method needs one correction
 (Recorded 15 Sep 2026, batch 272, from PR #301's `browser specs (Playwright)` failure. The job's own crash detector named it; the arithmetic below was done afterwards rather than taken on trust.)

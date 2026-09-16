@@ -83,8 +83,22 @@ test('the pills sit at the search row\'s right, and Delete has left the switcher
   expect(pills.y, 'pills start above the search line\'s end').toBeLessThan(search.y + search.height);
   expect(pills.y + pills.height, 'and end below its start — same line').toBeGreaterThan(search.y);
   expect(pills.x, 'pills sit right of the search, not under it').toBeGreaterThan(search.x + search.width - 1);
-  expect(Math.abs((pills.x + pills.width) - (list.x + list.width)),
-    'and end on the list\'s right edge').toBeLessThanOrEqual(1.5);
+  /* 278 HONEST REWRITE, the second this assertion has had and for the same kind of reason as the
+     first. It asserted the PILLS end on the list's right edge, which was true while the pills were
+     the last thing in this row. Queue item 54 (U32) put `#menuAddDishBtn` at the END of the switcher
+     row - it adds a plate to the menu these pills choose, and it used to sit in `.scr-head` a line
+     above that choice - so the pills now stop ~101px short and the BUTTON holds that edge.
+     ⚠️ THE PROPERTY IS UNCHANGED AND IS WHAT IS PINNED: the switcher row's right-hand furniture
+     lines up with the content column below it. Only which element carries the edge moved. Asserting
+     the pills again would be pinning the old arrangement, exactly as the 232 note above says a
+     left-edge pill row would be.
+     Both halves are kept - the pills are still right-ALIGNED within their own group (they follow the
+     search rather than floating mid-row), and the row still ends on the list's edge - because either
+     one alone passes a layout the other would catch. */
+  const addBtn = await box('#menuAddDishBtn');
+  expect(addBtn.x, 'Add plate is the last thing in the row, after the pills').toBeGreaterThan(pills.x + pills.width - 1);
+  expect(Math.abs((addBtn.x + addBtn.width) - (list.x + list.width)),
+    'and the row still ends on the list\'s right edge').toBeLessThanOrEqual(1.5);
   // R3: Delete moved OUT of the switcher row and into the screen footer, as §2's destructive
   // button. The old pin asserted it kept the switcher row's right edge, which was the best that
   // could be done while it sat beside the most-clicked control; the honest replacement is that it

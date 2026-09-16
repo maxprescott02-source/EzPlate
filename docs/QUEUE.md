@@ -91,9 +91,6 @@ Requirements: decide what each of the three is FOR, then pick a precision per qu
 ⚠️ **Do not "align" `avgFoodCostForScope` with `mp.pct`.** They are a per-dish ratio and a mean of per-plate ratios; `.claude/rules/app-data.md` records that arithmetic across two series fabricates movement, and this is the display version of the same mistake.
 *(Split out of item 53 by batch 277, which went looking for "the Menu row's ratio" and found the scope pill - a menu average - instead. The bullet is not wrong that a precision mismatch exists; it is wrong that it is one number at two places, and a batch acting on it as written would have changed six surfaces on the strength of two.)*
 
-## next  54 · The add-to-menu picker lists the plates already on this menu ahead of the ones that are not, is offered when there are no menus, and sits far from the menu it applies to  **[B]**
-**Full item:** consolidated item 54. Also added to G5 by AUDIT-v217.
-
 ## next  56 · Dashboard polish: the tablet drops two of three headline figures, the scope button drops its % sign, two cards do not share a bottom edge, chart annotations collide and clip, and the chart does not re-measure on resize  **[B]**
 **Full item:** consolidated item 56.
 

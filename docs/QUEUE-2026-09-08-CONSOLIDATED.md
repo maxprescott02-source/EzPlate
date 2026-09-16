@@ -553,7 +553,15 @@ New: `tests/builder-readiness.test.js` (22 tests). `tests/visual/v150-builder-or
 
 **Test:** unit test on the modal's render function that the three figures are present and equal `costDetail` / `publishPlan`'s outputs for the row; `fresh-states.spec.js` asserts the price input reads `31.00`.
 
-## next  54 · The add-to-menu picker lists the 59 plates already on this menu ahead of the 40 that are not, is offered when there are no menus, and sits far from the menu it applies to  **[B, the modal exists to add what is missing and makes the user read past what is there]**
+## ~~54 · The add-to-menu picker lists the plates already on this menu ahead of the ones that are not, is offered when there are no menus, and sits far from the menu it applies to~~  **TWO BULLETS SHIPPED, batch 278, `ezplate-v227`; ONE DOES NOT REPRODUCE; ONE DECLINED**
+
+✅ **U2 shipped:** plates not on the current menu sort first, and the ones already on it are dimmed and say **"Already on this menu"** instead of naming a menu the reader had to compare for themselves.
+✅ **U32 shipped:** `#menuAddDishBtn` moved out of `.scr-head` into `#menuSwitchRow` at EVERY width. Measured before the move at 1280: the button at x1049-1147 y37-75 against the switcher row at y80-136, so the control and the menu it applies to were on different lines with the header hairline between them. `data-mobile-home="menuSwitchRow"` is gone with it - the markup now says permanently what that attribute said below 768.
+
+❌ **"Offered at zero menus" DOES NOT REPRODUCE, and it was fixed before this item was written.** `updateMenuAddDishBtn` hides the button when `!menusList.length` and `submitAddDish` refuses with `if(!currentMenuId)` before any push - **batch 214**, whose 22-line comment at the site says *"Zero MENUS hides it too"* in as many words. `tests/visual/214-empty-menu-action.spec.js` already asserts it. The item's cited `js/app.js:12509` is inside a PDF-parsing `.catch()` and has nothing to do with menus.
+❌ **The builder cost card's "+ Add to another menu" DECLINED: there is no such control.** The item said to re-read it against F7's page and decline at the site if it is not the same picker. It does not exist in `index.html` or `js/app.js` at all - it is named only in `docs/MAINTENANCE.md` and `HANDOVER-128-builder.md` as deferred out of Q6 and never built. So there is nothing to re-read and no site to decline at: **building it would be a new feature**, and `/batch`'s authority does not extend to one nobody queued.
+
+⚠️ **The counts in the old title ("59 plates ... the 40 that are not") were illustrative and are unverifiable** - nothing in the repo carries them. Retitled to the shape of the defect rather than a number.
 
 - **Ordering (U2):** `openAddDishModal` (`js/app.js:12559`) renders `#ad_list` alphabetically with the plate's current home as a subtitle. Put plates not on this menu first (or only), dim the rest with "Already on this menu".
 - **Offered at zero menus** (`docs/MAINTENANCE.md`; `js/app.js:12509`'s comment covers zero plates, not zero menus): `#menuAddDishBtn` renders and `submitAddDish` would publish with `menuId:null`. Hide the BUTTON at zero menus (not the row; 179 moved that row off `hidden` because it hosts an action), or refuse with a message.
