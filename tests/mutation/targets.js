@@ -630,6 +630,16 @@ const targets = [
      exactly the points that should not exist. Both were confirmed red by hand before listing. */
   { fn: 'logHistory', tests: ['history-paths.test.js'] },
   { fn: 'logChangeIfSaved', tests: ['history-paths.test.js', 'change-log.test.js'] },
+  /* 275 — the bottom stack's two new publishers. They are here for 184's reason and for one of
+     their own: what they get wrong is INVISIBLE. A publisher that returns early instead of
+     publishing `0px` leaves a stale lift, and a stale lift is a toast floating a third of the way
+     up an empty screen — which reads as a design choice, not as a bug, and is the exact failure
+     226's spec had to be written to make loud for the banner. `publishSheetFootClear` additionally
+     carries the only comparison in the pair (`c>clear`, across stacked overlays) and the cascade
+     read that decides a sheet from a centred dialog; inverting either is silent on a phone and
+     shoves the toast halfway up a desktop. Both confirmed red by hand before listing. */
+  { fn: 'publishBldBarClear', tests: ['toast-bottom-stack.test.js'] },
+  { fn: 'publishSheetFootClear', tests: ['toast-bottom-stack.test.js'] },
 ];
 
 /*
@@ -645,6 +655,24 @@ const targets = [
  * removes is how a list like this rots into permission to ignore everything.
  */
 const allowedSurvivors = [
+  /* 275 — the running-maximum tie, and it is the only survivor of that batch's two new targets.
+     `if(c>clear) clear=c` accumulates the largest footer reach across the open overlays. At the tie
+     (c === clear) the mutant assigns clear the value it already holds, so **the two operators
+     compute the same number in every case, not merely in the cases the tests reach** — which is a
+     stronger claim than most entries in this list can make and is why no assertion can kill it.
+     An assertion that distinguished them would have to observe WHICH of two identical values was
+     stored, and nothing downstream can: the only consumer is `Math.ceil(clear)+'px'`.
+     ⚠️ Read this as a claim about `>` versus `>=` ON A MAXIMUM, not about the loop. The stacking
+     behaviour it implements IS pinned — toast-bottom-stack.test.js asserts the deepest footer wins
+     in BOTH orders (tall-then-short and short-then-tall), and inverting the comparison to `c<clear`
+     turns both red. */
+  {
+    key: 'publishSheetFootClear :: if(c>clear) clear=c;                                            // overlays STACK (#confirmModal sits at z85 over z80) :: relational >>>= #0',
+    reason: 'Equivalent by construction: this is a running maximum, so at c === clear the mutant re-assigns the '
+      + 'identical value and the published string is byte-for-byte the same. The ordering this line exists for '
+      + 'is pinned separately — toast-bottom-stack.test.js runs the stacked case in both orders, and the `c<clear` '
+      + 'inversion (the mutant that would actually change the answer) is killed by both.',
+  },
   /* 254 — the file-wide optional-call idiom, and the ONE survivor of this batch that is a genuine
      equivalence rather than a missing assertion. The other five in this function were all real gaps
      in what the tests looked at and were killed with assertions. */

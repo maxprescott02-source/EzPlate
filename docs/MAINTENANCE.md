@@ -399,7 +399,11 @@ QUEUE item 19 was a misc-cost field carrying `min="0"` while `setMiscCost` had n
 
 **Not queued, and the reason is the cost rather than the count.** `--retries=1` already absorbs it, the required checks (`unit tests`, `smoke`, `what changed`) are unaffected, and no client code is involved. What it costs is one CI job per occurrence and a batch's attention. **If it becomes frequent enough to matter, the variable is the pinned Playwright version and `tests/third-party-pins.test.js` is the authority on which one is safe** - note that this occurrence is the first on 1.62.1, so the bump from 1.61.1 did NOT fix it.
 
-### The bottom stack's OTHER pair: a toast covers the builder's Save button, with no install banner involved
+### ~~The bottom stack's OTHER pair: a toast covers the builder's Save button, with no install banner involved~~ — **DONE, batch 275 (`ezplate-v224`), as queue item 50**
+✅ `.bld-bar` publishes `--bld-bar-clear` from `publishBldBarClear` and the toast takes the max, which is exactly the remedy this entry names below. **It was RIGHT about the mechanism and short about the scope, which is this file's usual direction:** it measured 380 and called it "the builder's Save button", and the overlap is at **every width the bar is shown at** — 768, 900 and 1024 too, where the toast reaches the bar's top 8px and clips the "Plate cost" label instead of the button. Same defect, quieter symptom, and a fix written to the 380 measurement alone would have been judged complete.
+⚠️ **AND A THIRD PUBLISHER CAME OUT OF THE SAME PASS, which nothing had recorded anywhere:** an open bottom SHEET's footer. Nineteen of the twenty are already clear (a `.mfoot` is 76px against the toast's 92px dock), and `#delChoiceModal`'s **stacks to 127px** — so the toast landed on the buttons of the delete-choice dialog. It is `publishSheetFootClear`, on the same max().
+*(The original entry is kept below rather than deleted, because its C-vs-B reasoning is the part worth re-reading: it was C on two measured grounds, both of which still held when it shipped.)*
+
 (Measured 2 Sep 2026 by batch 226, which fixed the toast-vs-install-banner pair and measured this one on the way past.)
 
 At 380x800, builder open on a costed plate, no install banner on screen: `.bld-bar` is x0-380 y636-736 and a real-length toast — *"Couldn't save product — no database connection"* — is x95-285 y617-708, **and it covers `.bfs-save`** (measured `saveCovered:true`; an 80px "Saved" pill at x150-230 does not, so a short message hides this).
@@ -410,7 +414,9 @@ The toast docks at `bottom:92px` and the bar at `bottom:calc(var(--bottomnav-h, 
 
 **The fix is the mechanism 226 already built, pointed at a second element.** `--install-banner-clear` is published by the banner because the banner is the only thing that knows its own height; `.bld-bar` would publish `--bld-bar-clear` the same way, from `renderBuilderCost`, and the toast would take the max. What must NOT happen is a third hardcoded constant: 226's whole finding was that `114px` was two agreeing copies of a number that was wrong at every phone width.
 
-### `--bottomnav-h` is read with a fallback and published by NOTHING
+### ~~`--bottomnav-h` is read with a fallback and published by NOTHING~~ — **DONE, batch 230**
+✅ `js/app.js` publishes it from `.bottomnav`'s own measured height, and the fallback is now a fallback. The entry below was still standing as OUTSTANDING on 16 Sep 2026, fourteen deploy versions after it was fixed — struck by batch 275, which opened this file for the entry above it and read this one on the way past. **`CLAUDE.md`'s rule applies to this file too: a done-mark somewhere else is not a strike, and the entry is what the next reader acts on.** Batch 230's own handover recorded the fix; nothing came back here.
+
 (Same batch, found while looking for precedent for the variable above.)
 
 `css/style.css` at the `.bld-bar` rule reads `var(--bottomnav-h, 64px)`, and the comment at the `@media (min-width:640px)` override two rules below says the offset is *"measured against .bottomnav rather than assumed - `--bottomnav-h` is not a token this sheet defines."* **Nothing defines it anywhere** — `grep -n "bottomnav-h" js/app.js` returns nothing — so the 64px fallback has always been the live value, and the comment describes a measurement that does not happen.

@@ -1868,8 +1868,31 @@ body.scroll-locked{position:fixed;left:0;right:0}
 /* ----------------------------------------------------------------------
    18. TOAST
    ---------------------------------------------------------------------- */
+/* THE TOAST IS THE BOTTOM STACK'S ONE READER, AND IT MAY NOT KNOW A NUMBER ABOUT ANYTHING ELSE
+   (275, extending 226). Three elements reach up from the viewport floor and each publishes how far,
+   from js/app.js, because each is the only thing that knows whether it is on screen and how tall its
+   own wrapped text made it: the install banner (`publishClear`), the builder's sticky summary bar
+   (`publishBldBarClear`) and an open bottom SHEET's footer (`publishSheetFootClear`). The toast sits
+   `--sp-3` above the tallest of them, or on its own dock when none of them is there.
+   ⚠️ THE FALLBACKS ARE `0px` AND THEY ARE LOAD-BEARING. An undefined custom property makes the whole
+   declaration invalid at computed-value time — not "fall back to the base rule", but no `bottom` at
+   all — so every one of the three needs its `, 0px`, and a fourth publisher added later needs one on
+   the day it is added rather than the day it is first absent.
+   ⚠️ 226's LIFT WAS `html.has-install-banner .toast`, AT (0,2,1), AND IT IS GONE. Its comment gave
+   the specificity's reason as beating "the two `@media` blocks that re-`left` the toast" — those set
+   `left` and nothing else, so a single unconditional `bottom` has no competitor to beat and the
+   conditionality now lives in the value instead of the selector. The class rule below still defines
+   `--install-banner-clear`'s pre-JS fallback, and `hide()` removes the inline value alongside the
+   class — without that removal a dismissed banner would hold the lift forever.
+   ⚠️ AND DO NOT ADD env(safe-area-inset-bottom) TO THE PUBLISHED VALUES. Each is a used `bottom` (or
+   a rect) that has already resolved its own calc(); the inset appears in the 92px arm only because
+   that arm is a constant with nothing measured behind it. */
 .toast{
-  position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom));
+  position:fixed;left:50%;
+  bottom:max(calc(92px + env(safe-area-inset-bottom)),
+             calc(var(--install-banner-clear, 0px) + var(--sp-3)),
+             calc(var(--bld-bar-clear, 0px) + var(--sp-3)),
+             calc(var(--sheet-foot-clear, 0px) + var(--sp-3)));
   transform:translateX(-50%) translateY(8px);
   background:var(--inverse);color:var(--on-inverse);padding:12px 18px;border-radius:var(--radius-ctl);
   font-size:var(--fs-base);font-weight:600;z-index:90;opacity:0;pointer-events:none;
@@ -1929,16 +1952,17 @@ html.has-install-banner{--install-banner-clear:calc(114px + env(safe-area-inset-
    set in js/app.js — if that pairing is ever broken, the symptom is the banner covering the last
    table row again. */
 html.has-install-banner body{padding-bottom:var(--install-banner-clear)}
-/* THE TOAST STACKS ABOVE THE BANNER (226). They are the one pair v141's three-way split of the
-   bottom chrome does not separate: it split them LEFT / CENTRE / RIGHT, and the toast is centred
-   while the banner is right-aligned and 400px wide, so at 1024-1440 the centre reaches into the
-   right slot. Measured at 1024: toast x431-817 against banner x600-1000, overlapping y787-808 — the
-   Install button and the ✕ under a pill of text. At 380 it is not a clip but a cover: toast x95-285
-   inside banner x12-368, nearly the whole panel. The separation has to be VERTICAL, because no
-   horizontal arrangement survives a toast whose width is its message and a banner whose width is the
-   viewport. Written at (0,2,1) so it beats the base `.toast` rule AND the two `@media` blocks that
-   re-`left` the toast for the sidebar — `@media` does not win by being later. */
-html.has-install-banner .toast{bottom:calc(var(--install-banner-clear) + var(--sp-3))}
+/* 275 TOMBSTONE: `html.has-install-banner .toast{bottom:calc(var(--install-banner-clear) + var(--sp-3))}`
+   stood here. The reason it existed is unchanged and worth keeping, because it is the measurement
+   nobody will re-take: the toast and the banner are the one pair v141's three-way split of the
+   bottom chrome cannot separate — it split them LEFT / CENTRE / RIGHT, and the toast is centred and
+   sized by its message while the banner is right-aligned and 400px wide, so at 1024-1440 the centre
+   reaches into the right slot (measured at 1024: toast x431-817 against banner x600-1000,
+   overlapping y787-808, the Install button and the ✕ under a pill of text; at 380 it is a cover
+   rather than a clip, toast x95-285 inside banner x12-368). The separation has to be VERTICAL.
+   What changed is only WHERE the condition lives: two more elements turned out to need the same
+   lift, so the toast now takes the max of all three clearances in its own base rule (§18) and the
+   conditionality is in the value instead of the selector. */
 
 /* SECONDARY, NOT PRIMARY (176). This was the accent-filled button — §7 allows ONE primary action per
    screen region, and an unprompted install banner was competing with whatever the screen's real CTA
