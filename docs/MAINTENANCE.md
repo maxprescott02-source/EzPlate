@@ -54,6 +54,30 @@ The tally lives here so it survives a context clear:
 
 ---
 
+### An external `renderPlate()` lands under the caret: the builder's misc input loses focus and its in-progress edit
+(Found by 277's pre-push review, which caught the batch's own test comment claiming the case was proved safe. Measured, not reasoned.)
+
+`#lines` is rebuilt with `innerHTML` by `renderPlate`, so every row in it is a fresh DOM node afterwards.
+Typing in a misc-cost field does NOT trigger that — `setMiscCost` calls `updateTotals`, which calls `renderBuilderCost` and never `renderPlate` — and that is the path `tests/visual/277-edit-modal-figures.spec.js` pins.
+**What is not pinned is every OTHER caller.** `renderPlate` is called from `bootstrapSync` (`js/app.js:1832`), and `.claude/rules/app-guards.md` records that `bootstrapSync` is re-run by the `online` listener whenever a connection returns — which on a café's mobile data is exactly when it will happen.
+**Measured with the field focused mid-edit and `renderPlate()` called directly:** the input node is replaced (`sameNode:false`), `document.activeElement` moves off it, and the field re-renders from the stored value.
+
+**C on two grounds, and both could change.** Nothing is written — the store already holds whatever `setMiscCost` last parsed, so the user loses an in-progress keystroke and not a saved figure. And it needs a reconnect to land inside the seconds a field is focused.
+**It becomes B if the rebuild ever starts happening on a timer**, or if any other field inside `#lines` becomes something a user types into for longer than a moment.
+**The fix, if it is taken, is not to stop rebuilding:** it is to preserve focus and selection across the rebuild, or to skip the rebuild while `#lines` contains `document.activeElement`. The second is smaller and is what the docket's own structure suggests.
+⚠️ **This predates 277 and only the padding inside the template is new** — recorded because that batch's comment claimed the question was settled, and a comment that says "proved" about half a question is worse than no comment.
+
+### The Plates library and the pricing screens disagree about a plate whose only line is a misc cost of exactly $0.00
+(Same review.)
+
+`plateCostText` (`js/app.js`, Plates library) gates on `plateFullyCosted` — `miss===0` and a line count.
+`renderMenuMarginPreview`, `renderEditMargin`, `renderBuilderCost` and `vbadge` all gate on `cost>0`.
+So the one shape where those disagree is a plate with lines, no missing costs, and a total of exactly zero: **Plates prints `$0.00`, every pricing surface says "not costed".**
+
+**C: it needs a misc line typed to exactly $0.00**, which `costDetail`'s own comment calls a legitimate value rather than an error, and neither answer is a wrong PRICE — one screen declines to judge and the other states the total.
+**The decision it needs is which is right**, and that is a product call rather than a bug: "a plate that costs nothing" and "a plate we cannot cost" are different sentences and the app currently says both.
+Pre-existing — it arrived with `renderMenuMarginPreview`, not with 277.
+
 ## Displaced B items — promote when a `QUEUE.md` slot frees
 
 These passed the launch test and lost on priority against the 20-item cap. They are not C.

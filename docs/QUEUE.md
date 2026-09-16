@@ -72,8 +72,24 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 ⚠️ **G5 IS SIX TO NINE BATCHES, NOT ONE, AND THE RULE THAT SAYS SO IS IN THIS FILE'S OWN HEADER.** The Design law's *"one screen per change set, one PR, one review; never mix shell work with screen work"* forbids combining them — so **take ONE of these per batch** and do not be tempted by two that look adjacent. 64 is the shell item and shares a batch with nothing.
 ⚠️ **AND A GREEN PRE-PUSH HOOK IS NOT A GREEN SUITE FOR ANY OF THESE.** The hook does not run Playwright and every one of these items changes whether a control exists or where it sits. Run `npx playwright test` before pushing, every time.
 
-## next  53 · Edit modals hide the number the user is there to react to: the menu item form shows no cost, the product form changes the unit of thought, and money fields do not look like money  **[B]**
-**Full item:** consolidated item 53. Added to G5 by AUDIT-v217, which found it in no group at all; it sits directly beside 47's modal-footer pass.
+## next  98 · New product and Edit product ask for different things, so a pack reopens as a per-unit price with an empty pack  **[B]**
+
+Problem: the two forms think in different units. **New product** (`#modal`, `index.html:1341`) asks pack size + pack unit + pack price and derives the unit cost into `#f_calc`. **Edit product** (`#ingModal`, `index.html:1695`) asks unit type (a `<select>` that is `disabled`), price per unit, and pack size as an OPTIONAL afterthought.
+So a product entered as **10 kg for $65** reopens as **6.5 per kg with an empty pack**, and the number the user typed is nowhere on the form.
+Requirements: Edit mirrors New - pack size, pack unit, pack price - with the derived unit cost read-only beneath it, as `#f_calc` already does. The form calls `packToUnitCost`; it does not change it.
+⚠️ **This is a money-semantics change, not a layout one, and that is why it is its own item.** `saveIngEdit` reads `#ig_price` and writes `cost_per_base_unit: price/ub.div`; making pack price authoritative moves which field the stored cost is derived FROM. `ig_unit` is deliberately `disabled` because v54 made unit type create-only so an edit can never change `base_unit`/`cost_basis` - any rebuild has to keep that true or it can silently re-base a product's costs.
+Out of scope: the padding of `#ig_price`, which shipped in 277 and must stay padding-not-rounding for the reason recorded there.
+*(Split out of item 53 by batch 277. Its other three bullets shipped as `ezplate-v226`; this one is a form rebuild with a stored-cost derivation behind it and does not belong in the same review.)*
+
+## next  99 · Three different percentages are printed at three precisions, and "align them" assumes there are two  **[B]**
+
+Problem: item 53's last bullet said *"the publish dialog and the Menu row print the same ratio at different precision - whole % vs one decimal. Align in the same pass."* **Measured, there are at least three different QUANTITIES, not one ratio at two sites:**
+- `menuMarginPreview().pct` = `Math.round(cost/price*100)` - the dish's food-cost %, whole numbers. **Six consumers**, not one: the publish dialog (`js/app.js:12186`), the builder's docket verdict, the builder's cost-card pill, the builder's sticky-bar line, `worstMenuOf`, and `shortfallStr`.
+- `analyze().absPct` = `Math.round(|shortfall|*100)` - the price's distance from the SUGGESTED price. A different subject, also rounded.
+- `avgFoodCostForScope()` - the menu's AVERAGE food cost, printed `.toFixed(1)` on the Menu scope pill.
+Requirements: decide what each of the three is FOR, then pick a precision per quantity rather than one for all of them; whichever way it goes, every consumer of `mp.pct` moves together, because the builder and the publish dialog reading the same dish differently is the defect one level up.
+⚠️ **Do not "align" `avgFoodCostForScope` with `mp.pct`.** They are a per-dish ratio and a mean of per-plate ratios; `.claude/rules/app-data.md` records that arithmetic across two series fabricates movement, and this is the display version of the same mistake.
+*(Split out of item 53 by batch 277, which went looking for "the Menu row's ratio" and found the scope pill - a menu average - instead. The bullet is not wrong that a precision mismatch exists; it is wrong that it is one number at two places, and a batch acting on it as written would have changed six surfaces on the strength of two.)*
 
 ## next  54 · The add-to-menu picker lists the plates already on this menu ahead of the ones that are not, is offered when there are no menus, and sits far from the menu it applies to  **[B]**
 **Full item:** consolidated item 54. Also added to G5 by AUDIT-v217.

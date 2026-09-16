@@ -2279,7 +2279,11 @@ function miscRowHtml(l){                                              // a remov
   return '<div class="bld-row is-misc" data-uid="'+l.uid+'">'
     +'<span class="bld-ing"><input type="text" class="misc-name" value="'+esc(l.label||'')+'" placeholder="Misc" aria-label="misc cost label" oninput="setMiscLabel('+l.uid+',this.value)"></span>'
     +'<span class="bld-mid"></span>'
-    +'<span class="bld-lc misc-costbox"><span class="bld-dollar">$</span><input type="number" min="0" step="0.01" value="'+(l.cost!=null?l.cost:0)+'" aria-label="misc cost amount" oninput="setMiscCost('+l.uid+',this.value)"></span>'
+    /* 277 (item 53, U22): the value is PADDED here rather than by a blur listener, because this row
+       is innerHTML rebuilt on every keystroke of the docket - a listener attached to the element
+       would be thrown away with it. `0.5` read `0.5` beside a docket printing `$0.46`; it reads
+       `0.50` now. padMoney never rounds, so a misc cost the user typed to three places keeps them. */
+    +'<span class="bld-lc misc-costbox"><span class="bld-dollar">$</span><input type="number" min="0" step="0.01" value="'+(l.cost!=null?padMoney(l.cost):'0.00')+'" aria-label="misc cost amount" oninput="setMiscCost('+l.uid+',this.value)"></span>'
     +'<button class="bld-rm" type="button" aria-label="Remove misc cost" onclick="removeLine('+l.uid+')">&times;</button>'
     +'</div>';
 }
@@ -3611,6 +3615,41 @@ function setCogs(pct, persist){
   });
 }
 function fmt2(x){return '$'+Number(x).toFixed(2);}
+/* 277 (item 53, U22) — A MONEY INPUT LOOKS LIKE MONEY: `31` reads `31.00`, beside lists that all say
+   $31.00. It PADS and it never ROUNDS, and that distinction is the whole function rather than a
+   nicety.
+
+   ⚠️ MEASURED AGAINST THE REAL CATALOGUE, because the queue item said "format to two decimals" and
+   named `#ig_price` among the fields. `#ig_price` is a price PER KG / PER LITRE / PER UNIT
+   (`perDisplayValue` multiplies the stored per-base-unit cost by 1000 for g and ml), and over the
+   384 priced rows in `tests/fixtures/base-products.json` its displayed value is **$0.0056 at the
+   smallest, with 44 rows carrying more than two decimals and 7 under a cent**. `toFixed(2)` turns
+   $0.0056/kg into $0.01/kg — a 79% increase — and `saveIngEdit` reads that same field straight into
+   `cost_per_base_unit`. **A blur that rounded would not be a display choice, it would be a silent
+   write of a wrong cost**, which is the one thing this app must never do (CLAUDE.md: stored costs
+   stay exact; currency DISPLAYS round).
+   So: trailing zeros up to two places, and any value that already needs more keeps all of them.
+   A non-numeric or empty field is left exactly as the user typed it - this must never eat input. */
+function padMoney(v){
+  if(v==null) return '';
+  var s=String(v).trim(); if(s==='') return '';
+  var n=Number(s); if(!isFinite(n)) return s;                       // not a number: hand it back untouched
+  var dec=(s.split('.')[1]||'').replace(/0+$/,'').length;           // significant decimals the user actually has
+  return n.toFixed(Math.max(2, dec));
+}
+/* Pads on open and on blur, and only ever writes back a value that ROUND-TRIPS to the same number —
+   so a field this touches can never change what a save reads out of it. The equality check is not
+   belt-and-braces: it is what makes the blur safe to attach to a field whose value is a stored cost. */
+function attachMoneyPad(id){
+  var el=document.getElementById(id); if(!el||el.__moneyPad) return;
+  el.__moneyPad=true;
+  el.addEventListener('blur', function(){ padMoneyEl(el); });
+}
+function padMoneyEl(el){
+  if(!el) return;
+  var out=padMoney(el.value);
+  if(out!=='' && Number(out)===Number(el.value)) el.value=out;
+}
 /* ONE DATE STYLE (item 60). Every moment this app shows a user goes through fmtDate, the way every
    amount goes through fmt2. Under seven days it is RELATIVE, because the reader's question is "how
    stale is this" and a date makes them do the subtraction; from seven days it is "29 Aug 2026",
@@ -5862,7 +5901,11 @@ function openIngEdit(id){
   document.getElementById('ig_sup').value=p.supplier||'';
   var ut=p.base_unit==='g'?'kg':p.base_unit==='ml'?'litre':p.base_unit==='ea'?'unit':'kg';
   document.getElementById('ig_unit').value=ut;
-  var pv=perDisplayValue(p); document.getElementById('ig_price').value=(pv==null?'':pv);
+  /* 277: padded, NEVER rounded — see padMoney. This field is a price per kg/L/unit and 44 of the
+     384 real catalogue rows carry more than two decimals, so rounding it here would be rounding a
+     stored cost. `saveIngEdit` reads this same element. */
+  var pv=perDisplayValue(p); document.getElementById('ig_price').value=(pv==null?'':padMoney(pv));
+  attachMoneyPad('ig_price');
   document.getElementById('ig_packQty').value=(p.pack_qty==null?'':p.pack_qty);
   document.getElementById('ig_packUnit').value=(p.pack_unit||'');
   var e=document.getElementById('ig_err'); if(e)e.style.display='none';
@@ -9426,7 +9469,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v225';
+var APP_VERSION='v226';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -15413,7 +15456,7 @@ function openMenuEdit(id){
   var m=menuById[id]; if(!m) return;
   editTargetId=id; setEditMode();
   document.getElementById('ed_name').value=m.name||'';
-  document.getElementById('ed_price').value=(m.price!=null)?m.price:'';
+  document.getElementById('ed_price').value=(m.price!=null)?padMoney(m.price):'';   // 277: 12 reads 12.00, like every list
   document.getElementById('ed_cat').value=m.section||'';
   buildMenuPickers(); var edMenu=document.getElementById('ed_menu'); if(edMenu){ var wm=menuIdOf(m); if(wm && menusList.some(function(x){return x.id===wm;})) edMenu.value=wm; }
   edCatState.chosen=m.section||null; edCatState.chosenIsNew=false;
@@ -15424,7 +15467,61 @@ function openMenuEdit(id){
      It is the fourth of exactly this shape in this modal's two openers - 262 (item 46) deleted the
      other three from setEditMode below and its comment explains why they existed. Same removal,
      same reason, one function over. */
+  /* 277 — the figures, and the wiring that keeps them live. `oninput` rather than `change` because
+     the whole point is watching the % move as you type the new price; the blur pads what you typed.
+     Attached here rather than at load because this modal's markup is static and one listener is
+     enough — attachMoneyPad is idempotent and says so. */
+  attachMoneyPad('ed_price');
+  var _edPrice=document.getElementById('ed_price');
+  if(_edPrice && !_edPrice.__marginWired){ _edPrice.__marginWired=true; _edPrice.addEventListener('input', renderEditMargin); }
+  renderEditMargin();
   show('editModal');
+}
+/* 277 (item 53, U1) — THE EDIT-MENU-ITEM MODAL SHOWS THE FIGURE IT IS ASKING YOU TO CHANGE.
+   You open this from a Menu row that says cost $3.88, suggested $12.94 and 32.4% over, and the form
+   then asked for a new sell price while showing none of them. Re-pricing is the second most common
+   task in the app and its own form was blind to the one number that decides it.
+
+   ⚠️ IT RENDERS THE EXISTING FIGURES, IT DOES NOT COMPUTE ANY. `menuMarginPreview` is the pure
+   function the publish dialog already uses and it wraps `analyze()`, which is where the green/amber/
+   red rule lives — so this modal, the publish dialog and the builder's docket verdict cannot
+   disagree about the same dish. The queue item said to render rather than recompute and was RIGHT
+   about that while naming the wrong function: it credited `publishPlan`, which returns
+   `{action, existingId, unlinked}` and no figure at all.
+   ⚠️ THAT CLAIM IS SCOPED TO THE `cost>0` FAMILY AND AN EARLIER DRAFT SAID "AND THE MENU ROW",
+   WHICH IS A WIDER CLAIM THAN IT CAN CARRY (277's pre-push review). The Plates library's
+   `plateCostText` gates on `plateFullyCosted` — `miss===0` and a line count — rather than on
+   `cost>0`, so a plate whose only line is a misc cost of exactly $0.00 reads "$0.00" there and
+   "not costed" here. Pre-existing, reachable only through that one shape, and filed in
+   `docs/MAINTENANCE.md`; named here because the next reader of this comment would otherwise
+   inherit an absolute that is not true.
+
+   ⚠️ AND IT REFUSES TO PRICE A PLATE IT CANNOT FULLY COST, which is 222's rule and the reason this
+   reads `costDetail` rather than `costFromLines`. A plate with one uncostable line has a TOTAL that
+   is silently short, and a suggested price built from it is a confident wrong number on the screen
+   where a sell price gets set. The publish dialog states this at its own site; the same sentence
+   applies here with more force, because this form's whole job is the price.
+
+   THREE STATES, and the middle one is the one a naive version drops:
+     no plate behind the dish  -> nothing. The dish is unlinked; there is no cost to show, and
+                                  `renderUnlinkedPrompt` is what speaks to that elsewhere.
+     a plate that cannot cost  -> "not costed", the app's own words for it (see plateCostText).
+     a costed plate            -> the publish dialog's sentence, verbatim in shape. */
+function renderEditMargin(){
+  var box=document.getElementById('ed_margin'); if(!box) return;
+  box.className='margin-preview'; box.textContent='';
+  var m=editTargetId?menuById[editTargetId]:null; if(!m) return;
+  var sp=plateForMenuItem(m); if(!sp) return;                       // an unlinked dish has no cost to show
+  var cd=costDetail(sp.lines);
+  if(cd.miss || !(cd.cost>0)){ box.textContent='not costed'; return; }
+  var priceV=parseFloat((document.getElementById('ed_price')||{}).value);
+  var mp=menuMarginPreview(cd.cost, priceV);
+  if(mp.pct==null){                                                 // price cleared: the cost and the target still stand
+    box.innerHTML='Ingredient cost <b>'+fmt2(cd.cost)+'</b> · suggested <b>'+fmt2(mp.suggested)+'</b> at a '+cogsPct+'% food cost';
+    return;
+  }
+  box.className='margin-preview mp-'+mp.light;
+  box.innerHTML='<span class="dot '+mp.light+'"></span>Ingredient cost <b>'+fmt2(cd.cost)+'</b> · at <b>'+fmt2(mp.price)+'</b> → <b>'+mp.pct+'% food cost</b> · '+marginLightWord(mp.light);
 }
 function closeEdit(){ hide('editModal'); editTargetId=null; }
 function resolveEditCat(){
