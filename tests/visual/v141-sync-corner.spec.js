@@ -215,6 +215,122 @@ test('desktop: the three-way split of the bottom chrome holds, at every width', 
   }
 });
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   276 (queue item 97) — THE SPLIT IS FOUR WAYS NOW, AND THE FOURTH IS WHY THIS FILE COULD NOT HAVE
+   CAUGHT IT.
+   `.bld-bar` — the builder's sticky summary bar — is a fixed element on the viewport floor, hidden
+   only at 1100 and up. From 1024 to 1099 it is directly under this file's bottom-left corner.
+   Measured at 1024, 1080 and 1099 with a costed plate open, identical at all three: the sync pill's
+   error state (x248-520.5, y740.4-776) sat on `#bFootFigs` (x240-370, y712.5-755.3), which is
+   "Plate cost" and its number.
+
+   ⚠️ TWO REASONS NOTHING HERE FIRED, AND BOTH ARE ABOUT THIS FILE RATHER THAN ABOUT THE CODE.
+   (a) The bar did not exist in this corner when the split was written: before 274 it was hidden at
+       >=768, and 274 showed it up to 1099 so that band would have a reachable commit control.
+       A spec cannot guard against an element that is not there yet, which is why this is an
+       ADDITION rather than a correction.
+   (b) `overlappedChrome` above filters to INTERACTIVE elements, and the thing covered is a FIGURE.
+       That filter is right for what it was written for — the rule is "never touch a control" — but
+       `.bld-bar` is fixed furniture displaying a NUMBER on a costing screen, which is neither a
+       control nor the scrollable content plane the banner is explicitly allowed to float over.
+       So this asserts the whole RECT, not the controls inside it.
+
+   THE SEEDED PLATE IS NOT OPTIONAL. `.bld-bar` carries `hidden` until the docket has lines
+   (`renderBuilderCost` keys it on `plate.length`), so a spec that opens the builder on an empty
+   plate measures a 0x0 element and passes against everything. */
+const KING = [
+  { id: 1, name: 'Mushrooms Sliced', pid: 'P0200' },
+  { id: 2, name: 'Bacon Middle Rindless', pid: 'P0004' },
+];
+const SEED_PLATE = (king) => {
+  localStorage.setItem('cafeDB_cogsPct', '40');
+  localStorage.setItem('cafeDB_king', JSON.stringify(king));
+  localStorage.setItem('cafeDB_plates', JSON.stringify([{
+    id: 'PL1', name: 'Big Breakfast', category: 'Mains',
+    lines: king.map((k) => ({ kid: k.id, qty: 120 })),
+  }]));
+};
+
+/* ⚠️ THE INSTALL BANNER IS A PARAMETER, AND ITS ABSENT CASE IS THE ONE THAT REPRODUCES.
+   The first version of this test ran only with the banner up — Playwright's fresh profile has it,
+   because the IIFE ends with a bare `show()`. **It was GREEN against the unfixed code**, found by
+   reverting the fix and watching nothing happen. With the banner on screen `.bld-bar` docks above
+   it (`html.has-install-banner .bld-bar`), which lifts the bar clear of the corner all by itself,
+   so the banner sits BETWEEN the pill and the bar and there is nothing to collide with.
+   That state is also the rare one: the banner is dismissed for good after the first visit, and
+   `226-bottom-stack.spec.js` says so at its own conditional test ("which is everyone, after the
+   first ten minutes"). **So the defect lives in the ordinary state and the fixture had the
+   extraordinary one** — a test that could not fail, in the shape this repo's roster is entirely
+   about, and the mutation is the only thing that showed it.
+   Both run now: dismissed is where the collision is, present is the full four-way stack. */
+for (const width of [1024, 1080, 1099, 1100]) {
+  for (const installBanner of [false, true]) {
+    test(`desktop ${width}${installBanner ? ' + install banner' : ''}: the bottom chrome splits FOUR ways on the builder, in the widest state`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await installBoot(page);
+    await page.addInitScript(SEED_PLATE, KING);
+    if (!installBanner) {
+      await page.addInitScript(() => { try { localStorage.setItem('cafeCost_installDismissed', '1'); } catch (e) {} });
+    }
+    await page.goto('/');
+    await page.waitForFunction(() => typeof window.showTab === 'function');
+    await page.evaluate(() => window.showTab('builder'));
+    await page.locator('#plateList .plib-row').first().click();
+    await expect(page.locator('#lines .bld-row').first()).toBeVisible();
+
+    const g = await page.evaluate(async () => {
+      window.setSync('error');                                   // the widest state, and one that never dismisses
+      const inst = document.getElementById('installBanner');
+      const toast = document.querySelector('.toast');
+      /* `pushWrite` fires setSync('error') and toast() in the same breath (css/style.css §H says so
+         at its own site), so the pill and the toast coexisting IS the error path, not a contrived
+         pairing. A short toast hides this: the length is the fixture. */
+      toast.textContent = 'Couldn’t save plate — no database connection';
+      toast.classList.add('show');
+      let last = null, still = 0;
+      for (let i = 0; i < 120 && still < 3; i++) {
+        await new Promise((r) => requestAnimationFrame(r));
+        const now = toast.getBoundingClientRect().bottom;
+        still = (last !== null && Math.abs(now - last) < 0.01) ? still + 1 : 0;
+        last = now;
+      }
+      const R = (el) => el.getBoundingClientRect();
+      const hit = (a, b) => b.right > a.left && b.left < a.right && b.bottom > a.top && b.top < a.bottom;
+      const bar = document.getElementById('bFootSum');
+      const sync = R(document.getElementById('syncBanner'));
+      const barR = R(bar), toastR = R(toast), instR = R(inst);
+      const instUp = document.documentElement.classList.contains('has-install-banner');
+      return {
+        barShown: getComputedStyle(bar).display !== 'none',
+        barH: barR.height,
+        instUp,
+        hits: {
+          syncVsBar: hit(sync, barR),
+          syncVsFigs: hit(sync, R(document.getElementById('bFootFigs'))),
+          syncVsToast: hit(sync, toastR),
+          toastVsBar: hit(toastR, barR),
+          ...(instUp ? { syncVsInstall: hit(sync, instR), toastVsInstall: hit(toastR, instR) } : {}),
+        },
+      };
+    });
+
+    /* THE PRECONDITIONS, ASSERTED RATHER THAN ASSUMED — every `false` below is only worth
+       something if the elements were actually on screen. Below 1100 the bar must be drawn with a
+       real height; above it the bar is gone by design, and the pairs involving it are then
+       trivially clear, which is the point of running 1100 at all. */
+    expect(g.barShown, `bar display at ${width}`).toBe(width < 1100);
+    if (width < 1100) expect(g.barH, `bar height at ${width}`).toBeGreaterThan(0);
+    expect(g.instUp, `install banner at ${width}`).toBe(installBanner);
+
+    const expected = {
+      syncVsBar: false, syncVsFigs: false, syncVsToast: false, toastVsBar: false,
+      ...(installBanner ? { syncVsInstall: false, toastVsInstall: false } : {}),
+    };
+    expect(g.hits, `bottom chrome collision at ${width}px`).toEqual(expected);
+    });
+  }
+}
+
 /* The half that is not about placement: the banner has never held a control, and until v141 it
    could take a click from whatever it floated over. Measured at 380px before the fix —
    `elementFromPoint` at the centre of #brandHome returned #syncBanner in the error state. */

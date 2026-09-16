@@ -640,6 +640,14 @@ const targets = [
      shoves the toast halfway up a desktop. Both confirmed red by hand before listing. */
   { fn: 'publishBldBarClear', tests: ['toast-bottom-stack.test.js'] },
   { fn: 'publishSheetFootClear', tests: ['toast-bottom-stack.test.js'] },
+  /* 276 — the third link, and it is on this list for a reason the other two are not: its first cut
+     WAS WRONG AND NOTHING WENT RED. It asked `getComputedStyle(el).top !== 'auto'` to decide whether
+     the pill is docked to the floor, which reads as the exact test and is true at every width,
+     because a positioned element's computed `top` is the USED value with `auto` already resolved to
+     pixels. The publisher returned `0px` always, the toast kept colliding with the pill, and the
+     only symptom was a repro that did not move. The discriminator is now `transform`, and this
+     target is what asks the question the suite could not. */
+  { fn: 'publishSyncBannerClear', tests: ['toast-bottom-stack.test.js'] },
 ];
 
 /*
