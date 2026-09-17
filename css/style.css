@@ -1526,6 +1526,17 @@ body.scroll-locked{position:fixed;left:0;right:0}
 .pack-in select{flex:0 0 auto;width:auto}
 .calc-line{font-size:14px;font-weight:600;color:var(--muted2);padding:8px 12px;border:1px dashed var(--border2);border-radius:10px;background:var(--surface2)}
 .calc-line.ok{color:var(--accent-ink);border-style:solid;border-color:var(--accent);background:var(--accent-weak)}
+/* ⚠️ 280 — `.bad` HAD NO TREATMENT AND THE ONE MESSAGE THAT NEEDS IT MOST WORE IT. This class carries
+   the Edit-product form's two refusals: a pack whose unit disagrees with the product's stored one,
+   and a product whose unit is unknown. Both are SAFETY messages - they say why a price was NOT
+   filled in - and without this rule they resolved byte-identically to the bare `.calc-line`
+   placeholder, so "no pack entered yet" and "that pack is in the wrong unit" looked the same.
+   Found by 280's pre-push review, by reading COMPUTED style rather than the class list; the spec had
+   asserted `className` contains 'bad', which passes whether or not `bad` means anything. That is
+   this file's own named trap - a rule that looks right in the file and does nothing on screen -
+   arriving as the ABSENCE of a rule rather than as a losing one.
+   Every other `.bad` in this sheet resolves to `var(--bad)`; this one now does too. */
+.calc-line.bad{color:var(--bad);border-style:solid;border-color:var(--bad);background:var(--warn-bg)}
 .ad-search{width:100%;padding:11px 12px;font:inherit;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);margin-bottom:8px}
 .ad-list{max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:10px}
 .ad-item{display:flex;flex-direction:column;gap:2px;width:100%;text-align:left;padding:11px 13px;background:transparent;border:0;border-bottom:1px solid var(--border);cursor:pointer;color:var(--text)}
@@ -1540,6 +1551,16 @@ body.scroll-locked{position:fixed;left:0;right:0}
    since batch 228 — this one and the recipe-heal modal (`#plateHealModal`) — and `docs/QUEUE.md`'s
    design law names that pair explicitly. A rule written on `.ad-item` itself would have restyled a
    picker this item has nothing to do with. */
+/* 280 (item 98): the Edit-product form's pack row gained a PACK PRICE, so the row is now three
+   controls and wraps on a phone rather than crushing the qty input - the same three-children lesson
+   278 paid for one row over. `.pack-price` keeps the $ and its input together as one unit so the
+   wrap point falls between controls and never between a symbol and its field. */
+.pack-price{display:inline-flex;align-items:center;gap:4px;flex:0 1 auto;min-width:0}
+.pack-price input{min-width:0}
+/* The derived read-out, the same family as New's `#f_calc` - one treatment for one meaning. `.bad`
+   is the unit-mismatch case, which is a refusal rather than a figure. */
+#ig_calc{margin-top:8px}
+#ig_calc[hidden]{display:none}
 .ad-item.is-on .ad-nm{color:var(--muted2);font-weight:600}
 .ad-item.is-on.sel .ad-nm{color:var(--text)}
 .ad-nm{font-weight:700;font-size:15px}

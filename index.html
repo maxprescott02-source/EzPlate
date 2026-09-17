@@ -102,7 +102,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=227">
+<link rel="stylesheet" href="css/style.css?v=228">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -1724,10 +1724,23 @@
              inline font-weight that was fighting the label's 700.
              The label gains the `for` it never had: it wrapped no control and pointed at none, so it
              was inert - clicking it focused nothing. -->
+        <!-- 280 (item 98) — THE PACK PRICE, AND IT IS THE NUMBER THE USER ACTUALLY TYPED.
+             New product asks pack size + pack unit + PACK PRICE and derives the unit cost into
+             #f_calc. Edit asked for a price PER UNIT, so a sack bought as "10 kg for $65" reopened
+             as "6.50" - and the $65 was stored all along in `current_price_exgst`, read by nothing.
+             The pack now DRIVES the price field here exactly as it does on New, so the two forms
+             ask the same question and the number on the invoice is the number on the form.
+             ⚠️ THE PACK DOES NOT DRIVE THE BASE UNIT, AND THAT IS WHY THIS IS NOT A LITERAL MIRROR.
+             On New, `packToUnitCost` derives `base_unit` FROM the pack unit. Here it must not:
+             `saveIngEdit` takes the unit from the STORED product and always has, because a saved
+             plate line holds a quantity in the product's base unit, so flipping g/ml/ea silently
+             re-means every line that references it. See igPackFill. -->
         <div class="field full ig-pack"><label for="ig_packQty">Pack size (optional)</label>
           <div class="pack-row"><input id="ig_packQty" type="number" min="0" step="any" placeholder="Qty" style="max-width:120px">
-          <select id="ig_packUnit"><option value="">Unit type…</option><option value="ea">units</option><option value="kg">kg</option><option value="g">g</option><option value="l">L</option><option value="ml">mL</option></select></div>
-          <p class="hint">For example, a carton of eggs = 180.</p>
+          <select id="ig_packUnit"><option value="">Unit type…</option><option value="ea">units</option><option value="kg">kg</option><option value="g">g</option><option value="l">L</option><option value="ml">mL</option></select>
+          <span class="pack-price"><span class="bld-dollar">$</span><input id="ig_packPrice" type="number" min="0" step="0.01" placeholder="Pack price" aria-label="Pack price" style="max-width:140px"></span></div>
+          <p class="hint">For example, a carton of eggs = 180. Enter what the pack cost and the price per unit fills itself in.</p>
+          <div class="calc-line" id="ig_calc" hidden></div>
         </div>
       </div>
     </div>
@@ -1982,7 +1995,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=227"></script>
+<script src="js/app.js?v=228"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —

@@ -72,14 +72,34 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 ⚠️ **G5 IS SIX TO NINE BATCHES, NOT ONE, AND THE RULE THAT SAYS SO IS IN THIS FILE'S OWN HEADER.** The Design law's *"one screen per change set, one PR, one review; never mix shell work with screen work"* forbids combining them — so **take ONE of these per batch** and do not be tempted by two that look adjacent. 64 is the shell item and shares a batch with nothing.
 ⚠️ **AND A GREEN PRE-PUSH HOOK IS NOT A GREEN SUITE FOR ANY OF THESE.** The hook does not run Playwright and every one of these items changes whether a control exists or where it sits. Run `npx playwright test` before pushing, every time.
 
-## next  98 · New product and Edit product ask for different things, so a pack reopens as a per-unit price with an empty pack  **[B]**
+## doing  98 · New product and Edit product ask for different things, so a pack reopens as a per-unit price with an empty pack  **[B]**
 
-Problem: the two forms think in different units. **New product** (`#modal`, `index.html:1341`) asks pack size + pack unit + pack price and derives the unit cost into `#f_calc`. **Edit product** (`#ingModal`, `index.html:1695`) asks unit type (a `<select>` that is `disabled`), price per unit, and pack size as an OPTIONAL afterthought.
-So a product entered as **10 kg for $65** reopens as **6.5 per kg with an empty pack**, and the number the user typed is nowhere on the form.
+Problem: the two forms think in different units. **New product** (`#modal`) asks pack size + pack unit + pack price and derives the unit cost into `#f_calc`. **Edit product** (`#ingModal`) asks unit type (a `<select>` that is `disabled`), price per unit, and pack size as an OPTIONAL afterthought.
+
+⚠️ **"WITH AN EMPTY PACK" DOES NOT REPRODUCE — THAT HALF WAS FIXED IN v82 D2** (batch 279's premise check). It was Max's own repro, root-caused to `submitNew` building the record inline and storing only `pack_size_raw`; `newProductRecord` now stores structured `pack_qty`/`pack_unit` and `tests/create-pack.test.js` locks the round-trip. **Reopening a 10 kg pack shows 10 and kg.**
+
+**What DOES reproduce, and it is narrower and sharper:** the **pack PRICE** the user typed is stored in `current_price_exgst` and **read by nothing** — `grep` finds it written by `submitNew`, by the invoice apply path and by the row mappers, and displayed nowhere in the app. So Edit shows `6.5` per kg for a sack the user bought at **$65**, with the 10 and the kg beside it and the $65 invisible. The unit of thought changes and the original number is gone from the screen.
+Requirements: Edit asks what New asks — pack size, pack unit, **pack price** — with the derived unit cost read-only beneath, as `#f_calc` already does on New.
+⚠️ **THE BASE UNIT MAY NOT MOVE, AND THIS IS WHAT MAKES "MIRROR NEW" NOT LITERAL.** New derives `base_unit` FROM the pack unit (`packToUnitCost`); Edit must not. `js/app.js` says so at two sites — *"unit type is create-only on the EDIT form — never auto-change a product's base unit (it would corrupt saved plate costs)"* — because a saved plate line stores a quantity in the product's base unit, so flipping g↔ml↔ea silently re-means every line referencing it. `.claude/rules/app-guards.md` records the invoice-path version of exactly this costing a 200g line **$2166.67 instead of $1.30**.
+**So: a pack whose unit does not convert to the STORED base unit must be REFUSED, not computed.** `invUnitToBase` is the mapping; `saveIngEdit` already derives `unitType` from `byId[id].base_unit` and must keep doing so.
 Requirements: Edit mirrors New - pack size, pack unit, pack price - with the derived unit cost read-only beneath it, as `#f_calc` already does. The form calls `packToUnitCost`; it does not change it.
 ⚠️ **This is a money-semantics change, not a layout one, and that is why it is its own item.** `saveIngEdit` reads `#ig_price` and writes `cost_per_base_unit: price/ub.div`; making pack price authoritative moves which field the stored cost is derived FROM. `ig_unit` is deliberately `disabled` because v54 made unit type create-only so an edit can never change `base_unit`/`cost_basis` - any rebuild has to keep that true or it can silently re-base a product's costs.
 Out of scope: the padding of `#ig_price`, which shipped in 277 and must stay padding-not-rounding for the reason recorded there.
 *(Split out of item 53 by batch 277. Its other three bullets shipped as `ezplate-v226`; this one is a form rebuild with a stored-cost derivation behind it and does not belong in the same review.)*
+
+## next  102 · A product with no recorded unit stores its price 1000x wrong, and eight such rows are in production  **[A — it writes a wrong cost]**
+
+Problem: `saveIngEdit` derives the unit it saves in from the STORED product — correctly, per v54 — with this fallback:
+`var unitType = _bu==='g'?'kg' : _bu==='ml'?'litre' : _bu==='ea'?'unit' : 'kg';`
+**A NULL `base_unit` lands on the final `'kg'`**, so `invUnitToBase('kg')` divides by 1000 and the row is stored as `$/g` with `base_unit:'g'`. Type `1.41` into the price field for a $1.41 container and it is saved as **$1.41 per kilo** — wrong by a factor of 1000, silently, with `base_unit` invented as weight for an item sold by count.
+
+⚠️ **`base_unit` NULL IS A REAL PRODUCTION STATE, AND THE REPO DOCUMENTS IT.** `supabase/migrations/20260801_base_products_backfill.sql` coerces **eight rows** to null because their unit is genuinely unknown, and says so at its own site — including `P0122 "Container Food 3.15Lt Storage"` and `P0279 "Pump Syrup"`, both `sold_by:'each'`.
+**All eight are `cost_per_base_unit` NULL today**, which is the only reason this has not already cost anything — and it is also what makes them precisely the rows someone opens Edit on in order to give a price.
+
+⚠️ **THIS IS PRE-EXISTING AND BATCH 280 DID NOT CAUSE IT** — typing directly into `#ig_price` has always taken this path. What 280 found is that it was about to make the path *easy to reach and actively misleading*: its first cut let a pack derive freely on a unitless product and printed *"= $1.41 / unit"* while the save wrote `$/g`. **280 fixed its own half** — `igPackDerive` now returns `nounit` and the form says *"This product has no unit recorded… Enter the price per unit directly."* — **which is honest and still routes the user into this defect.**
+Requirements: a product with no recorded unit cannot be priced until the unit is known. Either Edit lets the unit be SET when it is currently null (the one case v54's create-only rule does not protect anything, because there is no stored cost and no plate line to re-mean), or the price field refuses with the same sentence the pack read-out now uses. **Do not leave the `'kg'` fallback reachable with a null `_bu`** — a default that invents a unit is the `isFinite('')` shape: it turns "unknown" into a confident wrong answer.
+Out of scope: changing the unit on a product that HAS one. That is v54 and it stays create-only.
+*(Found by 280's pre-push review, which reproduced the 1000x store end to end in a browser against the documented production state. Filed [A] rather than [B] because it writes a wrong cost to the database, which `CLAUDE.md` treats as the one thing this app must never do.)*
 
 ## next  99 · Three different percentages are printed at three precisions, and "align them" assumes there are two  **[B]**
 
