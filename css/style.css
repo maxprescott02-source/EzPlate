@@ -1540,6 +1540,16 @@ body.scroll-locked{position:fixed;left:0;right:0}
    since batch 228 — this one and the recipe-heal modal (`#plateHealModal`) — and `docs/QUEUE.md`'s
    design law names that pair explicitly. A rule written on `.ad-item` itself would have restyled a
    picker this item has nothing to do with. */
+/* 280 (item 98): the Edit-product form's pack row gained a PACK PRICE, so the row is now three
+   controls and wraps on a phone rather than crushing the qty input - the same three-children lesson
+   278 paid for one row over. `.pack-price` keeps the $ and its input together as one unit so the
+   wrap point falls between controls and never between a symbol and its field. */
+.pack-price{display:inline-flex;align-items:center;gap:4px;flex:0 1 auto;min-width:0}
+.pack-price input{min-width:0}
+/* The derived read-out, the same family as New's `#f_calc` - one treatment for one meaning. `.bad`
+   is the unit-mismatch case, which is a refusal rather than a figure. */
+#ig_calc{margin-top:8px}
+#ig_calc[hidden]{display:none}
 .ad-item.is-on .ad-nm{color:var(--muted2);font-weight:600}
 .ad-item.is-on.sel .ad-nm{color:var(--text)}
 .ad-nm{font-weight:700;font-size:15px}

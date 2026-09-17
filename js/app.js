@@ -5908,6 +5908,15 @@ function openIngEdit(id){
   attachMoneyPad('ig_price');
   document.getElementById('ig_packQty').value=(p.pack_qty==null?'':p.pack_qty);
   document.getElementById('ig_packUnit').value=(p.pack_unit||'');
+  /* 280 (item 98): the pack PRICE the user typed. It has been stored in `current_price_exgst` since
+     the product was created and read by NOTHING - `grep` found it written by submitNew, by the
+     invoice apply path and by the row mappers, and displayed nowhere. That is the whole defect: a
+     sack bought as "10 kg for $65" reopened as "6.50" with the 10 and the kg beside it and the $65
+     invisible. */
+  document.getElementById('ig_packPrice').value=(p.current_price_exgst==null?'':padMoney(p.current_price_exgst));
+  attachMoneyPad('ig_packPrice');
+  igPackWire(p.base_unit);
+  igPackFill(p.base_unit, true);
   var e=document.getElementById('ig_err'); if(e)e.style.display='none';
   ['ig_brand','ig_cat','ig_sup'].forEach(function(x){ var d=document.getElementById(x+'Drop'); if(d)d.style.display='none'; });
   makeInlineCombo('ig_brand','ig_brandDrop',prodBrands);
@@ -5924,6 +5933,82 @@ function syncIgUnitFromPack(){                                        // when a 
   if(uSel.disabled) return;                                          // v54: unit type is create-only on the EDIT form — never auto-change a product's base unit (it would corrupt saved plate costs)
   var want=packUnitToIgUnit(puSel.value); if(!want) return;
   if(uSel.value!==want){ uSel.value=want; var lp=document.getElementById('ig_pricePer'); if(lp) lp.textContent=igPriceSuffix(); }
+}
+/* ===== 280 (queue item 98) — THE PACK DRIVES THE PRICE, AND NOTHING ELSE MOVES =====
+
+   New product asks pack size + pack unit + pack price and derives the unit cost into `#f_calc`.
+   Edit asked for a price PER UNIT, so the two forms asked different questions about the same
+   product and the number on the invoice appeared on neither the form nor anywhere else in the app.
+
+   ⚠️ THE WRITE PATH IS DELIBERATELY UNTOUCHED, AND THAT IS THE WHOLE SAFETY ARGUMENT.
+   `saveIngEdit` still reads `#ig_price` and still writes `cost_per_base_unit: price/ub.div`, where
+   `ub` comes from the STORED `base_unit`. This function only FILLS `#ig_price`, exactly as a user
+   typing it would. So the pack cannot change what a save derives its unit from, cannot change
+   `base_unit`, and cannot reach `cost_basis` - the three things v54 made create-only because a
+   saved plate line holds its quantity in the product's base unit, so flipping g/ml/ea silently
+   re-means every line referencing it. `.claude/rules/app-guards.md` records the invoice-path
+   version of that costing a 200g line **$2166.67 instead of $1.30**.
+
+   ⚠️ AND A PACK WHOSE UNIT DOES NOT CONVERT TO THE STORED BASE UNIT IS REFUSED, NOT COMPUTED.
+   `packToUnitCost` derives a base_unit from the pack unit; if that disagrees with the product's
+   stored one - a kg pack taught on a product stored per unit, say - then `price / qty` is not a
+   price in this product's unit and filling it would be the unit-mismatch defect by another road.
+   The form says so and leaves `#ig_price` alone. It is the one case where the two forms genuinely
+   cannot ask the same question, and saying nothing would be the dangerous half. */
+function igPackParts(){
+  var q=document.getElementById('ig_packQty'), u=document.getElementById('ig_packUnit'), pr=document.getElementById('ig_packPrice');
+  if(!q||!u||!pr) return null;
+  return {qty:q.value, unit:u.value, price:pr.value};
+}
+/* Returns what the pack implies, or a reason it implies nothing. Pure given the three strings and
+   the stored base unit, so the decision is testable without a DOM - which is the half of this that
+   is worth pinning, per `.claude/rules/tests.md` on extracting rather than mirroring. */
+function igPackDerive(parts, storedBaseUnit){
+  if(!parts) return {state:'none'};
+  var hasAny = String(parts.qty).trim()!=='' || String(parts.price).trim()!=='';
+  if(String(parts.qty).trim()==='' || !parts.unit || String(parts.price).trim()==='') return {state:hasAny?'partial':'none'};
+  var r=packToUnitCost(parts.qty, parts.unit, parts.price);
+  if(!r) return {state:'partial'};                                  // non-numeric, or a qty of zero
+  if(storedBaseUnit && r.base_unit!==storedBaseUnit) return {state:'mismatch', want:storedBaseUnit, got:r.base_unit};
+  return {state:'ok', perUnit:r.dispPer, unitWord:r.dispUnit};
+}
+/* Writes the derivation into `#ig_price` and the read-out into `#ig_calc`. `quiet` is the open path:
+   a product whose stored price and stored pack already disagree (an invoice taught one and not the
+   other) must not have its price silently rewritten the moment the form opens - the user did not
+   touch anything. It fills only when the field is EMPTY on open, and freely once a pack field is
+   edited, which is the same "a rollback must not fight a live control" split 244 records. */
+function igPackFill(storedBaseUnit, quiet){
+  var out=document.getElementById('ig_calc'), priceEl=document.getElementById('ig_price');
+  if(!out||!priceEl) return;
+  var d=igPackDerive(igPackParts(), storedBaseUnit);
+  if(d.state==='none'||d.state==='partial'){ out.hidden=true; out.textContent=''; out.className='calc-line'; return; }
+  if(d.state==='mismatch'){
+    out.hidden=false; out.className='calc-line bad';
+    out.textContent='That pack is measured in '+igUnitWord(d.got)+', but this product is stored per '+igUnitWord(d.want)+'. The price per unit is left as it is.';
+    return;
+  }
+  out.hidden=false; out.className='calc-line ok';
+  out.textContent='= $'+d.perUnit.toFixed(2)+' / '+d.unitWord;
+  if(quiet && String(priceEl.value).trim()!=='') return;             // opening: never overwrite what is stored
+  priceEl.value=padMoney(d.perUnit);
+}
+function igUnitWord(b){ return b==='g'?'weight':b==='ml'?'volume':'unit'; }
+function igPackWire(storedBaseUnit){
+  ['ig_packQty','ig_packUnit','ig_packPrice'].forEach(function(id){
+    var el=document.getElementById(id); if(!el||el.__igPackWired) return;
+    el.__igPackWired=true;
+    /* `input` on the numbers so the read-out tracks typing, `change` on the select. Both call the
+       same filler; `quiet` is false here because the user IS touching the pack, which is exactly
+       when overwriting the price is what they asked for. */
+    el.addEventListener('input', function(){ igPackFill(el.__igBase, false); });
+    el.addEventListener('change', function(){ igPackFill(el.__igBase, false); });
+  });
+  /* The stored base unit changes per product, and the listeners are attached once - so it rides on
+     the elements rather than being closed over, or the second product opened would be filled
+     against the first one's unit. */
+  ['ig_packQty','ig_packUnit','ig_packPrice'].forEach(function(id){
+    var el=document.getElementById(id); if(el) el.__igBase=storedBaseUnit;
+  });
 }
 function igPriceSuffix(){ var u=(document.getElementById('ig_unit')||{}).value; return u==='unit'?'/unit':u==='litre'?'/L':u==='ml'?'/mL':u==='g'?'/g':'/kg'; }
 /* v108 (decision D3) \u2014 WHAT REFERENCES THIS PRODUCT.
@@ -6012,9 +6097,22 @@ function saveIngEdit(){
   var sup=resolveCombo('ig_sup', prodSuppliers); if(!sup.ok) return fail('\u201c'+sup.value+'\u201d is a new supplier \u2014 pick \u201cCreate new\u201d to confirm.');
   var ub=invUnitToBase(unitType);
   var pq=parseFloat(document.getElementById('ig_packQty').value); var pu=document.getElementById('ig_packUnit').value;
+  /* 280 (item 98) — THE PACK PRICE IS PERSISTED, AND ITS ABSENCE WAS A REAL DEFECT IN THE FIRST CUT
+     OF THIS CHANGE. The form now shows `current_price_exgst` and lets it drive the per-unit price,
+     and `saveIngEdit` was writing `pack_qty` and `pack_unit` but not the price they go with — so a
+     pack edited from $65 to $80 saved the new per-unit cost and reopened still saying $65. That is
+     worse than not showing it at all: the stale number is on screen, beside a unit cost it no
+     longer explains. Caught by the save test rather than by reading, which is why that test exists
+     at all — everything before it in that file is display.
+     ⚠️ It is a REFERENCE figure, not a costing one. `cost_per_base_unit` above is still derived from
+     `#ig_price` through the STORED unit; nothing here reads the pack price back to cost anything.
+     The invoice apply path writes the same column for the same reason. */
+  var packPriceRaw=(document.getElementById('ig_packPrice')||{}).value;
+  var packPrice=parseFloat(packPriceRaw);
   var _prodWrite=setProduct(id, {description:name, brand:br.value||null, category:cat.value||null, supplier:sup.value||null,
     base_unit:ub.base_unit, cost_basis:ub.cost_basis, cost_per_base_unit:price/ub.div,
-    pack_qty:(isNaN(pq)?null:pq), pack_unit:(pu||null)});
+    pack_qty:(isNaN(pq)?null:pq), pack_unit:(pu||null),
+    current_price_exgst:(String(packPriceRaw||'').trim()===''||isNaN(packPrice))?null:packPrice});
   if(!isNaN(pq) && pq>0) syncMemoryToProduct(id, pq, (pu||'ea'));   // ITEM 1: no stale Remembered-items entry left behind
   /* 247: gated on the product write. See `commitPrice` for the reason the first cut of this batch
      got this wrong at both sites — `setProduct` is the N=1 wrapper, so its write carries a complete
@@ -9469,7 +9567,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v227';
+var APP_VERSION='v228';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI

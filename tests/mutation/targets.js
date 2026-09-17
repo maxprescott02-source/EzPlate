@@ -666,6 +666,13 @@ const targets = [
      version and is silently wrong the moment a plate is on two menus, because the summary collapses
      to "2 menus" and names neither. The comparator and the flag are both mutated here. */
   { fn: 'renderDishPicker', tests: ['add-dish-picker.test.js'] },
+  /* 280 — the pack-to-price derivation on the Edit-product form. It is here for the same reason
+     `padMoney` is: the value it produces lands in `#ig_price`, which `saveIngEdit` reads straight
+     into `cost_per_base_unit`. Its MISMATCH arm is the load-bearing one - a pack whose unit does
+     not convert to the stored base unit must be refused rather than computed, because price/qty is
+     then a price in the wrong unit, and `.claude/rules/app-guards.md` records that class costing a
+     200g line $2166.67 instead of $1.30. Every branch is reachable from the unit test. */
+  { fn: 'igPackDerive', tests: ['pack-drives-price.test.js'] },
 ];
 
 /*
