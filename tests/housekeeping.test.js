@@ -283,3 +283,35 @@ test('v111: TIDY_COLS is the three label columns and nothing else', () => {
   assert.ok(m, 'TIDY_COLS must exist in app.js');
   assert.deepEqual(JSON.parse(m[1].replace(/'/g, '"')), ['category', 'brand', 'supplier']);
 });
+
+/* ⚠️ 281 — NO iCLOUD CONFLICT DUPLICATES IN THE TREE, AND THREE OF THEM SHIPPED BEFORE THIS EXISTED.
+ *
+ * This repo lives under `~/Documents`, which on macOS is an iCloud-synced location. When iCloud
+ * cannot reconcile two versions of a file it does not fail — it keeps both, naming the loser
+ * `<name> 2.<ext>`. Nothing about that is visible in an editor, and **`git add -A` commits it**.
+ *
+ * MEASURED: batch 279 shipped `docs/audits/AUDIT-v227 2.md`, `docs/handovers/HANDOVER-279-audit-v227 2.md`
+ * and `docs/reviews/REVIEW-279-audit-v227 2.md` — three byte-identical duplicates of files that
+ * batch had just written, tracked and merged to `main`, found two batches later by an `ls` that
+ * happened to sort the duplicate last. `npm test` was green throughout: `tests/audit-closure.test.js`
+ * reads the newest audit by its own regex and the duplicate did not match it, and
+ * `tools/state.js` derived `AUDIT-v227.md` correctly. **Nothing in the repo could see them.**
+ *
+ * Why this is a test and not a rule: the failure is not a decision anyone makes. No batch chooses
+ * to commit a duplicate — the filesystem creates it and the staging command sweeps it up, which is
+ * exactly the shape `.claude/rules/tests.md` says to mechanise rather than write about.
+ *
+ * The pattern is deliberately narrow: a space, digits, then the extension. That is iCloud's own
+ * scheme and it cannot match a legitimate name in this repo (checked: every tracked file).
+ */
+test('281: no iCloud conflict duplicates are tracked (`<name> 2.<ext>`)', () => {
+  const { execFileSync } = require('node:child_process');
+  const root = require('node:path').join(__dirname, '..');
+  const files = execFileSync('git', ['ls-files'], { cwd: root, encoding: 'utf8' }).split('\n').filter(Boolean);
+  const dupes = files.filter((f) => / \d+\.[A-Za-z0-9]+$/.test(f));
+  assert.deepEqual(dupes, [],
+    'iCloud kept a conflicted copy and `git add -A` committed it — delete these and re-check what the original should contain');
+  /* The control: the pattern must actually be capable of matching, or this asserts nothing. */
+  assert.ok(/ \d+\.[A-Za-z0-9]+$/.test('docs/audits/AUDIT-v227 2.md'), 'the pattern matches a real observed duplicate');
+  assert.ok(!/ \d+\.[A-Za-z0-9]+$/.test('docs/audits/AUDIT-v227.md'), 'and not the file it duplicates');
+});
