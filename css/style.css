@@ -1526,6 +1526,17 @@ body.scroll-locked{position:fixed;left:0;right:0}
 .pack-in select{flex:0 0 auto;width:auto}
 .calc-line{font-size:14px;font-weight:600;color:var(--muted2);padding:8px 12px;border:1px dashed var(--border2);border-radius:10px;background:var(--surface2)}
 .calc-line.ok{color:var(--accent-ink);border-style:solid;border-color:var(--accent);background:var(--accent-weak)}
+/* ⚠️ 280 — `.bad` HAD NO TREATMENT AND THE ONE MESSAGE THAT NEEDS IT MOST WORE IT. This class carries
+   the Edit-product form's two refusals: a pack whose unit disagrees with the product's stored one,
+   and a product whose unit is unknown. Both are SAFETY messages - they say why a price was NOT
+   filled in - and without this rule they resolved byte-identically to the bare `.calc-line`
+   placeholder, so "no pack entered yet" and "that pack is in the wrong unit" looked the same.
+   Found by 280's pre-push review, by reading COMPUTED style rather than the class list; the spec had
+   asserted `className` contains 'bad', which passes whether or not `bad` means anything. That is
+   this file's own named trap - a rule that looks right in the file and does nothing on screen -
+   arriving as the ABSENCE of a rule rather than as a losing one.
+   Every other `.bad` in this sheet resolves to `var(--bad)`; this one now does too. */
+.calc-line.bad{color:var(--bad);border-style:solid;border-color:var(--bad);background:var(--warn-bg)}
 .ad-search{width:100%;padding:11px 12px;font:inherit;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);margin-bottom:8px}
 .ad-list{max-height:260px;overflow:auto;border:1px solid var(--border);border-radius:10px}
 .ad-item{display:flex;flex-direction:column;gap:2px;width:100%;text-align:left;padding:11px 13px;background:transparent;border:0;border-bottom:1px solid var(--border);cursor:pointer;color:var(--text)}

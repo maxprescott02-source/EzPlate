@@ -5969,7 +5969,28 @@ function igPackDerive(parts, storedBaseUnit){
   if(String(parts.qty).trim()==='' || !parts.unit || String(parts.price).trim()==='') return {state:hasAny?'partial':'none'};
   var r=packToUnitCost(parts.qty, parts.unit, parts.price);
   if(!r) return {state:'partial'};                                  // non-numeric, or a qty of zero
-  if(storedBaseUnit && r.base_unit!==storedBaseUnit) return {state:'mismatch', want:storedBaseUnit, got:r.base_unit};
+  /* ⚠️ AN UNKNOWN STORED UNIT IS A REFUSAL, NOT A FREE HAND, AND THE FIRST CUT OF THIS FUNCTION HAD
+     IT THE OTHER WAY ROUND. The guard below read `if(storedBaseUnit && r.base_unit!==storedBaseUnit)`,
+     so a NULL `base_unit` skipped the check entirely and any pack in any unit was accepted.
+     **`base_unit` NULL is a real production state**: `supabase/migrations/20260801_base_products_backfill.sql`
+     coerces EIGHT rows to null because their unit is genuinely unknown, and says so at its own site.
+     Those rows are uncosted, which makes them exactly the ones someone opens Edit on to give a price.
+     MEASURED, end to end, on that state: enter a pack of `1 ea` at `$1.41` — a correct entry for a
+     $1.41 container — and the read-out said **"= $1.41 / unit"** while the save stored
+     **`cost_per_base_unit: 0.00141, base_unit: 'g'`**. $1.41 each became $1.41 per KILO, wrong by a
+     factor of 1000, with the UI actively stating the opposite of what was written.
+     The mechanism is `saveIngEdit`'s own pre-existing fallback: `_bu==='g'?'kg':…:'kg'` turns a null
+     unit into 'kg', so `invUnitToBase` divides by 1000. This function cannot see that and must not
+     pretend to. **If the product's unit is unknown, a pack price divided by a pack quantity is a
+     number in no unit at all**, and filling it in is the unit-mismatch defect with the units missing
+     rather than disagreeing.
+     Found by 280's pre-push review, which reproduced it in a live browser against the documented
+     production state. ⚠️ **And this function's own test asserted the broken behaviour as correct**,
+     calling it "the create-ish path" — there is no create path here; `igPackDerive` is reached only
+     from `openIngEdit`. A justification that names a caller it does not have is this repo's
+     most-recorded comment defect, and it locked the bug in. */
+  if(!storedBaseUnit) return {state:'nounit'};
+  if(r.base_unit!==storedBaseUnit) return {state:'mismatch', want:storedBaseUnit, got:r.base_unit};
   return {state:'ok', perUnit:r.dispPer, unitWord:r.dispUnit};
 }
 /* Writes the derivation into `#ig_price` and the read-out into `#ig_calc`. `quiet` is the open path:
@@ -5985,6 +6006,14 @@ function igPackFill(storedBaseUnit, quiet){
   if(d.state==='mismatch'){
     out.hidden=false; out.className='calc-line bad';
     out.textContent='That pack is measured in '+igUnitWord(d.got)+', but this product is stored per '+igUnitWord(d.want)+'. The price per unit is left as it is.';
+    return;
+  }
+  /* The product has no unit recorded, so there is nothing for a pack price to be per. Saying which
+     way to fix it matters: the unit is create-only on this form, so the honest instruction is to
+     price it directly rather than to keep trying packs. */
+  if(d.state==='nounit'){
+    out.hidden=false; out.className='calc-line bad';
+    out.textContent='This product has no unit recorded, so a pack cannot work out its price per unit. Enter the price per unit directly.';
     return;
   }
   out.hidden=false; out.className='calc-line ok';

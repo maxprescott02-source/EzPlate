@@ -117,6 +117,22 @@ test('a pack whose unit does not match the stored one is refused, and the price 
   expect(g.cls).toContain('bad');
   expect(g.calc).toContain('measured in unit');
   expect(g.calc).toContain('stored per weight');
+  /* ⚠️ AND IT MUST LOOK LIKE A REFUSAL, NOT LIKE A PLACEHOLDER. The first cut asserted only that the
+     class list contains 'bad' — which passes whether or not `.calc-line.bad` is styled at all, and
+     it was not: 280's pre-push review read COMPUTED style and found it byte-identical to the bare
+     `.calc-line` used for "no pack entered yet". A denylist on the class name cannot see that;
+     comparing the rendered colour against the neutral state can. */
+  const seen = await page.evaluate(() => {
+    const c = document.getElementById('ig_calc');
+    const bad = getComputedStyle(c).color;
+    c.className = 'calc-line';                                   // the neutral placeholder treatment
+    const neutral = getComputedStyle(c).color;
+    c.className = 'calc-line ok';
+    const ok = getComputedStyle(c).color;
+    return { bad, neutral, ok };
+  });
+  expect(seen.bad, 'the refusal is not styled as a placeholder').not.toBe(seen.neutral);
+  expect(seen.bad, 'nor as the happy derivation').not.toBe(seen.ok);
 });
 
 /* THE ONE THAT MATTERS. Everything above is display. This drives the pack, saves, and reads the

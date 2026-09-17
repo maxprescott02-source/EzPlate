@@ -106,10 +106,40 @@ test('280: an empty pack is NONE, which is the ordinary state of a product with 
   assert.strictEqual(H.igPackDerive(null, 'g').state, 'none');
 });
 
-/* With no stored base unit to check against there is nothing to disagree with, so the derivation
-   stands. This is the create-ish path and it must not start refusing. */
-test('280: with no stored base unit the pack derives freely', () => {
-  const d = H.igPackDerive(parts(5, 'ea', 80), null);
+/* ⚠️ THIS TEST ASSERTED THE OPPOSITE AND LOCKED IN A 1000x MIS-STORE. It read *"with no stored base
+   unit the pack derives freely… this is the create-ish path and it must not start refusing"*, and
+   there is no create path: `igPackDerive` is reached only from `openIngEdit`. A justification that
+   names a caller the function does not have is this repo's most-recorded comment defect, and here it
+   made a green test out of a defect.
+
+   WHAT IT WAS HIDING, measured end to end by 280's pre-push review against the production state
+   `supabase/migrations/20260801_base_products_backfill.sql` documents (EIGHT rows with `base_unit`
+   NULL because their unit is genuinely unknown — and all eight uncosted, so they are exactly the
+   rows someone opens Edit on to give a price):
+     enter a pack of `1 ea` at `$1.41` — a correct entry for a $1.41 container
+     the read-out said  "= $1.41 / unit"
+     the save stored    cost_per_base_unit: 0.00141, base_unit: 'g'
+   **$1.41 each became $1.41 per kilo**, wrong by a factor of 1000, with the UI stating the opposite
+   of what it wrote. The mechanism is `saveIngEdit`'s own `_bu==='g'?'kg':…:'kg'` fallback turning a
+   null unit into 'kg', which `igPackDerive` cannot see and must not pretend to.
+
+   A pack price over a pack quantity, for a product whose unit nobody knows, is a number in no unit
+   at all. */
+test('280: an UNKNOWN stored base unit is refused — there is no unit for a pack price to be per', () => {
+  ['ea', 'kg', 'g', 'l', 'ml'].forEach((u) => {
+    const d = H.igPackDerive(parts(5, u, 80), null);
+    assert.strictEqual(d.state, 'nounit', `a ${u} pack on a unitless product must refuse`);
+    assert.strictEqual(d.perUnit, undefined, 'and carry no figure anything could fill from');
+  });
+  assert.strictEqual(H.igPackDerive(parts(1, 'ea', 1.41), undefined).state, 'nounit', 'undefined is the same absence as null');
+  assert.strictEqual(H.igPackDerive(parts(1, 'ea', 1.41), '').state, 'nounit', 'and so is an empty string');
+});
+
+/* The control that keeps the refusal from being vacuous: the SAME pack derives fine the moment the
+   product's unit is known. Without this, `igPackDerive` returning 'nounit' unconditionally would
+   pass every assertion above. */
+test('280: the same pack derives normally once the stored unit IS known', () => {
+  const d = H.igPackDerive(parts(5, 'ea', 80), 'ea');
   assert.strictEqual(d.state, 'ok');
   assert.strictEqual(d.perUnit, 16);
 });
