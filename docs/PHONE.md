@@ -149,9 +149,4 @@ Nothing here was thrown away silently.
 - **The "Carried v82–v98" inventory is DELETED.** It indexed item codes (B1–B9, C1–C8, D1–D2) against screens that have each been rebuilt twice since.
 - **The old "Settled - no phone needed" heading is DELETED.** It sat above live work six times running because `/batch` appended past it, and it told a reader to stop seven sections early - including past two of the costs-money checks.
 
-## One thing that is NOT a phone check and has been waiting five weeks
-
-**Six remembered packs are keyed to a supplier called `Document No:`** - a parser bug fixed long ago left them behind, and they have sat there since 3 August 2026. Measured on production 10 Sep 2026, still six.
-They match nothing and cost nothing; they are just wrong.
-**Settings → Remembered packs → remove each row showing `Document No:`.** Two minutes, on the desktop, whenever. The seventh row (`The Fruit Wagon` / avocado tray) is genuine - leave it.
-*(It sat on the phone list from v107 onward, which is the clearest single example of why that list stopped working: it was never a phone check at all.)*
+*(A "One thing that is NOT a phone check" section stood here until 16 Sep 2026 — six remembered packs keyed to `Document No:`. **AUDIT-v227 moved it to `docs/MAINTENANCE.md`**, where it always belonged: this file's own entry test above says a check earns a place only if a phone is the only thing that CAN settle it, and that one was explicitly "two minutes, on the desktop, whenever". Keeping it here while the header forbade it was the file contradicting itself in the one section that admits so.)*

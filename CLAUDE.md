@@ -23,7 +23,7 @@ EzPlate is a plate/menu-costing PWA for a real cafe ("Scoopy's Family Cafe"). Th
 | `.claude/rules/invoice.md` | `js/app.js` | the parser region and its two anchor literals · the corpus · review-render invariants · auto-tick · taught packs · supplier renames |
 | `.claude/rules/sql.md` | `supabase/**` | column DEFAULTs and the restore · DEFAULT vs BEFORE trigger · cross-tenant FKs · `as restrictive` · `anon` and `revoke … from public` · `create or replace` · `ON CONFLICT` · the client's role vs the MCP's · who may delete what |
 | `.claude/rules/css.md` | `css/style.css` | `@media` specificity · the `:not([hidden])` guard · `position:fixed` containing blocks · offsets on a static box · a silent syntax error |
-| `.claude/rules/tests.md` | `tests/**`, `.github/workflows/**` | the 22-incident roster of tests that could not fail · the mutation gate · viewport-geometry assertions |
+| `.claude/rules/tests.md` | `tests/**`, `.github/workflows/**` | the roster of tests that could not fail (**no count here on purpose** - it said 22 against 24 until AUDIT-v227, and `.claude/rules/tests.md` already records that its own number is not a census) · the mutation gate · viewport-geometry assertions |
 | `.claude/rules/api.md` | `api/**` | the server functions · the money/number law · untrusted model output |
 | `docs/rules/process.md` | nothing - read it by hand | the full record behind every Tier 3 rule below, and the full text of anything compressed here |
 
@@ -95,7 +95,7 @@ UI labels and internal identifiers are deliberately CROSSED.
 
 **Menu deletion deletes its dishes and UNLINKS their plates - never the plates.** There is **no holding area** and **no last-menu guard**: any menu is deletable, including the last, and **zero menus is a legitimate state** that must be respected rather than seeded over. `fallbackMenuId()` never returns a deleted id and returns `null` when no menu exists.
 
-**`menusList` MEANS MENUS THE SERVER HAS, and `withPublishMenu` decides whether to create one by reading `menusList.length`.** Three writers, all of which wait for the server: `bootstrapSync`, `submitNewMenu`, `ensurePublishMenu`. **If you add a fourth, this is what it owes.** The `menus` read is REQUIRED at boot - its error raises the boot gate - because a seeder reached by a flaky read cannot tell an empty table from a failed request, and once invented a menu that hid every real dish.
+**`menusList` MEANS MENUS THE SERVER HAS, and `withPublishMenu` decides whether to create one by reading `menusList.length`.** **FOUR** writers, all of which wait for the server: `bootstrapSync`, `submitNewMenu`, `ensurePublishMenu`, `rollbackMenuDelete` (254; it restores a menu the server still holds, so the invariant stands - the COUNT said three until AUDIT-v227). **If you add a fifth, this is what it owes.** The `menus` read is REQUIRED at boot - its error raises the boot gate - because a seeder reached by a flaky read cannot tell an empty table from a failed request, and once invented a menu that hid every real dish.
 
 ## No new dependencies, no build step, no scope creep
 

@@ -72,22 +72,6 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 ⚠️ **G5 IS SIX TO NINE BATCHES, NOT ONE, AND THE RULE THAT SAYS SO IS IN THIS FILE'S OWN HEADER.** The Design law's *"one screen per change set, one PR, one review; never mix shell work with screen work"* forbids combining them — so **take ONE of these per batch** and do not be tempted by two that look adjacent. 64 is the shell item and shares a batch with nothing.
 ⚠️ **AND A GREEN PRE-PUSH HOOK IS NOT A GREEN SUITE FOR ANY OF THESE.** The hook does not run Playwright and every one of these items changes whether a control exists or where it sits. Run `npx playwright test` before pushing, every time.
 
-## next  project-audit · The version has advanced 10 since the last audit
-
-**Trigger, and it is derived rather than remembered:** the newest `docs/audits/AUDIT-vNN.md` is **v217**; `sw.js` is **v227**. `skills/batch` step 10 puts this item above every unblocked one at a gap of 10 or more, and the deploy version increments about once per batch, so the version IS the counter.
-
-Run the `project-audit` agent. It is read-only and hands the report back rather than saving it — **YOU file it**, to `docs/audits/AUDIT-v227.md`, at the version it audited. An unfiled report leaves the counter unchanged and the next audit never gets queued, which is the one way this mechanism fails silently.
-
-**What it is for:** every documented claim re-checked against the code, contradictions between decisions taken in different batches, dead traps worth deleting, and follow-ups that were flagged and never done.
-**Its findings default to tier C** and land in `docs/MAINTENANCE.md`; one reaches `docs/QUEUE.md` only by passing the tier test in this file's header. `project-audit` reports, it does not add queue items.
-
-⚠️ **Worth pointing at these five in particular, because this run of batches touched them and each left something behind:**
-- the **bottom stack** now has four publishers and a three-link chain (275, 276) — `--install-banner-clear`, `--bld-bar-clear`, `--sheet-foot-clear`, `--sync-banner-clear`. Four variables and four readers is the point at which a shared accumulator starts being the smaller mechanism, and 276's handover says so.
-- **`.claude/rules/tests.md` grew a rule about pipelines eating exit codes** (278), after four runs in one session reported green while specs failed. Check whether anything else in the repo reads a test result through a pipe.
-- **`docs/MAINTENANCE.md` gained four entries in five batches** (the sync-banner pair, the misc-input rebuild, the zero-cost plate divergence, the 1024-1059 wrap). That file's own header warns about append-only growth.
-- **the Chromium segfault is on its eighth occurrence and its second on Playwright 1.62.1.** The entry now says to count per version; check whether that is still the right threshold.
-- **items 98 and 99** were split out of 53 and **54's own bullets included one already fixed four batches earlier and one naming a control that has never existed.** Consolidated-file entries are drifting from the code faster than they are being run.
-
 ## next  98 · New product and Edit product ask for different things, so a pack reopens as a per-unit price with an empty pack  **[B]**
 
 Problem: the two forms think in different units. **New product** (`#modal`, `index.html:1341`) asks pack size + pack unit + pack price and derives the unit cost into `#f_calc`. **Edit product** (`#ingModal`, `index.html:1695`) asks unit type (a `<select>` that is `disabled`), price per unit, and pack size as an OPTIONAL afterthought.
@@ -101,11 +85,31 @@ Out of scope: the padding of `#ig_price`, which shipped in 277 and must stay pad
 
 Problem: item 53's last bullet said *"the publish dialog and the Menu row print the same ratio at different precision - whole % vs one decimal. Align in the same pass."* **Measured, there are at least three different QUANTITIES, not one ratio at two sites:**
 - `menuMarginPreview().pct` = `Math.round(cost/price*100)` - the dish's food-cost %, whole numbers. **Six consumers**, not one: the publish dialog (`js/app.js:12186`), the builder's docket verdict, the builder's cost-card pill, the builder's sticky-bar line, `worstMenuOf`, and `shortfallStr`.
-- `analyze().absPct` = `Math.round(|shortfall|*100)` - the price's distance from the SUGGESTED price. A different subject, also rounded.
+- ⚠️ ~~`analyze().absPct` = `Math.round(|shortfall|*100)` - the price's distance from the SUGGESTED price. A different subject, also rounded.~~ **THIS ONE IS NOT PRINTED ANYWHERE AND THE ITEM WAS SHORT BY ONE** (AUDIT-v227). Measured: `absPct` appears at `js/app.js:3703`, `:3705` and `:3710` and nowhere else in the app; its only other hits in the repo are in `tests/menu-margin.test.js`. `docs/MAINTENANCE.md` and consolidated item 76 both already record that **it lost its last reader in v122**. So there are TWO printed quantities and one dead field, not three printed at three precisions — and a batch running this item as written would go looking for a third surface that does not exist.
+  **It is still worth deciding about**, in the same pass: trim it with its `Math.round`, or keep it deliberately and say so at the site. That is `docs/MAINTENANCE.md`'s standing ask for it.
 - `avgFoodCostForScope()` - the menu's AVERAGE food cost, printed `.toFixed(1)` on the Menu scope pill.
 Requirements: decide what each of the three is FOR, then pick a precision per quantity rather than one for all of them; whichever way it goes, every consumer of `mp.pct` moves together, because the builder and the publish dialog reading the same dish differently is the defect one level up.
 ⚠️ **Do not "align" `avgFoodCostForScope` with `mp.pct`.** They are a per-dish ratio and a mean of per-plate ratios; `.claude/rules/app-data.md` records that arithmetic across two series fabricates movement, and this is the display version of the same mistake.
 *(Split out of item 53 by batch 277, which went looking for "the Menu row's ratio" and found the scope pill - a menu average - instead. The bullet is not wrong that a precision mismatch exists; it is wrong that it is one number at two places, and a batch acting on it as written would have changed six surfaces on the strength of two.)*
+
+## next  100 · `docs/MAINTENANCE.md` has no cap and no entry test, and states that exact diagnosis about a different file  **[B — process, and it holds the one process slot]**
+
+Problem: the file is **1,520 lines and 134 entries**, and gained four in five batches (275-278). Its own line 1352 reads: *"any file a process APPENDS to needs a stated cap and a stated test for entry, or it converts work into the appearance of work. `docs/QUEUE.md` has a cap of 20 and a tier test and stays useful; this file had neither."* **That sentence is about `docs/PHONE.md`.**
+⚠️ **It is still working as a RECORD — its riders do get taken** (270, 271 and 272 each struck one) — **but nothing in it could ever notice if it stopped.** AUDIT-v227 found three entries that had read as outstanding after being fixed: one for fourteen deploy versions (found by 275), one for ~24 batches (`doDeleteMenu`), one for six (`edDelArmed`, also unstruck in consolidated item 76).
+**Why this is the one process slot** (`docs/QUEUE.md`'s three-part test, all three hold): it needs a **branch**, because the answer is a test rather than an edit — something that fails when an entry's stated subject no longer exists, or when the file passes a stated size; it **names the detector it adds**; and it is **not a restatement** — the rule is already written, in this very file, about a different file, which is precisely why restating it again would change nothing.
+Requirements: decide what `docs/MAINTENANCE.md` IS — a permanent record, or a working list with a cap — and make the file enforce that answer. If it is a record, the test is staleness (an entry naming a symbol that no longer exists is a finding), not length. If it is a working list, it needs `docs/QUEUE.md`'s shape: a cap, an entry test, and a displacement rule.
+⚠️ **Do not answer it by trimming.** Three audits have now found stale entries; a one-off tidy leaves the file in the same state it was in before, which is the definition of the failure being recorded.
+Out of scope: `docs/PHONE.md`, which already has a cap and an entry test and is holding at five.
+
+## next  101 · The `project-audit` and `flow-tester` agent definitions live outside the repo, where nothing can review them  **[B]**
+
+Problem: `.claude/agents/` **is tracked** and holds `code-review.md`, `handover-writer.md` and `premise-check.md`. `project-audit` and `flow-tester` are still at `~/.claude/agents/`, outside any diff, any review and any test.
+⚠️ **This has already cost four audits.** `docs/MAINTENANCE.md` records it: the `project-audit` checklist carried *"abbreviation matching in search"* — a feature DECLINED in `HANDOVER-v83` and never built — so **four consecutive audits re-derived the same correction**, each reporting it as a dropped thread because the checklist kept asking. Batch 240 struck it out there under standing authority, and **there is no diff of that in this repo, which is the entry's whole point.**
+**And AUDIT-v227 found four MORE settled candidates still on that checklist**, each costing budget every run: the `manager` role (a recorded decision with its reversal written beside it), JSON restore (shipped; only the full-wipe rehearsal remains, correctly blocked), bulk catalogue bootstrap (shipped), and the staging environment (shipped; only the test account remains, item 27).
+Requirements: both definitions move into `.claude/agents/`, and the four settled candidates are struck from `project-audit`'s standing checklist **in the same change**, so the strike is reviewable. The expiry rule batch 240 added at the site comes with them.
+⚠️ **The `~/.claude/AGENTS.md` precedent is the argument**: batch 264 moved the working preferences into the repo for exactly this reason, and `AGENTS.md` now says so at its own head — *"a clone carried the rules and not the reviewer."* Same defect, two agents later.
+Out of scope: the three SKILLS (`new-branch`, `investigate`, `test-flows`) — they are consolidated item 83, they are Max's global config, and moving them changes what his other projects see. This item is the two agents, which are EzPlate-specific and have no such cost.
+*(Filed by AUDIT-v227, recommendations 12 and 13.)*
 
 ## next  56 · Dashboard polish: the tablet drops two of three headline figures, the scope button drops its % sign, two cards do not share a bottom edge, chart annotations collide and clip, and the chart does not re-measure on resize  **[B]**
 **Full item:** consolidated item 56.
