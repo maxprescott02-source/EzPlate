@@ -97,6 +97,17 @@ A parser bug fixed long ago left them behind; they have been there since **3 Aug
 **Why it moved rather than being done:** it is data in the café's production database, and `CLAUDE.md` makes anything that deletes or rewrites production data Max's to authorise. A batch can neither do it nor stop recording it, which is exactly what `docs/MAINTENANCE.md` is for.
 ⚠️ **And the reason it is worth writing down twice:** `docs/PHONE.md`'s own retrospective calls this *"the clearest single example of why that list stopped working: it was never a phone check at all"* — and then kept it for another six weeks, under a heading admitting it. **A file that names its own defect in the entry that demonstrates it has a reader problem, not a writer problem.**
 
+### iCloud keeps conflicted copies as `<name> 2.<ext>`, and `git add -A` commits them
+(Found 18 Sep 2026, batch 281, by an `ls` that happened to sort a duplicate last. Guarded now — recorded because the guard only catches it after the fact.)
+
+This repo lives under `~/Documents`, an iCloud-synced location on macOS. When iCloud cannot reconcile two versions of a file it does not fail: it keeps both, naming the loser `<name> 2.<ext>`.
+**Batch 279 shipped three of them to `main`** — `docs/audits/AUDIT-v227 2.md`, `docs/handovers/HANDOVER-279-audit-v227 2.md`, `docs/reviews/REVIEW-279-audit-v227 2.md` — byte-identical copies of files that batch had just written, tracked and merged.
+
+⚠️ **NOTHING IN THE REPO COULD SEE THEM, AND `npm test` WAS GREEN THE WHOLE TIME.** `tests/audit-closure.test.js` reads the newest audit by a regex the duplicate did not match, and `tools/state.js` derived `AUDIT-v227.md` correctly. The one reader that would have noticed is a human running `ls`.
+✅ **`tests/housekeeping.test.js` now fails on any tracked file matching ` \d+\.<ext>`**, proved red against a real duplicate and green without one. The pattern is iCloud's own and matches no legitimate name in this repo.
+
+**What the guard does NOT do**, stated because the alternative is trusting it for more: it catches the duplicate at `npm test`, which is after `git add -A` has already staged it. It turns a silent merge into a red suite — it does not stop the file being created. **The upstream fix is not to run `git add -A` on a synced working tree**, and that is a habit rather than a rule this repo can enforce.
+
 ## Displaced B items — promote when a `QUEUE.md` slot frees
 
 These passed the launch test and lost on priority against the 20-item cap. They are not C.
