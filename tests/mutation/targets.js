@@ -673,6 +673,22 @@ const targets = [
      then a price in the wrong unit, and `.claude/rules/app-guards.md` records that class costing a
      200g line $2166.67 instead of $1.30. Every branch is reachable from the unit test. */
   { fn: 'igPackDerive', tests: ['pack-drives-price.test.js'] },
+  /* 282 (item 102) — the three functions that decide WHICH UNIT the Edit form saves in, and they are
+     on this list for the plainest reason in it: the defect they replace wrote a cost 1000x wrong to
+     the database. `saveIngEdit`'s ternary closed `: 'kg'`, so an unrecognised `base_unit` — NULL on
+     eight production rows, and the strings `"unknown"`/`"dim"` on the same eight in the committed
+     fixture — became a kilo price, and `invUnitToBase('kg')` divided by 1000.
+     ⚠️ `igEffectiveBase` is listed SEPARATELY from `igStoredUnitType` even though it delegates to it,
+     because the first cut of 282 wrote it as `if(storedBaseUnit)` and that version passed every test
+     of the mapping while rendering "measured in unit, but this product is stored per unit" in a
+     browser. A wrapper that asks a DIFFERENT question from the function it wraps is exactly the stub
+     defect `.claude/rules/tests.md` is about, and only a target asks it.
+     `igUnitLock` is here for its OTHER arm: unlocking a product that HAS a unit is the v54 hazard —
+     flipping g/ml/ea re-means every saved plate line — so "it unlocks when the unit is unknown" is
+     the half that is safe to get wrong in the test and fatal to get wrong in the code. */
+  { fn: 'igStoredUnitType', tests: ['unitless-product-price.test.js'] },
+  { fn: 'igEffectiveBase', tests: ['unitless-product-price.test.js'] },
+  { fn: 'igUnitLock', tests: ['unitless-product-price.test.js'] },
 ];
 
 /*

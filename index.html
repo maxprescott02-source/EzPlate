@@ -102,7 +102,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="EzPlate">
-<link rel="stylesheet" href="css/style.css?v=228">
+<link rel="stylesheet" href="css/style.css?v=229">
 </head>
 <body>
 <!-- v90: the Gemini sparkle gradient, defined ONCE here rather than inside the insights markup, which
@@ -1715,7 +1715,15 @@
         <div class="field"><label for="ig_brand">Brand</label><span class="cat-wrap"><input id="ig_brand" type="text" autocomplete="off" placeholder="Search brands…"><span id="ig_brandDrop" class="cat-drop" style="display:none"></span></span></div>
         <div class="field"><label for="ig_cat">Category</label><span class="cat-wrap"><input id="ig_cat" type="text" autocomplete="off" placeholder="Search categories…"><span id="ig_catDrop" class="cat-drop" style="display:none"></span></span></div>
         <div class="field"><label for="ig_sup">Supplier</label><span class="cat-wrap"><input id="ig_sup" type="text" autocomplete="off" placeholder="Search suppliers…"><span id="ig_supDrop" class="cat-drop" style="display:none"></span></span></div>
-        <div class="field"><label for="ig_unit">Unit type</label><select id="ig_unit" disabled aria-disabled="true"><option value="kg">per kg</option><option value="g">per g</option><option value="litre">per litre</option><option value="ml">per ml</option><option value="unit">per unit/each</option></select></div>
+        <!-- 282 (item 102) — THE EMPTY OPTION IS THE "NOT RECORDED" STATE AND IT IS NOT DECORATION.
+             `base_unit` NULL is a real production state (the 20260801 backfill coerces eight rows to
+             it) and this select had no way to SHOW it: every product landed on "per kg", including
+             the ones sold by count, because both derivations closed their ternary with `:'kg'`.
+             `igUnitLock` selects this option and UNLOCKS the control on exactly those products —
+             v54's create-only rule protects nothing there, since a null unit means no quantity was
+             ever entered against a stated one and no cost is stored to re-mean. Every other product
+             keeps `disabled`, which is also what makes this option unreachable on them. -->
+        <div class="field"><label for="ig_unit">Unit type</label><select id="ig_unit" disabled aria-disabled="true"><option value="">Choose a unit type</option><option value="kg">per kg</option><option value="g">per g</option><option value="litre">per litre</option><option value="ml">per ml</option><option value="unit">per unit/each</option></select></div>
         <div class="field"><label for="ig_price">Price per unit ($) *</label><input id="ig_price" type="number" min="0" step="0.0001"></div>
         <!-- 267: the example is HELPER TEXT and now sits UNDER the field instead of inside the <label>.
              It was already a .hint span, but a span inside `.field label` inherits that rule's
@@ -1995,7 +2003,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8"
         integrity="sha384-Tve8O+C6PBzsIMK/IRCwHbi8fyEzXIlIs6OfVBZHubplwYhaQF/4Mzxqgg+pp/oy"
         crossorigin="anonymous"></script>
-<script src="js/app.js?v=228"></script>
+<script src="js/app.js?v=229"></script>
 <script>
 /* v115 (Max) — the splash IS the first-open loading screen. It holds until the data has actually
    arrived (window.__ezReady, set by bootReady on success AND on error), with no decorative cap —

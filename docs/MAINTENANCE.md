@@ -1524,7 +1524,11 @@ canonicalValue(existing, input)
 
 Applied on save at the six combobox fields that write one of these three columns: `f_category`/`f_brand`/`f_sup` (create), `ig_cat`/`ig_brand`/`ig_sup` (edit), and the invoice add-new's `ni_cat`/`ni_brand`/`ni_sup`. It catches the CASE fork too — typing `desserts` where `DESSERTS` exists is the commoner of the two and today makes a second category.
 
-⚠️ **It is a WRITE-path change to strings the invoice parser matches on**, which is why it is filed rather than ridden: `tests/cat-label.test.js`'s scope guard exists precisely to keep a display transform off the write path, and this is a different thing that will look like the same thing to the next reader. It needs its own regression test proving the reuse arm returns the STORED spelling byte for byte, plus a parser-corpus run either side. Ride it with whichever batch next opens `openIngEdit` or the add-new form.
+⚠️ **It is a WRITE-path change to strings the invoice parser matches on**, which is why it is filed rather than ridden: `tests/cat-label.test.js`'s scope guard exists precisely to keep a display transform off the write path, and this is a different thing that will look like the same thing to the next reader. It needs its own regression test proving the reuse arm returns the STORED spelling byte for byte, plus a parser-corpus run either side.
+
+⚠️ **THIS ENTRY SAID "filed rather than ridden" AND THEN "Ride it with whichever batch next opens `openIngEdit` or the add-new form" IN THE SAME PARAGRAPH, AND BATCH 282 WAS THE FIRST TO REACH THAT CONDITION AND HAD TO DECIDE WHICH HALF MEANT IT.** (22 Sep 2026, under `CLAUDE.md`'s standing documentation authority.) **The first half is the one that holds**, and the reason is measurable rather than a preference: this touches **six combobox fields across three forms**, changes strings the invoice parser matches on, and owes a parser-corpus run in both directions. 282 was an **[A]** fix writing a wrong cost to the database; folding a six-field write-path canonicaliser into that PR would have diluted the review of the half that matters, which is `CLAUDE.md`'s "the batch would exceed what one PR can be reviewed as" arriving as a rider instead of as a scope decision.
+
+**So the ride condition is REPLACED rather than deleted, because "never rides" would strand it exactly as the old process rule stranded workflow work.** It rides a batch that is **already changing a write path on one of those three forms and already owes a parser-corpus run** — not one that merely opens the file. A batch that only reads or edits display code on `openIngEdit` takes nothing from here. **If you skip it under this rule, say so in the handover**, so a skip and a miss stay distinguishable.
 
 **It does NOT fix the rows already forked or already double-spaced.** That is a rewrite of production data and is Max's, every time.
 
@@ -1544,3 +1548,49 @@ The Menu screen's group row prints a section name (`sp.category` / `m.section`) 
 - **The trend/Dig-in row names** (grep `val:Math.abs(pct)`) — these `name` strings are passed to `api/insight` as FACTS. Changing what the model is given is not a presentation change. The money/number law says an AI helper may only phrase numbers the app already computed, and the validator rejects a phrasing carrying a number absent from the facts; a supplier name is not a number, so this is safe rather than forbidden — but it is a change to the model's input and wants deciding as one.
 
 **Ride either with a batch that already opens its screen.** Neither is a defect today: each is internally consistent, and the reason they are worth recording is that the MIGRATED list is now long enough to read as complete.
+
+## C — from batch 282 (item 102, 22 Sep 2026)
+
+### `#ig_pricePer` does not exist, and two lines of `js/app.js` have been writing into it
+
+`openIngEdit` and `syncIgUnitFromPack` each do `var lp=document.getElementById('ig_pricePer'); if(lp) lp.textContent=igPriceSuffix();`.
+`index.html` has no such element, so both are inert and `igPriceSuffix` — which returns `/kg`, `/L`, `/mL`, `/g` or `/unit` — is called by nothing that renders.
+Grepped, not assumed: the id appears twice in `js/app.js`, zero times in `index.html`, zero times in `css/style.css`, zero times in `tests/`.
+
+**Not a defect, and it got MORE valuable in 282 rather than less**, which is why it is filed instead of deleted.
+The field is labelled "Price per unit ($)" and holds a price per **kg, litre or unit** depending on the product, and until 282 the unit beside it was always locked, so the label's vagueness cost nothing a user could act on.
+Now the unit is **settable** on a product that has none: someone picks "per kg" and types a number into a field that does not say `/kg`.
+The read-out under the pack (`#ig_calc`) says it whenever a pack is entered, and nothing says it when one is not.
+
+**Two ways to close it and they are not equivalent, which is why this is not a fix-on-sight.**
+Adding a `<span id="ig_pricePer">` inside `.field label` inherits that rule's `text-transform:uppercase` — the exact trap 267 recorded when it moved the pack hint OUT of a label — so the element has to sit outside the label, and then "/kg" alone reads as debris rather than as help.
+The alternative is to put the unit in the label text itself and drop the element, which makes `igPriceSuffix` dead and deletable.
+**Either is a copy decision on a form Max uses, so it wants deciding rather than picking.**
+Ride it with whichever batch next changes the Edit-product form's layout.
+
+### `igUnitWord` sends everything it does not recognise to "unit", and one caller printed the same word twice
+
+`igUnitWord(b)` is `b==='g'?'weight':b==='ml'?'volume':'unit'`, so a base unit of `"unknown"` renders as **"unit"** — the same string `'ea'` renders as.
+Measured in a browser during 282: `igPackFill`'s mismatch line read *"That pack is measured in unit, but this product is stored per unit."*
+**Unreachable as of 282** — `igEffectiveBase` now returns only `'g'`, `'ml'`, `'ea'` or null, so `d.want` can no longer be an unrecognised string — and it is recorded because the function itself still has the shape, and the next caller to hand it a raw stored `base_unit` gets the same sentence back.
+**The honest fix is the `igStoredUnitType` shape: return null for what it does not know and make each caller say what it does with that.** It is three lines and one caller; it is filed rather than done because 282's diff is already an [A] money fix and this is now latent.
+
+### `saveIngEdit` is NOT a mutation target, and `logHistory(_prodWrite)` was deletable with the whole suite green
+
+282 tried to add it and backed out, so this entry is the measurement rather than a suggestion.
+
+`saveIngEdit` writes `cost_per_base_unit`, which is the one column `CLAUDE.md` says this app must never get wrong, and it has never been asked the mutation question.
+**Added as a target with `tests/unitless-product-price.test.js` alone, it produced THREE survivors.**
+Adding `price-log-paths.test.js`, `change-log.test.js` and `product-pack.test.js` to the claim took it to two, which is the useful half of the measurement: **those files name `saveIngEdit` in their prose and do not exercise it** - they test extracted pieces around it.
+
+**Two of the three are now dead and their assertions are committed**, because they were about the write rather than about the form:
+
+- **`logHistory(_prodWrite);` deleted entirely, and nothing went red.** That is the call deciding whether a product price change is ever recorded in `ing_price_history`. `tests/unitless-product-price.test.js` now asserts it fires exactly once and receives `setProduct`'s own returned write by IDENTITY, which is 247's gate rather than a call count.
+- **`(pu||'ea')` flipped to `&&`**, which keys a supplier-memory entry on the empty string. Pinned, with the `pq>0` vs `pq>=0` sibling.
+
+**ELEVEN survive and they are why the target was backed out**, all in branches item 102 had no business claiming to pin: the three `resolveCombo` arms for brand, category and supplier; the `isNaN(price)||price<0` validation; and 280's `current_price_exgst` guard (`String(packPriceRaw||'').trim()===''||isNaN(packPrice)`), whose `||`→`&&` mutant stores `NaN` for a non-numeric pack price.
+**Writing eleven allowances would have been the dishonest option** - an allowance says "this mutant cannot matter", not "I did not test this", and `tests/mutation/targets.js`'s own header says a target's `tests` list is a CLAIM the gate exists to check.
+
+**What it needs:** a test that drives `saveIngEdit` through each of those branches against the real function, the way the new file drives the unit ones - the sandbox already exists and takes an options object, so this is assertions rather than scaffolding.
+**Then add the target in the same change**, so the claim and the coverage land together.
+Ride it with whichever batch next has a reason to open the Edit-product form's write path.

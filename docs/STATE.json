@@ -1,9 +1,9 @@
 {
-  "batch": 281,
-  "deploy_version": 228,
+  "batch": 282,
+  "deploy_version": 229,
   "first_unstruck_group": "G5",
-  "open_ab_count": 14,
+  "open_ab_count": 13,
   "newest_audit": "AUDIT-v227.md",
-  "newest_handover": "HANDOVER-281-dup-files.md",
-  "written_at": "2026-09-17"
+  "newest_handover": "HANDOVER-282-unitless-price.md",
+  "written_at": "2026-09-22"
 }
