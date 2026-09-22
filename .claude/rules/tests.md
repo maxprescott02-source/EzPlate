@@ -100,6 +100,23 @@ The gate reported `invQtyFirstRebase` surviving a `||`→`&&` flip on a three-cl
 **If a stub is genuinely unavoidable, assert the stub against the real function first** - one test that they agree - so the copy cannot drift silently.
 This is the same family as **"a test that records call ORDER passes against the broken code"** above and as `addProduct`: the failure is never a red test, it is a green one.
 
+## `tests/fixtures/base-products.json` IS PRE-MIGRATION DATA, and it is the only catalogue any test here can run
+
+(Batch 282, 22 Sep 2026, queue item 102. Found by a Playwright spec disagreeing with a unit test that was correct.)
+
+**The 393-row fixture is the closest thing this repo holds to Scoopy's real catalogue, and `tests/visual/_boot.js` serves it as the `ingredients` table to every browser spec.** It is also a snapshot taken BEFORE `supabase/migrations/20260801_base_products_backfill.sql` ran, and nothing updates it when a migration changes production.
+
+**The measured divergence: eight rows carry `base_unit:"unknown"` (four) or `"dim"` (four). Production carries NULL on the same eight**, because the table's `check (base_unit = any (array['g','ml','ea']))` forbids both strings and a CHECK passes on null. Same eight products, same meaning — *we do not know this product's unit* — **two spellings, and only one of them exists on each side.**
+
+**Why that is a trap rather than a curiosity.** Item 102's whole subject was a fallback reached by a null `base_unit`. A fix written for `null` alone is correct about production and **green in every test in this repo**, because the browser specs can only ever hand it `"unknown"`. The first cut of the fix did exactly that — it asked `if(storedBaseUnit)`, which is true of `"unknown"` — and the unit tests passed, the mutation targets passed, and a browser rendered *"That pack is measured in unit, but this product is stored per unit"*. The unit test could not see it and the spec could not miss it.
+
+**So, two rules, and the second is the transferable one:**
+
+- **A guard about an ABSENT value must refuse everything it does not recognise, not the one spelling of absence you happened to be shown.** `igStoredUnitType` returns null for `null`, `''`, `"unknown"`, `"dim"` and anything else; `if(x)` would have accepted four of those.
+- **When a migration changes the SHAPE of production data, ask what the fixture now claims.** A fixture that has diverged does not go red — it goes on being green about a state production no longer has, and the direction of the divergence decides whether that hides a bug or invents one. Neither is visible from inside a test file.
+
+**And the cheap check, because this one is a census of a committed file rather than of a live table:** `tests/unitless-product-price.test.js` asserts the eight rows, both spellings and their null costs, so a fixture refresh that resolves them has to delete that test deliberately rather than silently.
+
 ## A viewport-geometry assertion must MEASURE its reference, never name it
 
 **When a Playwright assertion depends on the width of the viewport - anything centred, anything positioned by percentage, anything compared against "the whole screen" - measure the fixed-position containing block with a `position:fixed;left:0;right:0` probe.**

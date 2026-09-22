@@ -5892,6 +5892,46 @@ function renderIngredients(){
    goes back to holding only live view preferences. */
 try{ localStorage.removeItem('cafeDB_prodDensity'); }catch(e){}
 var ingEditId=null;
+/* ===== 282 (queue item 102) — AN UNKNOWN UNIT IS UNKNOWN, NEVER 'kg' =====
+
+   Both this form's sites derived the unit with `_bu==='g'?'kg':_bu==='ml'?'litre':_bu==='ea'?'unit'
+   :'kg'`, so a NULL `base_unit` landed on the final `'kg'` and `invUnitToBase('kg')` divides by 1000.
+   Typing `1.41` for a $1.41 container stored `cost_per_base_unit: 0.00141, base_unit:'g'` — $1.41 per
+   KILO, wrong by a factor of 1000, with a weight unit invented for an item sold by count.
+   **`base_unit` NULL is a real production state**: `supabase/migrations/20260801_base_products_backfill.sql`
+   coerces EIGHT rows to null because their unit is genuinely unknown, and they are all uncosted —
+   which makes them exactly the rows someone opens Edit on in order to give a price.
+
+   This is the `isFinite('')` shape from `.claude/rules/app-guards.md`: a default that turns "unknown"
+   into a confident wrong answer. So the mapping RETURNS NULL for anything it does not recognise, and
+   the two callers each say what they do with that — the form unlocks the control, the save refuses. */
+function igStoredUnitType(storedBaseUnit){
+  return storedBaseUnit==='g'?'kg' : storedBaseUnit==='ml'?'litre' : storedBaseUnit==='ea'?'unit' : null;
+}
+/* The unit the user picked on THIS form, and it is only ever readable while the select is unlocked.
+   Reading a locked select would re-introduce the v54 hazard by another road: `igUnitLock` parks the
+   stored unit in that control for display, so a locked read is the stored answer wearing the
+   chosen-answer's name. `disabled` is the guard, deliberately, because it is also what stops the
+   user changing it. */
+function igChosenUnitType(){
+  var sel=document.getElementById('ig_unit');
+  return (sel && !sel.disabled && sel.value) ? sel.value : null;
+}
+/* ⚠️ THE UNIT STAYS CREATE-ONLY EXCEPT IN THE ONE CASE v54'S RULE PROTECTS NOTHING.
+   v54 locks this control because a saved plate line holds its quantity in the product's base unit,
+   so flipping g/ml/ea silently re-means every line referencing it — `.claude/rules/app-guards.md`
+   records the invoice-path version costing a 200g line $2166.67 instead of $1.30.
+   **With `base_unit` NULL there is nothing to re-mean, and that is a property of the code rather
+   than of today's data:** `unitNoun(p)` returns `''` for a null unit, so the builder never showed a
+   unit beside the quantity field and no quantity was ever entered against a stated one; and
+   `cpbu` is null on every such row, so `lineCost` returns null for any line that references it.
+   Setting the unit here RECORDS it for the first time. It is not a change.
+   So the select unlocks ONLY here, and a product that HAS a unit stays locked. */
+function igUnitLock(unitType){
+  var sel=document.getElementById('ig_unit'); if(!sel) return;
+  if(unitType){ sel.value=unitType; sel.disabled=true; sel.setAttribute('aria-disabled','true'); }
+  else { sel.value=''; sel.disabled=false; sel.removeAttribute('aria-disabled'); }
+}
 function openIngEdit(id){
   var p=byId[id]; if(!p) return; ingEditId=id;
   document.getElementById('ingModalTitle').textContent='Edit product';
@@ -5899,8 +5939,7 @@ function openIngEdit(id){
   document.getElementById('ig_brand').value=p.brand||'';
   document.getElementById('ig_cat').value=p.category||'';
   document.getElementById('ig_sup').value=p.supplier||'';
-  var ut=p.base_unit==='g'?'kg':p.base_unit==='ml'?'litre':p.base_unit==='ea'?'unit':'kg';
-  document.getElementById('ig_unit').value=ut;
+  igUnitLock(igStoredUnitType(p.base_unit));
   /* 277: padded, NEVER rounded — see padMoney. This field is a price per kg/L/unit and 44 of the
      384 real catalogue rows carry more than two decimals, so rounding it here would be rounding a
      stored cost. `saveIngEdit` reads this same element. */
@@ -5915,6 +5954,14 @@ function openIngEdit(id){
      invisible. */
   document.getElementById('ig_packPrice').value=(p.current_price_exgst==null?'':padMoney(p.current_price_exgst));
   attachMoneyPad('ig_packPrice');
+  /* ⚠️ 282: THIS WIRING MOVED ABOVE `igPackWire` AND THE ORDER IS LOAD-BEARING.
+     Listeners fire in registration order, and both of these listen to `change` on `#ig_packUnit`.
+     `syncIgUnitFromPack` sets `#ig_unit` from the pack unit — which does nothing while the select is
+     locked, and is the whole answer on a product whose unit is NOT recorded — so `igPackFill` must
+     run AFTER it or the read-out derives against the unit the user has just replaced. Registered
+     once (`__wired`), so the order is fixed by the FIRST open and cannot be re-decided later. */
+  var puSel=document.getElementById('ig_packUnit');
+  if(puSel && !puSel.__wired){ puSel.__wired=true; puSel.addEventListener('change', syncIgUnitFromPack); }
   igPackWire(p.base_unit);
   igPackFill(p.base_unit, true);
   var e=document.getElementById('ig_err'); if(e)e.style.display='none';
@@ -5922,8 +5969,6 @@ function openIngEdit(id){
   makeInlineCombo('ig_brand','ig_brandDrop',prodBrands);
   makeInlineCombo('ig_cat','ig_catDrop',prodCategories);
   makeInlineCombo('ig_sup','ig_supDrop',prodSuppliers);
-  var puSel=document.getElementById('ig_packUnit');
-  if(puSel && !puSel.__wired){ puSel.__wired=true; puSel.addEventListener('change', syncIgUnitFromPack); }
   var uSel=document.getElementById('ig_unit'); var lp=document.getElementById('ig_pricePer'); if(lp&&uSel) lp.textContent=igPriceSuffix();
   show('ingModal');
 }
@@ -5998,22 +6043,41 @@ function igPackDerive(parts, storedBaseUnit){
    other) must not have its price silently rewritten the moment the form opens - the user did not
    touch anything. It fills only when the field is EMPTY on open, and freely once a pack field is
    edited, which is the same "a rollback must not fight a live control" split 244 records. */
+/* 282: `igPackDerive` is given the base unit the SAVE will write in, which is the stored one on every
+   product that has one and the user's choice on a product that does not. The two must not be allowed
+   to differ: `saveIngEdit` derives its divisor from the same pair, so a read-out computed against one
+   unit and a save performed against the other is the 1000x defect with the read-out agreeing. */
+function igEffectiveBase(storedBaseUnit){
+  /* ⚠️ `igStoredUnitType`, NOT `if(storedBaseUnit)`, AND THE FIRST CUT OF 282 GOT THIS WRONG IN A
+     BROWSER. A truthy-but-unrecognised stored unit is a real state — `tests/fixtures/base-products.json`
+     carries `"unknown"` on four rows and `"dim"` on four more — and the truthiness test accepted it,
+     so `igPackDerive` compared a pack's `ea` against `"unknown"` and rendered the mismatch line
+     *"That pack is measured in unit, but this product is stored per unit"*. Both halves printed the
+     same word, because `igUnitWord` sends everything it does not recognise to 'unit'.
+     The expression below is `saveIngEdit`'s own, character for character, which is the point: a
+     read-out that asks a DIFFERENT question from the write is the stub defect `.claude/rules/app-guards.md`
+     records, and it agrees with the code exactly when the code is wrong. */
+  var t=igStoredUnitType(storedBaseUnit) || igChosenUnitType();
+  return t ? invUnitToBase(t).base_unit : null;
+}
 function igPackFill(storedBaseUnit, quiet){
   var out=document.getElementById('ig_calc'), priceEl=document.getElementById('ig_price');
   if(!out||!priceEl) return;
-  var d=igPackDerive(igPackParts(), storedBaseUnit);
+  var d=igPackDerive(igPackParts(), igEffectiveBase(storedBaseUnit));
   if(d.state==='none'||d.state==='partial'){ out.hidden=true; out.textContent=''; out.className='calc-line'; return; }
   if(d.state==='mismatch'){
     out.hidden=false; out.className='calc-line bad';
     out.textContent='That pack is measured in '+igUnitWord(d.got)+', but this product is stored per '+igUnitWord(d.want)+'. The price per unit is left as it is.';
     return;
   }
-  /* The product has no unit recorded, so there is nothing for a pack price to be per. Saying which
-     way to fix it matters: the unit is create-only on this form, so the honest instruction is to
-     price it directly rather than to keep trying packs. */
+  /* The product has no unit recorded AND the user has not picked one, so there is nothing for a pack
+     price to be per. ⚠️ 282 CHANGED THE INSTRUCTION AND THE OLD ONE WOULD NOW BE THE HARMFUL HALF:
+     280 said "enter the price per unit directly", which was honest when the unit was create-only on
+     this form and is the exact route into the 1000x store now that the price field works. The unit
+     control unlocks on this product, so the only safe answer is to send the user to it. */
   if(d.state==='nounit'){
     out.hidden=false; out.className='calc-line bad';
-    out.textContent='This product has no unit recorded, so a pack cannot work out its price per unit. Enter the price per unit directly.';
+    out.textContent='This product has no unit recorded, so a pack cannot work out its price per unit. Choose a unit type above first.';
     return;
   }
   out.hidden=false; out.className='calc-line ok';
@@ -6022,8 +6086,12 @@ function igPackFill(storedBaseUnit, quiet){
   priceEl.value=padMoney(d.perUnit);
 }
 function igUnitWord(b){ return b==='g'?'weight':b==='ml'?'volume':'unit'; }
+/* 282: `#ig_unit` joins the three pack fields, because on a product with no recorded unit it is now
+   an INPUT to the derivation rather than a read-only display — choosing "per unit/each" is what
+   turns "1 ea for $1.41" from a refusal into "= $1.41 / unit". On every other product it is locked
+   and never fires, so the listener costs nothing there. */
 function igPackWire(storedBaseUnit){
-  ['ig_packQty','ig_packUnit','ig_packPrice'].forEach(function(id){
+  ['ig_packQty','ig_packUnit','ig_packPrice','ig_unit'].forEach(function(id){
     var el=document.getElementById(id); if(!el||el.__igPackWired) return;
     el.__igPackWired=true;
     /* `input` on the numbers so the read-out tracks typing, `change` on the select. Both call the
@@ -6035,7 +6103,7 @@ function igPackWire(storedBaseUnit){
   /* The stored base unit changes per product, and the listeners are attached once - so it rides on
      the elements rather than being closed over, or the second product opened would be filled
      against the first one's unit. */
-  ['ig_packQty','ig_packUnit','ig_packPrice'].forEach(function(id){
+  ['ig_packQty','ig_packUnit','ig_packPrice','ig_unit'].forEach(function(id){
     var el=document.getElementById(id); if(el) el.__igBase=storedBaseUnit;
   });
 }
@@ -6114,11 +6182,18 @@ function saveIngEdit(){
   var err=document.getElementById('ig_err'); function fail(m){ if(err){err.textContent=m;err.style.display='block';} }
   var name=document.getElementById('ig_name').value.trim();
   var price=parseFloat(document.getElementById('ig_price').value);
-  // v54: unit type is create-only on the edit form. Derive it from the STORED product (same mapping
-  // openIngEdit displays with), so an edit can never change base_unit/cost_basis — only the price does.
+  /* v54: unit type is create-only on the edit form. Derive it from the STORED product (same mapping
+     openIngEdit displays with), so an edit can never change base_unit/cost_basis — only the price does.
+     ⚠️ 282 (item 102): THE `:'kg'` THAT USED TO CLOSE THAT TERNARY IS GONE AND MUST NOT COME BACK.
+     A null `base_unit` landed on it, `invUnitToBase('kg')` divides by 1000, and a $1.41 container
+     priced at 1.41 stored $1.41 per KILO with a weight unit invented for an item sold by count.
+     `igStoredUnitType` returns null instead, and the fall-back is the unit the user chose on the
+     form — which `igUnitLock` only makes readable on a product whose unit is not recorded. If it is
+     still unknown at this point the save REFUSES; it never guesses. */
   var _bu=byId[id].base_unit;
-  var unitType=_bu==='g'?'kg':_bu==='ml'?'litre':_bu==='ea'?'unit':'kg';
+  var unitType=igStoredUnitType(_bu) || igChosenUnitType();
   if(!name) return fail('Enter a product name.');
+  if(!unitType) return fail('This product has no unit recorded. Choose a unit type before entering a price.');
   if(isNaN(price)||price<0) return fail('Enter a valid price per unit.');
   var cat=resolveCombo('ig_cat', prodCategories); if(!document.getElementById('ig_cat').value.trim()) cat={ok:true,value:''};
   if(!cat.ok) return fail('\u201c'+cat.value+'\u201d is a new category \u2014 pick \u201cCreate new\u201d to confirm.');
@@ -9596,7 +9671,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v228';
+var APP_VERSION='v229';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
