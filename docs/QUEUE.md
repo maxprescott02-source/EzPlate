@@ -72,46 +72,6 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 ⚠️ **G5 IS SIX TO NINE BATCHES, NOT ONE, AND THE RULE THAT SAYS SO IS IN THIS FILE'S OWN HEADER.** The Design law's *"one screen per change set, one PR, one review; never mix shell work with screen work"* forbids combining them — so **take ONE of these per batch** and do not be tempted by two that look adjacent. 64 is the shell item and shares a batch with nothing.
 ⚠️ **AND A GREEN PRE-PUSH HOOK IS NOT A GREEN SUITE FOR ANY OF THESE.** The hook does not run Playwright and every one of these items changes whether a control exists or where it sits. Run `npx playwright test` before pushing, every time.
 
-## next  102 · A product with no recorded unit stores its price 1000x wrong, and eight such rows are in production  **[A — it writes a wrong cost]**
-
-Problem: `saveIngEdit` derives the unit it saves in from the STORED product — correctly, per v54 — with this fallback:
-`var unitType = _bu==='g'?'kg' : _bu==='ml'?'litre' : _bu==='ea'?'unit' : 'kg';`
-**A NULL `base_unit` lands on the final `'kg'`**, so `invUnitToBase('kg')` divides by 1000 and the row is stored as `$/g` with `base_unit:'g'`. Type `1.41` into the price field for a $1.41 container and it is saved as **$1.41 per kilo** — wrong by a factor of 1000, silently, with `base_unit` invented as weight for an item sold by count.
-
-⚠️ **`base_unit` NULL IS A REAL PRODUCTION STATE, AND THE REPO DOCUMENTS IT.** `supabase/migrations/20260801_base_products_backfill.sql` coerces **eight rows** to null because their unit is genuinely unknown, and says so at its own site — including `P0122 "Container Food 3.15Lt Storage"` and `P0279 "Pump Syrup"`, both `sold_by:'each'`.
-**All eight are `cost_per_base_unit` NULL today**, which is the only reason this has not already cost anything — and it is also what makes them precisely the rows someone opens Edit on in order to give a price.
-
-⚠️ **THIS IS PRE-EXISTING AND BATCH 280 DID NOT CAUSE IT** — typing directly into `#ig_price` has always taken this path. What 280 found is that it was about to make the path *easy to reach and actively misleading*: its first cut let a pack derive freely on a unitless product and printed *"= $1.41 / unit"* while the save wrote `$/g`. **280 fixed its own half** — `igPackDerive` now returns `nounit` and the form says *"This product has no unit recorded… Enter the price per unit directly."* — **which is honest and still routes the user into this defect.**
-Requirements: a product with no recorded unit cannot be priced until the unit is known. Either Edit lets the unit be SET when it is currently null (the one case v54's create-only rule does not protect anything, because there is no stored cost and no plate line to re-mean), or the price field refuses with the same sentence the pack read-out now uses. **Do not leave the `'kg'` fallback reachable with a null `_bu`** — a default that invents a unit is the `isFinite('')` shape: it turns "unknown" into a confident wrong answer.
-Out of scope: changing the unit on a product that HAS one. That is v54 and it stays create-only.
-*(Found by 280's pre-push review, which reproduced the 1000x store end to end in a browser against the documented production state. Filed [A] rather than [B] because it writes a wrong cost to the database, which `CLAUDE.md` treats as the one thing this app must never do.)*
-
-## next  103 · The invoice path writes a unit onto a product that has none, pre-ticked, with no gate at all  **[A — it writes a unit nobody chose, and one case writes a wrong number]**
-
-Problem: **`resolveMatchedPrice`'s unit-mismatch guard is DISABLED on exactly the rows where the unit is least known.** It reads `var baseCat=product?unitCatCategory(product.base_unit):null;` and then `if(!taught && baseCat && …)`. `unitCatCategory` returns **null** for `null`, `'unknown'` and `'dim'`, so `baseCat` is falsy and the guard short-circuits before it compares anything.
-`kingRepointGuard` does the same thing one layer down (`oldBaseUnit?unitCatCategory(oldBaseUnit):null`), so `invUnitRebase` returns null too, and `invRowState` has nothing left to route the row to `'review'` with.
-
-⚠️ **MEASURED, not reasoned — the real functions, extracted, with a control.** Written out so nobody re-derives it:
-```
-stored g,         parser "ea"    baseCat "kg"   unitMismatch true    invRowState review
-stored g,         parser "kg"    baseCat "kg"   unitMismatch false   invRowState matched
-stored null,      parser "ea"    baseCat null   unitMismatch false   invRowState matched   <-- pre-ticked
-stored null,      parser "kg"    baseCat null   unitMismatch false   invRowState matched   <-- pre-ticked
-stored "unknown", parser "kg"    baseCat null   unitMismatch false   invRowState matched   <-- pre-ticked
-stored null,      parser "box"   baseCat null   unitMismatch false   invRowState matched   <-- stores 'ea'
-```
-**The control is the first two rows and it is what makes this a finding rather than a guess:** the guard works, loudly, on every product that HAS a unit. It is only blind where the unit is unrecorded.
-
-**Two different harms, and they are not the same size.**
-- Rows 3-5 store a unit **nobody confirmed**. The number itself is consistent, because the price and the unit both come from the same invoice line — so this is an unconfirmed write rather than a wrong one. ⚠️ **But it LOCKS:** `base_unit` is create-only (v54), so once the invoice has set it, batch 282's Edit-form unlock no longer applies and the user cannot correct it from the form at all. An unconfirmed guess becomes permanent.
-- Row 6 stores a **wrong number**, and it is 282's own defect wearing invoice clothes: nothing recognises `box`, so `invPriceUnit`'s `: 'ea'` fallback invents a unit exactly as `saveIngEdit`'s `:'kg'` did, and the parser's **per-box** price is stored as a **per-unit** price.
-
-Requirements: a row whose product has no recorded unit must not be pre-ticked, and applying it must not write `base_unit` from a parse nobody confirmed. **`invRowState` returning `'review'` is probably the whole answer** — the auto-tick rule already says only a `'matched'` row is ever pre-ticked, so the row would wait for the user like every other uncertain one. Decide separately what `invPriceUnit` should do when it recognises nothing: `: 'ea'` is a default that invents a unit, which is the shape 282 removed.
-⚠️ **Do NOT fix this by making `unitCatCategory` return something for an unknown unit.** It is read by `invPackUnitOpts` and by the repoint confirm, where null correctly means *"nothing to contradict"*; giving it a value would change three callers to fix one. **The guards are what need the third value**, per `.claude/rules/app-guards.md`'s fail-open rule: a known-absent unit is not the same as no information.
-Out of scope: the Edit form, which 282 closed. This is the other door.
-⚠️ **Parser-region rules apply.** `resolveMatchedPrice` is one of the four functions `.claude/rules/invoice.md` records the most defects in, and the auto-tick rule and the review-render invariants are regression-test territory. **This item owes `node tests/parser-corpus/run.js` and the `--products` run either side, with silent-wrong and pre-ticked-wrong reported before and after.**
-*(Found by 282's pre-push review, which read the diff and asked what ELSE writes this column. Filed as its own item rather than folded into 282: different site, unchanged by that branch, and combining it would have put two write-path changes to the app's two most dangerous surfaces in one PR.)*
-
 ## next  99 · Three different percentages are printed at three precisions, and "align them" assumes there are two  **[B]**
 
 Problem: item 53's last bullet said *"the publish dialog and the Menu row print the same ratio at different precision - whole % vs one decimal. Align in the same pass."* **Measured, there are at least three different QUANTITIES, not one ratio at two sites:**
