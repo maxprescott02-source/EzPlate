@@ -98,15 +98,20 @@ test('$1.41 for a container saves as $1.41 per unit, not $1.41 per kilo', async 
 test('the pack read-out sends the user to the unit control while the unit is unknown', async ({ page }) => {
   await boot(page);
   await openRow(page, UNITLESS);
+  /* ⚠️ `selectOption`, NOT a hand-dispatched `change`. A real select fires `input` AND `change`, and
+     `igPackWire` listens to both — so the true sequence on a pack-unit pick is fill(stale unit) →
+     sync → fill(chosen unit), and only the last one is right. Dispatching `change` alone skips the
+     stale fill entirely and would pass against a wiring order that a person could not use. */
+  await page.fill('#ig_packQty', '1');
+  await page.selectOption('#ig_packUnit', 'ea');
+  await page.fill('#ig_packPrice', '1.41');
   const before = await page.evaluate(async () => {
-    const fire = (id, val, ev) => { const e = document.getElementById(id); e.value = val; e.dispatchEvent(new Event(ev || 'input', { bubbles: true })); };
-    fire('ig_packQty', '1');
-    const u = document.getElementById('ig_packUnit'); u.value = 'ea'; u.dispatchEvent(new Event('change', { bubbles: true }));
-    fire('ig_packPrice', '1.41');
     await new Promise((r) => requestAnimationFrame(r));
     const c = document.getElementById('ig_calc');
-    return { text: c.textContent, cls: c.className, price: document.getElementById('ig_price').value };
+    return { text: c.textContent, cls: c.className, price: document.getElementById('ig_price').value,
+             unit: document.getElementById('ig_unit').value };
   });
+  expect(before.unit, 'the pack unit set the unit, because the control is unlocked here').toBe('unit');
   /* ⚠️ Choosing the pack unit sets `#ig_unit` through `syncIgUnitFromPack`, because the control is
      unlocked on this product — so by the time the read-out runs, the unit IS known and the pack
      derives. That is the intended journey and the wiring ORDER is what makes it work; if it ever
