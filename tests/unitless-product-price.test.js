@@ -181,7 +181,7 @@ test('102: the pack still refuses while the unit is unknown, and derives once it
 
 /* ---------- the real save, against the documented production state ---------- */
 function saveSandbox(opts) {
-  const C = { writes: [], toasts: [], errors: [], closed: 0 };
+  const C = { writes: [], toasts: [], errors: [], closed: 0, memory: [], logged: [] };
   const fields = {
     ig_name: { value: opts.name === undefined ? 'Container Food 3.15Lt Storage' : opts.name },
     ig_price: { value: String(opts.price === undefined ? '1.41' : opts.price) },
@@ -200,9 +200,10 @@ function saveSandbox(opts) {
     var ingEditId = 'P0122';
     var prodCategories = [], prodBrands = [], prodSuppliers = [];
     function resolveCombo(){ return { ok:true, value:'' }; }
-    function setProduct(id, patch){ C.writes.push({ id: id, patch: patch }); return Promise.resolve({ data:[{}] }); }
-    function syncMemoryToProduct(){ }
-    function logHistory(){ }
+    var WRITE = { sentinel: 'the product write' };
+    function setProduct(id, patch){ C.writes.push({ id: id, patch: patch }); return WRITE; }
+    function syncMemoryToProduct(id, qty, unit){ C.memory.push({ id: id, qty: qty, unit: unit }); }
+    function logHistory(w){ C.logged.push(w); }
     function renderIngredients(){ }
     function closeIngEdit(){ C.closed++; }
     function toast(m){ C.toasts.push(m); }
@@ -211,7 +212,7 @@ function saveSandbox(opts) {
     ${extractFn(SRC, 'igUnitLock')}
     ${extractFn(SRC, 'invUnitToBase')}
     ${extractFn(SRC, 'saveIngEdit')}
-    return { saveIngEdit: saveIngEdit, lock: igUnitLock };
+    return { saveIngEdit: saveIngEdit, lock: igUnitLock, writeSentinel: WRITE };
   `);
   fields.__stored = opts.stored === undefined ? null : opts.stored;
   const A = api(C, fields);
@@ -257,6 +258,38 @@ test('102: a product that HAS a unit is unaffected — the stored unit still win
   A.saveIngEdit();
   assert.strictEqual(C.writes[0].patch.base_unit, 'g');
   assert.strictEqual(C.writes[0].patch.cost_per_base_unit, 0.0065);
+});
+
+/* ---------- two survivors the gate found when `saveIngEdit` was first made a target ----------
+   Neither is about item 102, and both are here because they are about THIS function, which writes
+   `cost_per_base_unit`. `.claude/rules/tests.md`: a function that is not a target has never been
+   asked the question — and when 282 asked it, `logHistory(_prodWrite)` turned out to be deletable
+   with the whole suite green, on the one call that decides whether a price change is ever recorded. */
+
+test('102/gate: the price-history log is GATED ON the product write, not fired beside it', () => {
+  const { A, C } = saveSandbox({ stored: 'g', price: '6.50' });
+  A.saveIngEdit();
+  assert.strictEqual(C.logged.length, 1, 'deleting logHistory here loses the price series silently');
+  /* 247's rule: the verdict it is gated on must be `setProduct`'s OWN settled write, not something
+     reconstructed. Asserted by identity, so passing it any other value fails. */
+  assert.strictEqual(C.logged[0], A.writeSentinel,
+    'logHistory must receive the product write itself — a different argument is a different gate');
+});
+
+test('102/gate: a pack qty with NO pack unit still syncs supplier memory, as "ea"', () => {
+  const { A, C } = saveSandbox({ stored: 'ea', chosen: undefined, price: '1.41', packQty: '6', packUnit: '' });
+  A.saveIngEdit();
+  assert.strictEqual(C.memory.length, 1, 'a taught pack qty must not leave a stale Remembered-items entry');
+  assert.strictEqual(C.memory[0].qty, 6);
+  /* `(pu||'ea')`, and the `||` is load-bearing: `&&` would pass the empty string through and key the
+     memory entry on no unit at all. */
+  assert.strictEqual(C.memory[0].unit, 'ea');
+});
+
+test('102/gate: a pack qty of ZERO is not a taught pack', () => {
+  const { A, C } = saveSandbox({ stored: 'ea', price: '1.41', packQty: '0', packUnit: 'ea' });
+  A.saveIngEdit();
+  assert.strictEqual(C.memory.length, 0, 'pq>0, not pq>=0 — a zero pack teaches nothing');
 });
 
 /* ---------- the round trip, per pack-drives-price.test.js's own argument ---------- */

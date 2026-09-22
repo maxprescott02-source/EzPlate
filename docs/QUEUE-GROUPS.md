@@ -114,9 +114,10 @@ Each names the context a batch loads once. Items are referenced by their consoli
 
 **Context:** the region between `var INV_EXCLUDE=` and `function unitLabelFor(`; `parsePdfLine`, `firstPairPrice`, `packWeight`, `packCount`, `moneyMatches`, `rankCandidates`, `invFixRow`, `invGstDetect`, `invSupplierDetect`; the eval harness at `tests/parser-corpus/` (moved out of `spike/` by batch 256 and now part of `npm test`), its fourteen synthetic layouts, and the six real invoices' truth files, which stay in `spike/parser-audit/real-truth/` because their extracted text carries the cafe's own details and cannot be committed.
 
-**Items:** ~~17~~ (SHIPPED, batch 256, `ezplate-v211`) · ~~37~~ (SHIPPED, batch 261 — the procedure and the measurement; **93** carries the two halves that need the real PDFs) · 26, **92**, **93** · rider 71
+**Items:** **103** (282's review — an [A]: the invoice path writes a unit onto a product that has none, pre-ticked) · ~~17~~ (SHIPPED, batch 256, `ezplate-v211`) · ~~37~~ (SHIPPED, batch 261 — the procedure and the measurement; **93** carries the two halves that need the real PDFs) · 26, **92**, **93** · rider 71
 
-⚠️ **G2 HAS NO TIER-A OR TIER-B ITEMS LEFT as of batch 261**, so it is finished as a source of queue items in the same way G1 is: 26, 92 and 93 are all C and `docs/QUEUE.md` holds A and B only. **The next group with promotable items is the current one** — 261 opened G4.
+⚠️ **G2 HAD NO TIER-A OR TIER-B ITEMS LEFT as of batch 261, AND 282 PUT ONE BACK.** The note below is kept rather than rewritten because it was true when written and the correction is the more useful record: a group being "finished as a source of queue items" is a statement about the items that existed then, not a property of the group. **A review finding can reopen a drained group**, and 103 did — it is an [A], it is in this group's context by its own function list (`resolveMatchedPrice`), and it owes this group's corpus runs.
+*(The original note, 261: 26, 92 and 93 are all C and `docs/QUEUE.md` holds A and B only, so the next group with promotable items is the current one — 261 opened G4.)*
 
 **Blocked on:** ~~Max putting the parser-region reversal in writing (Tranche 0).~~ ✅ **NOTHING. He wrote it on 10 Sep 2026 (*"its lifted"*) and 17 shipped the same day.**
 

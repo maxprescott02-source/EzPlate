@@ -1574,3 +1574,23 @@ Ride it with whichever batch next changes the Edit-product form's layout.
 Measured in a browser during 282: `igPackFill`'s mismatch line read *"That pack is measured in unit, but this product is stored per unit."*
 **Unreachable as of 282** — `igEffectiveBase` now returns only `'g'`, `'ml'`, `'ea'` or null, so `d.want` can no longer be an unrecognised string — and it is recorded because the function itself still has the shape, and the next caller to hand it a raw stored `base_unit` gets the same sentence back.
 **The honest fix is the `igStoredUnitType` shape: return null for what it does not know and make each caller say what it does with that.** It is three lines and one caller; it is filed rather than done because 282's diff is already an [A] money fix and this is now latent.
+
+### `saveIngEdit` is NOT a mutation target, and `logHistory(_prodWrite)` was deletable with the whole suite green
+
+282 tried to add it and backed out, so this entry is the measurement rather than a suggestion.
+
+`saveIngEdit` writes `cost_per_base_unit`, which is the one column `CLAUDE.md` says this app must never get wrong, and it has never been asked the mutation question.
+**Added as a target with `tests/unitless-product-price.test.js` alone, it produced THREE survivors.**
+Adding `price-log-paths.test.js`, `change-log.test.js` and `product-pack.test.js` to the claim took it to two, which is the useful half of the measurement: **those files name `saveIngEdit` in their prose and do not exercise it** - they test extracted pieces around it.
+
+**Two of the three are now dead and their assertions are committed**, because they were about the write rather than about the form:
+
+- **`logHistory(_prodWrite);` deleted entirely, and nothing went red.** That is the call deciding whether a product price change is ever recorded in `ing_price_history`. `tests/unitless-product-price.test.js` now asserts it fires exactly once and receives `setProduct`'s own returned write by IDENTITY, which is 247's gate rather than a call count.
+- **`(pu||'ea')` flipped to `&&`**, which keys a supplier-memory entry on the empty string. Pinned, with the `pq>0` vs `pq>=0` sibling.
+
+**ELEVEN survive and they are why the target was backed out**, all in branches item 102 had no business claiming to pin: the three `resolveCombo` arms for brand, category and supplier; the `isNaN(price)||price<0` validation; and 280's `current_price_exgst` guard (`String(packPriceRaw||'').trim()===''||isNaN(packPrice)`), whose `||`→`&&` mutant stores `NaN` for a non-numeric pack price.
+**Writing eleven allowances would have been the dishonest option** - an allowance says "this mutant cannot matter", not "I did not test this", and `tests/mutation/targets.js`'s own header says a target's `tests` list is a CLAIM the gate exists to check.
+
+**What it needs:** a test that drives `saveIngEdit` through each of those branches against the real function, the way the new file drives the unit ones - the sandbox already exists and takes an options object, so this is assertions rather than scaffolding.
+**Then add the target in the same change**, so the claim and the coverage land together.
+Ride it with whichever batch next has a reason to open the Edit-product form's write path.
