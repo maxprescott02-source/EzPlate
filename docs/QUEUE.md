@@ -72,7 +72,7 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 ⚠️ **G5 IS SIX TO NINE BATCHES, NOT ONE, AND THE RULE THAT SAYS SO IS IN THIS FILE'S OWN HEADER.** The Design law's *"one screen per change set, one PR, one review; never mix shell work with screen work"* forbids combining them — so **take ONE of these per batch** and do not be tempted by two that look adjacent. 64 is the shell item and shares a batch with nothing.
 ⚠️ **AND A GREEN PRE-PUSH HOOK IS NOT A GREEN SUITE FOR ANY OF THESE.** The hook does not run Playwright and every one of these items changes whether a control exists or where it sits. Run `npx playwright test` before pushing, every time.
 
-## next  99 · Three different percentages are printed at three precisions, and "align them" assumes there are two  **[B]**
+## doing  99 · Three different percentages are printed at three precisions, and "align them" assumes there are two  **[B]**
 
 Problem: item 53's last bullet said *"the publish dialog and the Menu row print the same ratio at different precision - whole % vs one decimal. Align in the same pass."* **Measured, there are at least three different QUANTITIES, not one ratio at two sites:**
 - `menuMarginPreview().pct` = `Math.round(cost/price*100)` - the dish's food-cost %, whole numbers. **Six consumers**, not one: the publish dialog (`js/app.js:12186`), the builder's docket verdict, the builder's cost-card pill, the builder's sticky-bar line, `worstMenuOf`, and `shortfallStr`.

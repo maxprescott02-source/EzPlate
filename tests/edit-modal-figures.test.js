@@ -146,6 +146,11 @@ function render(opts) {
     function costDetail(lines){ CALLS.push('costDetail'); return OPT.costDetail; }
     function fmt2(x){ return '$'+Number(x).toFixed(2); }
     function marginLightWord(l){ return l==='green'?'Healthy margin':l==='red'?'Underpriced':''; }
+    /* 283: the REAL formatter, deliberately not a sentinel. menuMarginPreview stays a sentinel
+       because this file is about WHERE the modal gets its figures; the precision is the one thing
+       about the number this modal owns, and it is the half that was wrong — this modal printed a
+       whole number while the Menu row it opens FROM printed one decimal. */
+    ${extractFn(SRC, 'fmtFoodPct')}
     function menuMarginPreview(cost, price){ CALLS.push('menuMarginPreview:'+cost+':'+price);
       return { cost:cost, price:price, suggested:OPT.suggested, light:OPT.light,
                pct:OPT.pct===undefined?null:OPT.pct }; }
@@ -166,7 +171,9 @@ test('277: a costed dish renders cost, the price and the food-cost %, in the lig
   const { box } = render({ ...COSTED, price: 10 });
   assert.match(box.innerHTML, /Ingredient cost <b>\$2\.00<\/b>/);
   assert.match(box.innerHTML, /at <b>\$10\.00<\/b>/);
-  assert.match(box.innerHTML, /<b>20% food cost<\/b>/);
+  // 283: ONE DECIMAL, and this assertion is the pin. It read /20% food cost/ and passed while the
+  // Menu row this modal is opened FROM printed the same dish's ratio at one decimal.
+  assert.match(box.innerHTML, /<b>20\.0% food cost<\/b>/);
   assert.match(box.innerHTML, /Healthy margin/);
   assert.strictEqual(box.className, 'margin-preview mp-green', 'the light is the class, so it cannot disagree with the words');
 });

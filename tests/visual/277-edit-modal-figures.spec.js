@@ -70,7 +70,9 @@ test('the modal opens with the dish\'s cost, price and food-cost %, in the targe
   expect(g.price, 'the sell price pads to two places').toBe('10.00');
   expect(g.text).toContain('Ingredient cost $2.00');
   expect(g.text).toContain('at $10.00');
-  expect(g.text).toContain('20% food cost');
+  // 283: ONE DECIMAL. This read '20% food cost' and passed while the Menu row this modal is
+  // opened FROM printed the same dish's ratio at one decimal — the two computations are now one.
+  expect(g.text).toContain('20.0% food cost');
   expect(g.cls).toBe('margin-preview mp-green');
 });
 
@@ -89,9 +91,9 @@ test('the % and the colour move as the price is typed, and the blur pads what wa
     return { typed, padded: pe.value };
   }, null);
   /* Bounded on BOTH sides: it is not enough that it CHANGED, it has to be the right verdict.
-     $2 against $4 at a 30% target is 50% food cost, which analyze() calls red. */
+     $2 against $4 at a 30% target is 50.0% food cost, which analyze() calls red. */
   expect(g.typed.text).toContain('at $4.00');
-  expect(g.typed.text).toContain('50% food cost');
+  expect(g.typed.text).toContain('50.0% food cost');   // 283: one decimal, as above
   expect(g.typed.cls, 'green at $10, red at $4 — the colour is the target rule, live').toBe('margin-preview mp-red');
   expect(g.padded, '4 pads to 4.00 on blur').toBe('4.00');
 });

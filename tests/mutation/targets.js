@@ -451,6 +451,14 @@ const targets = [
      tell the two answers apart. */
   { fn: 'packPriceOf', tests: ['pack-survives.test.js', 'invoice-gst.test.js', 'parser-credit.test.js'] },
   { fn: 'menuMarginPreview', tests: ['menu-margin.test.js'] },
+  /* 283 (queue item 99). These two are the single computation and the single formatter for a
+     dish's food-cost %, split out of `menuMarginPreview` and `vbadge` — which had been computing
+     the same ratio twice at two precisions. They are listed HERE rather than left to inherit
+     `menuMarginPreview`'s coverage on purpose: the `Math.round` that used to live inside that
+     function was a mutable expression the gate covered, and moving the arithmetic out without
+     moving the target would have QUIETLY REDUCED coverage while every test stayed green. */
+  { fn: 'foodCostPct', tests: ['menu-margin.test.js'] },
+  { fn: 'fmtFoodPct', tests: ['menu-margin.test.js', 'edit-modal-figures.test.js'] },
   { fn: 'invGstDetect', tests: ['invoice-gst.test.js'] },
   { fn: 'costAtLines', tests: ['dash-digin.test.js'] },
   { fn: 'unitCatCategory', tests: ['ingredient-unit.test.js', 'king-repoint.test.js', 'product-pack.test.js'] },

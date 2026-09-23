@@ -21,8 +21,11 @@ function withCogs(cogs) {
     var cogsPct = COGS;
     ${extractFn(SRC, 'foodTarget')}
     ${extractFn(SRC, 'analyze')}
+    ${extractFn(SRC, 'foodCostPct')}
+    ${extractFn(SRC, 'fmtFoodPct')}
     ${extractFn(SRC, 'menuMarginPreview')}
-    return { analyze: analyze, menuMarginPreview: menuMarginPreview };
+    return { analyze: analyze, menuMarginPreview: menuMarginPreview,
+             foodCostPct: foodCostPct, fmtFoodPct: fmtFoodPct };
   `);
   return factory(cogs);
 }
@@ -84,6 +87,8 @@ function withVbadge(cogs) {
     var cogsPct = COGS;
     ${extractFn(SRC, 'foodTarget')}
     ${extractFn(SRC, 'analyze')}
+    ${extractFn(SRC, 'foodCostPct')}
+    ${extractFn(SRC, 'fmtFoodPct')}
     ${extractFn(SRC, 'vbadge')}
     return { analyze: analyze, vbadge: vbadge };
   `);
@@ -154,6 +159,56 @@ test('Margin cell under by a rounding hair: the word follows the TRUE state, not
   // dashboard's pts-over line, which also speaks from unrounded values.
   const out = vbadge({ state: 'under', light: 'amber', cost: 3, menuPrice: 10, suggested: 10.004 });
   assert.equal(out, '<span class="vbadge vwarn" aria-label="food cost 30.0% — over your target">30.0% · over</span>');
+});
+
+/* ---- 283 (queue item 99): ONE ratio, ONE precision, across both computations ------------------
+ *
+ * The defect: `menuMarginPreview` rounded `cost/price*100` to a WHOLE number while `vbadge`
+ * recomputed the identical ratio at one decimal, so a $3.88 dish at $11.97 read "32.4%" on the
+ * Menu row and "32% food cost" in the Edit-menu-item modal that row opens — same dish, same
+ * instant, one click apart. Both now go through `foodCostPct` + `fmtFoodPct`.
+ *
+ * These pin the CONDITION (the two surfaces cannot disagree, and the printed precision is one
+ * decimal), not the structure — asserting that vbadge "calls foodCostPct" would pass against a
+ * version that called it and then rounded the answer again. */
+
+test('283: the Menu row and the preview print the SAME string for the same dish', () => {
+  const { menuMarginPreview, fmtFoodPct } = withCogs(30);
+  const { analyze, vbadge } = withVbadge(30);
+  // the real-data shape from the item: cost $3.88 at $11.97. Whole-number rounding said 32; the
+  // Menu row said 32.4. Every pair here is a case where rounding to an integer moves the figure.
+  [[3.88, 11.97], [2.31, 8.5], [6.96, 16.5], [8.42, 15], [1.005, 3.01], [0.15, 5]].forEach(([cost, price]) => {
+    const fromPreview = fmtFoodPct(menuMarginPreview(cost, price).pct);
+    const cell = vbadge(analyze(cost, price));
+    assert.ok(cell.includes(fromPreview + '%'),
+      `the Menu cell must print the preview's figure for cost ${cost} @ $${price}: cell=${cell}, preview=${fromPreview}%`);
+  });
+});
+
+test('283: the printed food-cost % carries one decimal — it is read against a target that has one', () => {
+  const { menuMarginPreview, fmtFoodPct } = withCogs(30);
+  // cogsPct is settable to 0.1 (batch 244: cogsRound, step="0.1", fmtTargetPct), so a whole-number
+  // food cost cannot say which side of a 32.5% target a 32.4% dish is on. That is the whole reason
+  // this precision was chosen, and an integer here would silently reopen it.
+  assert.equal(fmtFoodPct(menuMarginPreview(3.88, 11.97).pct), '32.4');
+  assert.equal(fmtFoodPct(menuMarginPreview(3, 10).pct), '30.0', 'a whole number still shows its decimal place');
+});
+
+test('283: pct is the RAW ratio — rounding at the source is what allowed two precisions', () => {
+  const { menuMarginPreview } = withCogs(30);
+  // 32.4... must survive in the returned value. Were it pre-rounded to 32, no caller could ever
+  // recover the decimal, which is exactly how vbadge came to compute the ratio a second time.
+  const pct = menuMarginPreview(3.88, 11.97).pct;
+  assert.ok(Math.abs(pct - 32.414369) < 1e-5, `pct is unrounded: ${pct}`);
+  assert.notEqual(pct, Math.round(pct), 'and it is genuinely not an integer for this dish');
+});
+
+test('283: no price and no cost still yield a null pct — the formatter is never handed one', () => {
+  const { menuMarginPreview, foodCostPct } = withCogs(30);
+  assert.equal(menuMarginPreview(2, 0).pct, null);
+  assert.equal(menuMarginPreview(0, 5).pct, null);
+  assert.equal(foodCostPct(2, null), null, 'a missing price is null, never 0% or Infinity');
+  assert.equal(foodCostPct(-1, 5), null, 'and a negative cost is refused rather than printed as a negative %');
 });
 
 /* ---- Q3 review findings: pins the first cut lacked ------------------------------------------ */
@@ -255,7 +310,9 @@ test('0c: a NEGATIVE menu price is "no menu price", not a 130%-under plate', () 
   /* The surviving mutant turned `!menuPrice || menuPrice<=0` into `!menuPrice && menuPrice<=0`, and
      `&&` binds tighter than `||` — so the guard becomes `(!menuPrice && menuPrice<=0) || suggested<=0`
      and a negative price sails past it. Measured: analyze(5, -5) then reports light 'red', state
-     'under' and absPct 130, instead of state 'nomenu'.
+     'under' and a recommended price of 16.67, instead of state 'nomenu'.
+     (This sentence said "absPct 130" until 283, which deleted that field — it had had no reader in
+     the app since v122. The mutant and the kill are unchanged; only the witness moved.)
      That is not a cosmetic difference. A red light and a percentage is the app asserting it has
      measured this dish; 'nomenu' is it saying it cannot. A negative price is data entry gone wrong,
      and the honest answer is the second one. */
@@ -263,7 +320,11 @@ test('0c: a NEGATIVE menu price is "no menu price", not a 130%-under plate', () 
   const neg = analyze(5, -5);
   assert.equal(neg.state, 'nomenu', 'a negative price is not a price');
   assert.equal(neg.light, 'none', 'and it must not light up as though it had been judged');
-  assert.equal(neg.absPct, null, 'nor carry a percentage');
+  // 283: was `assert.equal(neg.absPct, null)`. `recommended` is the field that still exists and it
+  // makes the SAME point more strongly — under the mutant it becomes a real suggested price the app
+  // would offer against a negative one, which is the harm; `suggested` is the raw derivation and is
+  // computed either way, so it is deliberately not the witness.
+  assert.equal(neg.recommended, neg.suggested, 'and a negative price recommends the target price, not a repricing verdict');
 });
 
 test('0c: a menu price of zero reports menuPrice as NULL, not 0', () => {
@@ -285,7 +346,11 @@ test('0c: EXACTLY 15% under is AMBER — the boundary is inclusive and it is a c
   const { analyze } = withCogs(30);
   const onTheLine = analyze(3, 8.5);
   assert.equal(onTheLine.suggested, 10, 'sanity: the fixture must actually land on the boundary');
-  assert.equal(onTheLine.absPct, 15);
+  // 283: was `assert.equal(onTheLine.absPct, 15)` — a field with no reader in the app, deleted in
+  // the same batch. The shortfall it stood for is stated here from the two numbers the fixture is
+  // built from, so the boundary claim is pinned by arithmetic rather than by a derived field.
+  assert.equal((onTheLine.suggested - 8.5) / onTheLine.suggested, 0.15,
+    'sanity: $8.50 against a $10.00 suggestion is a shortfall of exactly 0.15');
   assert.equal(onTheLine.light, 'amber', 'exactly 15% under is INSIDE the amber band');
   assert.equal(analyze(3, 8.49).light, 'red', 'and a hair further under is red');
   assert.equal(analyze(3, 10).light, 'green', 'while exactly at the suggested price is green');

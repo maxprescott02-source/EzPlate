@@ -2581,7 +2581,7 @@ function renderBuilderCost(tot){
       box.style.display='';
       box.innerHTML='<div class="bld-k bld-menus-cap">On menus</div>'+on.map(function(m){
         var mp=menuMarginPreview(cost, m.price);
-        var v=(mp.pct==null)?'':'<div class="bverdict bv-'+mp.light+'"><b>'+mp.pct+'% food cost</b>'+esc(shortfallStr(mp))+'</div>';
+        var v=(mp.pct==null)?'':'<div class="bverdict bv-'+mp.light+'"><b>'+fmtFoodPct(mp.pct)+'% food cost</b>'+esc(shortfallStr(mp))+'</div>';
         return '<div class="bld-menu"><span class="bm-name">'+esc(m.name)+'</span><span class="bm-price">'+fmt2(m.price)+'</span></div>'+v;
       }).join('');
     }
@@ -2595,7 +2595,7 @@ function renderBuilderCost(tot){
     if(w && w.mp.pct!=null){
       pill.hidden=false;
       pill.className='bld-pill bv-t-'+w.mp.light;
-      pill.textContent=w.mp.pct+'% food cost'+(on.length>1?(' · '+w.m.name):'');
+      pill.textContent=fmtFoodPct(w.mp.pct)+'% food cost'+(on.length>1?(' · '+w.m.name):'');
     } else { pill.hidden=true; pill.textContent=''; }
   }
   /* §6's sticky mobile summary bar: plate cost + suggested, as the mock draws it.
@@ -2636,7 +2636,7 @@ function renderBuilderCost(tot){
           var worst=worstMenuOf(on, cost);
           line=(worst.mp.pct==null)
             ? ('suggested '+money(cost/foodTarget())+' at '+cogsPct+'%')
-            : ('<b class="bv-t-'+worst.mp.light+'">'+worst.mp.pct+'%</b> on '+esc(worst.m.name)+' at '+fmt2(worst.m.price));
+            : ('<b class="bv-t-'+worst.mp.light+'">'+fmtFoodPct(worst.mp.pct)+'%</b> on '+esc(worst.m.name)+' at '+fmt2(worst.m.price));
         } else {
           line='not on a menu yet';
         }
@@ -3702,13 +3702,44 @@ function analyze(cost, menuPrice){
   if(!menuPrice || menuPrice<=0 || suggested<=0)
     return {cost,suggested,menuPrice:menuPrice||null,recommended:suggested,absPct:null,light:'none',state:'nomenu'};
   const shortfall=(suggested-menuPrice)/suggested;        // >0 => menu price is BELOW the suggested price
-  const absPct=Math.round(Math.abs(shortfall)*100);
   let light,state,recommended;
   if(shortfall<=0){ light='green'; state='ok'; recommended=menuPrice; }            // at or above suggested = healthy
   else if(shortfall<=0.15){ light='amber'; state='under'; recommended=suggested; } // up to 15% below
   else { light='red'; state='under'; recommended=suggested; }                       // more than 15% below
-  return {cost,suggested,menuPrice,recommended,absPct,light,state};
+  return {cost,suggested,menuPrice,recommended,light,state};
 }
+/* 283 (queue item 99) — `absPct` IS GONE, and the decision is recorded here because the field was
+   part of this function's tested shape for long enough that its absence will read as an oversight.
+   It was `Math.round(Math.abs(shortfall)*100)` — the price's distance from the SUGGESTED price,
+   a different subject from the food-cost % below — and the Q3 redesign (v122) replaced its only
+   consumer, the "32% under" Variance cell, with the food-cost % composition. It has had NO reader
+   in the app since: three audits and `docs/MAINTENANCE.md` each re-found it dead, and the two
+   tests that still named it were using it as a witness for the amber/red boundary, which
+   `suggested` and `light` pin directly and without a derived field to keep in step.
+   ⚠️ The shortfall itself is NOT dead and must not be trimmed with it — `light` and `state` are
+   computed from it, and `shortfallStr` re-derives the same gap in CENTS for the builder. What
+   went is one rounded percentage nothing printed. */
+/* 283 (queue item 99) — THE ONE computation of a dish's food-cost %, and THE ONE formatter for it.
+   There were two. `menuMarginPreview` rounded `cost/price*100` to a WHOLE number; `vbadge`
+   recomputed the identical ratio at one decimal for the Menu row. So a $3.88 dish at $11.97 read
+   "32.4%" on the Menu row and "32% food cost" in the Edit-menu-item modal you open FROM that row —
+   same dish, same instant, one click apart, two numbers. Four more surfaces printed the whole
+   number (the builder's per-menu verdict, its header pill, its sticky bar, the publish dialog).
+   ONE DECIMAL is the answer, and the reason is not taste: the TARGET is settable to one decimal
+   (batch 244 — `cogsRound`, `step="0.1"`, `fmtTargetPct`), so a whole-number food cost cannot be
+   read against it. "32%" against a 32.5% target does not say which side of the target you are on,
+   and which side of the target you are on is the only question this figure exists to answer.
+   It is also what the v3 mock prints at every one of these sites ("42.2% food cost").
+   ⚠️ `pct` IS THE RAW RATIO, DELIBERATELY UNROUNDED. Rounding at the source is what allowed two
+   precisions to exist in the first place — a caller that wanted a decimal could not recover one
+   from a value already rounded to an integer. Round at the PRINT, through `fmtFoodPct`, and
+   nowhere else. Anything comparing or ordering these reads `pct`.
+   ⚠️ NOT `avgFoodCostForScope`, which is a MEAN OF PER-PLATE RATIOS — a different quantity that
+   already prints at one decimal everywhere. That the two now agree on precision is NOT permission
+   to merge them: `.claude/rules/app-data.md` records that arithmetic across two series fabricates
+   movement, and feeding one into the other is the display version of that mistake. */
+function foodCostPct(cost, price){ return (cost>0 && price>0) ? (cost/price*100) : null; }
+function fmtFoodPct(v){ return v.toFixed(1); }
 /* builder pricing panel */
 let menuTouched=false;
 const menuLinkEl=document.getElementById('menuLink');
@@ -4212,14 +4243,19 @@ function builderCategoryValue(){ var el=document.getElementById('plateCat'); ret
    did not carry its own subject, so it alone could be misread as being about cost \u2014 is CLOSED by
    batch 229, which made it "Slightly underpriced". See marginLightWord for why that does not reopen
    the split above.
-   (The dialog rounds its % to a whole
-   number; this cell shows one decimal. Same ratio, different display precision \u2014 a display choice,
-   not a second computation.) Colour stays anchored to the TARGET, never to direction.
+   \u26a0\ufe0f 283 \u2014 THIS PARAGRAPH SAID "the dialog rounds its % to a whole number; this cell shows one
+   decimal. Same ratio, different display precision \u2014 a display choice, not a second computation."
+   BOTH HALVES WERE WRONG, and the second one is the instructive half: it WAS a second computation.
+   This cell re-derived `cost/menuPrice*100` here while `menuMarginPreview` rounded the same ratio
+   elsewhere, so "a display choice" described a divergence nothing held together \u2014 the reassurance
+   is exactly the shape `.claude/rules/app-guards.md` names, an accurate observation disposed of
+   wrongly. Both now read `foodCostPct` and print through `fmtFoodPct`; see those two functions for
+   why the precision is one decimal. Colour stays anchored to the TARGET, never to direction.
    The aria-label matters: on phones the thead is display:none, so this span is the cell's only
    announced meaning \u2014 it carries the same word the sighted reader gets. */
 function vbadge(a){
   if((a.state==='ok'||a.state==='under') && a.cost>0 && a.menuPrice>0){   // belt-and-braces before the division \u2014 callers can hand-build `a` (a test does)
-    var pct=(a.cost/a.menuPrice*100).toFixed(1);
+    var pct=fmtFoodPct(foodCostPct(a.cost, a.menuPrice));   // 283: the same ratio menuMarginPreview returns, formatted the same way — not a second computation
     if(a.state==='ok') return '<span class="vbadge vgood" aria-label="food cost '+pct+'% \u2014 at or under your target">'+pct+'% \u2713</span>';
     var word=a.light==='red'?'well over':'over';                      // the amber/red discriminator \u2014 hue alone was the only other difference
     var shown=word.replace(' ','\u00a0');                             // nbsp: a narrow cell wraps at the \u00b7 , never mid-phrase; aria keeps the plain space
@@ -9671,7 +9707,7 @@ window.addEventListener('offline', function(){ setSync('offline'); });
    NOT a second source — tests/settings.test.js reads sw.js and fails the build if the two
    ever disagree. Chosen over fetching and regexing sw.js at runtime, which would add an
    async network read that breaks offline for the sake of a label. */
-var APP_VERSION='v229';
+var APP_VERSION='v230';
 /* ⚠️ THE PRIMING. The v35 modal primed the form in openSettings(), on every open. A screen has no
    open event, so the priming lives in the RENDER and showTab calls it on every entry — without this
    the screen paints whatever the markup's default attributes say (0%, GST-exclusive, both AI
@@ -12400,7 +12436,8 @@ function closeMenuModal(){hide('menuModal');}
 function menuMarginPreview(cost, price){
   var a=analyze(cost, price);
   return {cost:cost, price:(price>0?price:null), suggested:a.suggested, light:a.light,
-          pct:(cost>0&&price>0)?Math.round(cost/price*100):null};
+          pct:foodCostPct(cost, price)};   // 283: raw ratio — every printer formats through fmtFoodPct
+
 }
 /* The PRICE against the suggested price — a different subject from the Menu cell's cost-vs-target
    wording and from the filter chips' action wording, which is why all three say different things
@@ -12435,7 +12472,7 @@ function renderMenuMarginPreview(){
     return;
   }
   box.className='margin-preview mp-'+mp.light;
-  box.innerHTML='<span class="dot '+mp.light+'"></span>Ingredient cost <b>'+fmt2(cost)+'</b> · at <b>'+fmt2(mp.price)+'</b> → <b>'+mp.pct+'% food cost</b> · '+marginLightWord(mp.light);
+  box.innerHTML='<span class="dot '+mp.light+'"></span>Ingredient cost <b>'+fmt2(cost)+'</b> · at <b>'+fmt2(mp.price)+'</b> → <b>'+fmtFoodPct(mp.pct)+'% food cost</b> · '+marginLightWord(mp.light);
 }
 /* v113 — one inline prompt, shared by both dish-creating modals. Deliberately NOT a new screen or modal:
    this fires for zero dishes in production today and is a guard against silent recurrence, not a feature.
@@ -15750,7 +15787,7 @@ function renderEditMargin(){
     return;
   }
   box.className='margin-preview mp-'+mp.light;
-  box.innerHTML='<span class="dot '+mp.light+'"></span>Ingredient cost <b>'+fmt2(cd.cost)+'</b> · at <b>'+fmt2(mp.price)+'</b> → <b>'+mp.pct+'% food cost</b> · '+marginLightWord(mp.light);
+  box.innerHTML='<span class="dot '+mp.light+'"></span>Ingredient cost <b>'+fmt2(cd.cost)+'</b> · at <b>'+fmt2(mp.price)+'</b> → <b>'+fmtFoodPct(mp.pct)+'% food cost</b> · '+marginLightWord(mp.light);
 }
 function closeEdit(){ hide('editModal'); editTargetId=null; }
 function resolveEditCat(){
