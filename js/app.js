@@ -3739,6 +3739,21 @@ function analyze(cost, menuPrice){
    to merge them: `.claude/rules/app-data.md` records that arithmetic across two series fabricates
    movement, and feeding one into the other is the display version of that mistake. */
 function foodCostPct(cost, price){ return (cost>0 && price>0) ? (cost/price*100) : null; }
+/* ⚠️ THE CALLER OWNS THE NULL CHECK, AND `fmtFoodPct` DELIBERATELY DOES NOT GUARD. It throws on a
+   null, which is the LOUD failure, and every guard that could be written here is a quiet one:
+     return ''    -> the caller concatenates it and the screen reads "% food cost" with no number;
+     return '0.0' -> fabricates a figure, which the money law forbids outright (`#bldPill`'s own
+                     comment: "a pill reading 0% would be a figure the app invented");
+     return '—'   -> a FIFTH rendering of absence, when each surface already has its own correct
+                     one and a shared formatter cannot know which.
+   The six callers each answer "no figure" in the way their own surface needs, and they are not
+   interchangeable: the builder pill HIDES, the sticky bar swaps to suggested-price wording, the
+   per-menu verdict renders '', the publish dialog clears the box, the edit modal prints "not
+   costed", and the Menu row prints `.muted-dash`. **A SEVENTH CALLER OWES ONE OF THOSE SIX
+   ANSWERS BEFORE IT CALLS THIS.** Raised by 283's pre-push review, which was right that the
+   requirement was unenforced and unwritten; it is still unenforced, and now it is written.
+   (`.claude/rules/app-guards.md`: a fail-open default is a decision about CONSEQUENCE, and the
+   consequence of guessing here is a wrong or missing number on a costing screen.) */
 function fmtFoodPct(v){ return v.toFixed(1); }
 /* builder pricing panel */
 let menuTouched=false;
