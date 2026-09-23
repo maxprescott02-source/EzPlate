@@ -59,3 +59,9 @@ A guard here would have to choose what to return for a null, and **every availab
 
 The reviewer killed `npm run mutate` for budget and correctly refused to claim a clean result it had not seen.
 **The batch ran it to completion twice**: before the `absPct` residual fix (`1498 mutants, 1443 killed, 55 survived, all 55 with a written allowance`, exit 0) and again after it (exit 0). `foodCostPct` and `fmtFoodPct` were targets on both runs and produced no survivors.
+
+✅ **THE REVIEWER THEN WENT BACK AND RAN IT TO COMPLETION ITSELF**, rather than taking the batch's word for it, and reported in its own follow-up:
+
+> **Mutation gate: clean.** 1498 mutants, 1443 killed outright, 55 survived — all 55 already carry a written allowance in `tests/mutation/targets.js` predating this branch, and neither `foodCostPct` nor `fmtFoodPct` appears anywhere in the log, meaning both new mutation targets this diff added were fully killed by the new tests in `tests/menu-margin.test.js` / `tests/edit-modal-figures.test.js`. Exit code 0.
+
+That is the stronger evidence and it is the reviewer's own, so the caveat is discharged by the party that raised it rather than by the party it was raised against.
