@@ -3700,7 +3700,7 @@ function fmtDate(v, nowMs){
 function analyze(cost, menuPrice){
   const suggested = cost>0 ? cost/foodTarget() : 0;   // sell price at the target food cost
   if(!menuPrice || menuPrice<=0 || suggested<=0)
-    return {cost,suggested,menuPrice:menuPrice||null,recommended:suggested,absPct:null,light:'none',state:'nomenu'};
+    return {cost,suggested,menuPrice:menuPrice||null,recommended:suggested,light:'none',state:'nomenu'};
   const shortfall=(suggested-menuPrice)/suggested;        // >0 => menu price is BELOW the suggested price
   let light,state,recommended;
   if(shortfall<=0){ light='green'; state='ok'; recommended=menuPrice; }            // at or above suggested = healthy
