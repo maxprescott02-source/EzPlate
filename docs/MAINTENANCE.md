@@ -108,6 +108,18 @@ This repo lives under `~/Documents`, an iCloud-synced location on macOS. When iC
 
 **What the guard does NOT do**, stated because the alternative is trusting it for more: it catches the duplicate at `npm test`, which is after `git add -A` has already staged it. It turns a silent merge into a red suite — it does not stop the file being created. **The upstream fix is not to run `git add -A` on a synced working tree**, and that is a habit rather than a rule this repo can enforce.
 
+### A FOURTH register of food-cost % exists — whole numbers inside generated insight prose
+(Found 23 Sep 2026, batch 283, while running QUEUE item 99. **Deliberately left alone, and this entry is the reason** — a decision not to change something is invisible unless it is written down.)
+
+Item 99 aligned the per-dish food-cost % to one decimal across its six surfaces. **`insDrift` (`js/app.js`, `Math.round(d.fromPct)` / `Math.round(d.toPct)`) and `insVolatility` (`Math.round(d.costMin/d.menuPrice*100)` and its `costMax` twin) print the SAME quantity at whole numbers**, in sentences like *"at today's price that lifts it from 32% to 34%"*.
+
+**Why it was not folded in, and neither reason is "it was out of scope":**
+- **These are the `facts:` object the money/number law validates against.** `api/insight` rejects a phrasing containing a number not in the supplied facts, so changing their precision changes the contract at both ends, not just a display. That is a bigger change than item 99 was, and it belongs to whoever next opens `computeInsights`.
+- **A figure in a prose sentence is a different register from a figure in a data cell.** "32% to 34%" reads correctly; "32.4% to 34.1%" in the same sentence reads like a spreadsheet. The argument that decided item 99 — that a whole number cannot be read against a one-decimal target — **does not apply here**, because these sentences state a MOVEMENT between two of their own numbers rather than a position against the target.
+
+**So the honest statement is that this is probably right as it stands**, and it is recorded because the next reader comparing `foodCostPct` against these will otherwise find an inconsistency with no note and "fix" it. **If it is ever changed, the AI fact contract moves with it.**
+⚠️ **`insCategory`'s `Math.round(by[s].sum/by[s].n*100)` is NOT this** — it is a mean of per-plate ratios, the `avgFoodCostForScope` family, and item 99's own warning forbids aligning that with the per-dish ratio.
+
 ## Displaced B items — promote when a `QUEUE.md` slot frees
 
 These passed the launch test and lost on priority against the 20-item cap. They are not C.
@@ -603,8 +615,11 @@ It is NOT history and must never be read as such. Either make it honest or drop 
 ✅ Deleted with the edit-modal footer pass. Zero hits in `js/app.js`.
 ⚠️ **Six batches stale here, and ALSO still unstruck in consolidated item 76's first bullet** - so a batch promoting 76 would plan against a variable that has not existed since 272. Two files carrying one dead fact is the shape `docs/QUEUE-GROUPS.md`'s own header warns about.
 
-### `analyze().absPct` lost its last reader in v122
-The Q3 redesign replaced the "`32% under`" Variance cell — its only consumer — with the food-cost % composition. It is three lines inside `analyze` and part of that pure function's tested shape, so it was kept rather than trimmed mid-batch. Trim it (and its `Math.round`) the next time `analyze` is touched, or keep it deliberately — either way say so at the site.
+### ~~`analyze().absPct` lost its last reader in v122~~ — **DONE, batch 283 (`ezplate-v230`)**, riding QUEUE item 99
+✅ **TRIMMED**, with its `Math.round`, and the decision is written at the site in `analyze` — this entry offered "trim it or keep it deliberately", and a deletion with no note at the site would have read as an oversight to the next person to miss the field.
+The Q3 redesign (v122) had replaced its only consumer, the "`32% under`" Variance cell, with the food-cost % composition.
+⚠️ **The two tests that still named it were using it as a WITNESS, which is why it survived three audits that each correctly called it dead.** `tests/menu-margin.test.js` read `absPct` to prove the negative-price guard and the inclusive 15% amber boundary; both now assert the condition directly (`recommended`/`suggested` and the shortfall arithmetic), which is a better pin than a derived field that has to be kept in step. **A dead field with live test readers looks exactly like a live field** — that is the transferable half, and it is why "nothing in the app reads it" was true and insufficient every time it was written here.
+**The shortfall itself was NOT trimmed with it** and must not be: `light` and `state` are computed from it, and `shortfallStr` re-derives the same gap in cents for the builder.
 
 ### `avgFoodCostForScope` counts dishes whose `menuId` has no By-menu row
 Latent; zero such dishes on current data.
@@ -747,8 +762,12 @@ Struck rather than deleted so the decision is visible where the question was ask
 ✅ **The only residual was "Slightly under" — the one verdict phrase that did not carry its own subject — and it is CLOSED by batch 229**, which made it "Slightly underpriced". Named rather than pointed at, because a pointer to a position rots the moment anything is inserted; struck here rather than deleted so the record shows the residual was tracked and answered rather than forgotten.
 (Found still open by 229's pre-push review, which read this line against the change that closed it. The batch had updated `docs/QUEUE.md` and `js/app.js` and not this file — a stale fact is worse than no fact, and this one survived the batch that falsified it.)
 
-### The publish dialog and the Menu row print the same ratio at different precision
-Whole-number % vs one decimal (HANDOVER-125). Same `cost/price` ratio, two displays — align them or record the split as deliberate at both sites.
+### ~~The publish dialog and the Menu row print the same ratio at different precision~~ — **DONE, batch 283 (`ezplate-v230`)**, as QUEUE item 99
+✅ **ONE DECIMAL, at all six surfaces**, through one computation (`foodCostPct`) and one formatter (`fmtFoodPct`).
+⚠️ **THIS ENTRY UNDERSTATED IT IN THE WAY THAT MATTERED: "two displays" WAS SIX, AND "the same ratio" WAS THE SAME RATIO COMPUTED TWICE.** `menuMarginPreview` rounded `cost/price*100` to a whole number for FIVE surfaces — the builder's per-menu verdict, its header pill, its sticky bar, the publish dialog, and the Edit-menu-item modal — while `vbadge` re-derived the identical ratio at one decimal for the Menu row. So this was never a formatting choice to reconcile; it was a second computation, and `js/app.js`'s own comment above `vbadge` asserted the opposite in as many words (*"a display choice, not a second computation"*). That comment is corrected at the site.
+**The sharpest instance, and the one that made the precision question decidable:** `renderEditMargin` opens FROM a Menu row. The row said `32.4%` and the modal said `32% food cost`, about the same dish, one click apart.
+**Why one decimal rather than whole:** `cogsPct` is settable to one decimal (batch 244 — `cogsRound`, `step="0.1"`, `fmtTargetPct`), so a whole-number food cost cannot say which side of a 32.5% target a dish is on, and which side of the target you are on is the only question the figure exists to answer. It is also what the v3 mock prints at every one of these sites.
+**`avgFoodCostForScope` was deliberately NOT touched** — a mean of per-plate ratios is a different quantity, it already prints at one decimal at all ten of its surfaces, and QUEUE item 99 said not to align the two. That they now agree on precision is not permission to merge them.
 
 ### ~~Two more sub-44 touch targets the R5/R6 audit rows never named~~ — **DONE, batch 272 (`ezplate-v221`), consolidated item 47**
 ✅ `.use` reaches 44 effective through an `::after` extension, probed with a real hit test in `tests/visual/v192-touch-targets.spec.js`. `.del-link` did not need a treatment: it was worn by exactly one element, and that element is now a `.btn` in the modal footer, where `.mfoot .btn{min-height:40px}` and a modal footer is not a ≤767 tap surface.
