@@ -189,7 +189,7 @@ It belongs in G3 on context: it is `as restrictive for delete`, one migration, m
 
 **Context:** Playwright meaning and vacuity, the mutation gate and its targets, staging auth, the persona protocol.
 
-**Items:** **43**, 44, 79, 80, ~~82~~ (257), 84, **94** (no dependency, and see its own note - its per-batch complement shipped, so AUDIT-v227 declined promoting it), **100**, **101** · 27, 28, 29 (dependent) · 83, **95** (blocked on Max)
+**Items:** **43**, 44, 79, 80, ~~82~~ (257), 84, **94** (no dependency, and see its own note - its per-batch complement shipped, so AUDIT-v227 declined promoting it), ~~100~~ (284, no client asset), **101** · 27, 28, 29 (dependent) · 83, **95** (blocked on Max)
 ⚠️ **100 and 101 were filed into `docs/QUEUE.md` directly by AUDIT-v227 rather than promoted from the consolidated file**, which is the ordinary route for an audit finding that passes the tier test. They are routed here because this group's context is exactly theirs - records that nothing re-checks (100) and harness definitions that live where no review can see them (101). **100 holds the one process slot**; 101 does not, because moving two tracked files is product-shaped work rather than a rule about process.
 
 ⚠️ **43 was added by AUDIT-v217 and had been in no group.** It is the inventory of settings that live outside the repo - the Supabase Site URL default that cost a real stranger their sign-up, which nothing in the repo could see. It is a `docs/` record, which is this group.
