@@ -72,15 +72,6 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 ⚠️ **G5 IS SIX TO NINE BATCHES, NOT ONE, AND THE RULE THAT SAYS SO IS IN THIS FILE'S OWN HEADER.** The Design law's *"one screen per change set, one PR, one review; never mix shell work with screen work"* forbids combining them — so **take ONE of these per batch** and do not be tempted by two that look adjacent. 64 is the shell item and shares a batch with nothing.
 ⚠️ **AND A GREEN PRE-PUSH HOOK IS NOT A GREEN SUITE FOR ANY OF THESE.** The hook does not run Playwright and every one of these items changes whether a control exists or where it sits. Run `npx playwright test` before pushing, every time.
 
-## next  100 · `docs/MAINTENANCE.md` has no cap and no entry test, and states that exact diagnosis about a different file  **[B — process, and it holds the one process slot]**
-
-Problem: the file is **1,520 lines and 134 entries**, and gained four in five batches (275-278). Its own line 1352 reads: *"any file a process APPENDS to needs a stated cap and a stated test for entry, or it converts work into the appearance of work. `docs/QUEUE.md` has a cap of 20 and a tier test and stays useful; this file had neither."* **That sentence is about `docs/PHONE.md`.**
-⚠️ **It is still working as a RECORD — its riders do get taken** (270, 271 and 272 each struck one) — **but nothing in it could ever notice if it stopped.** AUDIT-v227 found three entries that had read as outstanding after being fixed: one for fourteen deploy versions (found by 275), one for ~24 batches (`doDeleteMenu`), one for six (`edDelArmed`, also unstruck in consolidated item 76).
-**Why this is the one process slot** (`docs/QUEUE.md`'s three-part test, all three hold): it needs a **branch**, because the answer is a test rather than an edit — something that fails when an entry's stated subject no longer exists, or when the file passes a stated size; it **names the detector it adds**; and it is **not a restatement** — the rule is already written, in this very file, about a different file, which is precisely why restating it again would change nothing.
-Requirements: decide what `docs/MAINTENANCE.md` IS — a permanent record, or a working list with a cap — and make the file enforce that answer. If it is a record, the test is staleness (an entry naming a symbol that no longer exists is a finding), not length. If it is a working list, it needs `docs/QUEUE.md`'s shape: a cap, an entry test, and a displacement rule.
-⚠️ **Do not answer it by trimming.** Three audits have now found stale entries; a one-off tidy leaves the file in the same state it was in before, which is the definition of the failure being recorded.
-Out of scope: `docs/PHONE.md`, which already has a cap and an entry test and is holding at five.
-
 ## next  101 · The `project-audit` and `flow-tester` agent definitions live outside the repo, where nothing can review them  **[B]**
 
 Problem: `.claude/agents/` **is tracked** and holds `code-review.md`, `handover-writer.md` and `premise-check.md`. `project-audit` and `flow-tester` are still at `~/.claude/agents/`, outside any diff, any review and any test.
@@ -90,6 +81,7 @@ Requirements: both definitions move into `.claude/agents/`, and the four settled
 ⚠️ **The `~/.claude/AGENTS.md` precedent is the argument**: batch 264 moved the working preferences into the repo for exactly this reason, and `AGENTS.md` now says so at its own head — *"a clone carried the rules and not the reviewer."* Same defect, two agents later.
 Out of scope: the three SKILLS (`new-branch`, `investigate`, `test-flows`) — they are consolidated item 83, they are Max's global config, and moving them changes what his other projects see. This item is the two agents, which are EzPlate-specific and have no such cost.
 *(Filed by AUDIT-v227, recommendations 12 and 13.)*
+⚠️ **Moving the agents turns `npm test` RED, by design** (batch 284): `docs/MAINTENANCE.md`'s "FOUR process files live OUTSIDE the repo" entry carries `absent` anchors on them, so `tools/maintenance-check.js` fails the day they arrive. Narrow that entry to the three skills, or delete it, in the same change. Answer it here, do not route it onward.
 
 ## next  56 · Dashboard polish: the tablet drops two of three headline figures, the scope button drops its % sign, two cards do not share a bottom edge, chart annotations collide and clip, and the chart does not re-measure on resize  **[B]**
 **Full item:** consolidated item 56.

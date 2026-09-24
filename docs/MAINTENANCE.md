@@ -1,60 +1,42 @@
 # Maintenance
 
-Internal quality: docs, comments, test meaning, refactors, dead code, CI hygiene, process wording.
+Internal quality: docs, comments, test meaning, refactors, dead code, CI hygiene.
 Real work. **Not shipping work.**
-
 The classification test is in `docs/QUEUE.md`. **When a tier is genuinely ambiguous, it is C and it lands here.**
+⚠️ **Line numbers in this file go stale with every batch. Re-grep by NAME, never by the number.**
 
-Split 11 Aug 2026 out of a 979-line `QUEUE.md`. Nothing below is new; every item was already open.
-⚠️ **Every line number in this file predates one or more redesigns** (the v125 audit measured ~290 moved lines in `js/app.js`, ~255 in `css/style.css`, and F1a-F6 have moved far more since). **Re-grep by NAME, never by the number.**
+## How it gets worked: C items RIDE the batch that already touches the file (Max, 22 Aug 2026)
 
----
+When a batch opens a file, it takes the entries here that touch that file, in the same PR.
+This replaced a parallel maintenance track in its own worktree, which Max retired on measured evidence: seventeen batches, one maintenance commit, and that one a recording rather than a fix (`docs/audits/BLIND-AUDIT-2026-08-22-process.md` §4.2).
+**Two accepted consequences:** an entry in a file nothing is touching waits, possibly a long time; and if `docs/QUEUE.md` and the backlog behind it ever run dry, a maintenance sweep runs as its own ordinary batch.
 
-## How this file gets worked: C items RIDE the batch that already touches the file (Max, 22 Aug 2026)
+## What this file is, and what enforces it (batch 284, queue item 100)
 
-⚠️ **THE SEPARATE PARALLEL TRACK IS RETIRED. Max's call, 22 Aug 2026, reversing his own 13 Aug decision on measured evidence.**
-The track was created with a second worktree, a collision rule and a five-batch tally to judge whether it was working.
-Batches 181 to 197 ran. The git log holds exactly one maintenance commit, and it is a recording rather than a fix.
-Two handovers record the track explicitly not running, and 194 found a structural reason it can never run during an audit batch.
-**Seventeen batches, zero items. The tally has its answer**, and it was put to him with that number.
+**A WORKING LIST, like `docs/QUEUE.md` - not a record.** Git and `docs/handovers/` are the record.
+It had grown to 1,616 lines with no cap and no entry test, and three audits running found entries that still read as outstanding after their subject had been fixed or deleted.
+Its own words, written about `docs/PHONE.md`, were the diagnosis: *"any file a process APPENDS to needs a stated cap and a stated test for entry, or it converts work into the appearance of work."*
+**`tools/maintenance-check.js` enforces all of the following, and `tests/maintenance-file.test.js` runs it inside `npm test`:**
 
-**What replaces it, and it is what already happened in practice:** when a batch opens a file, it takes the C items in this file that touch that file, in the same PR.
-No second worktree, no collision rule to get wrong, and no separate track to forget.
-The collision problem the worktree existed to solve disappears rather than being managed, because there is only ever one branch.
+- **A finished entry is DELETED, never struck.** A heading with `~~`, ✅ or an uppercase status word (DONE, SHIPPED, MOOT …) is red. Say in the handover which entry you took.
+- **Every entry is a `###` heading under a `##` group, and its first line is an `Anchor:`** - the literal the entry is about and the tracked file or directory it lives in:
+  - `` Anchor: `renderPlate` in `js/app.js` `` - red the day that literal leaves that file. An entry about code that no longer exists is stale by construction, and now it says so.
+  - `` Anchor: absent `signInWithOAuth` in `js/app.js` `` - for an entry about something UNBUILT: red the day it is built.
+  - `Anchor: none - <reason>` - for an entry with no literal to point at, such as production data. Capped, because a file where entries opt out has no detector.
+- **The entry test:** a C finding that can name its anchor. **One that cannot is usually not a C item** - it is writing about the process, which `skills/batch` says to fix once in the rule and stop writing about.
+- **The cap is `ENTRY_CAP` in `tools/maintenance-check.js`.** Adding an entry past it means deleting the one you would least miss, and naming it in the handover. Raising the number is allowed and is a visible edit with a reason; that is the point of it living in code.
+- **A group may carry at most six lines before its first entry**, so a finding cannot sit in group prose and escape the anchor check. ⚠️ **Text AFTER an entry is that entry's body and cannot be told apart from a new finding** - write a new finding as its own `###` entry, never as a bullet under someone else's.
+- **An entry about several things carries one anchor per thing.** When one goes red, narrow the entry to what is left rather than deleting the lot.
 
-**The two consequences worth stating:**
-- **A C item in a file nothing is touching will wait, possibly a long time.** That is the honest cost and it is accepted: it was already waiting under the old scheme, with a worktree and a procedure implying otherwise.
-- **If the queue's A and B items are ever cleared, a maintenance sweep runs as its own ordinary batch.** That is the escape hatch, and it needs no special machinery.
+⚠️ **What the anchor CANNOT see: a defect fixed IN PLACE.** `doDeleteMenu`'s entry read as open for ~24 batches after batch 254 fixed it, and the function still exists, so an anchor on it stays green. That case is still caught only by the batch that fixes the thing deleting the entry. **Grep this file for the function you are changing before you push.**
+⚠️ **When an anchor goes red, the entry is the question, not the anchor.** If the subject moved, re-anchor it. If it is gone, delete the entry. Changing the literal until it goes green is the one wrong answer.
 
-*(The blind process audit of 22 Aug 2026 recommended this; `docs/audits/BLIND-AUDIT-2026-08-22-process.md` §4.2 carries the counts. It also noted the joke that the item proposing to retire the track was itself filed on the track, which is the evidence as much as the argument.)*
+<!-- entries: everything below this line is an entry, and tools/maintenance-check.js reads it -->
 
-## The old parallel-track procedure, kept only as the record of what was tried
-
-⚠️ **The line above read "worked only when `docs/QUEUE.md` is empty" until 13 Aug 2026, and `skills/batch` said the same.** It no longer does. Max is waiting on batches; the queue's A and B items are a dependency chain that cannot parallelise, while these are genuinely independent — which is exactly the shape that can.
-
-**The worktree.** `/Users/max/Documents/Scoopys-Costing-maintenance`, created 13 Aug 2026 by `git worktree add --detach ../Scoopys-Costing-maintenance origin/main`. It is a second checkout of the same repository, so the two tracks cannot fight over one working tree.
-Each maintenance batch starts there with `git fetch && git switch -c maintenance/<slug> origin/main`, and ends detached again (`git switch --detach origin/main`) so the branch can be deleted after merge.
-**`npm test` runs there with no install** — it is `node --test` and needs no `node_modules` (1018 tests, verified in the worktree on the day it was created — **a DATED figure, not a live one: the suite is 1915 at v197**, and this is the only four-digit test count in the docs, so it reads as current on a skim; AUDIT-v197 §3.3). **Playwright does not**: `npm i` in the worktree first if the item touches a spec.
-If the worktree is missing, recreate it with the command above rather than working maintenance items in the main checkout.
-
-**The collision rule, which is what makes this safe.** Before starting a maintenance item, read the files the current queue batch is touching (its branch diff, or its plan).
-**If the maintenance item would touch one of them, STOP and take the next maintenance item instead.** Do not merge and hope, do not rebase around it, do not "just be careful" — the whole app is one `js/app.js`, so this will happen, and the answer is always to move on.
-**Say in the handover when it happens**, naming the item skipped and the file it collided on. That record is the only evidence the next bullet can be judged on.
-
-**Report after five maintenance batches** whether the collision rule blocked more than it let through. **If it did, the parallel track is not viable on this codebase and should stop — and that is a real answer, not a failure.**
-The tally lives here so it survives a context clear:
-
-| # | Item | Started | Collided? (file) |
-|---|---|---|---|
-| 1 | | | |
-| 2 | | | |
-| 3 | | | |
-| 4 | | | |
-| 5 | | | |
-
----
+## C — from batches 277-283
 
 ### An external `renderPlate()` lands under the caret: the builder's misc input loses focus and its in-progress edit
+Anchor: `function renderPlate` in `js/app.js`
 (Found by 277's pre-push review, which caught the batch's own test comment claiming the case was proved safe. Measured, not reasoned.)
 
 `#lines` is rebuilt with `innerHTML` by `renderPlate`, so every row in it is a fresh DOM node afterwards.
@@ -68,6 +50,7 @@ Typing in a misc-cost field does NOT trigger that — `setMiscCost` calls `updat
 ⚠️ **This predates 277 and only the padding inside the template is new** — recorded because that batch's comment claimed the question was settled, and a comment that says "proved" about half a question is worse than no comment.
 
 ### The Plates library and the pricing screens disagree about a plate whose only line is a misc cost of exactly $0.00
+Anchor: `function plateCostText` in `js/app.js`
 (Same review.)
 
 `plateCostText` (`js/app.js`, Plates library) gates on `plateFullyCosted` — `miss===0` and a line count.
@@ -79,6 +62,7 @@ So the one shape where those disagree is a plate with lines, no missing costs, a
 Pre-existing — it arrived with `renderMenuMarginPreview`, not with 277.
 
 ### The Menu switcher row wraps to two lines between 1024 and 1059
+Anchor: `menuSwitchRow` in `index.html`
 (Measured by batch 278 while fixing the crushed-select regression its own review found. Accepted rather than fixed.)
 
 Queue item 54 (U32) rehomed `#menuAddDishBtn` into `#menuSwitchRow` at every width, so that row carries three flex children above 768 where it used to carry two.
@@ -89,6 +73,7 @@ Queue item 54 (U32) rehomed `#menuAddDishBtn` into `#menuSwitchRow` at every wid
 ⚠️ **The related defect WAS fixed and must not be re-opened by any attempt at this one:** `.mnu-selwrap{min-width:150px}` at >=768, which stops the select being squeezed to 48px across 768-1023. The comment at that rule carries the before-and-after measurements.
 
 ### Six remembered packs are keyed to a supplier called `Document No:`
+Anchor: none - production data in the café's database, Max's to delete; no repo literal changes when it is done
 (Moved here from `docs/PHONE.md` by AUDIT-v227, 16 Sep 2026. It had sat on the phone list since v107 and waited six weeks under a heading that said outright it was not a phone check.)
 
 A parser bug fixed long ago left them behind; they have been there since **3 August 2026** and were still six when production was measured on **10 Sep 2026**. They match nothing and cost nothing — they are just wrong.
@@ -97,18 +82,8 @@ A parser bug fixed long ago left them behind; they have been there since **3 Aug
 **Why it moved rather than being done:** it is data in the café's production database, and `CLAUDE.md` makes anything that deletes or rewrites production data Max's to authorise. A batch can neither do it nor stop recording it, which is exactly what `docs/MAINTENANCE.md` is for.
 ⚠️ **And the reason it is worth writing down twice:** `docs/PHONE.md`'s own retrospective calls this *"the clearest single example of why that list stopped working: it was never a phone check at all"* — and then kept it for another six weeks, under a heading admitting it. **A file that names its own defect in the entry that demonstrates it has a reader problem, not a writer problem.**
 
-### iCloud keeps conflicted copies as `<name> 2.<ext>`, and `git add -A` commits them
-(Found 18 Sep 2026, batch 281, by an `ls` that happened to sort a duplicate last. Guarded now — recorded because the guard only catches it after the fact.)
-
-This repo lives under `~/Documents`, an iCloud-synced location on macOS. When iCloud cannot reconcile two versions of a file it does not fail: it keeps both, naming the loser `<name> 2.<ext>`.
-**Batch 279 shipped three of them to `main`** — `docs/audits/AUDIT-v227 2.md`, `docs/handovers/HANDOVER-279-audit-v227 2.md`, `docs/reviews/REVIEW-279-audit-v227 2.md` — byte-identical copies of files that batch had just written, tracked and merged.
-
-⚠️ **NOTHING IN THE REPO COULD SEE THEM, AND `npm test` WAS GREEN THE WHOLE TIME.** `tests/audit-closure.test.js` reads the newest audit by a regex the duplicate did not match, and `tools/state.js` derived `AUDIT-v227.md` correctly. The one reader that would have noticed is a human running `ls`.
-✅ **`tests/housekeeping.test.js` now fails on any tracked file matching ` \d+\.<ext>`**, proved red against a real duplicate and green without one. The pattern is iCloud's own and matches no legitimate name in this repo.
-
-**What the guard does NOT do**, stated because the alternative is trusting it for more: it catches the duplicate at `npm test`, which is after `git add -A` has already staged it. It turns a silent merge into a red suite — it does not stop the file being created. **The upstream fix is not to run `git add -A` on a synced working tree**, and that is a habit rather than a rule this repo can enforce.
-
 ### A FOURTH register of food-cost % exists — whole numbers inside generated insight prose
+Anchor: `Math.round(d.fromPct)` in `js/app.js`
 (Found 23 Sep 2026, batch 283, while running QUEUE item 99. **Deliberately left alone, and this entry is the reason** — a decision not to change something is invisible unless it is written down.)
 
 Item 99 aligned the per-dish food-cost % to one decimal across its six surfaces. **`insDrift` (`js/app.js`, `Math.round(d.fromPct)` / `Math.round(d.toPct)`) and `insVolatility` (`Math.round(d.costMin/d.menuPrice*100)` and its `costMax` twin) print the SAME quantity at whole numbers**, in sentences like *"at today's price that lifts it from 32% to 34%"*.
@@ -122,23 +97,13 @@ Item 99 aligned the per-dish food-cost % to one decimal across its six surfaces.
 
 ## Displaced B items — promote when a `QUEUE.md` slot frees
 
-These passed the launch test and lost on priority against the 20-item cap. They are not C.
-
-⚠️ **THIS SECTION HOLDS TWO DIFFERENT KINDS OF THING AND THE PROMOTION RULE ONLY EVER APPLIED TO ONE OF THEM.** (2 Sep 2026, batch 227, resolving AUDIT-v186's S5 finding that seven approved-B entries were still invisible to `/batch` with fourteen free slots.)
-
-- **DEFECTS that lost on priority** — something in shipped behaviour is wrong, and the only reason it is here is the cap. **These promote on a free slot, automatically, and `/batch` step 1 now checks for them every batch** so it stops being a thing someone has to remember. Batch 225's five were all of this kind: an overlap, a heal that starts a second recipe, a contrast shortfall, a phrase with no subject.
-- **FEATURES that were specced and DECLINED** — every `behaviour spec, §11.5` entry, and the three mock rows that did not ship. **These do NOT promote on a free slot, and that is the correction.** A slot is not an approval. `/batch`'s whole authority rests on *"Max said yes when he queued it"*, and he never queued these: a batch classified them while declining to build them, correctly, under the protocol's own *"build what exists, spec the rest, never a dead control"*.
-
-**Why the distinction is load-bearing rather than pedantic:** all **seven** entries left below are the second kind, and bulk-promoting them would have had `/batch` silently start building a command palette, a CSV exporter, a write queue and **invoice photography — which needs OCR or a vision model, and therefore reopens `CLAUDE.md`'s privacy gate**, a standing precondition that is explicitly Max's. That is the "unwanted scope" failure with a rule cited in its favour.
-**What they need is his priority call, not a free slot.** They are a feature backlog and should be put to him as one. Recorded here rather than acted on, because deciding what EzPlate does next is his and reversing that is not a documentation question.
-
-### ~~The converted screens' column bands are `aria-hidden`, so their figures are announced unlabelled~~ — **DONE, batch 225 (`ezplate-v185`)**
-✅ `srLabel` puts each column's name in an `.sr-only` span inside its figure cell, on all four screens at once, so a row announces "cost $3.00, suggested $10.00, price $7.00" instead of three bare numbers. The bands stay `aria-hidden` and are now correct rather than a gap.
-**Of the two candidates this entry named, the per-row `aria-label` LOST and the reason is recorded because it is the more tempting one:** a label built from the row's own figures is a second copy of every number on screen, which is the drift class `CLAUDE.md`'s roster is entirely about. Per-cell labels keep one number and add one static word.
-⚠️ **AND THIS ENTRY WAS WRONG ABOUT ONE OF THE FOUR SCREENS, which is why the batch took a fifth change nobody had written down.** It said all four rows concatenate their cells. **The Ingredients row carried `aria-label="Edit <name>"`, and an aria-label REPLACES the contents in the accessible name** — so its figures were not announced unlabelled, they were not announced at all, and per-cell labels there were dead text until the row label went. Measured in Chromium, not reasoned: `tests/visual/fresh-states.spec.js` now asserts the row's real accessible name, and restoring the old attribute turns it red at both widths. The renderer's own comment had recorded the override years ago and filed it as "gains nothing here and loses nothing".
-**The mobile half is a two-file coupling and is the part that will rot:** three cells already PRINT their column's name on the phone (`::after` " cost, ", `::before` "suggested ", ", in "), so the spoken copy stands down below 768 or the row says it twice — inaudibly, with nothing on screen changing. `tests/row-figure-labels.test.js` derives both sets from source and compares them, so adding a label to a phone-labelled cell fails by name.
+These passed the launch test and lost on priority against the 20-item cap. They are not C, and this section holds TWO kinds of thing (batch 227, AUDIT-v186 S5):
+- **DEFECTS that lost on priority** promote on a free slot, automatically - `/batch` step 1 checks this section every batch, because *"remember to check"* was never a mechanism.
+- **FEATURES that were specced and DECLINED** - every `behaviour spec, §11.5` entry and the mock rows that did not ship - do **NOT** promote on a free slot. A slot is not an approval: Max never queued these, and one (invoice photography) reopens `CLAUDE.md`'s privacy gate.
+**What the second kind needs is his priority call, put to him as a feature backlog.** Every entry below is the second kind.
 
 ### Retry on a failed write needs a write queue first, and that is the feature
+Anchor: `It has NOT been saved` in `js/app.js`
 Found by the v144 batch, which refused to ship the mock's Retry button rather than ship a dead one.
 §5's error banner carries a **Retry**. On a failed WRITE there is nothing to retry: `pushWrite` does not keep the builder after it fails, and `CLAUDE.md` records the absence as a known gap. A button would either need a queue or would reload and lose the edit anyway. The one path where Retry is honest is a failed BOOT, and `#bootGate` already owns that.
 Requirements: this is the WRITE QUEUE item, and Retry is its UI. Trigger: a write that fails while the app is open. Data: the pending builders are **closures**, so the queue must be built from serialisable intent — that is the design problem. State: a queued write must be visible, re-orderable against later edits of the same row, and must not resurrect a delete that succeeded. Error: a retry that fails again must not loop.
@@ -146,12 +111,14 @@ Requirements: this is the WRITE QUEUE item, and Retry is its UI. Trigger: a writ
 Note the standing rule this does NOT change: offline already toasts *"you're offline. It has NOT been saved."* The user is told today; what they cannot do is act on it.
 
 ### "Synced N min ago" — the §3.1 quiet channel needs a last-sync timestamp
+Anchor: absent `Synced ` in `js/app.js`
 Found by the v144 batch, which decided the sync treatment and could not build this half of it.
 §3.1's header carries a quiet **"Synced 4 min ago"** at 12px `--text-3`. The app has no last-sync concept: `setSync('ok')` shows "Saved" for 1400ms and hides, so there is nothing to render a relative time FROM.
 Trigger: a successful boot load, and every successful `pushWrite`. Data: one timestamp, in memory — a derived cache of "when did the server last answer", so not a third localStorage category and not Supabase either. State: a relative time that must re-render as it ages — a ticking element in every screen header, which is the real cost.
 ⚠️ **Placement is the unsolved half, not the timestamp.** The mock puts it in the §2 header bar between the title spacer and the actions. This app's `.scr-head` is PER-SCREEN markup, five copies, and the sync element is deliberately ONE element — so either it becomes five (which the sync item's "never per screen" rule forbids) or a single fixed element is aligned into the header band, which v141 measured as unworkable there. Solve that before writing code.
 
 ### Recent range on the builder's cost card — the queue item's stated data source DOES NOT EXIST
+Anchor: absent `Recent range` in `js/app.js`
 F7 (11 Aug 2026) was asked to build the mock's "Recent range · $6.61 to $7.28" row as a "read-only
 derivation from `priceHistory`". **`priceHistory` is the ALL-MENUS food-cost average series**
 (`{t, v}` points, one per logged change, `js/app.js:1435`) — not a per-plate cost history. There is
@@ -166,125 +133,37 @@ cost as though it were this plate's cost range — a wrong number on a costing s
 one thing this app must never do.
 
 ### Command palette (⌘K) — behaviour spec, §11.5
+Anchor: absent `metaKey` in `js/app.js`
 Trigger: ⌘K and the sidebar button. Data: the live in-memory arrays (plates, menus, ingredients) + static actions (upload invoice, new plate); no new storage. State: selecting navigates to the screen or opens the action's modal; Esc closes; focus returns to the opener. Error: an honest zero-results row.
 **The chord binds only once the palette exists — never a dead chord.** F1b put the 22px theme toggle in the mock's ⌘K slot, so nothing is dead today.
 
 ### Invoice import history — behaviour spec, §11.5 (the Invoices screen's recents; R4)
+Anchor: `last_invoice_import` in `js/app.js`
 Trigger: apply time. Data: date, supplier, item count, change count, status — a Supabase table with migration + RLS like the others, plus a retention decision. **This is DATA, so never localStorage** (Tier 2: there is no third category). State: one row per import; "Failed, retry" rows need a decision on whether pre-store failures are recordable at all. Error: a write failure surfaces via `pushWrite`'s toast, and the import itself must not be blocked by history bookkeeping.
 F8 (v147) shipped the Invoices screen **without** the mock's recent-imports table and stated the absence in one sentence on the screen, so this is what would replace that sentence. The only import fact the app stores today is `cafeDB_lastImport` / `app_settings.last_invoice_import` — one date — and it is printed there.
 
 ### Photographing an invoice — behaviour spec, and the queue item that specified it was wrong about the code
+Anchor: absent `capture=` in `index.html`
 F8 (v147) was told to ship the mock's mobile "Take a photo" with `capture` on the file input "feeding the EXISTING parse path; no new parsing". **The code says otherwise and the code wins:** `handleInvFile` branches on `.pdf`, and everything else goes to `FileReader.readAsText` — a JPG or HEIC arrives as binary noise in the paste box and `parseInvoiceCSV` finds nothing. `api/parse-invoice` receives TEXT the client already extracted, so it does not close the gap either. §R4 forbids shipping a control that does nothing, so the button was not built.
 Requirements, if this is ever wanted: Trigger: a camera button on the upload sheet. Data: an image has no text layer, so this needs OCR or a vision model call — **a genuinely new capability, not a wiring change.** State: the same three steps; the scanning step is where the extra latency lands, and it is much larger than a PDF's. Error: an unreadable photo must say so as specifically as the image-only-PDF path does.
 ⚠️ **A vision call reopens the privacy gate** — `CLAUDE.md`'s standing precondition binds any endpoint shipping user data to a third-party model, and an invoice photo is strictly more than the text the app sends today.
 
 ### CSV export (Settings → Data) — behaviour spec, §11.5
+Anchor: absent `text/csv` in `js/app.js`
 Trigger: the Data-section button. Data: which objects and columns, to decide. State: a download; nothing else changes.
 **CSV is an export for humans and NEVER an import path** — the JSON backup stays the restore format and the backup-format law is untouched.
 
-**Five items were PROMOTED to `docs/QUEUE.md` on 31 Aug 2026 (batch 225)** — the toast/install-banner overlap, `ensurePlateForDish`, the two contrast entries merged into one, and the "Slightly under" subject. The cap that displaced them had freed up and nothing re-checks it, so they had been invisible to `/batch` for weeks. All five were DEFECTS, which is the kind that promotes.
-⚠️ **That entry ended *"check it when the queue shrinks, because nothing else will"*, and nothing did — AUDIT-v186 found the section unchecked again five batches later.** *"Remember to check"* is not a mechanism, and writing it down a second time would not have made it one. **`/batch` step 1 now checks this section as part of the sweep it already does every batch**, which is the only place the check can live and be free. Corrected 2 Sep 2026, batch 227.
-
 ## C — tests and CI
 
-### The pre-push hook still needs a manual one-time install per clone
-(Found 27 Aug 2026 by batch 207's own pre-push review, which caught the review-artifact gate shipping with no CI backstop for exactly this reason.)
-
-`.githooks/pre-push` runs only if someone has typed `git config core.hooksPath .githooks` in that clone, and nothing does it for them. **A fresh clone or a new machine therefore runs no local gate at all and looks exactly like a clone that passed one** — which is the failure both gates in that hook exist to prevent, one level up from the code they check.
-
-**It is C rather than higher because CI holds the properties that matter**: the `unit` job runs the full mutation gate and the review-artifact gate unconditionally, so a missed local hook costs a slower feedback loop rather than an unreviewed merge. That is deliberate design (`CLAUDE.md`: *"the hook is the fast local copy; CI is the one that actually holds"*), not an accident — the entry is here because the local half is still silently absent by default.
-
-Requirements: a `prepare` script in `package.json` running `git config core.hooksPath .githooks` is one line and closes it — npm runs `prepare` after a plain `npm install`.
-⚠️ **Weigh it against the standing no-new-machinery rule before doing it.** A lifecycle script runs on every install, it fails in a tarball checkout with no `.git`, and it must not break `npm ci` in CI. If it is added, guard it (`git rev-parse --git-dir >/dev/null 2>&1 || exit 0`) and confirm CI is still green, since CI installs on every job.
-⚠️ Do NOT "fix" it by removing the CI gates on the grounds that the hook now always runs. The hook is bypassable with `--no-verify` and CI is not.
-
-### ~~`tests/visual/screenshots.spec.js` cannot pass and cannot report it~~ — **EXECUTED, batch 200 (`ezplate-v170`)**
-✅ `test.skip` at file level with the cause in the message, exactly as decided below. A full `npx playwright test tests/visual` now reports **14 skipped, 339 passed** instead of thirteen red at the bottom of a green suite.
-**`tests/ci-workflow.test.js` needed NO change and the requirement below was wrong about that** — its assertion counts FILES in `tests/visual/` and compares them to the workflow comment, and a skipped file is still a file that CI still filters. What did move is the comment's number, from 39/38 to 40/39, because this batch added a spec. Left written out because a reader checking the requirement against the diff would otherwise think it was skipped.
-
-**The decision and its reasoning, kept:**
-⚠️ **THIS ENTRY IS TWO ENTRIES MERGED, 15 Aug 2026 (AUDIT-v166 C3).** Batches 188 and 190 each found this independently, a week apart, and each wrote it up without noticing the other's — 35 lines apart in this file, same spec, same cause, same two remedies. Both measurements are kept below because they were taken on different days by different means and agree exactly, which is worth more than either alone.
-
-**Measured twice.** Batch 188, 14 Aug, on `origin/main` in the maintenance worktree so the batch could not be blamed: **1 passed, 13 failed.** Batch 190, running the full Playwright suite: **13 specs fail**, identically on unmodified `main`, verified by stashing the branch and re-running one. Red since 186 (`ezplate-v162`) — **ten deploy versions.**
-
-**The cause is 186 doing exactly what it was built to do.** This is the one spec that does NOT call `installBoot` — it drives the real app against the café's live production database (its own header says so, and it is the sole reason CI filters it out — `test.yml`'s "N specs, N-1 survive the filter"). 186 made sign-in mandatory and removed the anon fallback from `current_business_id()`, so an unauthenticated load resolves to no tenant and every screen it photographs is the sign-in door. **There is no bug in the app; the spec's premise expired.**
-
-**Why it matters more than a broken screenshot.** CI never runs it, so nothing anywhere goes red. `npm run shots` is the only signal, and it reads as 13 familiar-looking failures at the bottom of a green-looking suite. **A spec that cannot pass and cannot report is worse than a deleted one**: it trains every batch to skim past a block of red, which is the exact state a real regression would arrive in.
-
-✅ **THE DECISION IS TAKEN — `test.skip` with a named reason, NOT deletion.** (Batch 194, under `CLAUDE.md`'s standing authority: how a test is structured is the assistant's call, and AUDIT-v166 T1 correctly said this needed a decision rather than a batch. Recorded here so whoever executes it does not re-litigate it.)
-**Why skip and not delete**, given the file itself says deleting is a real answer: the two are not equivalent in what they leave behind. Deleting removes the only artefact recording that this app was once screenshot against a real signed-in café, and the capability is wanted again the moment there is a test account to do it with — 186 added `auth` to `_boot.js` for precisely that. A skip with the reason in the message keeps the premise visible and costs one line. **Deleting would also be reversible only by someone who knew the spec had ever existed**, and this entry is the evidence that two separate batches did not know about each other's write-up of it.
-Requirements: `test.skip` at the file level with a message naming the cause (*"needs a signed-in session; 186 made sign-in mandatory"*), so a full run says **skipped, and why** instead of failed. **`tests/ci-workflow.test.js`'s spec-count assertion moves in the same change** — it pins the exclusion and will otherwise go red or, worse, keep passing against a number that no longer means what it says.
-⚠️ Do not "fix" it by giving the harness a real password. The repo is public and credentials never go in.
-⚠️ It ships no client asset, so it needs no cache bump — but it changes what runs, so it takes the mandatory `code-review`.
-
-### ~~CI minutes~~ — EXPIRED THE DAY IT WAS WRITTEN, 13 Aug 2026
-Written when GitHub blocked all Actions on a billing cap, proposing two ways to cut minutes. **Max made the repo PUBLIC instead, which makes Actions unlimited and free** (measured: `billable_ms` 0 for an 8-minute run), so neither lever saves money and neither should be built for that reason.
-Measured usage at the time: **330 runs since 1 Aug; 168 in the five days from 9 Aug (94 `pull_request`, 74 `push` to main)** — about 34 a day, against a four-minute-per-run billing floor caused by GitHub rounding each JOB up to a whole minute.
-
-**Three things outlived the cost argument and are kept in full, because they are the expensive parts to re-derive:**
-
-1. **Folding `changes` into `unit` is still a real simplification** (one fewer runner startup, one fewer job in the checks list), it just no longer saves money. If anyone does it, repoint `playwright`'s `needs:` AND `if:` at `unit` — `test.yml` says at its own site that those two are a pair and neither works alone.
-   ⚠️ **`tests/ci-workflow.test.js` EXTRACTS that script by its surrounding double quotes.** Move the script and you must move the extractor in the same change, **or the test throws rather than passing quietly** — which is the failure class this repo keeps finding.
-   ⚠️ Against it: `test.yml`'s header calls the four-job split deliberate — *"FOUR JOBS ON PURPOSE, so the checks list says WHICH kind of thing broke without opening a log"*. That is a real property, not decoration.
-2. **Dropping the duplicate push-to-main Playwright run is a SAFETY trade, not an implementation choice — it needs Max, not a batch.** It gives up the stated reason main is exempt from concurrency cancellation: *"every commit that reaches production gets its own recorded result."* Keeping `unit` and `smoke` on push to main and dropping only `playwright` retains most of it.
-3. **`pull_request` tests `refs/pull/N/merge` — the merge RESULT — but GitHub does NOT re-run it when the BASE moves.** So a PR whose base advanced after its last run was never tested against what actually merges. Rare with sequential single-developer batches; still true, and independent of billing.
-
-### ~~One unit test fails for 60 seconds a day, and it is the clock, not the code~~ ✅ **DONE, batch 270**, riding item 60 — that batch opened `tests/trend-reframe.test.js` to extract `trendFmtDate` and `sinceLineHtml`, which is this file's standing rule working as intended.
-✅ **Fixed at the ANCHOR, not at the site**, which is what covered the whole file as this entry asked: the module's single `const now = Date.now()` — every fixture in the file derives from it — is now **local noon today**. Noon is the furthest a fixed time of day can be from either edge, so an offset of N days from it is N calendar days in every timezone and on both sides of a DST transition. Demonstrated rather than reasoned: with the old anchor, two entries 60 seconds apart at 23:59:53 key to **different local dates**; with noon they key to the same one.
-⚠️ **The entry's warning is kept live because it is about the APP and does not expire: do not "fix" this class by keying the app on UTC.** A café's day is a local day, and batch 270's `fmtDate` counts local calendar days for the same reason.
-Caught live 10 Aug 2026 at **23:59:53 local**, three runs for three failures, then passing a minute later.
-`tests/trend-reframe.test.js:133` ("several entries on one day cluster into ONE marker") builds two log entries at `t` and `t + 60000` where `t = Date.now() - 2 * DAY`, and asserts ONE marker.
-**The app is right and the test is fragile.** `js/app.js` keys markers on the LOCAL calendar day (`getFullYear()+'-'+getMonth()+'-'+getDate()`), which is correct — a café's day is a local day. If the test module loads in the last 60 seconds before local midnight, the two entries fall on different local dates and the assertion fails. A ~0.07% window.
-Requirements: anchor the fixture to a fixed time of day rather than to `Date.now()` — local noon two days ago is enough. **Check the whole file while there**: several other tests build offsets from `Date.now()` and any that straddle a local midnight have the same latent fault.
-⚠️ Do not "fix" it by keying the app on UTC — that is a real behaviour change to serve a test.
-Note this is a worked example of the thing the mutation-testing item is about: the test passed 8 straight batches that day and was not wrong until the clock made it so.
-
 ### The specs register a service worker they never test, and that is what crashes the browser
+Anchor: absent `sw.js` in `tests/visual/_boot.js`
 Proved 10 Aug 2026, not guessed. `js/app.js` registers `sw.js` on window load, so **every** Playwright spec registers a service worker, and the crash is the context teardown racing that registration: **9 crashes in 360 tight cycles against 0 in 360** padded ones, across two Chromium builds (1228: 6 of 210 · 1234: 3 of 150). The bump to 1234 did not help. Retries hide it competently, so this is not urgent — but it is a known mechanism now, and the trigger is a thing the specs do not test.
 Requirements: stop the harness registering a service worker at all. `tests/visual/_boot.js` already installs a fake `window.supabase` and aborts off-origin requests before the app runs, so it is the one place — abort `**/sw.js`, or stub `navigator.serviceWorker` before `app.js` runs. Then re-run the tight probe (the two spec files are in the history of PR #147 and are the acceptance test: **done when 150+ tight cycles crash zero times**).
 ⚠️ **Do not measure this with a green suite** — that is the mistake the previous item's own probes would have made. Use the reproducer.
 ⚠️ It changes what the specs exercise, and that must be a decision rather than a side effect: no spec asserts anything about the service worker today, but the boot path they drive would no longer include registration. If that is wanted somewhere it wants ONE spec that tests it deliberately, not 209 that do it by accident.
 
-### ~~Mutation testing (Stryker)~~ — **SHIPPED as the pre-push gate, batch 180**
-Do not re-add it. It was C for four audits on the argument that the batches catch their own vacuous tests; Max promoted it himself on 13 Aug 2026, rescoped from a report into a gate, and it shipped the same day as `tests/mutation/` + `.githooks/pre-push`. **Not Stryker** — it rewrites source from its own AST, which breaks every anchor `tests/_extractfn.js` slices by, so the whole suite would go red on mutant #1 and report 100% killed. `tests/mutation/mutate.js` has that reasoning at the top.
-
-### ~~Bring `gemApplyReadings` under the mutation gate~~ — **PROMOTED to `docs/QUEUE.md` item 0c2 in batch 201, and SHIPPED in batch 206**
-✅ It is a target at zero unallowed survivors. 45 mutants survived on re-measure (this entry's 44 was 180's figure and drifted by one); 52 killed in the new `tests/inv-referee.test.js`, two allowed with written proofs. **`tests/mutation/targets.js`'s `pending` list is now EMPTY** — the first time since it was created in 180 — and that file's own header says what an empty list does and does not claim.
-**The cause was the one this entry half-named:** its declared file reaches the function through a hand-built sandbox that stubs `rankCandidates` and `packCount`, which is correct for a file about the confirm gate and is why 45 of 56 mutants survived it. The new file uses the shared harness and the real ones.
-It sat here for fifteen batches and completed nothing, which is the argument rather than a complaint: a line inside another item's requirements is exactly what let it be deferred, and 0c's third requirement was that it be SCHEDULED rather than deferred a sixteenth time. It is now an item that can reach the top of the queue on its own. Count re-confirmed at 201: still 44.
-
-**The original entry, kept for the detail the queue item does not repeat:**
-**Measured, not guessed: 44 of its mutants survive `tests/invoice-gate.test.js`** (180's first run). That file pins exactly one property of the referee's merge orchestrator — a row the user has already ruled on is skipped whole — and nothing else. The candidate map, the taught-pack short-circuit, the history lookup and every rule-table branch are unpinned.
-It is listed in `tests/mutation/targets.js` under `pending` with that count, deliberately outside `targets` so the gate does not exit 1 on `main`: **a gate nobody can satisfy gets disabled, which is worse than one target short.**
-Requirements: enough coverage of `gemApplyReadings` that its mutants die against a named test file, then move the line from `pending` into `targets` in the same change. `tests/inv-gemini-merge.test.js` already owns the pure `gemMergeLine` rule table — this is about the orchestration around it, so do not duplicate that.
-⚠️ It is a **fragile area** in `CLAUDE.md` (the invoice review and the referee), so read the existing tests first and pin conditions, not structure.
-Note the honest scope: 44 surviving mutants is the size of the gap, not the number of tests needed — one good case usually kills several.
-
-### ~~More functions on the mutation gate's target list~~ — **SUPERSEDED by `docs/QUEUE.md` item 0c, batch 201; that item is now FINISHED and DELETED, batch 205**
-✅ All 165 of its measured survivors are closed across batches 201-205. `tests/mutation/targets.js` went from 54 targets to 68, and its `pending` list is down to one line — `gemApplyReadings`, which is `docs/QUEUE.md` item 0c2 and has been since 201. **The pointer above is kept rather than deleted because a struck entry whose target no longer exists reads as a lost thread**; this line is what says it was finished rather than dropped.
-Every candidate this entry names was RUN through the gate in 201 and now sits in `tests/mutation/targets.js`'s `pending` list with a measured survivor count, and the queue item carries the same table in cost order. A list of "obvious next candidates" is worth less than a list with numbers on it, and the numbers are what make the remaining work splittable.
-Two corrections to the text below, measured rather than argued: the count was **54 targets, not 17**, and `computeAvgFoodCost` / `bootGate` / `purgeLocalState` were not re-measured — only the pricing surface was, which is what the queue item scopes.
-⚠️ **Its last requirement — "keep the full run in the low tens of seconds" — was ALREADY FALSE when this was written and nobody had timed it.** Measured on unmodified `main` at 201: **306 seconds**, not tens. That matters because the sentence was being used as a reason not to add targets, and the constraint it appeals to had already gone. The real constraints are the per-mutant timeout (added in 201) and the CI job bound (also 201, and the `unit` job had none at all).
-
-**The original entry:**
-`tests/mutation/targets.js` covers 17 functions: the price guards, the invoice referee's decisions, the publish/delete guards, the write sequence and the row boundary. That is the code this project has already been burned on, and it is a starting scope rather than a finished one.
-Obvious next candidates, each load-bearing and each with a test file it would be uneasy to lose: `resolveMatchedPrice` and `applySupplierMemory` (read-only — `CLAUDE.md` forbids editing them, which does not forbid mutating a copy in the sandbox), `gemMergeLine`, `invRowState`'s callers in `renderInvReview`, `computeAvgFoodCost`, `bootGate`, `purgeLocalState`.
-Requirements: add them one or two at a time, triage every survivor in the same change, and keep the full run in the low tens of seconds — the gate's value is that people actually run it.
-
-### ~~The mutation gate's full run is minutes, not seconds, and it grows with every target~~ — **the measurements were poisoned; re-measure before believing any of this (28 Aug 2026)**
-⚠️ **BOTH FIGURES BELOW WERE TAKEN ON A MACHINE FULL OF ORPHANED TEST WORKERS SPINNING AT FULL CPU, AND THE GATE IS NOT SLOW.** `node --test` runs each file in a child process; the gate SIGKILLs a hung mutant, which cannot be caught, so the parent died without tearing its workers down and they were reparented to launchd and kept running forever. `tests/mutation-gate.test.js` runs two deliberately non-terminating mutants and is part of `npm test`, so **every run of the suite leaked four permanently-spinning processes** — a leak introduced by batch 201's fix for the gate HANGING and present through every measurement this entry records.
-**Re-measured 28 Aug 2026 on a clean machine, immediately after the fix: 771 mutants, 71 targets, `96 seconds`.** The same laptop had just recorded **935s** for the same command with ~36 orphans burning its six cores. So the entry's whole premise — a cost that is roughly linear in target count and heading for a CI bound — was measuring contention, not the gate.
-**The transferable part, and the reason this is struck rather than deleted: a performance measurement is a claim about the MACHINE as much as about the code, and nothing in the number says which.** This entry twice warned that its predecessor had never been timed, added a measurement and a date, and was still wrong — because the missing control was not "did you time it" but "was anything else running". Whatever replaces it should say what else was on the box.
-*(The `0c` advice below is unaffected and still worth reading: re-running a target's whole declared file set per mutant really is the cost model. It simply is not urgent, and was never as urgent as this said.)*
-
-Filed 24 Aug 2026 by batch 202, which added ten targets and watched the number move.
-**Measured on this laptop: 306s at 54 targets, 801s at 64.** The first reading was taken during batch 201 against `main` as it stood *before* that batch merged; 201 then promoted four, so `main` was at 58 between the two readings. *(The entry first said "54 targets, on unmodified `main`", which was true when measured and false by the time it was written down — caught by the pre-push review, and a small demonstration of the rot this entry is warning about.)* CI is faster — the `unit` job came back at 3m15s — so this is not urgent, and the job's `timeout-minutes: 20` has headroom either way.
-
-**Why it is worth recording rather than acting on.** `docs/QUEUE.md` item 0c still has 143 survivors across four functions, and closing them means four more targets on a list whose cost is roughly linear. The pre-push hook runs `mutate:changed` and is unaffected; it is CI's unconditional full run that carries this.
-The obvious lever is that the gate re-runs a target's whole declared test-file set for every single mutant, so a target with four declared files pays four times over. Nothing here needs it yet — write it down, watch the number in each 0c batch, and act if a CI job starts approaching its bound.
-⚠️ **Its predecessor entry claimed "low tens of seconds" and had never been timed.** Whatever replaces this one should carry a measurement and the date it was taken, or it will rot the same way.
-
 ### Bring `saveCurrentPlate` under the mutation gate
+Anchor: absent `fn: 'saveCurrentPlate'` in `tests/mutation/targets.js`
 
 **Measured 29 Aug 2026, batch 221 (queue item 8), which added it as a target, read the result and took it back out.**
 `saveCurrentPlate` is **not** a mutation target, and it is *"THE ONE PLACE A PLATE'S RECIPE CHANGES"* by its own comment - a line added, removed, re-portioned or re-pointed, a rename, a recategorisation, all of it arrives there and nowhere else.
@@ -296,17 +175,8 @@ The obvious lever is that the gate re-runs a target's whole declared test-file s
 
 **What 221 DID pin, so this entry is not mistaken for total silence:** `tests/plate-draft-save.test.js` executes the real function and pins the draft-versus-write contract, proved by reverting the fix and watching three of its five tests go red.
 
-### ~~An eval harness for the invoice reader~~  ✅ **BUILT AND IN `npm test`, batch 256 (`ezplate-v211`), consolidated item 17**
-
-✅ **The deterministic half is DONE and it is the half this entry said was missing.** `tests/parser-corpus/run.js` slices the real parser out of `js/app.js` and scores fourteen invoice layouts line by line against hand-written truth; `tests/parser-corpus.test.js` fails the suite on any silent-wrong price or any unflagged non-product row, and was proved to go RED against the shipped parser and green against the fix. The score IS comparable across two commits, which is what this entry asked for: **30 right / 31 silent-wrong before, 63 / 2 after**.
-⚠️ **TWO HALVES OF THIS ENTRY ARE STILL OPEN and they are consolidated item 37, not this file.** (1) The REAL corpus — Max's own invoices — stays outside the repo because the extracted text carries the cafe's details and the repository is public; only the truth files are committed, at `spike/parser-audit/real-truth/`. **So a green corpus test means "no synthetic layout regressed", never "the real invoices are right".** (2) Nothing measures the SECOND READER: the harness runs the deterministic path only, and this entry's requirement of stored model responses replayed offline is untouched. **Read the strike as covering the parser and not the prompt.**
-
-The invoice path is the app's highest-stakes surface and its only AI one, and **there is no way to tell whether a parser or prompt change made it better or worse.** `tests/invoice-gate.test.js` and `tests/inv-gemini-merge.test.js` pin specific decisions on hand-written inputs; neither measures accuracy over a corpus. So every change to `resolveMatchedPrice`, the taught-pack precedence or the Gemini prompt is judged by whether the unit tests still pass and whether one invoice looked right.
-Requirements: a set of real invoices with expected line/price/pack outcomes, and a score comparable across two commits. It must run **offline against stored model responses** — re-calling Gemini per run would make the score non-deterministic and cost money.
-Out of scope: changing the parser or the prompt. This is measurement; acting on what it measures is separate.
-Note: this needs Max's real invoice set, and those invoices are commercial data — decide where the corpus lives before collecting it.
-
 ### Audit the older Playwright specs for MEANING, not for green
+Anchor: `window.addProduct(` in `tests/visual/fresh-states.spec.js`
 Measured 7 Aug 2026: `screenshots.spec.js` carries **2 assertions for the whole file** (a capture harness wearing a spec's clothes), while `fresh-states.spec.js` carries 117 but builds its fixtures by calling `window.addProduct(...)` at **five sites** — a function dead in the app and kept only because these specs are its last handle.
 A spec that sets up through a door no user has cannot fail for a reason a user would hit.
 Requirements: each spec either asserts something a user would notice, or is retired on purpose and said so.
@@ -314,6 +184,7 @@ Note Playwright is not in `npm test`, so nothing here fails loudly. That is the 
 ⚠️ **`addProduct` is a Tier 1 trap kept alive ONLY by `fresh-states.spec.js`, and the trap says deleting it fails SILENTLY.** If this item retires that spec, `addProduct` becomes dead in the same commit and nothing will notice. Close the trap in the same branch, or keep the spec for that reason and write it down.
 
 ### `tests/review-gate.test.js` writes its scratch file INTO `docs/reviews/`, and a concurrent `git add -A` commits it
+Anchor: `REVIEW-000-uncommitted-probe` in `tests/review-gate.test.js`
 Hit in batch 273, which committed `docs/reviews/REVIEW-000-uncommitted-probe.md` by running `git add -A` while `npm test` was still going.
 **The consequence is not a lost file, it is a self-test that goes red PERMANENTLY and correctly:** the probe exists to prove `gather()` reads the committed tree rather than the working directory, so once the probe is IN the committed tree, `gather()` seeing it is the right answer and the assertion is right to fail. The test cannot distinguish "the gate is broken" from "somebody committed my scratch file", and its failure message says the first.
 Requirements: write the probe somewhere a repo operation cannot sweep up. The obstacle is real rather than incidental - `gather()` runs `git ls-tree HEAD docs/reviews/` against the repo root, so the file has to be inside this repo to be a valid negative case. The honest options are a scratch clone, or a probe name added to `.gitignore` so `git add -A` cannot see it (which is one line and keeps the test where it is).
@@ -321,6 +192,7 @@ Requirements: write the probe somewhere a repo operation cannot sweep up. The ob
 **And the operational half, which cost the time:** do not run `git add -A` while a suite is running. The mutation gate's own rule says not to EDIT app files during a run because it confounds the results; this is the same rule pointed at the index instead.
 
 ### `v190-sticky-header.spec.js` is red on macOS and green in CI, so local Playwright red is being trained into noise
+Anchor: `page-side rule sits at` in `tests/visual/v190-sticky-header.spec.js`
 Found by batch 273, which ran the full suite before pushing and had to spend a cycle proving the two failures were not its own.
 **Measured, three runs on the same unchanged branch plus one on stashed `main`:** R21 (`:49`) fails **every time** on macOS with *"page-side rule sits at --header-h: Expected 80, Received 88"* — an 8px disagreement — while R22 (`:83`) and R22-mobile (`:130`) come and go, giving 1, 2 and 3 failures across four runs of the same code. **CI's `browser specs (Playwright)` job was green on `main` for batch 272**, so none of this is a defect in the app and none of it is a defect on `main`.
 **The class is `.claude/rules/tests.md`'s viewport-geometry rule and roster entry 270 in one:** an assertion whose reference is the ENVIRONMENT rather than the app, plus a control satisfied by the platform. The known instance is overlay scrollbars — the Linux runner measures 370 inside a 380 viewport and 759 inside 768 while macOS makes the three agree — and 80-vs-88 on a header hairline is the same shape at a different measurement, not necessarily the same cause.
@@ -328,6 +200,7 @@ Requirements: find what the 8px is (probe the fixed containing block per the rul
 ⚠️ **The cost is not the eight pixels, it is that `npx playwright test` is the thing `CLAUDE.md` tells every batch to run before pushing when a control's existence changes.** A file that is reliably red locally and green in CI teaches the next batch to skim past red — which is the same harm as a green test that cannot fail, arriving from the other direction.
 
 ### `_boot.js`'s empty-table list is a list of things NO browser spec can see
+Anchor: `emptyOk` in `tests/visual/_boot.js`
 Found twice in three batches, and the second time it blocked verifying a change that had just been made.
 `tests/visual/_boot.js` serves a handful of Supabase tables from localStorage and answers `{data:[]}` for everything in `emptyOk`. Two of those turned out to be the ONLY feeder for a visible feature:
 - **`ing_price_history`** (fixed in F6/`v143`) feeds the What-moved panel and the "Biggest movers" row.
@@ -337,11 +210,13 @@ Note the cost is asymmetric, which is the argument for one pass: serving a table
 ⚠️ **A FOURTH INSTANCE, FIXED IN PASSING BY BATCH 239, AND IT WAS NOT IN `emptyOk` AT ALL** — which widens this entry rather than shrinking it. `kitchen_ingredients` is an `app_settings` ROW, so it fell outside the list this entry is about, and `settingRows()` served only `food_cost_target`: every kitchen ingredient, every kid plate line and the whole Ingredients screen were therefore unreachable in a browser. `v136-theme.spec.js` states that limit in its own header and attributes it to the table being answered with an error, which was the wrong diagnosis of a real gap. `_boot.js` now serves it from `cafeDB_king`. **So the list to read is not `emptyOk`, it is "everything the app reads at boot that this shim does not serve"**, and the settings rows are a second such list.
 
 ### `layout-consistency.spec.js` never measures the list BODY
+Anchor: `panelLeft` in `tests/visual/layout-consistency.spec.js`
 Its comment claims it asserts "the shared left edge", but it stops at the actions row (`panelLeft`/`titleTextLeft`/`btnLeft`), so the v123 Plates surface sitting 4px proud at ≥1024 would have shipped silently; the review caught it, not the spec.
 Extend it to measure each tab's list-body left edge at both sizes. Found by the v123 pre-push review, 9 Aug 2026.
 (Also pre-existing and shared: at 561-1023px both Products and Plates sit 4px inside the h2 edge — decide once whether that is the design.)
 
 ### `updateLastImport` writes to three ids and only two exist, and the test pins the LIST rather than the elements
+Anchor: `'lastImport','lastImport2','lastImport3'` in `js/app.js`
 **[C — nothing is broken today; the loop guards with `if(el)` and both live elements render.]**
 Found by batch 270 while driving the Invoices date in a real browser, not by reading. `updateLastImport` loops `['lastImport','lastImport2','lastImport3']`; `index.html` has **`lastImport2` and `lastImport3` only** — the bare `lastImport` has not existed since **v140** (`d833742`, F4, the Products rebuild), so a dead id has been carried for over seventy deploy versions.
 ⚠️ **The interesting half is the test, and it is a roster-shaped defect rather than a stray string.** `tests/inv-upload.test.js` asserts `/'lastImport','lastImport2','lastImport3'/` against the SOURCE — so it pins the literal list and can never notice that one of the three names nothing. It would stay green if all three were dead. **A test that asserts a list of ids is asserting a list of ids**; the assertion worth having is that each id in the loop resolves to an element in `index.html`, which is a derivation both ends share rather than a copy of one end.
@@ -349,55 +224,22 @@ Requirements: drop the dead id from the loop, and rewrite that assertion to deri
 ⚠️ Check `#lastImport3` before touching the loop: it is the Invoices screen's line and `css.md` records that batch 268 moved that fact between a body element and a header slot. The sinks are what this is about.
 
 ### Four test files still read `js/app.js` by hand instead of `loadApp()`
+Anchor: `readFileSync(path.join(__dirname, '..', 'js', 'app.js')` in `tests/builder-nomatch.test.js`
 Residue of the 48-file `extractFn` migration (10 Aug 2026), which scoped itself to the files that hand-rolled the EXTRACTOR. These four extract nothing, so they were never in the 48: `builder-nomatch.test.js`, `scroll-lock.test.js`, `terminology.test.js`, `smoke.js`.
 Each is one line — `fs.readFileSync(path.join(__dirname,'..','js','app.js'),'utf8')` → `loadApp()` from `./_extractfn` — and `smoke.js` may want leaving alone, since it is not in `npm test` and runs standalone.
 Note `tests/extractfn.test.js` reads the file by hand ON PURPOSE — that is how it proves `loadApp` returns the real thing — so it is not a fifth.
 
 ### All three CI jobs carry a Node 20 deprecation warning
+Anchor: `actions/checkout@v4` in `.github/workflows/test.yml`
 Seen 10 Aug 2026 on run `31387797521`, as a `warning` annotation on every job: *"Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/cache@v4, actions/checkout@v4, actions/setup-node@v4."*
 Nothing is broken — GitHub runs them on 24 regardless — so this is a bump of three `uses:` pins, not a fix. **Worth doing for a reason specific to this repo:** a permanent warning annotation on every green run is noise on the exact channel the segfault detector now writes to, and this project's whole safety net is someone actually reading a warning on a green check.
 Requirements: bump the three actions to whatever major currently targets Node 24, in one commit, and confirm the annotation is gone on the next run.
 Out of scope: the `node-version: '22'` the jobs request, which is a different thing and is not deprecated.
 
-### ~~Re-pin `claude-code-action` to a release tag~~ — **MOOT, batch 207: the workflow is DELETED**
-The only thing that pinned that action was `.github/workflows/code-review.yml`, which QUEUE item 0d deleted (Max, 22 Aug 2026, reversing his own 8 Aug demote-not-delete). There is no third-party action anywhere in this repo now, so there is nothing to re-pin and nothing to watch upstream for.
-**The entry is struck rather than deleted** because the reasoning below is the record of why an unreleased commit pin was the right call at the time, and because it is the thing to re-read if a PR-based reviewer is ever proposed again — which `CLAUDE.md` says it should not be.
-
-**The original entry:**
-`.github/workflows/code-review.yml` pins `anthropics/claude-code-action` to commit `751e0038` — **main's head on 8 Aug 2026, not a release.**
-Forced, not a preference: at v1.0.187 `validateTrackProgressEvent` THROWS on the `labeled` action, so the label trigger could not work at all with `track_progress: true`. Dropping `track_progress` was the alternative and it is worse — that is the "runs, finds things, publishes nothing" failure this repo has already paid for twice.
-A commit pin is immutable, so this is safe rather than floating — but it is **unreleased third-party code**, and an unreleased pin nobody revisits is how a temporary decision becomes permanent.
-Requirements: once a release ≥ v1.0.188 contains upstream `d573b167`, pin back to `@v1` — one line. The check is in a comment above the pin:
-`gh api repos/anthropics/claude-code-action/contents/src/modes/detector.ts?ref=v1 -H 'Accept: application/vnd.github.raw' | grep -A6 'const validActions'` — if `labeled` appears, re-pin.
-Blocked on upstream, not Max. Check it when a batch next touches the workflow.
-
----
-
-## ~~C — `docs/PHONE.md` needs a groom, and Max asked for it (15 Aug 2026)~~  ✅ **DONE, batch 257 (10 Sep 2026) — see the section at the end of this file**
-
-✅ **1051 lines and 50 sections to 144 and 5 checks.** He asked again, directly: *"the phone list i have never used bc im lazy… fix that, id maybe ahve the energy to do like 5 checks or something."* This entry's instinct — *"can claude in chrome do the phone check"* — is now the file's own entry test.
-⚠️ **STRUCK HERE RATHER THAN ONLY MARKED DONE AT THE BOTTOM, which is the point.** The batch wrote its account into a new section at the end of this file and left this entry standing, exactly as `CLAUDE.md`'s *"A DONE-MARK IS NOT A STRIKE"* rule describes — the end a rider batch actually reads is the ENTRY. Caught by the pre-push review. Consolidated item 82 was the same omission in the other file.
-
-*(Historical body below; the measured evidence in it is what the groom was judged against.)*
-
-His words: *"i wonder if we can have claude in chrome do the phone check. id imagine the phone check needs auditing first though as some stuff probably old now."* **The instinct is right and here is the measured evidence, so the next batch to take this does not have to re-derive it.**
-
-- **868 lines, 42 sections, spanning v82 → v215.** Nothing has ever been deleted from it, only appended. *(Recorded as "756 lines, 173 bullets" until 28 Aug 2026; a second copy of this same entry said "756 lines, 38 sections" — the count drifted 15% while sitting in two places, which is AUDIT-v176's C4.)*
-- **Exactly two bullets are marked settled, one of them superseded**, over a carried backlog of 61 unsigned-off items from "Batch 0" that will not be worked — while `skills/batch/SKILL.md` says *"Max works through it in one session."*
-- ⚠️ **NO handover records a `PHONE.md` check catching anything.** Max does catch defects — v51, v69, 124, v113, 155, 170 — and **every one came from him using the app and saying so in chat, never from working the list.** The cost that is not obvious: a standing impression that device risk is managed.
-- **The two cheap changes, from the merged copy.** A **"Costs money if wrong" section pinned at the top**, holding only entries where a wrong answer moves a price (193's `LAST PRICE PAID` per-pack-or-per-carton question is the live example, and until 15 Aug it sat *behind* a "Settled" heading telling the reader to stop). Then **cap the rest at the last three batches and delete what is older** — the handovers are write-once and hold it all.
-- **The same question is asked in FIVE places.** "Two buttons in a header, does it wrap on your phone" appears at lines 46, 199, 216, 225 and 250 (Ingredients, Products, Menu, Plates, More) — and the file itself says *"it is queued as one fix for both"* and *"answer it once for both screens"*. Max is being asked one question five times.
-- **Whole blocks are explicitly reversed but still sit there in full.** `v132-v135` says dark mode is gone; `v136` above it says the opposite and tells the reader to treat the block below as history. Both are printed at full length.
-- **It has already produced one real navigation failure**, found by AUDIT-v166 (D1): a `Settled — no phone needed` heading sat above SEVEN live sections, so a reader going top-down stopped seven sections early — including 193's carton-vs-pack question, which that file says *"makes every cost in the app wrong by the carton size."* The heading was moved; the underlying ordering (newest-first, then `Carried`, then chronological append) was not.
-- **Playwright has meanwhile grown to 38 specs, 37 of them asserting at 380px.** A good deal of the older layout material is now mechanically covered and nobody went back to strike it.
-
-**What this is NOT.** A sample read shows the authors were disciplined: most entries really are device judgements, and several name the reason precisely (*"iOS Safari is the one engine this was not driven in"*, *"an emulator will not show it honestly"*). **So the win is de-duplication and supersession, not reclassification.** Do not go in expecting to find the list is mostly bogus; expect to find it is mostly repeated.
-
-Requirements: sort every bullet into (a) dead or superseded → delete with the reason, (b) already settled by a Playwright spec → strike and name the spec, (c) a desktop browser can settle it → do it and record the answer, (d) genuinely needs an iPhone → keep. Merge the five header-wrap bullets into one. Fix the ordering so it reads in one direction. **Judge (c) strictly** — a 380px Chromium window is not an iPhone, and `CLAUDE.md` already says so.
-
 ## C — code hygiene and latent defects
 
 ### `applyInvoice` is not a mutation target, and the request for it exists only in a struck item
+Anchor: `function applyInvoice` in `js/app.js`
 (Routed here 10 Sep 2026 by AUDIT-v207 §2a.8, which found it homeless.)
 
 Consolidated item 22 asked for the invoice writers to be added to `tests/mutation/targets.js`. Batch 248 declined — correctly, on the `gemApplyReadings` precedent that a target added without doing the work first produces a list of allowances reading as coverage — and routed it to *"`docs/MAINTENANCE.md`'s 'more functions on the gate' entry"*. **That entry names `saveCurrentPlate` and a magnitude check and does not mention it**, and `tests/mutation/targets.js`'s `pending` list is empty. So the request survived only in a struck item and a write-once handover, which is where things go to be forgotten.
@@ -406,6 +248,7 @@ Consolidated item 22 asked for the invoice writers to be added to `tests/mutatio
 ⚠️ **Do it with item 90's invoice work, not before.** 90 changes what that function does at the end (a completion message gated on a saved manifest), so measuring survivors now would measure a function about to move.
 
 ### Six products no INGREDIENT uses, and thirteen plate lines that still cost off them
+Anchor: `Link older plate lines` in `index.html`
 (Routed here 10 Sep 2026 by AUDIT-v207 §5, which found it in a handover Probe and nowhere else. **Rewritten the same day after the pre-push review caught the first version stating the opposite of the truth** — see the warning below, which is the more useful half of this entry.)
 
 **Measured on production 10 Sep 2026:** all six products are in the catalogue, **no kitchen ingredient points at any of them**, and **thirteen plate lines across nine real plates still cost off them directly**:
@@ -428,6 +271,7 @@ Consolidated item 22 asked for the invoice writers to be added to `tests/mutatio
 **That is a measurement quoted one step too far — the same shape this batch corrected in the ZZ-AUDIT bullet, committed in the same diff, by the same author, in the batch whose entire subject was re-measuring stale claims.** Caught by the pre-push review, which queried production rather than reading the handover. **The rule it argues for is not new and is why this entry now leads with a table: if you are writing a fact about production into a file, measure it — especially when you are copying it from somewhere that measured something adjacent.**
 
 ### A refused optimistic edit is left in memory, so the next successful edit's history point includes it
+Anchor: `function logHistory` in `js/app.js`
 (Raised 9 Sep 2026 by batch 247's pre-push review, which stated it at medium confidence and was right to.)
 
 247 made `logHistory` wait for the write that justifies its point. **The gate proves that write landed; it does not prove the STATE the point is computed from landed**, because `computeAvgFoodCost` reads live memory and this app does not roll back an optimistic edit outside the plate and menu delete paths.
@@ -439,6 +283,8 @@ Consolidated item 22 asked for the invoice writers to be added to `tests/mutatio
 ⚠️ **Related and NOT the same:** `docs/QUEUE.md` item 90 is about announcing success before a write settles. This is about the state a correctly-gated success is computed from. A batch that takes 90 should read this entry and decide whether the rollback belongs with it.
 
 ### The `type="number"` inputs nothing has asked a question of
+Anchor: `invPrice` in `js/app.js`
+Anchor: `invPackQty` in `js/app.js`
 (Raised 9 Sep 2026 by batch 245, which fixed the one that was measured and counted the surface rather than guessing at it.)
 
 QUEUE item 19 was a misc-cost field carrying `min="0"` while `setMiscCost` had no sign guard, so a typed `-2` reached the plate and saved. **The attribute is not a guard for any field this app reads on `oninput`/`change` rather than through native form submission**, and the browser agrees: `validity.rangeUnderflow` was TRUE on that keystroke and nothing asked.
@@ -449,6 +295,7 @@ QUEUE item 19 was a misc-cost field carrying `min="0"` while `setMiscCost` had n
 ⚠️ **And the invoice ones sit next to the protected parser region and next to consolidated items 17 and 26** (negative and $0.00 invoice lines), which are deciding what a negative line MEANS. Whatever they decide is the answer for those fields; do not settle it here first.
 
 ### The Chromium segfault has an EIGHTH occurrence — batch 278, `238-confirm-link.spec.js:79`
+Anchor: `238-confirm-link` in `tests/visual`
 (16 Sep 2026. Recorded because the entry below asks for it, and it is the second on Playwright 1.62.1.)
 
 PR #307's `browser specs (Playwright)` job went red, and **not on an assertion**: it failed its own *"Did any spec pass only on a retry?"* gate, and the crash detector named `238-confirm-link.spec.js:79`.
@@ -461,6 +308,7 @@ The job's own annotation is the diagnosis — *"a segfault cannot be caused by t
 The spec that ran immediately before was not captured this time; the next batch to hit one should take it from the report artifact, which the job uploads.
 
 ### The Chromium segfault has a SEVENTH occurrence, and HANDOVER-163's fingerprint method needs one correction
+Anchor: `v141-sync-corner` in `tests/visual`
 (Recorded 15 Sep 2026, batch 272, from PR #301's `browser specs (Playwright)` failure. The job's own crash detector named it; the arithmetic below was done afterwards rather than taken on trust.)
 
 `v141-sync-corner.spec.js:252` died again in CI, and the job failed on its "passed only on a retry" rule, which is the intended behaviour rather than noise.
@@ -477,31 +325,8 @@ The spec that ran immediately before was not captured this time; the next batch 
 
 **Not queued, and the reason is the cost rather than the count.** `--retries=1` already absorbs it, the required checks (`unit tests`, `smoke`, `what changed`) are unaffected, and no client code is involved. What it costs is one CI job per occurrence and a batch's attention. **If it becomes frequent enough to matter, the variable is the Playwright version in `package.json` (`^1.62.1`, a caret) and the lockfile that holds it still** - ~~`tests/third-party-pins.test.js` is the authority on which one is safe~~ **(corrected by AUDIT-v227: that file covers only the two production scripts and has zero Playwright hits)** - note that this occurrence is the first on 1.62.1, so the bump from 1.61.1 did NOT fix it.
 
-### ~~The bottom stack's OTHER pair: a toast covers the builder's Save button, with no install banner involved~~ — **DONE, batch 275 (`ezplate-v224`), as queue item 50**
-✅ `.bld-bar` publishes `--bld-bar-clear` from `publishBldBarClear` and the toast takes the max, which is exactly the remedy this entry names below. **It was RIGHT about the mechanism and short about the scope, which is this file's usual direction:** it measured 380 and called it "the builder's Save button", and the overlap is at **every width the bar is shown at** — 768, 900 and 1024 too, where the toast reaches the bar's top 8px and clips the "Plate cost" label instead of the button. Same defect, quieter symptom, and a fix written to the 380 measurement alone would have been judged complete.
-⚠️ **AND A THIRD PUBLISHER CAME OUT OF THE SAME PASS, which nothing had recorded anywhere:** an open bottom SHEET's footer. Nineteen of the twenty are already clear (a `.mfoot` is 76px against the toast's 92px dock), and `#delChoiceModal`'s **stacks to 127px** — so the toast landed on the buttons of the delete-choice dialog. It is `publishSheetFootClear`, on the same max().
-*(The original entry is kept below rather than deleted, because its C-vs-B reasoning is the part worth re-reading: it was C on two measured grounds, both of which still held when it shipped.)*
-
-(Measured 2 Sep 2026 by batch 226, which fixed the toast-vs-install-banner pair and measured this one on the way past.)
-
-At 380x800, builder open on a costed plate, no install banner on screen: `.bld-bar` is x0-380 y636-736 and a real-length toast — *"Couldn't save product — no database connection"* — is x95-285 y617-708, **and it covers `.bfs-save`** (measured `saveCovered:true`; an 80px "Saved" pill at x150-230 does not, so a short message hides this).
-The toast docks at `bottom:92px` and the bar at `bottom:calc(var(--bottomnav-h, 64px) + …)`, so the bar's ~100px height reaches 164 and the toast starts inside it. Neither knows about the other.
-
-**It is C rather than B on two measured grounds and it is worth stating which, because both could change.** The toast is `pointer-events:none`, so SAVE is still clickable while it is hidden — the same property that made 177's install-banner collision *cosmetic* until 177 put SAVE in the bar. And the toast auto-dismisses, so this is seconds rather than the install banner's permanent panel.
-**It becomes B if either changes** — a toast that takes pointer events, or any persistent element docked at the toast's height.
-
-**The fix is the mechanism 226 already built, pointed at a second element.** `--install-banner-clear` is published by the banner because the banner is the only thing that knows its own height; `.bld-bar` would publish `--bld-bar-clear` the same way, from `renderBuilderCost`, and the toast would take the max. What must NOT happen is a third hardcoded constant: 226's whole finding was that `114px` was two agreeing copies of a number that was wrong at every phone width.
-
-### ~~`--bottomnav-h` is read with a fallback and published by NOTHING~~ — **DONE, batch 230**
-✅ `js/app.js` publishes it from `.bottomnav`'s own measured height, and the fallback is now a fallback. The entry below was still standing as OUTSTANDING on 16 Sep 2026, fourteen deploy versions after it was fixed — struck by batch 275, which opened this file for the entry above it and read this one on the way past. **`CLAUDE.md`'s rule applies to this file too: a done-mark somewhere else is not a strike, and the entry is what the next reader acts on.** Batch 230's own handover recorded the fix; nothing came back here.
-
-(Same batch, found while looking for precedent for the variable above.)
-
-`css/style.css` at the `.bld-bar` rule reads `var(--bottomnav-h, 64px)`, and the comment at the `@media (min-width:640px)` override two rules below says the offset is *"measured against .bottomnav rather than assumed - `--bottomnav-h` is not a token this sheet defines."* **Nothing defines it anywhere** — `grep -n "bottomnav-h" js/app.js` returns nothing — so the 64px fallback has always been the live value, and the comment describes a measurement that does not happen.
-
-This is the failure mode `tests/visual/226-bottom-stack.spec.js` asserts against for `--install-banner-clear`: a variable with a plausible fallback fails SILENTLY, because the fallback is a working number. Either publish it from the code that renders `.bottomnav`, or delete the variable and write the 64 with the reason — but not both halves of a mechanism where only one exists.
-
 ### Nothing records that a user accepted the privacy notice
+Anchor: absent `privacy_accepted` in `js/app.js`
 (Found 27 Aug 2026 by batch 208's pre-push review, which read the notice's own promise and went looking for the mechanism behind it.)
 
 The sign-up tick gates the form and is never written anywhere. There is no `app_settings` key, no column and no version string, so **nothing knows who accepted which version of the notice** — and the notice's first draft promised *"you will be asked to read it again"* when it changes, which nothing could have honoured. That sentence now says only what is true; this entry is the other half.
@@ -515,6 +340,8 @@ Requirements: a `privacy_accepted` setting written through `dbSetSetting` carryi
 ⚠️ Do not record it at sign-up time. The account does not exist yet, there is no session, and there is nothing to attach it to.
 
 ### A $0.00 invoice line means two different things to two functions on the same import
+Anchor: `unitPrice<0` in `js/app.js`
+Anchor: `function invDerivePackQty` in `js/app.js`
 (Found 26 Aug 2026 by batch 203, writing coverage for `applySupplierMemory`. **Neither behaviour is wrong on its own; they disagree, and nothing anywhere says which is intended.**)
 
 An invoice line whose price column reads `0.00` — a sample, a freebie, a credit — reaches two functions in the same import, and they take opposite views:
@@ -529,6 +356,7 @@ Requirements: decide what a $0.00 line means, once, and make both functions say 
 ⚠️ **Do not change one of them alone.** Two functions agreeing on the wrong answer is recoverable; two functions disagreeing about the same line is what this entry is.
 
 ### "Try again" after a PDF-reader load failure cannot work, for TWO independent reasons
+Anchor: `__pdfjsPromise` in `js/app.js`
 (Found 15 Aug 2026 by batch 195 while rewriting `ensurePdfjs()` for the 4.10.38 upgrade. **Pre-existing, not introduced — but 195 added the second reason, so it is written down rather than half-fixed.**)
 
 A pdf.js load failure toasts *"Could not load the PDF reader — check your connection and try again"* and returns the user to step 1 of the import, which invites exactly the retry the wording names. Re-picking the file re-enters `handleInvFile` → `extractPdfText` → `ensurePdfjs()`, and **nothing is re-attempted**:
@@ -540,6 +368,7 @@ Only a page reload actually retries. **Reason 2 is why this is filed rather than
 Requirements: either make the retry real — a fresh URL on retry (a cache-busting param) so the module map has no entry, with the SRI hash re-checked against it since the bytes are identical — or change the wording so it does not promise something only a reload delivers. **Decide which; do not clear the memo alone.**
 
 ### The staging seeds' assertions assume exactly one tenant
+Anchor: `select jsonb_array_length(value) into m from public.app_settings where key = 'kitchen_ingredients'` in `supabase/staging`
 (Found 13 Aug 2026 while widening the two semantic keys in 183. **Not wrong today, and that is why it is C.**)
 `03-seed-realistic.sql` and `04-seed-scale.sql` verify themselves with statements like
 `select jsonb_array_length(value) into m from public.app_settings where key = 'kitchen_ingredients'`.
@@ -548,39 +377,34 @@ It cannot bite yet, because each seed's first act is to `delete … where true` 
 Requirements: the self-checks filter on `business_id`, or say at their own site that they are only valid immediately after the wipe. Same for the summary `select` at the bottom of each seed.
 
 ### The Invoices screen still has the boot-race priming gap that F9 fixed for Settings
+Anchor: `else renderPlatesTab(); }catch(e){ console.error('[rerender]'` in `js/app.js`
 Filed 11 Aug 2026 by the F9 batch. **Half of it was fixed by F10 (v149) and this is the surviving half** — the original entry also described `currentTab()`'s fallback list, which is now the shared `TAB_PANES` constant and no longer has a hole.
 What remains: `rerenderCurrentTab`'s `if/else` chain names `analysis`, `ingredients`, `dashboard`, `pantry` and `settings`, returns early for `account`, and falls through to `renderPlatesTab()` for everything else — so **`invoices` gets `renderPlatesTab()`**. `restoreLastTab()` runs before `bootstrapSync()` resolves, so a refresh landing on Invoices renders `#lastImport3` against pre-boot state and never corrects it, while a hidden Plates library is repainted instead.
 Latent rather than live only because Invoices has no route below 1024; **the mobile More-screen item gives it one and makes this reachable.**
 Requirements: one decision for the whole chain rather than a fourth special case. A screen-to-renderer map that `showTab` and `rerenderCurrentTab` both read would end the class, exactly as `TAB_PANES` ended the four-pane-lists class. Note the fallback being `renderPlatesTab()` means a wrong screen is repainted silently, with no error, which is why nothing has ever noticed.
 
 ### The mock's Business and Notifications sections are R4 with no spec written
+Anchor: absent `Intl.NumberFormat` in `js/app.js`
 F9 (v148) declined to draw either, per §R4 — no business name or currency is stored anywhere, and there is no notification system, no email and no scheduler behind "price rise alerts" or "weekly summary". Both are recorded here so the absence is a decision rather than a gap somebody re-discovers against the mock.
 Business name and currency are cheap and near-useless with one café; **currency is the one with teeth**, because every money display in the app hard-codes `$` and a second café outside Australia makes that wrong everywhere at once, not just in Settings. Treat it as a costing question, not a Settings row.
 Notifications are a server-side feature (a scheduler, an email sender, a subscriber list) and reopen the privacy gate the moment they carry plate or supplier names off-device. **Do not build them as a UI shell.**
 Related: the CSV-export behaviour spec above, which came from the same section of the same mock.
 
 ### `isBuilderDirty` compares against the raw saved lines, not what was loaded
+Anchor: `function isBuilderDirty` in `js/app.js`
 Found by the v118 pre-push review and **considered, not fixed** — an asymmetry rather than a reproducible bug.
 `loadPlateState` silently DROPS a `pid` line whose product is gone (a `kid` line degrades to "product missing"), but `isBuilderDirty` compares `currentLinesSig()` — built from the filtered `plate` — against `sp.lines` mapped straight through `lineSig`. So a plate carrying such an orphan reads as dirty the instant it loads, re-arming the very "Unfinished plate" prompt v118 removed, for that plate only.
 Believed unreachable today because `productRefs(pid)` refuses to delete a product any plate line still references — **that guard is the only thing holding it shut**, so this becomes live the moment a delete path stops checking, or a restore lands a line whose product did not come with it.
 Requirements: decide whether `loadPlateState` should degrade a `pid` line the way it degrades a `kid` line, or whether `isBuilderDirty` should compare like against like.
 
 ### Menu / empty-state centring — four fixes, no root cause on record
+Anchor: none - a request to read four old CSS fixes together; the four fixes are history, and `tests/empty-states.test.js` is the nearest live surface
 Found by the v115 audit as **the strongest remaining candidate for an unfound root cause in this repo.** Fixed in `HANDOVER-v44`, `v49`, `v54` and `v70`, each as its own CSS correction. No handover names a shared cause and no Tier 1 entry was ever written — the signature of a symptom treated four times. `tests/empty-states.test.js` postdates all four, so it pins the current state rather than the thing that kept breaking.
 Requirements: read the four fixes together, name the shared cause or state positively that there isn't one, and if there is, write the trap.
 
-### ~~`doDeleteMenu`'s unawaited dish deletes~~ - **DONE, batch 254. Struck by AUDIT-v227.**
-✅ `doDeleteMenu` calls `dbDeleteMenuAfterDishes`, which AWAITS the dish deletes before touching the menus row; `tests/delete-sequencing.test.js` pins the sequencing and `tests/change-log.test.js` asserts the call.
-⚠️ **It had read as OUTSTANDING for about 24 batches after being fixed** - the second instance of the class batch 275 found (an entry still reading as open fourteen deploy versions after its fix), and the third is `edDelArmed` below. **Three instances is the file, not the batches**: nothing here re-checks an entry against the code, which is what recommendation 10 of AUDIT-v227 is about.
-*(The original entry is kept below because its FK reasoning is still the right reading of that pair.)*
-
-Flagged in v114. Same class as the v112 sequencing fixes.
-Note `menu_items.menu_id → menus.id` is ON DELETE SET NULL, so unlike the plate case there is no FK to violate — this is about the change-log entry chaining off the write that actually decides the menu is gone, not about a 23503.
-
-### `priceHistory` wholesale-replace at boot
-Pre-existing asymmetry flagged at the site. An empty or filtered server response replaces local wholesale. `menuHistory` merges; `priceHistory` is the last of the series with the gap — a point logged offline is lost at next sync.
-
 ### Nothing makes "a modal opened over another must be LATER in the markup" a rule
+Anchor: `function topOverlay` in `js/app.js`
+Anchor: absent `is-stacked` in `css/style.css`
 Found by the v137 pre-push review; its stated mechanism was wrong while the thing it pointed at is real — the case `CLAUDE.md` warns never to dismiss.
 Fifteen of the eighteen `.modal-overlay` elements share `z-index:80`; only `#confirmModal` is `85`. For equal z-index the browser paints the LATER sibling on top, so a flow that opens an earlier-in-markup modal over a later one gets the new modal rendered **behind** the old — a rendering bug that would look like "the button did nothing".
 `topOverlay()` is NOT the defect and must not be "fixed": it computes paint order by the browser's own two rules, so whatever it returns genuinely is on top. It simply cannot rescue a modal painted in the wrong place.
@@ -589,6 +413,7 @@ Requirements: make the ordering a rule that can fail — either a test asserting
 Out of scope: reordering `index.html` for its own sake, and any change to `topOverlay`.
 
 ### The trend chart does not re-measure on resize
+Anchor: `function trendPlotSize` in `js/app.js`
 Found and created by F6 (10 Aug 2026) — the residue of that batch's own fix.
 Everything inside the trend SVG is in viewBox units (`font-size:11px` on an SVG `<text>` is 11 USER UNITS, not 11 device px), so the plot's type and stroke scale with its rendered width. F6 fixed the cause by sizing the viewBox to the column at render time (`trendPlotSize`, reading `#dashBody.clientWidth`), taking the desktop chart from a 2.7× enlargement to 1:1.
 **But `renderDashboard` does not run on resize.** Drag a desktop window from 1360 to 900 and the viewBox stays at the old width: the SVG rescales smoothly, so nothing breaks, but the type is off by the ratio of the two widths until the next re-render — which any scope or range change performs.
@@ -597,107 +422,59 @@ Out of scope: `trendPlotSize`'s ratios and clamps, pinned in `tests/trend-refram
 Note the intermittent-user rule cuts BOTH ways: Max on a phone never resizes, which is why this is not urgent — and is also why nothing else will ever notice it.
 
 ### Dead CSS sweep
+Anchor: `.ref-pill` in `css/style.css`
+Anchor: `.db-tools` in `css/style.css`
+Anchor: `.ing-empty` in `css/style.css`
+Anchor: `.an-empty` in `css/style.css`
+Anchor: `.plate-noresult` in `css/style.css`
+Anchor: `.king-tag` in `css/style.css`
 Six selector families with **zero** emitting markup anywhere in `index.html` or `js/app.js`. **Re-measured 10 Aug 2026** (lines containing each selector in `css/style.css`): `.ref-pill` 6 · `.db-tools` 2 · `.ing-empty` **9** · `.an-empty` 19 · `.plate-noresult` 1 · `.king-tag` 1, whose only `js` hit is a comment saying the pill was REMOVED, not hidden.
 Requirements: a rule comes out only when nothing emits its class — grep both files per selector, not per family. `.an-empty` and `.an-empty-box` are separate names sharing a prefix; do not let one grep answer for both.
 
 ### `ing_price_history` needs its unique index reconsidered
+Anchor: `unique (product_id, recorded_at)` in `supabase/migrations/20260801_ing_price_history.sql`
 Same-millisecond writes for one product would collide on `unique (product_id, recorded_at)`. Not reachable in practice (a human cannot re-price one product twice in a millisecond, and `applyInvoice` touches a different product each pass), but it constrains the normal price-logging path, so it needs its own brief. 0 duplicate pairs as of 4 Aug 2026, so a change would still apply cleanly.
 
-### ~~`saveIngLog`'s `_ingLogPending` buffer~~ — ✅ CLOSED 31 Aug 2026, batch 224. **The premise was falsified twice.**
-It read: *"Exactly one producer and one consumer on adjacent lines, so it holds at most one point. A real simplification, but it sits on the price-log path — not housekeeping."* Both halves are now wrong, and neither batch that falsified it had any reason to open this file — which is the transferable part.
-**Batch 193** made the product write plural: a catalogue import logs a point for every product it re-prices, so the buffer holds up to a whole catalogue (412 at Scoopy's size) and the flush exists precisely to make that ONE insert rather than 412. **Batch 224** then gave it a second job — the batch is drained SYNCHRONOUSLY so that one `setProducts` call's points cannot join a later call's batch and inherit a verdict about a different write.
-So the buffer is load-bearing in two directions and there is nothing left to simplify. Left struck rather than deleted because the shape is worth keeping: **a C item's stated reason has an expiry the item itself cannot notice.**
-
 ### `ingredients.updated_at` is stale and means nothing
+Anchor: `update ingredients set updated_at = now() where updated_at is null` in `supabase/staging/01-schema.sql`
 It is NOT history and must never be read as such. Either make it honest or drop it — the reason it is recorded here is so nobody builds on it. (The Tier 1 trap in `CLAUDE.md` is the live protection; this item is the cleanup.)
 
-### ~~`edDelArmed` is dead~~ - **DONE, batch 272. Struck by AUDIT-v227.**
-✅ Deleted with the edit-modal footer pass. Zero hits in `js/app.js`.
-⚠️ **Six batches stale here, and ALSO still unstruck in consolidated item 76's first bullet** - so a batch promoting 76 would plan against a variable that has not existed since 272. Two files carrying one dead fact is the shape `docs/QUEUE-GROUPS.md`'s own header warns about.
-
-### ~~`analyze().absPct` lost its last reader in v122~~ — **DONE, batch 283 (`ezplate-v230`)**, riding QUEUE item 99
-✅ **TRIMMED**, with its `Math.round`, and the decision is written at the site in `analyze` — this entry offered "trim it or keep it deliberately", and a deletion with no note at the site would have read as an oversight to the next person to miss the field.
-The Q3 redesign (v122) had replaced its only consumer, the "`32% under`" Variance cell, with the food-cost % composition.
-⚠️ **The two tests that still named it were using it as a WITNESS, which is why it survived three audits that each correctly called it dead.** `tests/menu-margin.test.js` read `absPct` to prove the negative-price guard and the inclusive 15% amber boundary; both now assert the condition directly (`recommended`/`suggested` and the shortfall arithmetic), which is a better pin than a derived field that has to be kept in step. **A dead field with live test readers looks exactly like a live field** — that is the transferable half, and it is why "nothing in the app reads it" was true and insufficient every time it was written here.
-**The shortfall itself was NOT trimmed with it** and must not be: `light` and `state` are computed from it, and `shortfallStr` re-derives the same gap in cents for the builder.
-
 ### `avgFoodCostForScope` counts dishes whose `menuId` has no By-menu row
+Anchor: `function avgFoodCostForScope` in `js/app.js`
 Latent; zero such dishes on current data.
 
 ### `verdictHtml`'s "Nothing costed and priced on this menu yet" branch is unreachable for a NAMED menu
+Anchor: `Nothing is costed and priced '+(onMenu?'on this menu ':'')` in `js/app.js`
 Unreachable since v96 (the only reachable scopes are all-menus and menus with a costed plate). The all-menus wording of the same branch is still live, so this is a trim, not a delete.
 
 ### A plate whose NAME contains a digit fails the money-law number validator
+Anchor: `function validatePhrasing` in `api/_insight.js`
 e.g. "Pizza 4 Cheese" — the Gemini phrasing is dropped and the deterministic template stands. Safe degradation, never a wrong number, but those plates never get the warmer wording. Found in v90, unchanged.
 
 ### The ~390KB of self-hosted fonts re-download on every deploy
+Anchor: `return c.addAll(ASSETS); }).catch(function(){})` in `sw.js`
 (v132 review) `CACHE` changes per version, `activate` deletes the old cache, and `install` re-fetches every ASSET — including the eight immutable woff2 files — on the mobile connection of an intermittent user.
 Consider a separate versionless font cache (fonts never change once committed) or fetch-time caching.
 Also: `cache.addAll`'s `.catch(function(){})` swallows a partial install silently — `tests/settings-toggles.test.js` pins that every ASSETS path exists on disk, which covers the typo case but not a deploy-time failure.
 
----
-
 ## C — copy, comments and records
 
-### ~~Six shipped comments that the code disagrees with — one job, one batch, one cache bump~~ — **DONE, batch 230 (`ezplate-v189`)**
-✅ All six taken in one pass, as the entry asked. X1 was fixed by PUBLISHING `--bottomnav-h` rather than by making the comment honest, because the fallback turned out to be WRONG as well as unpublished — the bar is 65px at 380 and 67px at 600, so the builder's summary bar had been docking 1-3px into the tab bar. X4's dead wrapper `dbPushIngPrice` is deleted rather than documented: three separate audits had found it, and nothing outside comments referenced it. X5 was three comments quoting the Menu tab's pre-217 copy; they no longer quote any copy at all, which is the only version that cannot rot. The two live uses of "No menus yet." in `renderManageMenusZero` are CORRECT and were left — the audit's X5 read them as stale and they are not.
-
-### The original entry, kept as the record
-(AUDIT-v186 S6, 2 Sep 2026. Filed rather than fixed because they live in `js/app.js` and `css/style.css`: changing a comment ships a client asset, which pulls a prose-only batch into a six-spot cache bump AND the mandatory pre-push review. **They ride the next batch that opens those files** — this file's own rule — and they are grouped so that batch takes all six in one pass rather than the one it happens to be standing next to.)
-
-Each was independently re-checked by batch 227 before filing; every one holds.
-
-- **X1 `css/style.css:970`** — *"the offset is measured against `.bottomnav` rather than assumed — `--bottomnav-h` is not a token this sheet defines."* **Nothing defines it anywhere**, so the `64px` fallback at `:873` is and always has been the live value. This is the same entry as the `--bottomnav-h` one under code hygiene; both ends are one fix.
-- **X2 `js/app.js:8227`** — says `parseBackupFile` accepts *"2 and 3"*. It accepts 2, 3 and 4 since batch 219.
-- **X3 `js/app.js:8243`** — *"the line below is a flat `format:3`"*. The line below is `format:4,`. **This is the citation-correction comment itself going stale**, which is the failure it was written to prevent, one format number later. `CLAUDE.md` now states no format number at all for exactly this reason; do the same here.
-- **X4 `js/app.js:248`** — the module's own write-map says *"per-product cost → `dbPushIngPrice` via `saveIngLog`"*. `saveIngLog` calls `dbPush**IngPrices**` (`:3790`); `dbPushIngPrice` (`:3807`) has **zero callers anywhere, including tests**, since 193. The map names the dead wrapper as the live path.
-  ⚠️ **The wrapper itself is undocumented dead code and the two decisions are separate.** `addProduct` is also dead and is DELIBERATELY kept, with the reason written at its site; this one has no such note, so either delete it or write why it stays. Do not delete it on sight — check `tests/` first, which is how `addProduct` nearly went.
-- **X5 `js/app.js:9506` and `:12095`** — both quote the Menu tab as showing *"No menus yet."* Batch 217 changed that title to **"Create your first menu"** (`:11949`). The mechanisms both comments describe are still correct; only the quoted copy is stale, and 217 did not grep for its own old string.
-- **X6 `css/style.css:2129` and `:3105`** — cite `tests/builder-modal.test.js` (existed, deleted when the builder became a page) and `tests/inv-tint.test.js` (**never existed in the history**). ⚠️ **The guard `:3105` promises is REAL** — `tests/inv-upload.test.js:215`, *'DECIDED: invoice review rows carry no hover wash'* — so this is pointer rot, not an absent guard. But a reader who checks the citation concludes F8's tint-vs-hover decision is unenforced, which is the `buildBackup`/`backupToPayload` failure in a different file. `:2129`'s guard has no obvious replacement; find it or say it is gone.
-
-### ~~Two live files cite an incident count `CLAUDE.md` disowns~~ — **DONE, batch 230**
-✅ Taken by the maintenance sweep, which was already opening files that change what runs, so the review the 216 entry was avoiding was being paid anyway. `.githooks/pre-push` says FIVE checks and quotes no incident count; `tests/semantic-keys.test.js` cites the roster rather than a number. Neither repeats a figure, per the roster's own header that it is not a census.
-
-### The original entry, kept as the record
-(Re-found by AUDIT-v176 C6/C7 and again by AUDIT-v186 C6. Recorded as settled so a third audit does not spend time rediscovering it.)
-
-`.githooks/pre-push:23` says *"ten instances across batches 165-176"* and `tests/semantic-keys.test.js:21` says *"CLAUDE.md's fourteen-incident rule"*, against a roster that is at 22 and whose header explicitly says the number is not a census. `.githooks/pre-push:3` says *"Four checks"* above five numbered steps.
-
-**Batch 216 declined to fix them and the reasoning is sound and unchanged:** both files' diffs change what runs, so three comment corrections would pull a docs-only PR into the mandatory-review path. **Eleven batches have since opened neither file**, which is the honest cost of "rides the next batch that touches it" and is accepted.
-**What is NOT accepted is re-finding it every audit.** It is filed here, deliberately, as a known and priced exception. The next batch that opens either file for any other reason takes all three.
-
-
 ### `ingredients_pkey` is `(id)`, not `(business_id, id)`, and only a migration header says why that is safe
+Anchor: `create table if not exists public.ingredients` in `supabase/staging/01-schema.sql`
+Anchor: absent `01-schema.sql` in `tests/unique-ids.test.js`
 Routed by AUDIT-v166 (check 3 of the three batch 193 asked for). **The recommendation is explicitly NOT to widen the key** — that is a migration on a critical table, it drags `restore_backup` in with it under 183's law, and `ingredients.id` is referenced by `plate.lines[].pid`, `kitchenIngredients[].pid` and `ing_price_history.product_id`, none of which carry a tenant. It defends against a design nobody has proposed.
 **The real gap is that the protection is entirely narrative.** 193 designed around the narrow key — product ids stay random, never content-derived — and wrote the reasoning into `supabase/migrations/20260815_supplier_code.sql`. Nothing makes a future batch read that file before making an id meaningful, and a content-derived product id would collide across tenants on a key this narrow.
 Requirements: two assertions in `tests/unique-ids.test.js`, beside the existing scope guard that already pins the INVERSE (that the semantic keys stay content-derived *because* they are tenant-scoped) — (a) every product-id mint in `js/app.js` goes through `uid(`, which today is `uid('CX')` and `uid('IMP')` and nothing else; (b) `supabase/staging/01-schema.sql`'s `ingredients` table still reads `id text primary key`, so the day someone widens it the guard is re-judged rather than silently satisfied. **Put the reason in the failure message and name the migration file**, so a red test hands the next batch the document instead of hoping they find it.
 Note this ships no client asset but does change what runs, so it takes the mandatory review and no cache bump.
 
-### ~~The two skill directories are byte-identical copies and nothing keeps them that way~~ — **THE PREMISE WAS FALSE. Measured 24 Aug 2026, batch 203.**
-✅ **They are not copies. Every entry in `.claude/skills/` is a SYMLINK into the tracked `skills/` directory, and has been since 8 Aug 2026 — a week before this item was written.**
-```
-.claude/skills/batch         -> ../../skills/batch
-.claude/skills/cache-version -> ../../skills/cache-version
-.claude/skills/decide        -> ../../skills/decide
-.claude/skills/handover      -> ../../skills/handover
-.claude/skills/verify        -> ../../skills/verify
-```
-`stat` gives the same inode for both paths. There is ONE file, so the loaded copy IS the tracked copy, an edit to it is visible to git and to the review, and there is nothing that can drift. **The item's own stated fix — *"symlink `.claude/skills/<name>` at each tracked skill"* — was already in place when the item asked for it.**
-
-⚠️ **HOW A CORRECT OBSERVATION BECAME A WRONG ITEM, because this is the transferable part.** The audit verified the two paths were **identical** and concluded they were **copies kept in sync by hand**. Identical is exactly what the same file looks like. The check could not distinguish "two files that happen to match" from "one file seen twice", and the conclusion assumed the first.
-That is `CLAUDE.md`'s standing rule arriving again: **a check that finds nothing has only proved something about WHAT IT LOOKED FOR.** `diff` answers "do these bytes match"; it does not answer "are these two files", and `ls -l` or `stat` was one command away.
-*(The gitignore half of the claim is true and harmless: `.gitignore:8` does list `.claude/skills/`, which is why `git check-ignore` on a path inside it reports "beyond a symbolic link" rather than a plain answer. Ignoring a directory of symlinks to tracked files ignores nothing.)*
-
-**The `.DS_Store` in `skills/` is the only real difference `diff -rq` reports between the trees, and it is noise.**
-
-Note the related-but-different item further down — three OTHER skills (`new-branch`, `investigate`, `test-flows`) live in `~/.claude/skills/` with no repo copy at all. That one is not fixed by a symlink and is the more serious of the two.
-
 ### Two importer threads 193 found, considered, and left in a write-once handover
+Anchor: `function openCatImport` in `js/app.js`
 Routed by AUDIT-v166 (D4). Both are **speculative** — 193's reason for not queuing them was that neither has been asked for and nobody has used the importer twice yet, which is sound. They are recorded here only because the handover is write-once and a thread that reaches neither this file nor the queue is a thread nobody will action.
 - **The column mapping is not remembered between imports.** A café whose supplier exports an unrecognised format re-maps the same eight columns every month. Cheap to fix (one `app_settings` key, keyed by the header row's shape) and worth nothing until someone has done it twice.
 - **Nothing anywhere shows a product's supplier code**, so a user cannot see why a re-import matched or did not match an existing product. **This is the more likely of the two to matter**: a re-import that silently matched the wrong product has no user-visible way to be diagnosed, which is the quiet-wrong-number shape this repo keeps finding.
 
 ### `cafeDB_plateDraft` has no tenant in it, so one device's unsaved plate belongs to whoever signed in last
+Anchor: `const DRAFTKEY='cafeDB_plateDraft'` in `js/app.js`
 Found 14 Aug 2026 by batch 186's pre-push review. The reachable half of it was fixed in that batch and this is the residue, stated so nobody re-derives it.
 **The key is global.** `DRAFTKEY` is one localStorage entry holding a plate name and `{kid,qty}` lines, and `kid`s resolve against `kitchen_ingredients` rows that mean different things in different cafes. Nothing stamps it with the account or the business that authored it.
 186 closed the two ways that could bite: signing in from the boot gate now ASKS about an unfinished plate and discards it on the switch, exactly as the Account card does, and `offerPlateDraftResume` returns early while the gate owns the screen so a signed-out visitor is never shown a plate by name.
@@ -707,26 +484,15 @@ Out of scope: the resume prompt's copy and the gate guard, both correct as they 
 Note this becomes reachable the moment TWO accounts can sign in on one device, which is the roles/invitations item. Doing it before that item ships is optional; doing it after that item ships is not.
 
 ### Google sign-in is still unbuilt, and it needs Max before it needs code
+Anchor: absent `signInWithOAuth` in `js/app.js`
 Arrived here 14 Aug 2026 when batch 186 finished the auth queue item and deleted it. It was the item's last surviving bullet, it was explicitly **optional** from the day it was written, and by the queue's own tier test it is a C: email/password sign-in works, so nobody is blocked, embarrassed or hurt by its absence.
 **It needs a Google Cloud OAuth client id and secret pasted into the Supabase dashboard, which no code can create.** The client half is `signInWithOAuth({provider:'google'})` and a button — two lines and a control on the boot gate's sign-in screen (`#bgSignForm`, 186) and on the Account card, which are the two places the password form already lives.
 Requirements: the dashboard credential exists first — ask Max, do not start without it. Then ONE shared handler, as 186 did for the password form: the two surfaces must not grow a second copy of the sign-in sequence.
 Out of scope: sign-up. An account that joins no café can see nothing at all since 186, so self-service signup's only outcome is the "ask the café owner" screen — that is the roles item's invitation work, and it is written into that item.
 
-
-### "Abbreviation matching in search" has been recorded as shipped for three audits and is not built
-The old `QUEUE.md` cited "abbreviation search" as a past example of an item describing something as missing which had already shipped — one of the three that motivated the "check an item against the code before working it" warning.
-**The citation is a different feature.** `kitchenSearchMatches` (v55 §G) matches the ingredient name and its linked product's description/brand/category/supplier — real and shipped, but a plain substring match (`hay.indexOf(token) >= 0`). There is no abbreviation expansion in the file.
-The actual feature — "gf" finding "Gluten Free Bread" with no literal "gf" in the haystack — was **explicitly declined**, and says so a few lines below the code AUDIT-v135 cited as proof it shipped (`js/app.js:701-704`, unchanged since `HANDOVER-v83`: *"the fuzzy matcher can't match abbreviations… it produced duplicate ingredients"*).
-`HANDOVER-v120.md:36` flagged the mislabelling once and it did not stick — v121, v122 and v135 each repeated it.
-✅ **THE RECORD CORRECTION IS MADE, 9 Sep 2026, batch 240 — and it took AUDIT-v197 saying it was the FOURTH audit to re-verify this thread.** The closed thread's name is **"product-text search (v55 §G)"**, which is what actually shipped: `kitchenSearchMatches`, a plain substring match over the ingredient name and its linked product's description, brand, category and supplier. **"Abbreviation matching" names nothing in this app and never shipped** — it was declined in `HANDOVER-v83` because the fuzzy matcher produced duplicate ingredients, and the code still says so at its own site.
-⚠️ **Read that as a heading, not a footnote: any audit, queue item or handover citing "abbreviation matching" as shipped is citing a feature that does not exist.** The entry's own instruction was to correct the record FIRST and it was carried unactioned through AUDIT-v135, v156, v176 and v186 — four audits each spending part of their budget re-deriving the same correction, because the record kept saying the thing they had just disproved.
-**What is still genuinely open** is only the second half: whether real abbreviation or synonym matching is wanted at all, and where the mapping would come from. That is a feature question for Max, not a correction, and it is consolidated item 78.
-Original requirement, kept as the record: **correct the record first**, everywhere it is cited — rename the closed thread to "product-text search (v55 §G)" so it stops being re-verified as done by every future audit. Then decide separately whether real abbreviation/synonym matching is wanted, and if so where the mapping comes from. Those are two jobs and only the first is certain.
-~~Note this is the THIRD instance of a correction being written down and not propagated. If a fourth turns up, the routing itself is the item.~~
-⚠️ **STRUCK 15 Aug 2026. THE TRIGGER FIRED AT AUDIT-v156 AND THE ROUTING NEVER BECAME AN ITEM — because the root cause was removed by a different route two days later, and nobody came back to cancel the alarm.** The 13 Aug standing-authority reversal deleted the mechanism that dropped corrections: a documentation fix is now made and reported, not proposed and parked. **Measured by AUDIT-v166: every handover from 181 to 193 landed its `CLAUDE.md` edit directly. Zero parked edits in thirteen batches.**
-**Kept struck rather than deleted, because the lesson is about the trigger and not the bug:** a standing "if this happens once more, escalate" note has no way to notice that its own premise was fixed, so it sits there firing correctly and pointlessly, and a reader who checks it, finds it already tripped and sees nothing happened learns to skim the next one. **A trigger needs an owner and an expiry, or it trains people to ignore triggers.** The one thing still genuinely open in this entry is the record correction above, which is unaffected.
-
 ### FOUR process files live OUTSIDE the repo, so nothing can review or pin them (three skills and the `project-audit` agent)
+Anchor: absent `project-audit` in `.claude/agents`
+Anchor: absent `name: new-branch` in `skills`
 ⚠️ **The reviewer half of this item was FIXED on 12 Aug 2026 (batch 177) and is not the open part.** `~/.claude/skills/new-branch/SKILL.md` §6 had the two reviewers exactly backwards — it called the on-demand PR workflow "MANDATORY and runs itself" and the pre-push `code-review` agent "OPTIONAL". It now matches `CLAUDE.md`, its gotchas are re-pointed, and step 5's unconditional "wait for the user to approve the plan" now branches on whether the work came from the queue (approved) or from chat/a brief (not).
 **What remains is the reason it drifted, which no edit to that file fixes.** `new-branch`, `investigate` and `test-flows` live in `~/.claude/skills/`, outside the repo — the repo's own tracked skills live in **`skills/` at the repo root** and are **five**: `batch`, `cache-version`, `decide`, `handover`, `verify` (⚠️ corrected by AUDIT-v227 - `.claude/skills/` is GITIGNORED and holds symlinks, and the `supabase*` pair point outside the repo, so a clone gets five, not seven). An outside file cannot ride a PR, cannot be reviewed, and no test can pin it, which is how this one told every batch the wrong thing for **three audits running** (v135, v145, v156) while an in-repo copy would have been caught by the first reviewer to read the diff.
 It has now cost something real: `HANDOVER-176` records the first batch to ship to production with no pre-push review at all.
@@ -735,83 +501,47 @@ Note this is Max's call in one respect only — they are his global config and m
 ⚠️ **AND IT IS FOUR, NOT THREE — the `project-audit` AGENT lives out there too, at `~/.claude/agents/project-audit/project-audit.md`, and it is the one with teeth.** Its standing checklist is a list of things every audit must spend budget on, and nothing in this repo can see that list, review a change to it, or notice a line going stale. **Measured, 9 Sep 2026 (AUDIT-v197):** it carried *"abbreviation matching in search"* — a feature explicitly DECLINED in `HANDOVER-v83` and never built — so **four consecutive audits re-derived the same correction**, each one reporting it as a dropped thread because the checklist kept asking. It also carried a `TODO(Max)` grep that four audits in a row found zero of. Batch 240 struck both out there under standing authority and added an expiry rule at the site, and **there is no diff of that in this repo, which is the entry's whole point.** Add it to whatever this item decides for the other three.
 
 ### The handovers' Playwright count uses a different filter from CI's, and the difference is the live-production spec
+Anchor: `every spec in tests/visual EXCEPT screenshots.spec.js` in `.github/workflows/test.yml`
 Found by AUDIT-v156 (T2). `HANDOVER-176` reports *"288 Playwright"* green. CI guarantees **274 in 30 files** — its filter is `ls tests/visual/*.spec.js | grep -v screenshots.spec.js`. The whole directory is 288 in 31.
 **The 14-test delta is exactly `tests/visual/screenshots.spec.js`**, which imports only `gotoTab` and never calls `installBoot`, so it does not stub Supabase and does not abort off-origin requests. Its own header says *"the app talks to your live Supabase."* CI has an explicit fail-closed guard to keep it out of the hermetic job.
 So a handover quoting 288 is quoting a number that came from running the one spec CI deliberately excludes, and is not the figure CI stands behind. It reads only, so this is not a data risk — the problem is that the reported green means something different from the guaranteed green, and nobody reading the handover can tell.
 Requirements: settle ONE number that handovers quote, and say which filter produced it. The cheap answer is to quote CI's filter, since that is the one with a guard behind it. Do not fix this by editing past handovers — they are write-once.
 
-### v156 shipped to production without a pre-push review, and has never had one
-Found by AUDIT-v156. `HANDOVER-176` states it plainly: *"No pre-push review this time — the brief said 'no code review pass, just implement'."* That batch's layout work is live at `ezplate-v156`.
-The **cause** is fixed — `CLAUDE.md` says a brief cannot relax its rules, and the `new-branch` skill that called the reviewer optional has been corrected (see above). This item is the **remediation**, which is separate.
-Nothing is known to be wrong. 175's findings were reviewed and fixed; 176's claims are measured rather than argued, and both suites are green. But the diff was never read by a second model, and two of AUDIT-v156's findings (the 288/274 count above, and the missing `docs/PHONE.md` entries) are exactly what a reviewer catches.
-Requirements: run the `code-review` agent retrospectively over the 175+176 diff (`git diff 023e311..d1a8e53`), on a different model, blind to the brief. **Anything it finds is a NEW branch and a new PR** — the code is already on `main`, so it cannot be fixed in the PR that carried it. That is the rule this must not break in the name of tidying up.
-Tier note: C, not B, because no defect is known — this buys assurance, not a fix. Promote it if anything on those screens turns out to be wrong on a phone.
-
 ### The search ✕ shows on every search bar even when the field is empty
+Anchor: `.ms-clear` in `css/style.css`
 Pre-existing and app-wide (`.ms-clear`, `css/style.css:1160`), noticed on the converted Plates screen where the mock draws no clear control at all.
 F2 kept the control (R3 — `type="search"` renders no native clear on iOS Safari, which is Max's phone) and rebuilt it as `.plib-x`, but did not change WHEN it shows, because the behaviour is shared with four unconverted screens.
 Decide once: hide it while the field is empty (an input listener on each search bar, or one delegated handler), or keep it always-on deliberately and say so. Whichever way, it wants doing in one place for all six search bars, not per screen.
 
 ### `manifest.json`'s `theme_color` / `background_color` match NEITHER palette
+Anchor: `"theme_color": "#3E2C26"` in `manifest.json`
 `#3E2C26` / `#F7F3EC` — pre-existing, found by the v136 pre-push review while fixing the `theme-color` meta. The meta now follows the chosen theme correctly; the manifest is a separate static declaration used for the install splash and the task-switcher card, and it names colours from a palette two redesigns ago.
 A manifest cannot be theme-aware, so this is a decision: pick the LIGHT palette values (`#FFFFFF` / `#FFFFFF`) as the install-time default, or the dark ones. Only seen at install and in the app-switcher, but wrong today either way.
 
-### ~~Three vocabularies name the same three lights~~ — ANSWERED, F8 (v147)
-Raised by the v131 pre-push review and carried since. **The split is deliberate: three subjects, one shared light.** The reasoning is written out once at `vbadge` in `js/app.js`, with pointers at `marginLightWord` and at the chips in `index.html`.
-Struck rather than deleted so the decision is visible where the question was asked.
-✅ **The only residual was "Slightly under" — the one verdict phrase that did not carry its own subject — and it is CLOSED by batch 229**, which made it "Slightly underpriced". Named rather than pointed at, because a pointer to a position rots the moment anything is inserted; struck here rather than deleted so the record shows the residual was tracked and answered rather than forgotten.
-(Found still open by 229's pre-push review, which read this line against the change that closed it. The batch had updated `docs/QUEUE.md` and `js/app.js` and not this file — a stale fact is worse than no fact, and this one survived the batch that falsified it.)
-
-### ~~The publish dialog and the Menu row print the same ratio at different precision~~ — **DONE, batch 283 (`ezplate-v230`)**, as QUEUE item 99
-✅ **ONE DECIMAL, at all six surfaces**, through one computation (`foodCostPct`) and one formatter (`fmtFoodPct`).
-⚠️ **THIS ENTRY UNDERSTATED IT IN THE WAY THAT MATTERED: "two displays" WAS SIX, AND "the same ratio" WAS THE SAME RATIO COMPUTED TWICE.** `menuMarginPreview` rounded `cost/price*100` to a whole number for FIVE surfaces — the builder's per-menu verdict, its header pill, its sticky bar, the publish dialog, and the Edit-menu-item modal — while `vbadge` re-derived the identical ratio at one decimal for the Menu row. So this was never a formatting choice to reconcile; it was a second computation, and `js/app.js`'s own comment above `vbadge` asserted the opposite in as many words (*"a display choice, not a second computation"*). That comment is corrected at the site.
-**The sharpest instance, and the one that made the precision question decidable:** `renderEditMargin` opens FROM a Menu row. The row said `32.4%` and the modal said `32% food cost`, about the same dish, one click apart.
-**Why one decimal rather than whole:** `cogsPct` is settable to one decimal (batch 244 — `cogsRound`, `step="0.1"`, `fmtTargetPct`), so a whole-number food cost cannot say which side of a 32.5% target a dish is on, and which side of the target you are on is the only question the figure exists to answer. It is also what the v3 mock prints at every one of these sites.
-**`avgFoodCostForScope` was deliberately NOT touched** — a mean of per-plate ratios is a different quantity, it already prints at one decimal at all ten of its surfaces, and QUEUE item 99 said not to align the two. That they now agree on precision is not permission to merge them.
-
-### ~~Two more sub-44 touch targets the R5/R6 audit rows never named~~ — **DONE, batch 272 (`ezplate-v221`), consolidated item 47**
-✅ `.use` reaches 44 effective through an `::after` extension, probed with a real hit test in `tests/visual/v192-touch-targets.spec.js`. `.del-link` did not need a treatment: it was worn by exactly one element, and that element is now a `.btn` in the modal footer, where `.mfoot .btn{min-height:40px}` and a modal footer is not a ≤767 tap surface.
-⚠️ **The entry's own warning was checked and does NOT apply to `.use`**: the ~1px-per-edge shortfall is a property of a BORDERED element, whose pseudo is laid against the padding box. `.use` is `border:0`, so ±4 is ±4, and the probe is at the full depth rather than a softened one.
-
-Found by batch 233 while doing R5+R6, out of that step's scope (Max's plan enumerated the rows).
-`.use` ("Use this name", king wizard rows) is `min-height:36px`; `.del-link` ("Delete item", edit modal) measures ~37px with its existing 10px padding.
-Both clear WCAG 2.5.8's 24px floor, so this is polish, not a violation.
-If taken, the border/padding-box lesson at the v192 block's header applies: an `::after` offset on a bordered element buys ~1px/edge less than it says.
-
 ### `.range-btn` — visual size only, NOT an accessibility item
+Anchor: `.range-btn` in `css/style.css`
 The chip is 32px tall but `css/style.css` gives it a `::after` extending 6px top and bottom, so the tappable area is already 44px. What is left is that the dashboard shows controls at two visual sizes after the 44px selector rows. Max deferred this 31 Jul 2026; it is a taste call.
 
 ### The stale v60 target-line comment in `trendChart`
+Anchor: `v60 item 1b: present only when the target is inside the domain` in `js/app.js`
 v61 item 6 superseded the half it describes. (The *domain* half of the v60 comment block was rewritten by the v145 y-domain fix; the target-line sentence was not. Re-grep by name.)
 
 ### "Menu item" survives as a fifth object noun in the Edit-menu-item modal
+Anchor: `<h3 id="editTitle">Edit menu item</h3>` in `index.html`
 `CLAUDE.md` Tier 2 records it as a known surviving fifth noun awaiting its own brief — it is not a bug to fix on sight.
 
 ### The `.chart-hint` / `.scope-note` "all menus" pair under the chart
+Anchor: `scope-note` in `js/app.js`
+Anchor: `chart-hint` in `js/app.js`
 Two hints under one chart saying overlapping things. Read them together and cut or merge.
 
 ### Builder cost panel: the design's "+ Add to another menu" shortcut was deferred out of Q6
+Anchor: absent `Add to another menu` in `js/app.js`
 (9 Aug 2026) It needs the manage-menus modal to stack over the open builder and the cost panel to refresh when menus change underneath — both untested territory that was not riding a redesign batch. The panel's "On menus" list ships without it; publishing still lives one tap away on the plate card.
 **F7 rebuilds the builder as a full page and rehouses publishing, so re-read this against F7's result rather than against Q6's.**
 
-### ~~The Cost card paints an EMPTY 16px bordered box on the phone for an unpublished plate~~ — **DONE, batch 271 (`ezplate-v220`), consolidated item 51**
-✅ `renderBuilderCost` puts `is-bare` on `#bCost` when the plate is on no menu — which is exactly when all four body children are hidden below 768 — and the `@media (max-width:767px)` block hides `.bld-cardbody`, in the same block as the `.bld-kv` hide it depends on. A class rather than an inline style, so the rule can still lose at 1280.
-⚠️ **THE MEASUREMENT BELOW HAD GONE STALE IN THE DIRECTION THAT WOULD HAVE DELETED TWO CONTROLS.** Re-measured at 380 before fixing: the card is **60px**, not 16, and `#bCost > h2` does not exist. 177 rebuilt it — the empty part is `.bld-cardbody` (28px of padding) and the rest is Print docket and Clear plate, which the phone has nowhere else. Hiding "the card when it has nothing to show", which is what this entry and the queue item both asked for, would have taken both buttons off the phone (§R3). The entry was right about the defect and wrong about its size, three markup revisions later.
-
-(Found 11 Aug 2026 while measuring the builder for the fill-order item, 170. **Pre-existing since F7/v146 — not introduced by that change.**)
-`#bCost` has three children and below 768 all three can be hidden at once: `@media (max-width:767px)` hides `#bCost > h2` and `#bCost .bld-kv` (the summary bar carries those two figures, §7), and `.bld-menus` is `display:none` whenever the plate is on no menu. What is left is `.bld-cardbody`'s padding inside `.bld-card`'s border.
-**Measured at 380px on an unpublished plate: height 16, `display:block`, nothing painted inside it.** Every plate is unpublished until it is saved and added to a menu, so a brand-new plate shows it every time.
-Not fixed here because it is a different screen region from the one the item scoped, and the fix is a judgement call rather than a line: hide the card when it has nothing to show (needs a JS hand, since CSS cannot see that all three children are hidden), or give the phone SOMETHING in it. Do not reach for `:has()` without checking it against the browsers the PWA actually runs in.
-
-### ~~The plate name now appears three times on the builder page~~ — **DONE, batch 271 (`ezplate-v220`), consolidated item 51**
-✅ Twice, which is the right number: the header field and `#plateName` are the same control, and `#editTag` now says **"Editing a saved plate"** — saved-vs-new, which was always its job, in a neutral pill instead of accent-bold mono. `tests/builder-readiness.test.js` asserts the rendered text does not contain the plate's name, over a fixture whose plate is named.
-
-(Found 11 Aug 2026, same measurement. **This one IS a consequence of 170** and is recorded rather than fixed because changing the tag's copy was not in the item.)
-Header title (`#bldTitle`, added by 170 as the mock's static §3.7 title), the `#plateName` field in step 2, and `#editTag`'s "Editing: Fish & Chips" directly under it. Before 170 it was twice — the header field and the tag.
-`#editTag`'s real job is saying **saved plate vs new plate**, and the name is the part of its sentence that is now redundant three ways. `updateEditTag` is its one writer. It is a status label, not a control, so R3 does not apply, but the useful information in it should survive whatever is done.
-
-
 ### The Playwright suite has never been audited for specs that pass against a broken app
+Anchor: none - it is an audit of the whole Playwright suite as a set; no single literal is its subject
 (Recorded 12 Aug 2026, batch 178. Declined as work in that batch because it is C by construction and the batch was already large.)
 This project has hit the vacuous-test failure **seven** times, and CLAUDE.md's own test for it is "would this test FAIL if I broke the thing it names?" - answered by breaking the thing and watching it go red.
 Nothing has ever asked that question of the 399 browser tests (44 files; said "289 browser specs" until AUDIT-v176 re-counted on 28 Aug 2026, so any cost estimate below is priced off the smaller number) as a set. Two of the seven were found by accident, one batch apart, both green and both mine.
@@ -819,23 +549,21 @@ The method is mechanical rather than clever: mutate one load-bearing thing per s
 It is also the honest answer to "is the suite carrying dead weight" - 3.8 min locally and 8.7 in CI is worth spending only on specs that can fail.
 
 ### `dispPrice` returns a string its callers have to unpick
+Anchor: `function dispPrice` in `js/app.js`
 (Recorded in `HANDOVER-176`, still true at v157.)
 Two of its four callers put the return value where markup would be wrong, so the `/kg` suffix fix wraps it rather than changing it.
 The cleaner shape is for it to return parts and let each caller compose. It touches the invoice review, so it is not a drive-by.
 
 ### The `.btn-noun` collapse still shortens two secondaries that now have room
+Anchor: `.btn-noun{display:none}` in `css/style.css`
 (Found 12 Aug 2026 by looking at batch 179's own result at 360, after the rehome had shipped.)
 `@media (max-width:639px){.btn-noun{display:none}}` turns "Set up from products" into **"Set up"** and "Import invoice" into **"Import"**. `renderKingProgress` states the reason at its own site: *"the noun span hides on phones so the pantry pair fits one line"* — i.e. it exists to make the HEADER fit, and 179 moved both buttons out of the header. Measured in the `.plib-controls` row at 360, each sits alone on its line with the row's full content width (328px) available and uses ~78–95px of it.
 So the labels are shortened for a constraint that no longer applies to them, and **"Set up" on its own does not say what it sets up** — it is the first thing a café with a full catalogue and no ingredients is offered.
 Not changed in 179 because it is a copy decision rather than the rehome, and because `tests/visual/fresh-states.spec.js` pins **both** short forms on purpose (*"the SECONDARY still shortens — the idiom survives where the room is tight"*), so whoever changes this changes that pin consciously and states what expired — the room is no longer tight.
 ⚠️ Do NOT just delete the `.btn-noun` rule: the word "More" on the back chevron is also a `.btn-noun` and `css/style.css` says at that site that the collapse is what stops the Products header wrapping. Scope any change to the rehomed actions.
 
-### "Existing plate" is offered on the Menu screen when there are no menus
-(Found 12 Aug 2026 while rehoming it in 179. **Pre-existing — it sat unhidden in `.scr-head` before, and 179 moved it without changing when it shows.**)
-`#menuAddDishBtn` renders at zero menus, and `openAddDishModal` opens against a null `currentMenuId`: `#ad_menuName` fills from `menuNameById(null)` and `submitAddDish` would publish a dish with `menuId: null`. Every other control on that screen is stood down at zero — the switcher, the filter row, the column band, Delete and the footnote all hide, and `fresh-states.spec.js` asserts each one — so this is the odd one out rather than a considered exception.
-Requirements: decide whether it hides at zero (consistent with every sibling, and there is genuinely nothing to publish onto) or whether it stays and `submitAddDish` refuses with a real message. Do not answer it by adding a fourth `hidden` toggle to `#menuSwitchRow` — 179 moved that row off `hidden` precisely because it hosts an action, so this hides the BUTTON, not the row.
-
 ### The sync pill flickers between chunks on a large catalogue import
+Anchor: `function dbPushIngredients` in `js/app.js`
 (Found 15 Aug 2026 by batch 193, in the code it wrote, and left alone deliberately.)
 `dbPushIngredients` and `dbPushIngPrices` chunk at 200 rows and each chunk is its own `pushWrite`, so a 412-product import runs `setSync('saving')` then `setSync('ok')` three times in a row rather than showing one continuous "Saving".
 It is cosmetic and the end state is correct either way, which is why it is here and not in the queue.
@@ -850,6 +578,7 @@ Whoever does it should check the import's own button state first, which already 
 Two auditors, no shared context: one saw only the code (no `CLAUDE.md`, no `docs/`, no history), one saw only the process artifacts and the 149 handovers (no code). Both reports and both briefs are committed as `docs/audits/BLIND-AUDIT-2026-08-22-*`. **The A and B findings went to `docs/QUEUE.md` as items 0, 0b, 0c, 0d and 8-11.** What is below is the C tier.
 
 ### `supplier_phrases.pid` never crosses the row boundary, so `syncMemoryToProduct` is dead after any reload
+Anchor: `e.pid===pid` in `js/app.js`
 `rememberSupplierPhrase` (`js/app.js:3730`) sets `pid` in memory. The table has **no such column** (`supabase/staging/01-schema.sql:163-170`) and **neither mapper carries it** — `rowToSupplierPhrase` / `supplierPhraseToRow` at `js/app.js:415-416`. So every entry loaded from the server has `pid === undefined`, and `syncMemoryToProduct` (`js/app.js:3733-3737`), which matches on `e.pid===pid`, finds nothing in any session but the one that taught the pack. Its own comment reads *"ITEM 1: keep Remembered items in step with the product's taught pack."*
 
 Concrete cost is low and that is why this is C: `resolveMatchedPrice` prefers the product's own pack over memory, so memory only prices a line when the product has no pack at all. The Settings "Remembered items" list can display a stale qty beside a product whose real pack differs.
@@ -858,51 +587,11 @@ Concrete cost is low and that is why this is C: `resolveMatchedPrice` prefers th
 ⚠️ **ONE OF THE THREE FIXES IS UNSAFE, and it was the cheapest-looking one.** (Batch 200, which opened `applyInvoice` for QUEUE 0b and considered taking this along.) *"Match on the normalised phrase instead of `pid`"* would make the guard fire — on **every supplier's entry for that phrase**. Two suppliers whose line text normalises the same way can genuinely sell different pack sizes; the guard would overwrite one of them with the other's, and `resolveMatchedPrice` re-prices from memory on the very next import. That turns a dead guard into a wrong-data path, which is strictly worse than nothing. **Two fixes remain: the column plus both mapper halves, or delete the guard and say why.**
 The column is a `supplier_phrases` change, and that is one of the five tables `restore_backup` inserts with `select *` — so it must be nullable with NO default (`CLAUDE.md`'s four-clause carve-out, condition 3) and needs the full `docs/STAGING.md` procedure. That is why 201 did not ride it: it is a migration, not a one-liner.
 
-### ~~`var catState` is declared TWICE at top level, and the duplicate guard cannot see it~~ — **DONE, batch 200 (`ezplate-v170`)**
-✅ All three steps, in the order the requirements demanded. The combobox's is now `catCombo` (five sites plus its declaration, which carries the reason at its own site); `tests/housekeeping.test.js`'s regex covers `var`/`let`/`const` as well as `function`; and the new arm is exercised against injected source in a test of its own rather than trusted. **Proved it catches the real one**: renaming `catCombo` back to `catState` turns the guard red naming `catState`, which is the check that a widened guard nobody has watched fail would have skipped.
-The scope is stated in the test: the `^` anchor compares TOP-LEVEL declarations only, so a nested shadow is not flagged — that is legal JavaScript and not what the guard is about.
-
-**The original entry, kept for the mechanism:**
-Found by batch 199's pre-push review, which was asked to look for state leaking between two unrelated flows and found two variables that ARE one variable.
-
-`js/app.js` declares `var catState` at the catalogue importer (`headers/rows/map/preset/fileName/plan/busy`) and again at the Add-to-menu category combobox (`chosen/chosenIsNew`). **Grep the name, not a line number.**
-This is `CLAUDE.md`'s "a duplicate definition is never dead until reached" trap in its `var` form, and the mechanism is worse than the function form rather than better: both declarations hoist, then **both assignments execute in source order, so the LAST one wins at boot** and the importer's object is discarded before any handler runs.
-
-**Why it is C and not higher, measured rather than assumed.** Neither direction currently loses data. `openCatImport` reassigns `catState` wholesale, so the importer repairs itself every time it opens. The combobox's read is `catState.chosen!==null && catState.chosenIsNew && …`; after the importer has wiped it, `chosenIsNew` is `undefined`, the condition is false, and control reaches the `else`, which shows *"pick Create new category from the list to confirm"* and returns without writing. **A visible re-prompt, not a silent wrong value** — which is the whole reason this is not being fixed on sight. It also needs an unusual interleaving: leaving a category selection half-made to go and open the importer.
-
-**⚠️ THE GUARD IS THE ACTUAL FINDING.** `tests/housekeeping.test.js`'s duplicate test matches `/^function\s+([A-Za-z_$][\w$]*)\s*\(/gm` — functions only. Its title says so; `CLAUDE.md`'s prose said "any top-level name" and was corrected on 23 Aug 2026. So the guard written after `aRow` and `renderAnalysis` shipped real bugs covers one declaration keyword, and the other keyword has a live duplicate in the file today.
-
-Requirements, and **they are ONE job in this order** — widening the regex alone goes red immediately, which is the point:
-1. Rename one `catState`. The combobox's is the cheaper side (four read/write sites plus its declaration); `catCombo` or similar. **The naming-inversion rule does not apply** — this is a local, not a `data-tab`, a storage key or a table.
-2. Widen the housekeeping regex to `var`/`let`/`const` as well as `function`, and say in the failure message that hoisting makes the last one win, so the next reader gets the mechanism rather than a name.
-3. Assert the new arm can go red (add a duplicate, watch it fail, remove it) — a guard nobody has watched fail is this repo's most-recorded defect.
-
-### Comments that disagree with the code
-Reported as findings in their own right by the code audit, all of them the kind that sends the next reader the wrong way.
-**No count in the heading on purpose** — it said "Four" and the `buildBackup` citation was fixed in 0e, which would have left the number wrong the moment the bullet went. Count the bullets.
-
-- ✅ **DONE, batch 200.** **The ISO-vs-number comment in `dashRangePts`** (grep `typeof p.t==='string'`) — *"Supabase points arrive as ISO strings; a string is never >= a number."* Backwards. `rowToPoint` (`js/app.js:424-433`) converts `recorded_at` to epoch **milliseconds**, so server points arrive as numbers; it is the locally-logged points (`logHistory`, `logMenuPrice`) that are ISO strings. The code handles both and is correct — but anyone simplifying it on the comment's authority deletes the branch that is actually load-bearing.
-- ✅ **DONE, batch 200**, and the TEST TITLE said it too — `tests/unique-ids.test.js` was titled *"so it always fits four base-36 characters"*, so the wrong claim was pinned as well as written. Both now say the BOUND rather than a width, and the test adds a one-character case so the un-padded half cannot be assumed again. **`js/app.js:163`** — `% 1679216` was commented *"36^4, so it always fits four chars"*. `_uidSeq.toString(36)` is not zero-padded, so it emits one to four characters. The bound is real; the fixed-width reading is not. Uniqueness is unaffected (the `-` separators carry it).
-- ~~**`setCogs` vs the boot read** — `setCogs` (`js/app.js:2608`) rounds to integers; `bootstrapSync` (`js/app.js:1181`) accepts any `parseFloat` in `[1,99]`; `fmtTargetPct` (`js/app.js:6252`) renders one decimal. A fractional target is loadable and renderable but not settable, and the first Settings touch silently rounds it. Decide which of the three is right.~~ ✅ **DONE, batch 244 (`ezplate-v201`)**, riding QUEUE item 15 as `QUEUE-2026-09-08-CONSOLIDATED.md` item 25 — same function, same batch, as that item said. **ONE DECIMAL is the answer, and it is the only one of the two candidates that changes nobody's stored number:** integer would have meant the boot read rewriting a restored 32.5 to 33 on sight. Both entry points now round through one function (`cogsRound`), so `cogsPct` is never held at a precision the ~10 sites that concatenate it raw would print differently from `fmtTargetPct`; the field's `step` is `0.1`. `tests/cogs-rollback.test.js` pins the precision through all three, and `tests/settings.test.js`'s clamp assertion was rewritten honestly rather than deleted.
-
-### ~~Resolve `screenshots.spec.js` rather than filtering it~~ ✅ DONE (batch 200), struck 28 Aug 2026
-`tests/visual/screenshots.spec.js:32` carries `test.skip(true, 'needs a signed-in session; 186 made sign-in mandatory and removed the anon fallback. Restore with a test account, never a committed password.')` — which is exactly what this entry asked for, and it has been there since batch 200.
-⚠️ **This is the THIRD copy of one item, and the duplication is the finding worth keeping** (AUDIT-v176). Batches 188 and 190 filed it independently, AUDIT-v166's C3 merged those two, and the 22 Aug blind audit then filed this third copy — which batch 200 never saw when it executed the merged one, so the work was done and the record still said open.
-**The root cause is structural, not careless:** nothing checks a new C item against the existing ones, this file is long, and the duplicates were filed by different processes that could not see each other. **Before adding a C item, grep this file for its subject.**
-
 ### One magnitude check, against real data
+Anchor: none - a proposed band check over a production snapshot; nothing that exists yet names it
 The process audit's highest-value new check, and the only one aimed squarely at this project's stated worst failure mode. `HANDOVER-172` already derived it and applied it only to a seed: *"a fixture can be internally consistent and still be nonsense, and the checks that would catch it are the ones about magnitude, not about shape."*
 A small set of assertions that every plate cost, unit cost and food-cost percentage lands inside a sane band, run against a snapshot of production, would have caught the $961 salad, the 1831% dashboard, the 30c/kg ham and 193's carton error **without a human looking.**
 ⚠️ **State its limit at the site or it will be over-trusted: a band does NOT catch `QUEUE.md` item 0.** $5.50/kg for chips is inside every plausible band; a 10% error is invisible to magnitude and needs the composition test in item 0c. These two checks are complements, not substitutes.
-
-### ~~Retire the parallel maintenance track~~ — DONE 22 Aug 2026, see this file's header
-Added 13 Aug 2026 with a second worktree, a collision rule, and a five-batch tally to judge whether it was working. **Batches 181-195 have run since. The git log contains exactly one maintenance commit (`735082d`) and it is a recording, not a fix.** Two handovers record the track explicitly not running (182, 194), and 194 found a structural reason it can never run during an audit batch.
-Fifteen batches, zero items. **The five-batch tally has its answer.** Delete the track's section from `skills/batch/SKILL.md` and this file's header, and let C items ride batches already in the file — which is what actually happens.
-⚠️ **This item is on the track it proposes to delete, which is the joke and also the evidence.** Whoever picks it up should note that `QUEUE.md` items 0c and 0d exist because Max declined to file two structural fixes here for exactly this reason (22 Aug 2026).
-
-### ~~Change what `docs/PHONE.md` is for~~ — MERGED UPWARD 28 Aug 2026 (AUDIT-v176)
-**This was a second, independently-written copy of *"`docs/PHONE.md` needs a groom"* above**, ~350 lines apart, neither citing the other, both quoting "756 lines". Its distinct content is folded into that entry; only the pointer remains here so a reader arriving at this line is not left thinking something was dropped.
-⚠️ **Two audits running have now found this file recording one problem twice** — the other pair is the `screenshots.spec.js` entry above. **Grep this file for the subject before adding a C item.**
 
 ---
 
@@ -912,6 +601,7 @@ Filed here rather than in `docs/QUEUE.md` per the tier test: none of the three w
 `docs/GATE-REVIEW.md` is the sign-off these three fell out of; read it there rather than re-deriving them.
 
 ### Per-account rate limiting on the AI endpoints
+Anchor: `It is NOT a rate limit` in `api/_auth.js`
 Batch 210 closed the **anonymous** half of this: `api/_auth.js` requires a live, confirmed session on `api/parse-invoice` and `api/insight`, which before it were POSTable by anyone on the internet spending Max's Gemini key.
 **A signed-in caller is still unbounded.** Requiring an account raises the cost of abuse from nothing to "confirm an email address"; it caps nobody.
 ⚠️ **This is C only while the tier is free, and it becomes a launch blocker the day the paid tier lands** — that is the day abuse stops costing quota and starts costing money, and `docs/QUEUE.md`'s paid-tier item says so at its own site. **The cheap half needs no code at all: set the Google Cloud SPEND CAP in the same sitting as enabling billing.**
@@ -919,28 +609,19 @@ The reason it was not built in 210: a per-account counter must survive between s
 ✅ **THAT OBSTACLE IS GONE. Staging came back on 29 Aug 2026** (`docs/STAGING.md`, measured — 14 tables, 9 functions, 4 accounts), and batches 218 and 219 have both rehearsed full migrations against it since. **So this item is no longer blocked on anything; it is merely undone**, and the distinction matters because a reader of the old sentence concluded the work was impossible.
 Corrected 2 Sep 2026 by AUDIT-v186 C1, which called it the single most important thing in the report: this is the one C entry that **becomes a launch blocker the day item 2b ships**, since abuse costs quota on the free tier and money on the paid one.
 
-### ~~Prove on staging that `restore_backup` is inert for `anon`~~ — **DONE, batch 219 (29 Aug 2026)**
-✅ Rode the batch that replaced `restore_backup` anyway, which is exactly what this file's header asks a C item to do. Called as `anon` over PostgREST on staging with every table populated; **every row count was identical before and after.** The full record is in `supabase/migrations/20260829_restore_backup_v5.sql`'s header. The grants are unchanged — 219 proved inertness and deliberately did not re-grant or revoke anything, because a migration should not quietly change privileges its item does not own.
-
-⚠️ **THE CONCLUSION HELD AND THE STATED MECHANISM DID NOT, WHICH IS THE HALF WORTH KEEPING.** The gate review predicted the insert would fail on `ingredients.business_id` being `NOT NULL` with a NULL default — a `23502`. The measured refusal is **`42501`, "new row violates row-level security policy for table ingredients"**: the `with check` refuses first. Same outcome, different gate, and if the RLS policy were ever loosened the predicted backstop is not the one that would catch it.
-
-⚠️ **AND THE SHARPER CASE ONLY APPEARED BECAUSE A SECOND PAYLOAD SHAPE WAS TRIED.** A populated payload raises and rolls back, which looks like proof. **An EMPTY-group payload as `anon` returns HTTP 200 with all-zero counts** — no error at all — because the five `delete … where true` are RLS-scoped to a NULL tenant and match nothing. That is `CLAUDE.md`'s "an anon UPDATE or DELETE returns 204 with NO error" in a new place: **the response could not have told you whether anything was destroyed; only counting rows could.** A test of the destructive half that only ever sends a payload which raises before reaching the deletes has not tested the deletes.
-
-**The original entry, kept for the reasoning it records:**
-`anon` retains `EXECUTE` on `restore_backup`, `claim_business_invite` and `business_team`. The gate review argues all three are inert from the schema — for `anon`, `current_business_id()` is NULL, `business_id = NULL` is NULL so the `delete … where true` matches nothing, and `ingredients.business_id` is `NOT NULL` defaulting to `current_business_id()` so an insert fails before RLS is consulted.
-⚠️ **That is REASONED, not run, and the reasoning is exactly the kind this repo keeps finding wrong.** It was not tested because the only place to call it is production and being wrong costs Scoopy's real data — a stop condition, not a shortcut.
-So: **call it as `anon` over PostgREST on staging, with rows present, and assert the counts are unchanged.** Then either record the proof or revoke the grants.
-✅ **NO LONGER BLOCKED — staging came back 29 Aug 2026** and two batches have rehearsed against it. This said "blocked on staging being resumed, like everything else that needs a rehearsal"; corrected 2 Sep 2026 by AUDIT-v186 C1. The work is undone, not impossible.
-⚠️ **`claim_business_invite` and `business_team` are NOT covered by 219** — it proved the one function it was already replacing. They remain reasoned-not-run, and are filed under the `revoke … from public` entry that names them.
-
 ### Drop `invite_pending` once no cached client calls it
+Anchor: `create or replace function public.invite_pending` in `supabase/staging/01-schema.sql`
 It is `SECURITY DEFINER`, granted to `anon`, and answers whether any café has a pending invitation for an address — the only unauthenticated endpoint this app has ever deliberately shipped. The gate review accepts it, on the grounds that its surface is narrow and shrinking.
 **The café-creation branch removes its last caller**: sign-up stops being invitation-gated, so once that ships nothing in the shipped client invokes it. It is deliberately not dropped in the same change — an old client still cached on a phone calls it and refuses sign-up on an unreadable answer, so **the drop must FOLLOW the client, never lead it.**
 Take this once the café-creation client has been live long enough that no cached client plausibly remains.
 
 ---
 
-## `.tipbox` and `.tip` are dead — CSS, a wired handler, and a document-wide click listener
+## C — the insight validator and dead UI (batches 212-223)
+
+### `.tipbox` and `.tip` are dead — CSS, a wired handler, and a document-wide click listener
+Anchor: `.tipbox{` in `css/style.css`
+Anchor: `querySelectorAll('.tip')` in `js/app.js`
 
 Found by batch 212 while counting the app's floating layers for `docs/QUEUE.md` item 6, which listed
 `.tipbox` as one of five live layers with the note *"suggested-price tooltip, CSS only"*. It is not a
@@ -964,9 +645,8 @@ It rides whichever batch next opens `css/style.css` §13 or that handler block. 
 dead-selector family recorded earlier in this file (`.ref-pill`, `.db-tools`, `.ing-empty`,
 `.an-empty`, `.plate-noresult`, `.king-tag`) — same class, and this is a seventh.
 
----
-
-## A REJECTED phrasing is not free, and the entry below says it is
+### A REJECTED phrasing is not free, and the entry below says it is
+Anchor: `function validatePhrasing` in `api/_insight.js`
 
 Batch 215, third review round. Recorded because it qualifies a sentence sitting a few lines down —
 *"a rejected line costs nothing because the deterministic template is always the fallback"* — which is
@@ -1021,9 +701,9 @@ change, all EIGHT families publish at least one name**, so every one of them is 
 the plate and not the ingredient the sentence blamed.)
 Nothing here is measured against real Gemini output, which is the whole point of the entry above.
 
----
-
-## Two ways a name check can be satisfied by the wrong entity, neither fixed
+### Two ways a name check can be satisfied by the wrong entity, neither fixed
+Anchor: `function nameSequence` in `api/_insight.js`
+Anchor: `Rice Noodles` in `tests/insight-parity.test.js`
 
 Found and left open by batch 223, which closed the neighbouring case and could not close this one.
 
@@ -1054,7 +734,7 @@ is a guess about every wrong value there could be, and the prose differs per fam
 right subject, so the failure needs the model to produce a swap AND the café to have named a plate
 after a word in the boilerplate.
 
-### The second one, and it is the WIDER of the two: a name that is a PREFIX of a longer name
+**The second one, and it is the WIDER of the two: a name that is a PREFIX of a longer name**
 
 Raised by 223's pre-push review. `Rice` is matched inside **"Rice Noodles"**, so a rephrasing can
 name a *different real product* that merely starts with the same word, and every figure, symbol and
@@ -1085,9 +765,8 @@ for the reason given above.
 **What holds meanwhile** is unchanged: the deterministic template is the fallback and names the right
 product, and the prompt already demands names be kept exactly.
 
----
-
-## The insight validator cannot see an inverted RECOMMENDATION
+### The insight validator cannot see an inverted RECOMMENDATION
+Anchor: `is fine and needs no action.` in `tests/insight-parity.test.js`
 
 Left open deliberately by batch 215.
 ⚠️ **An earlier draft of this entry said 215 "fixed the other three cases the blind audit found", and the pre-push review was right that it overstated.** 215 fixed the audit's three *as the audit demonstrated them*, and the review then found a FOURTH shape of the same swap class — two entity NAMES with one figure each, where swapping the names preserves order and symbols perfectly. That is fixed too (the names are sequenced), so the standing gap is the one below and only the one below.
@@ -1116,75 +795,36 @@ ON, which is why this is recorded rather than shrugged at.
 the inverted-advice sentence, so the day someone closes it that test goes red and makes them come here
 and update this entry rather than the gap silently changing status.
 
-
----
-
 ## C — from AUDIT-v176 (28 Aug 2026)
 
 Filed here per the tier test: none of these would stop, embarrass or hurt a paying customer at launch. The first is the exception in spirit and is flagged for Max rather than queued, because it turns on a decision he owns.
 
-### ~~⚠️ The protected parser region has NO automated guard, and was edited once without one~~  ✅ **BOTH HALVES CLOSED — the ratification 10 Sep 2026 (Max), the GUARD by batch 256**
+### A handover thread reached NEITHER `QUEUE.md` NOR `MAINTENANCE.md`: the supplier filter over a 95%-empty field
+Anchor: `ingSupFilter` in `js/app.js`
 
-✅ **The missing mechanism now exists and is not a hash.** `tests/parser-corpus.test.js` scores the region against 130 lines of known answers on every `npm test` run, and five of the region's functions are mutation targets. This entry's own diagnosis — *"the strongest invariant in `CLAUDE.md` is the only one with no test behind it"* — is answered by measuring what the region DOES rather than pinning what its text IS.
-⚠️ **Three of the eight targets the audit asked for are NOT on the list** (`parsePdfLine`, `lineColumns`, `rankCandidates`, 34 survivors between them): consolidated item 92, to run with item 81.
-
-
-**FOR MAX — this is a rule of his and the audit is reporting, not deciding.**
-`CLAUDE.md` says *"Never edit anything inside it. If a fix seems to require it, stop and tell Max — solve outside the region."* **Batch 197 edited inside it** (commit `f259c5c`, PR #198): one line removed, 25 added. Verified twice by hand at AUDIT-v176.
-
-**The change was good and is not in question** — it fixed taught-pack and supplier-memory lines being stored **10% high** because the GST divisor ran on the parser's candidate price rather than the resolved one. Measured then: $5.50/kg stored where $5.00 was right. **The four never-touch functions were NOT modified** and are byte-identical to their v166 state, so the narrower rule held.
-
-**What is missing is the mechanism.** The only region check anywhere is `tests/extractfn.test.js:121`, which asserts the **anchors still slice** — not that the contents are unchanged. Every audit since v125 has compared the hash by hand, and v176 is the first time it moved. **The strongest invariant in `CLAUDE.md` is the only one with no test behind it**, and a silent crossing is indistinguishable from compliance — which is this repo's most-recorded shape, one level up from the code.
-
-✅ **BOTH SETTLED, 10 Sep 2026, by one sentence from Max — *"its lifted"*** (`docs/decisions/2026-09-10.md`, question 1). This entry had been asking since 28 Aug 2026, through **two audits**.
-
-- **197's edit is RATIFIED.** The question was put to him with that consequence written out — *"his sentence ratifies it or it does not, in the same breath"* — and answered against that wording.
-- **The hash pin is not deferred, it is DISSOLVED, and that is a different outcome worth stating plainly.** A hash pin exists to detect an edit nobody authorised. Edits are now authorised, so the pin has no subject: it would fail on every legitimate change to the region and teach whoever hit it to delete the check. **What replaces it is a corpus, which is what it should always have been** — this repo's own conclusion, already written into the consolidated backlog: *"the guard that should have existed was a corpus, not a hash; item 17's corpus test and mutation targets replace it."* A hash proves the text did not move; a corpus proves the parser still prices six real invoices correctly, which is the thing anybody actually cares about.
-
-**The paragraph below is kept rather than struck**, because its lesson outlived its question: the recommendation to write a specific hash into prose came from the one process whose value is that it checks things, and the hash could not be reproduced.
-
-⚠️ **THAT LAST INSTRUCTION PROVED ITSELF ON 10 SEP 2026, IN ONE STEP, AND IT IS WHY NO NUMBER IS WRITTEN ABOVE.** AUDIT-v207 recommended recording a specific md5 for the region and quoted one. **Batch 252 could not reproduce it** — four plausible slice variants against `tests/_extract.js`'s own `sliceBetween` semantics (exact, rstripped, rstrip-plus-newline, through the end marker) all disagreed with the quoted value while agreeing with each other on the line count. So it was computed, not recorded.
-**A bare hash in prose is an artefact nobody can falsify**, and the recommendation to write one down arrived from the one process whose value is that it checks things. That is this entry's own point, arriving from the direction it did not expect.
-**What AUDIT-v207 could add that v197 could not: the region has NOT MOVED since.** Verified by slicing it at batch 240 and at batch 251 and comparing — identical. So batch 197's edit remains the only one outstanding for ratification, and **the "has a hash ever been compared" disagreement between this file and AUDIT-v197 is settled: one has now, by this batch, and deliberately left unwritten.**
-~~**The pin in `npm test` is still Max's**~~ — ✅ **answered 10 Sep 2026, and the answer removes the question rather than deciding it; see the strike above.** The same sentence unblocked item 17.
-
-### Two handover threads reached NEITHER `QUEUE.md` NOR `MAINTENANCE.md`
-
-Recorded because the failure is the routing, not the items: both exist only in write-once handovers, where nothing will ever action them.
+Recorded because the failure is the routing, not the item: it existed only in a write-once handover, where nothing would ever action it.
 
 - **`HANDOVER-175`** — the supplier FILTER survives over a field that is **95% empty**, so it filters on data that is almost never there.
-- **`HANDOVER-197`** — the pack-to-unit-price arithmetic is written out **four times** (`derivePackPrice`, `applySupplierMemory`, the pack-teach recompute, `invPackPreviewText`), and that handover calls extracting it *"the real root cause fix"*. It was deliberately left unfiled because the author had not measured whether the four are genuinely identical. ⚠️ **Worth the measurement specifically because four copies of one formula is exactly why the GST divisor went missing from three of them** — the defect above. Two of the four are inside the protected region, so acting on it needs Max.
 
-### Two comments in `js/app.js` that the code disagrees with — AUDIT-v197, both C, both riders
+### `buildBackup`'s comment quotes a format literal that no longer exists — AUDIT-v197, C, a rider
+Anchor: `format:chg.length?3:2` in `js/app.js`
 
-Filed 9 Sep 2026 by batch 240. Neither is load-bearing and neither is worth a deploy version on its own; each rides the next batch that opens its function. They are recorded together because they are the same shape: **a correction landed BESIDE the error instead of replacing it.**
+Filed 9 Sep 2026 by batch 240. Not load-bearing and not worth a deploy version on its own; it rides the next batch that opens its function. Its shape: **a correction landed BESIDE the error instead of replacing it.**
 
 - **`buildBackup`'s comment quotes a format literal that no longer exists.** It says *"the precedent is `format:chg.length?3:2` in `backupToPayload`"*. The live expression is `format:(ph.length||mph.length)?4:(chg.length?3:2)` — batch 219 widened it when it took the file to format 4. **The FUNCTION NAME is now right** (AUDIT-v186 X3 fixed that half, after the comment spent months citing `buildBackup`'s own flat number); the quoted expression is the half that rotted next. ⚠️ **This is the third correction to one comment, and `CLAUDE.md` already draws the lesson: read the two literals out of `js/app.js`, and do not restate either of them anywhere.** The fix is to DELETE the quoted expression and name the function only.
-- **`doDeleteMenu` states a fact and its contradiction nine lines apart.** The earlier line still says *"dishes already gone, so the `menu_items.menu_id` FK can never be violated"* — which `CLAUDE.md` Tier 1 records as **wrong**, because that FK is `ON DELETE SET NULL` and cannot be violated by anything. The later line, in the same function, says exactly that and correctly. **So the dishes-before-menu ordering is not guarding what the first comment claims**, and `CLAUDE.md` says so and calls it "not precedent for anything". Delete the wrong sentence; the right one is already there.
-
-### ~~Two live files carry an incident count `CLAUDE.md` itself disowns~~ — **DONE, batch 230**
-
-### ~~`.githooks/pre-push`'s header says "Four checks" and runs five~~ — **DONE, batch 230**
-
-✅ **BOTH STRUCK 9 Sep 2026 by batch 240 (AUDIT-v197 finding C2), and they were already done.** Verified against commit `f3f0558`: `.githooks/pre-push:3` says "FIVE checks", `:25` quotes no incident count, and `tests/semantic-keys.test.js:21` cites the roster rather than a number.
-⚠️ **THE FINDING IS THAT THIS FILE CARRIED BOTH ENTRIES TWICE — struck as done at one end and live as outstanding at the other, ~470 lines apart, for ten deploy versions.** Batch 230 recorded the closure in the done-marks list near the top and did not come back and strike the originals, which is the half a rider batch actually reads: the entries live in the AUDIT-v176 section, and a rider walking that section top to bottom goes hunting for work that no longer exists.
-**The transferable rule, since nothing enforces it: strike the ENTRY, not just the summary.** A done-mark somewhere else in the file is a claim about an entry; the entry is what the next reader acts on, and the two are not the same artefact.
-
-### ✅ DONE (batch 218) — Three handover gaps have accumulated and none reached the README's gap table
-
-✅ **Closed 29 Aug 2026 by batch 218**, which was writing a handover anyway and so had the file open: 196 and 198 are rows in the genuinely-missing table, and 209 is a row in the folded-into-a-neighbour table pointing at `HANDOVER-218-cafe-creation-rehearsal.md`, which documents both batches. No handover was reconstructed, per that file's rule. Left here struck rather than deleted so the next audit can see it was actioned.
-
-`docs/handovers/README.md` lists `v41`, `v65`, `v66` and `batch 189`. **Batches 196, 198 and 209 are also missing.** 196 and 198 were docs-only; 209's is deliberately unwritten and sits on the open `feature/cafe-creation` branch, which says so at its own site. The README's own argument is that *"an unrecorded gap is indistinguishable from a mislaid file"* — so the fix is three lines in the gap table, not three reconstructed handovers, which that file forbids.
 
 ### `cafeCost_env` is a stamp, and Tier 2 still says there is no third category
+Anchor: `var ENV_STAMP_KEY='cafeCost_env'` in `js/app.js`
 
 `HANDOVER-172` asked for *"one clause so the next audit does not rediscover it as a violation"*. It was not written, and AUDIT-v176 rediscovered it — the fourth audit in a row to do so for one of these. `js/app.js:43` is `var ENV_STAMP_KEY='cafeCost_env'`; `CLAUDE.md`'s Tier 2 names the constant in its grep list but never resolves the classification.
 
 ### `HANDOVER-178`'s proposed rule was never applied
+Anchor: absent `inside a node that re-renders` in `.claude/rules/`
 
 *"A primary action must not live inside a node that re-renders."* Earned by a real defect: Save lived inside `#bFootSum`, which was replaced between touchstart and touchend, so the click was dropped. It was parked on Max's yes **the day before that requirement was reversed**, and the reversal's own justification was that a parked rule sat unapplied while the thing it warned about cost a diagnose cycle. ⚠️ **The reversal does not reach edits proposed BEFORE it** — that is the gap, and `HANDOVER-172`'s proposal is in the same state.
 
 ### ⚠️ FOR MAX: `AGENTS.md` forbids commit co-authorship and every commit does it anyway
+Anchor: `Never add yourself as commit co-author` in `AGENTS.md`
 
 Flagged verbatim by `HANDOVER-264` - *"which one is wrong is his call"* - and it then reached **neither `docs/QUEUE.md` nor `docs/PHONE.md` nor this file**, which AUDIT-v217 found and is why it is written here now.
 
@@ -1201,12 +841,15 @@ Flagged verbatim by `HANDOVER-264` - *"which one is wrong is his call"* - and it
 **Recommended: the first.** The rule as written has been false on every commit for months, and a preference nothing can honour is worse than no preference. **But it is his file and his call; do not take it on a free slot.**
 
 ### `tests/king-wizskip.test.js` hand-rolls `kingLinkableProducts` instead of extracting it
+Anchor: `function kingLinkableProducts(){ return PRODUCTS_` in `tests/king-wizskip.test.js`
+
 Found by batch 268 while writing `tests/king-head-sub.test.js` against the same neighbourhood.
 `tests/king-wizskip.test.js:44` writes its own `function kingLinkableProducts(){ return PRODUCTS_.filter(function(p){ return p && p.description && p.is_food!==false; }); }` rather than extracting the shipped one. It is byte-identical today, which is exactly the state the roster's first entry describes: **a stub written from the same belief as the code passes against the defect it was written to catch.** Change the `is_food!==false` predicate in `js/app.js` — widen it, or start excluding a second column — and that file stays green while `kingUnlinkedProducts` returns a different set.
 Requirements: inject `PRODUCTS` and use `extractFn(SRC, 'kingLinkableProducts')`, as the same file already does for `kingUnlinkedProducts` two lines below. `tests/king-head-sub.test.js` injects it for the same reason and has the same gap; fix both in one pass.
 Tier C: no number moves today, and both files are green for the right reason at this commit.
 
 ### `renderManageMenusZero` still reports, and the rule now written down says it should invite
+Anchor: `<p class="mm-empty-t">No menus yet.</p>` in `js/app.js`
 
 Batch 217, filed at the moment the rule was written rather than after someone rediscovers the inconsistency.
 
@@ -1221,47 +864,15 @@ Max chose option A of `docs/decisions/2026-08-28.html` — change one title, wri
 
 **It is copy, so it needs Max**, and it is a one-line change plus the CTA already reading as a verb. The rule's own comment says at its site not to read this title as evidence against the rule.
 
-### ~~`claim_business_invite()` and `business_team()` are callable by `anon`, and both files say otherwise~~ — **DONE, batch 243 (`ezplate-v200`), applied to STAGING **and PRODUCTION**, 9 Sep 2026**
-
-✅ **Closed by `supabase/migrations/20260909_invite_choice.sql`**, which was already replacing `claim_business_invite` for QUEUE item 14 — exactly the "genuinely cheap for whichever batch next writes a migration" case this entry predicted, taken the way it asked.
-**Measured, not read.** `pg_proc.proacl` on staging before: both carried `anon=X`. After: neither does, and all three RPCs answer **HTTP 401** to an anon caller over PostgREST — the GRANT refusing, where the entry's own point was that the BODY had been doing the refusing all along.
-⚠️ **`my_pending_invites()` was born into the same trap and closed in the same file** — a new function in `public` gets `anon=X` from the default privilege before any grant in your file runs, so it needed the same explicit revoke rather than merely being left out of the grant.
-⚠️ **`invite_pending(text)` keeps its anon grant**, as this entry insisted, and `tests/invites.test.js` now asserts that it is NOT revoked so a later tidy cannot sweep it up.
-⚠️ **The test that pins this is an ORDERING, not a presence check**, because "newest definer" is the wrong resolver for a grant: `business_team` is defined by `20260814_invitations.sql` and revoked by `20260909`, so the two facts live in different files. The assertion is that the newest revoke is **not older than** the newest definition — because `create or replace` re-runs the default privilege and hands `anon` EXECUTE straight back.
-
-**The original entry is kept below, unstruck in its body, because its reasoning is what a future reader needs** — the mechanism, the six the linter names, and which four must never be swept up with these two.
-
-
-Found by batch 218 while rehearsing `create_business` on staging, then confirmed on production out of `pg_proc.proacl`. **Neither is a hole and neither is urgent** — both refuse the caller they should, `claim_business_invite()` returning `null` and `business_team()` returning `[]` for a tenant that resolves to nothing since 186. What is wrong is the *stated* mechanism.
-
-Both are written as `revoke all on function … from public;` then `grant execute … to authenticated, service_role;`, which is the idiom every migration here uses and which **does not remove `anon`**: Supabase's `alter default privileges … grant execute on functions to anon, authenticated, service_role` puts `anon=X` in the ACL at CREATE time, and `revoke … from public` revokes the PUBLIC pseudo-role, a different thing. `CLAUDE.md` now carries the mechanism in full; `20260827_cafe_creation.sql` carries the measurement.
-
-**The fix is one line each, in one migration:**
-
-```sql
-revoke execute on function public.claim_business_invite() from anon;
-revoke execute on function public.business_team()        from anon;
-```
-
-⚠️ **It was deliberately NOT done in 218**, and the reason is worth keeping: that batch's item owns `create_business` and nothing else, and a migration that quietly re-grants two functions it was not sent to touch is the kind of scope creep this repo's rules exist to stop. It is genuinely cheap for whichever batch next writes a migration — **take it then**, with the same staging-then-production rehearsal, and check `proacl` rather than the file to confirm it landed.
-
-⚠️ **`invite_pending(text)` is NOT in this list and must not be added to it** — it is granted to `anon` deliberately and by name, and that grant is argued at length in `20260814_invitations.sql`'s header. Dropping the function outright is a separate item that already exists in `docs/GATE-REVIEW.md`'s residuals.
-
-**Supabase's own linter finds this class, and `get_advisors('security')` is the cheapest way to re-check it** — lint `0028_anon_security_definer_function_executable`. Measured 29 Aug 2026 on production, it names **six**: `business_team`, `claim_business_invite`, `current_business_id`, `current_business_role`, `invite_pending`, `set_member_role`. **Only the first two are this entry.** The other four are each fine for their own reason and must not be swept up with them:
-
-- `current_business_id` and `current_business_role` are granted to `anon` **deliberately and by name** in their own migrations (`20260814_roles_part1.sql`), and 186 made the first answer null for `anon` on purpose;
-- `set_member_role` is a **trigger function** — PostgREST cannot usefully invoke it, since a trigger function called directly raises;
-- `invite_pending` is the deliberate one above.
-
-✅ **`create_business` is absent from that lint as of 29 Aug 2026**, which is the independent confirmation that batch 218's `revoke … from anon` landed — it appears only under `0029_authenticated_…`, which is what it is supposed to be.
-
 ### Supabase's leaked-password protection is OFF, and sign-up is now public
+Anchor: none - a Supabase dashboard toggle (Authentication → Policies); nothing in the repo can read it
 
 `auth_leaked_password_protection`, a WARN in the production advisors, checks new passwords against HaveIBeenPwned. It mattered little while every account was made by hand in the dashboard; batch 218 shipped self-service sign-up, so strangers now choose their own passwords.
 
 **It is a dashboard toggle, so it is Max's to flip** — one switch under Authentication → Policies. It is filed here rather than in the queue because nothing in the repo can do it and nothing is broken without it; `docs/GATE-REVIEW.md` (batch 210) reviewed the signup gates and did not cover this one, because the bullet naming it existed only on the unmerged café-creation branch at the time.
 
 ### There is no inventory of the settings this app depends on that live OUTSIDE the repo
+Anchor: none - the fix is a new file, and a literal that only the new file would contain cannot be grepped for before it exists
 
 Batch 238, 8 Sep 2026. Filed here rather than in the queue because the fix is a page of prose, and because the two live instances are each already recorded — what is missing is the list.
 
@@ -1279,6 +890,8 @@ Both are one switch, both are Max's, and neither is discoverable from the repo. 
 ⚠️ **Staging almost certainly carries the same default and nobody has looked.** A sign-up rehearsed there will land on `localhost:3000` exactly as production did — which means the flow this repo cannot test is also the flow staging cannot rehearse until that field is set on both projects.
 
 ### The café name limit is 60 in three places and only two of them count the same thing
+Anchor: `function cafeNameProblem(name)` in `js/app.js`
+Anchor: `maxlength="60" required` in `index.html`
 
 Found by batch 218's pre-push review, measured on both sides rather than reasoned:
 
@@ -1295,30 +908,21 @@ Found by batch 218's pre-push review, measured on both sides rather than reasone
 
 **What IS pinned, in `tests/cafe-create.test.js`:** the property that actually matters — *the client may refuse more than the server and must never accept more* — across a spread of astral lengths. So the tempting direction, loosening the client to remove the false refusal, goes red by name. The equality test one above it deliberately keeps asserting the three numbers match, and now says at its own site that equal numbers in different units are not agreement.
 
-## C — from batch 231's pre-push review (4 Sep 2026)
-
-- ~~**`.king-link`'s line-clamp is DEAD and nothing bounds an Ingredients row's height at ≥768.**~~ — **DONE, batch 232 (`ezplate-v191`)**, riding the step-3 batch that opened `css/style.css`. Decided by DELETION, not restoration: the live, shipped rendering the clamp never bounded is the one R2 measured and sized the 768-1023 tracks for (2-3 lines), and a real one-line clamp would truncate the pane's only visible route to Products. `overflow:hidden` stays — it guards horizontal overflow of an unbroken token. `fresh-states.spec.js`'s clamp assertion turned out to be pinning the INERT computed value ('1'/'2' read back from a declaration that never applied) and now pins 'none'; a clamp reappearing is the regression. Original entry below.
-- *(original)* **`.king-link`'s line-clamp is DEAD and nothing bounds an Ingredients row's height at ≥768.** `css/style.css` gives `.king-link` `-webkit-line-clamp:1`, and two rules later `display:block` overrides the `display:-webkit-box` the clamp requires — measured at 768: computed `display:"block"`, clamp present and inert. So a long product sentence ("Cake P/C Choc Brownie With Raspberry Frosting G/Fr — Scottish Baker") renders three lines and a 93.5px row where the comment beside the clamp promises one line. Predates batch 231 (which only re-tracked the columns and corrected its own comment to say "two to three lines"). The fix is deciding which rule is right — restore the `-webkit-box` pair for a real one-line clamp, or delete the clamp and its comment as a tombstone. Grep `.king-link`, not line numbers. Found by the pre-push review of batch 231 measuring a claim in a new comment against the fixture's longest label.
-
 ## C — from the 5 Sep 2026 blind audit (GPT-5.6 Sol, 25m52s)
 
-**Source: `docs/audits/BLIND-AUDIT-2026-09-05-code.md`.** Second blind audit on the 22 Aug pattern. Its four A/B findings are `QUEUE.md` items 12-15; everything below either failed the tier test, was already known, or is unmeasured enough that promoting it would be writing an item whose facts nobody has checked.
+**Source: `docs/audits/BLIND-AUDIT-2026-09-05-code.md`.** Its four A/B findings became `QUEUE.md` items 12-15 and all four shipped; its top-ranked finding (that `js/app.js` did not parse) was FALSE.
+⚠️ **The transferable rule: a reviewer that reads a file in fragments cannot see anything whose meaning is established outside the fragment** — block comments, hoisting, the naming inversion. Confidence and citation density are not evidence, so **run the repro before the fix, every time.**
 
-⚠️ **THE REVIEWER'S OWN TOP-RANKED FINDING WAS FALSE, AND IT IS RECORDED HERE RATHER THAN QUIETLY DROPPED, BECAUSE THE MECHANISM GENERALISES TO EVERY OUTSIDE REVIEW THIS REPO WILL EVER COMMISSION.** It claimed `js/app.js` on `main` contains bare English prose at lines 7290 and 11586, making the file syntactically invalid, and ranked it a release blocker — *"serve this exact main and the browser executes none of the application file"*. `git show origin/main:js/app.js | node --check` **parses clean** at `a56055e`. Both citations are continuation lines inside `/* … */` block comments.
-**The cause is the access method, not the model:** it read the repository as raw network slices rather than whole files, so a multi-line comment arrived without its opening delimiter. **The transferable rule: a reviewer that reads a file in fragments cannot see anything whose meaning is established outside the fragment** — block comments, hoisting, the naming inversion, a guard three hundred lines up. That is this file's oldest rule wearing new clothes: *a check that finds nothing has only proved something about what it looked for*, and here a check that found something proved only what its window contained.
-**It was also the most confident finding it produced** ("Very high. This is visible directly in current raw main") **and the most precisely cited.** Confidence and citation density are not evidence, and an outside reviewer offers no other signal, so **run the repro before the fix, every time** — `CLAUDE.md`'s three-separable-claims rule, arriving from outside the pre-push agent for the first time.
+### `api/_insight.js` can drop template numbers, and the prompt and test claim it cannot.
+Anchor: `function skeletonIsSubsequence` in `api/_insight.js`
 
-- ~~**A failed `menus` SELECT is treated as a valid boot and mints a menu that is not on the server.**~~ ✅ **MEASURED, TRUE, AND SHIPPED — batch 246, `ezplate-v203`** (as `docs/QUEUE.md` item 20). Reproduced in Chromium, deterministically, by failing that one request: the boot reported success, `menusList` held one invented `MENUmttz…` "Original menu", `currentMenuId` was repointed at it, every real dish was on a menu not in the list, and the Menu screen offered *"Nothing on this menu yet. Publish a plate from the Plates tab to see it here."*
-The `menus` read is required now — its error joins the four that raise the boot gate — and `ensureDefaultMenu` is deleted with the branch that called it. **The reviewer's sharpest observation held up exactly**: `menu-default.test.js` was an expensive green test, pinning the invariant at the create-menu entry point while bootstrap violated it on a path the file never exercised. `tests/visual/246-menus-read.spec.js` now exercises that path in a browser, and `boot-gate.test.js` names `menus` as a bootstrap dependency.
-- **Invoice Apply announces completion before the price writes have settled.** ⚠️ UNMEASURED. Claim: the importer increments its applied count synchronously, writes bookkeeping, closes the dialog and renders "Invoice imported" without awaiting the product upserts (`js/app.js:11561-11660`, presentation ~`11715-11718`, optimistic `setProduct()` ~`1342-1384`). Eight confirmed prices on a phone whose writes are all rejected still produce an affirmative success signal. **Not silent** — later failures toast, and `pushWrite`'s offline handler says outright *"you're offline. It has NOT been saved."* — so this is a false completion message rather than invisible loss, which is why it is C rather than B. `inv-unit-rebase-apply.test.js` and `invoice-gate.test.js` both supply prepared rows and controlled writes, so neither proves completion waits for persistence.
-- **Some dish and plate mutation paths log history independently of the primary write succeeding.** ⚠️ UNMEASURED. Claim: `logHistory()` is dispatched without gating on the entity write, so a failed `menu_items` upsert alongside a succeeding history insert leaves a $17 price-history point for a dish that never became $17, poisoning trend and insight history. Claimed sites: dish mutation ~`js/app.js:1751-1767`, plate save ~`3031-3034`, history persistence ~`4085-4126`. **The reviewer explicitly cleared the ingredient-price path** — that one gates its logging on the product write since PR #244 (`ezplate-v184` — a PR number, not a batch number), and is *"materially safer than the dish/plate history paths"*. **The existing history-path tests are the weakness rather than the guard:** they prove `logHistory` is CALLED from the mutation paths, and proving the call occurs does not prove it occurs only after the primary write succeeded. ⚠️ **`menu_change_log` records what MAX did and every other log records what a SUPPLIER did** — a fix here must not blur that, and ⚠️ **THE DETERMINISTIC TRIGGER THIS BULLET NAMED IS GONE, AND THAT IS A COST OF FIXING IT RATHER THAN A REASON NOT TO HAVE.** It said to reproduce the fictional menu in the first bullet of this section first, because a dish write against a menu id no `menus` row answers to fails reliably and would expose an ungated `logHistory`. **Batch 246 removed that state entirely** — the read is fatal and the seeder is deleted — so this needs a failure trigger of its own now. The straightforward one is a refused `menu_items` upsert injected at the client, which is what `tests/visual/246-menus-read.spec.js` already does for a different table and can be copied. Do not go looking for the fictional menu; it cannot be produced any more. (Recorded 9 Sep 2026 by 246's pre-push review, which caught the same falsified premise in `docs/QUEUE.md` item 21.)
-- **`api/_insight.js` can drop template numbers, and the prompt and test claim it cannot.** ⚠️ UNMEASURED. Claim: the candidate number skeleton is only required to be a **subsequence**, so a candidate that invents no number can omit both `18%` and `5 plates` and pass — template *"Beef, up 18% across 5 plates, is most of it"* against candidate *"Beef is the main pressure point."* Claimed sites `api/_insight.js:31-35, 190-213, 263-297`. **`api-insight.test.js:89-94` is named as false confidence: its "forbids changing numbers" assertion checks the prohibition WORDING, not that the validator prevents removal.** That is roster entry 183(a) — an assertion that greps prose written by the same person in the same hour saying the same words. **The implementation's own comments acknowledge omission as permissible**, so this is also a comment/behaviour disagreement, and the honest fix may be to correct the prompt and the test rather than the validator.
-- ~~**The insight validator cannot see an inverted RECOMMENDATION.**~~ **ALREADY FILED, above, under its own heading.** The reviewer found it independently, without the rulebook, and called `tests/insight-parity.test.js` *"intentionally the opposite of protection"* — which is exactly what that test says about itself: *"THE RESIDUAL, PINNED AS A KNOWN GAP RATHER THAN LEFT TO BE REDISCOVERED … this test asserts the CURRENT truth so that the day someone closes the gap, this test goes red and makes them come here and say so."* **Recorded because the pin worked exactly as designed on a reader who had never seen this file**, which is the only evidence that mechanism has ever had. No action.
-- **The publish guard's invariant is false on a reachable error path.** Rides the batch that reproduces the fictional-menu bullet at the TOP of this section (not queue item 12, the carton parser), since it is the same code. The publishing code relies on a non-empty `menusList` meaning menus the server has; the bootstrap path above puts an unsaved generated menu in that list. **Fix the comment in the same change as the behaviour, not separately** — a corrected comment beside uncorrected code is the failure this file has recorded most often.
+⚠️ UNMEASURED. Claim: the candidate number skeleton is only required to be a **subsequence**, so a candidate that invents no number can omit both `18%` and `5 plates` and pass — template *"Beef, up 18% across 5 plates, is most of it"* against candidate *"Beef is the main pressure point."* Claimed sites `api/_insight.js:31-35, 190-213, 263-297`. **`api-insight.test.js:89-94` is named as false confidence: its "forbids changing numbers" assertion checks the prohibition WORDING, not that the validator prevents removal.** That is roster entry 183(a) — an assertion that greps prose written by the same person in the same hour saying the same words. **The implementation's own comments acknowledge omission as permissible**, so this is also a comment/behaviour disagreement, and the honest fix may be to correct the prompt and the test rather than the validator.
 
 ## C — from batch 256's browser check (10 Sep 2026)
 
 ### A CREDIT line is refused correctly and EXPLAINED wrongly — it says "unit mismatch"
+Anchor: `<span class="flag-mismatch">unit mismatch</span>` in `js/app.js`
+Anchor: `function invRowIsCredit` in `js/app.js`
 
 **Measured in Chromium, light and dark, 380px and 1456px**, driving the real chain (`pdfTextToRows` → `invFixRow` → `buildInvRows` → `renderInvReview`) over the real credit line from a 25/08 invoice: `13612 FZ CHIPS … LAND -2.00 -2.00 CTN $29.50 $-59.00`.
 
@@ -1330,49 +934,13 @@ The `menus` read is required now — its error joins the four that raise the boo
 ⚠️ **It rides whichever batch next opens `renderInvReview` / `flagNeedsAttention`, and it is cheap:** the row already carries the reason, so this is a `basis.kind` read and one more `st-*` case, not new state. **Consolidated item 26** is the natural companion — it is deciding what a `$0.00` line MEANS, which is the same question about the same screen, and both are about a row whose refusal needs its own words.
 ⚠️ **And the general shape, which is why this is written down rather than fixed on sight:** the fix put a NEW reason into the data (`basis.kind`) and reused an OLD label for it. A flag that is true for the wrong reason is this file's own comment trap arriving in UI copy — the observation ("the units do not match") is accurate, and the conclusion it invites ("set the pack") is the wrong action.
 
-### The parser fix stops NEW wrong prices and does not correct the ones already stored
-
-Raised by batch 256 itself, which is the point: item 17 fixed the mechanism, and a mechanism fix is
-not a data fix. Every price one supplier's invoices wrote before `ezplate-v211` was chosen by the
-old rule, so some stored `cost_per_base_unit` values — and the plate costs computed from them — are
-still whatever the wrong parse said.
-
-**Bounded, measured on production 10 Sep 2026, so nobody has to guess how bad it is:**
-
-- `ing_price_history` holds **61 points across 57 distinct products** since 15 Jul 2026. That is
-  every product whose price has EVER moved through `setProducts`, which is the upper bound on what
-  an import can have changed — against **428** products in the catalogue.
-- Not all 57 came from the affected supplier, and not all came from an invoice at all: the catalogue
-  importer writes through the same function.
-- ⚠️ **And the flag was doing most of the work, which is why this is C.** The parser audit measured
-  that the 12% price-jump check against existing history put **34 of the 35 wrong real lines into
-  `review` rather than pre-ticking them** — so for a product that already had a price, Max was shown
-  the number and had to tick it. What the flag could NOT protect is a **new** product, a **new**
-  supplier or a **new** cafe, where there is no history to jump from.
-
-**The natural repair is the next invoice from that supplier**, which now prices correctly and
-overwrites. So this closes itself in a week of ordinary trading, and doing nothing is a legitimate
-answer — but it should be a decision rather than an omission, which is why it is written down.
-⚠️ **Anything that rewrites those stored prices is production data and is MAX'S**, the same standing
-rule as the restore's wipe. **And the honest repair is not a script**: there is no way to tell, from
-a stored number, whether it came from a wrong parse or from Max typing it, so a heal would be
-guessing at exactly the values it claims to fix. The safe version is a REPORT — list the products
-whose last recorded movement predates `v211`, with their stored price, and let him look — not a write.
-⚠️ **The visible symptom, so it is not diagnosed as a price rise:** the first corrected import will
-show as a large jump on those products' price history and as drift on the Dashboard. `docs/PHONE.md`
-(the `v211` entry) tells him that in advance; if this entry is ever acted on, keep that warning
-somewhere he will read it.
-
 ## C — the checks that came off `docs/PHONE.md` (10 Sep 2026, batch 257)
-
-**Max, in his own words: *"the phone list i have never used bc im lazy, im sure its loaded with shit that doesnt even need testing anymore or could be tested by an agent in browser - fix that, id maybe ahve the energy to do like 5 checks or something."***
-
-That file was **1051 lines and 50 sections** and had never once been worked. It is now five checks.
-⚠️ **The diagnosis is not that it was too long. It is that most of it was never a phone check**, and the length is a symptom: `/batch` appended a section per batch, nothing ever removed one, and no single batch was in a position to judge whether the list as a whole was still worth a person's time. Two costs-money-if-wrong checks sat unread at the bottom for weeks because of what was piled on top of them.
 
 **The new rule is in that file's header and is a hard test:** a check belongs there only if a browser agent *could not* settle it — a real file, the soft keyboard, the installed PWA, a real network drop, or a real inbox. A batch adding one must name which. Everything else is below.
 
-### These are AGENT checks — `flow-tester` at 380px and desktop, both themes
+### A one-off `flow-tester` sweep of the AGENT checks that came off the phone list — 380px and desktop, both themes
+
+Anchor: none - a UI-wide sweep with no single subject; it ends when the sweep is run
 
 None of these needs Max and none ever did. They are listed so the deletion is not silent, and because several are worth one sweep.
 
@@ -1380,25 +948,16 @@ None of these needs Max and none ever did. They are listed so the deletion is no
 - **Overflow and clipping:** the builder's ingredient dropdown drawing its full height; the Menu verdict pill wrapping to two lines; the trend chart's date axis clipping at the card edge; the last table row sitting under the install banner.
 - **Hit targets:** the builder's remove ✕ against the adjacent unit-price chip (they meet at a column gap and must not feel swapped); the trend range pills; the More back chevron; the search clear ✕. Geometry only — `elementFromPoint` and bounding boxes already pass, so what is left is a regression net, not a discovery.
 - **Contrast:** every text/background pair in both themes. Already measured; item 66 owns the two that fail.
-- **Empty and first-run states:** the Cost card's empty box on an unpublished plate below 768; "Set up" staying visible under the Ingredients header on a café with products but no ingredients; the Dashboard's "Cost your first plate" card.
+- **Empty and first-run states:** "Set up" staying visible under the Ingredients header on a café with products but no ingredients; the Dashboard's "Cost your first plate" card.
 - **Rotation:** the second header button moving between the header and the control row across ~767px on all three screens.
 
 ⚠️ **Several of these have Playwright specs already** (`tests/visual/`), so the honest first step is to grep before writing anything: this list is what the PHONE file was asking a human to eyeball, not a claim that none of it is covered.
 
-### These are REAL device checks that Max will not do, and pretending otherwise was the problem
-
-- **VoiceOver row announcements** (batch 225, `ezplate-v185`). Genuinely only a device settles it: the phone prints "cost" and "suggested" through CSS generated content and the spoken copy is meant to stand down below 768, so a duplicated word is inaudible to every automated test and invisible on screen. Chromium computes the same names and agrees, but Chromium is not VoiceOver. **He does not use VoiceOver.** It belongs on the accessibility item (consolidated 68), not on his list.
-- **Thumb "feel" checks** (batches 233, 235). The entries say so themselves: *"every measurement a harness can make already passed"*. What remained was whether a real thumb lands things it used to miss — which is not a check anyone will ever sit down and do, and it is not a defect report either.
-
-### And the process defect underneath, which is the part worth keeping
-
-**An accumulating list with no consumer is not a backlog, it is a way of feeling like something was written down.**
-`/batch`'s rule was *"do not stop for a phone check, append here"* — correct in isolation, and it had no matching rule that anything ever drains or prunes it. Fifty sections is what that produces in five weeks.
-**The general shape: any file a process APPENDS to needs a stated cap and a stated test for entry, or it converts work into the appearance of work.** `docs/QUEUE.md` has a cap of 20 and a tier test and stays useful; this file had neither. That is the whole difference.
-
 ## C — from batch 260's pre-push review and browser drive (12 Sep 2026)
 
 ### Every `pushWrite` caller except two reads an absent error as a successful write
+
+Anchor: `writeLanded` in `js/app.js`
 
 ⚠️ **`writeLanded` exists because the same silent no-op bit twice, and both times it was found by driving the app rather than by any test.**
 Batch 251 added it (as `teamWriteLanded`) after a blocked DELETE on `business_invites` returned HTTP 200 with no error; batch 260 hit it again on `price_history`, signed out, where a delete reported success, repainted the screen, wrote a change-log entry saying the reading was gone, and **left the row untouched**.
@@ -1413,6 +972,8 @@ Batch 251 added it (as `teamWriteLanded`) after a blocked DELETE on `business_in
 
 ### `dbDeleteHistoryPoint` has no DB-side uniqueness behind its natural key
 
+Anchor: `dbDeleteHistoryPoint` in `js/app.js`
+
 It deletes by `(recorded_at, menu_id)` and `price_history`'s index on those columns is **not unique**, so the key is a convention rather than a constraint.
 Measured on production 12 Sep 2026: **zero** pairs occur twice, and `mergeSeries` collapses same-millisecond rows into one point before the user sees them - so removing both is what the screen offered, and the behaviour is right today.
 **The entry exists because the guarantee is external to the database.** If a future batch adds a second writer to that table, or relaxes `mergeSeries`, this delete starts removing more than the confirm named, silently. A unique constraint would make it a fact rather than an observation; adding one is a migration and needs the existing rows checked first, which is why it is not done on sight.
@@ -1420,6 +981,8 @@ Measured on production 12 Sep 2026: **zero** pairs occur twice, and `mergeSeries
 ## C — from batch 261 (12 Sep 2026)
 
 ### The pack division has four copies; they are measured identical and a test now says so
+
+Anchor: `packToUnitCost` in `js/app.js`
 
 **Not a defect today, and the entry exists so the next reader does not re-derive the measurement.**
 `derivePackPrice`, `applySupplierMemory`, `resolveMatchedPrice`'s branch 2 and `packToUnitCost` each carry "pack price + pack size -> unit price".
@@ -1439,6 +1002,8 @@ Measured on production 12 Sep 2026: **zero** pairs occur twice, and `mergeSeries
 
 ### `fresh-states.spec.js` asserts the Menu secondary's label on a HIDDEN element, so it cannot see how it renders
 
+Anchor: `page.locator('#menuAddDishBtn').innerText()` in `tests/visual/fresh-states.spec.js`
+
 **Found by a first cut of item 46 going red for the right reason.** The Menu header's `#menuAddDishBtn` was given the app's `.btn-noun` collapse and the spec was updated to assert the shortened form; it failed with the FULL text at a 380px viewport.
 
 **The mechanism is worth keeping even though that label no longer collapses.** In a fresh state there are no menus and no eligible plates, so `updateMenuAddDishBtn` sets `hidden` on the button - and **Playwright's `innerText()` on a hidden node returns the raw text rather than the rendered text.** So the assertion has never observed anything about layout, while its message said *"it already fits"*, which is a rendered-width claim.
@@ -1446,55 +1011,39 @@ That is `CLAUDE.md`'s *"a comment can record the defect correctly and file it un
 
 **What it would take:** a spec that drives the Menu screen **with a menu and a costed plate in it**, so the button is actually displayed, and then asserts the rendered label at 380 and at desktop. That is a fixture, not a one-line change, which is why it is filed rather than done - and the label it would pin is currently the same at both widths, so nothing is unprotected today. **It becomes worth building the moment any Menu-header control takes a `.btn-noun` again.**
 
-### `v143-dashboard.spec.js`'s two layout assertions were exact float equality, and flaked one run in four
+### Other `tests/visual/` specs may still assert exact float geometry or sleep through a transition
 
-✅ **FIXED in 262** and recorded here because the SHAPE will recur: `getBoundingClientRect()` returns floats, and `toBe` on them is a promise about subpixel rounding that no browser makes. Measured on an unmodified main: 3 passes and 1 failure in four runs, with `Expected: 707.2685546875, Received: 707.25` - eighteen-thousandths of a pixel.
+Anchor: `getBoundingClientRect` in `tests/visual`
 
-⚠️ **The cost is not the flake, it is the misattribution.** 262's Playwright run went red there on a diff that touched no Dashboard code, and the honest first reading of a red test is *"my change broke this"*. A batch can lose an hour before it thinks to run the same test on `main`.
-**So: when a Playwright assertion goes red on a diff that cannot plausibly reach it, run it three or four times on a clean `main` BEFORE investigating your own change.**
-
-Both assertions now use `toBeCloseTo(x, 0)` - within half a pixel - and the tolerance was proved to still catch a real regression rather than assumed: making the credit taller than its band turns it red at 44.5 against 73. **Any other `toBe` on a `getBoundingClientRect()` value in `tests/visual/` is the same defect waiting**; they are not swept here because each one needs its own tolerance argued from what it is protecting.
-
-### `226-bottom-stack.spec.js` slept 300ms through a transform instead of waiting for it
-
-✅ **FIXED in 262**, and recorded because it is the second flaky-Playwright shape this batch hit and the two fail in opposite ways.
-
-The helper set `.toast.show` and then `setTimeout(…, 300)` - a bet that 300ms outlasts the transition. True on an idle machine, false under the full suite's parallel workers, and **CI's runner is more contended than a laptop**. Measured: two viewports failed with `gap 4.5` against a derived 12.5, because the toast was sampled **8px short of its final position**; it passed 3 times out of 3 in isolation and on a full run of clean `main`.
-
-⚠️ **THE TELL IS THAT EVERY OTHER FIGURE IN THE PAYLOAD WAS EXACTLY RIGHT.** `clear`, `dock`, `bodyPad`, `barBottom` and the banner's own rect all matched the derivation to the pixel; only the animated element was wrong. **A mid-animation sample therefore reads as a LAYOUT defect rather than a timing one**, because the assertion is about geometry - which is how it costs a batch an afternoon.
-
-**The fix is to poll until the rect stops moving**, capped so a genuinely stuck transition still fails rather than hangs (`CLAUDE.md`: a hang is a third outcome and nothing here calls it a failure). Proved to still catch a real regression rather than assumed: shortening the toast's clearance to 2px turns it red at `gap 2.5`.
+Batch 262 fixed two instances (`v143-dashboard.spec.js`'s exact float equality, `226-bottom-stack.spec.js`'s 300ms sleep); the residual work is the sweep both left:
+**Any other `toBe` on a `getBoundingClientRect()` value in `tests/visual/` is the same defect waiting**; they are not swept here because each one needs its own tolerance argued from what it is protecting.
 
 **Any other fixed `setTimeout` waiting on a transition in `tests/visual/` is the same defect waiting.** They are not swept here because each needs to know which element's settling it is waiting for.
 
 ⚠️ **And the meta-lesson, which cost more than either flake: `v143-dashboard` and this one BOTH reddened on a diff that could not reach them**, and the honest first reading of a red test is *"my change broke this"*. **Run a suspect spec three times in isolation AND once as part of a full run on clean `main` before investigating your own diff** - the two differ, and this one only fails in the second.
 
-## C — the 12 Sep 2026 standards audit, recorded here by batch 263 because nothing in this repo held it
+## C — the 12 Sep 2026 standards audit (outside this repo, `~/Desktop/brain-ops`), open rows only
 
-⚠️ **THE AUDIT ITSELF LIVES OUTSIDE THIS REPOSITORY** (`~/Desktop/brain-ops`, which is Max's own notes and is not public). Batch 263 closed five of its twelve EzPlate gaps and cited it by date in six files — and a reader inside this repo had no way to check what the other seven were, whether they were real, or whether anyone still owed them. **That is the exact shape this repo has already named twice: a done-mark is not a strike, and a finding nobody can check is a finding nobody will action.** So the list is written out here, once, with an owner against each. The prose of the audit is deliberately NOT copied; only what is outstanding and what closed it.
+**Eleven of its twelve EzPlate gaps had NO DETECTOR**, so an open row here is only closed by something that can go red.
 
-**Caught by batch 263's own pre-push review**, which asked where "gap E7" was defined and found the answer was nowhere.
+### E11 · The RLS tests assert SQL **text**, not the deployed grant
 
-| # | Gap | Where it stands |
-|---|---|---|
-| E1 | `execute_sql` pre-approved, and on **production only** — the disposable staging rehearsal prompted while the café's live database did not | ✅ **263.** Production moved to `.mcp.production.json`, the grant removed, `tests/harness-config.test.js` pins it |
-| E2 | The PostToolUse hook ran the whole suite after every edit: no path filter, no timeout, wrong concurrency | ✅ **263.** `tools/post-edit-tests.js`, filtered and bounded, pinned |
-| E3 | `CLAUDE.md` is 163,583 bytes and loads every turn; no `.claude/rules/` split | ✅ **264.** 1,078 lines to 175; the evidence moved verbatim to seven `paths:`-scoped files in `.claude/rules/` plus `docs/rules/process.md`, and `tests/claude-md-split.test.js` is the detector that was missing |
-| E4 | The reviewer definition, `AGENTS.md` and `.agents/` all lived outside the repo, so a fresh clone carried none of them | ✅ **264.** `.claude/agents/code-review.md` and `AGENTS.md` are in the repo; 263 had already un-ignored `.agents/` and `skills-lock.json`. ⚠️ **Three EzPlate-specific SKILLS are still outside it** — see the entry below |
-| E5 | `enforce_admins` is false, so an admin merge bypasses every required check | ✅ **DONE BY MAX**, and this row said OPEN for three days afterwards. The API returns `"enforce_admins":{"enabled":true}` (verified 15 Sep 2026, AUDIT-v217). The decision half is made: he chose to be bound by his own gate. ⚠️ **Three other documents carried the same stale claim** — the fact lives outside the repo, so nothing here could notice it change |
-| E6 | Six cache literals, four of them unchecked by anything | ✅ **265.** `tools/bump-version.js` does all six or refuses, and `tests/cache-version.test.js` reads that script's own `readSpots()` rather than keeping a second set of greps. ⚠️ **This row said OPEN until AUDIT-v217**, one batch after the file carrying "a done-mark is not a strike" — the batch shipped the remedy and did not come back to strike the row asking for it |
-| E7 | Skills state figures that are wrong by an order of magnitude | ✅ **263** for the four measured (`skills/verify`'s suite duration, the mutation-gate duration, the pre-push check count, `skills/handover`'s line counts). **The class is open**: nothing stops the next one |
-| E8 | Process fixes are all tier C, behind ~61 consolidated items, so an audit's recommendations never surface again | **OPEN.** This section is a partial answer to it |
-| E9 | A fresh clone runs no gate and looks identical to one that passed | ✅ **263.** `npm install` now installs the hook path |
-| E10 | Three `*.test 2.js` files, run by nothing, reading as coverage | ✅ **263** — they were already gone; the detector is what keeps them gone |
-| E11 | The RLS tests assert SQL **text**, not the deployed grant | **OPEN, and deliberately after the October relaunch.** `CLAUDE.md` already carries the measured version of this: check `proacl`, never the file |
-| E12 | No CodeQL, axe-core or perf budget | **OPEN, lowest.** `git ls-files .claude/` lists only `settings.json`, which was the part of it that mattered |
+Anchor: `They read SQL text, so they cannot prove a policy behaves` in `tests/roles.test.js`
 
-**The finding worth keeping is not any single row: eleven of the twelve had NO DETECTOR.** Every one was a fact about a config file that no test read, so the only thing that could notice a regression was somebody opening the file for another reason. That is why 263 shipped `tests/harness-config.test.js` alongside the fixes rather than just the fixes — and why an open row above is only closed by something that can go red.
+**OPEN, and deliberately after the October relaunch.** `CLAUDE.md` already carries the measured version of this: check `proacl`, never the file.
+
+### E12 · No CodeQL, axe-core or perf budget
+
+Anchor: absent `codeql` in `.github/workflows/test.yml`
+Anchor: absent `axe-core` in `package.json`
+
+**OPEN, lowest.** `git ls-files .claude/` lists only `settings.json`, which was the part of it that mattered.
 
 ## C — from batch 264 (gaps E3 and E4, 15 Sep 2026)
 
 ### Three EzPlate-specific skills are still outside the repo, and E4 was declared closed without them
+
+Anchor: absent `new-branch` in `skills`
 
 `~/.claude/skills/new-branch`, `~/.claude/skills/investigate` and `~/.claude/skills/test-flows` are all written **about this project** — `new-branch` runs `npm test` here and cites `CLAUDE.md` by name; `investigate` and `test-flows` describe EzPlate's own screens — and all three live in Max's home directory. A fresh clone gets `skills/` (batch, cache-version, decide, handover, verify), gets the reviewer as of 264, and does not get these.
 
@@ -1506,6 +1055,8 @@ The helper set `.toast.show` and then `setTimeout(…, 300)` - a bet that 300ms 
 
 ### Comments across the repo cite `CLAUDE.md` for text that is now in `.claude/rules/`
 
+Anchor: `CLAUDE.md's roster` in `tests/boot-gate.test.js`
+
 **25 test files, `js/app.js` (90 mentions) and `css/style.css` (26)** point at `CLAUDE.md` by name for rules that moved in 264 - *"CLAUDE.md's roster"*, *"CLAUDE.md Tier 1"*, *"CLAUDE.md's Tier 1 corollary"*. The rule is intact and the pointer is not.
 
 **It is filed rather than fixed, and the reason is the one thing that makes it tolerable: in almost every case the text now arrives anyway.** A comment in `tests/*.js` citing the roster sits in a file whose own rule file (`.claude/rules/tests.md`) the harness loads when that file is read; the same is true of `js/app.js` and `css/style.css`. So the reader gets the content and a wrong address, rather than nothing.
@@ -1515,6 +1066,8 @@ The helper set `.toast.show` and then `setTimeout(…, 300)` - a bet that 300ms 
 ⚠️ **The honest risk, stated because it is the one this split actually creates:** a reader who follows the pointer, greps `CLAUDE.md`, finds nothing, and concludes the rule was DELETED. `CLAUDE.md`'s own header says where the evidence went, which is the mitigation, and it is a weaker one than a correct pointer would be.
 
 ### A `PreToolUse` hook is the only mechanism that would close the split's read-trigger gap
+
+Anchor: absent `PreToolUse` in `.claude/settings.json`
 
 **Found by 264's own pre-push review, and it is the one finding that batch could not close.** `.claude/rules/*.md` load when Claude Code **reads** a file matching their `paths:`. Creating a new file does not read one, and `cat`/`grep`/`sed` is not a read. So the session most likely to need `sql.md` - one writing a fresh migration under `supabase/migrations/` - is the session least likely to have loaded it, and **nothing reports that it did not load**, which is the same shape the split was built to fix, one level up.
 
@@ -1527,6 +1080,8 @@ The helper set `.toast.show` and then `setTimeout(…, 300)` - a bet that 300ms 
 ## C — from batch 267 (item 57, 15 Sep 2026)
 
 ### A category, brand or supplier typed on a form can FORK an existing value, and nothing notices
+
+Anchor: `resolveCombo` in `js/app.js`
 
 Queue item 57 asked for *"normalise whitespace on save"*, naming the double space in `HERBS  SPICES & SEASONINGS`. **That fix, taken literally, is worse than the defect.** The double-spaced strings are on dozens of production rows, so saving one product with the collapsed form leaves `HERBS  SPICES & SEASONINGS` on forty products and `HERBS SPICES & SEASONINGS` on one — two categories that `catLabel` renders **identically**, in the same filter list, one of which will look empty. The item's own requirement says *"store as-is"*, and the two halves of it disagree.
 
@@ -1553,6 +1108,8 @@ Applied on save at the six combobox fields that write one of these three columns
 
 ### `.mnu-sec` renders a data value in forced capitals, and 267 deliberately left it
 
+Anchor: `.mnu-sec` in `css/style.css`
+
 The Menu screen's group row prints a section name (`sp.category` / `m.section`) through `text-transform:uppercase`, so a menu reads `MAINS` where the Plates library's `.plib-cat`, the Add-dish picker's `.ad-meta` and the Menu's own category filter all say `Mains`. Same string, two voices, one screen apart — the class item 57 was about.
 
 **Kept, considered, not missed.** It is a GROUP HEADING, which is the one place this design system's small caps are a typographic device rather than a shout, and `css/style.css` records it as *"the mock's uppercase group row"*. Item 57's own requirement says to drop the transform for product NAMES and keep it for labels, and a group row is a label for the rows beneath it.
@@ -1560,6 +1117,9 @@ The Menu screen's group row prints a section name (`sp.category` / `m.section`) 
 **Recorded because the judgement could go the other way**, and if it does it belongs to **consolidated item 61** (the Menu screen), not to a casing sweep: changing it changes the Menu screen's rhythm and wants deciding beside 61's chip-vocabulary work, in one look at one screen.
 
 ### Two product-identity surfaces batch 267 deliberately did NOT migrate
+
+Anchor: `invMatchOptions` in `js/app.js`
+Anchor: `val:Math.abs(pct)` in `js/app.js`
 
 267 put `Product — Brand · Supplier` behind one builder (`productIdentity`) and moved eight render sites onto it. Two more print the same object and were left hand-rolled, on purpose. Both are recorded at the helper's own site; they are here so they are findable by someone who is not already reading that comment.
 
@@ -1571,6 +1131,9 @@ The Menu screen's group row prints a section name (`sp.category` / `m.section`) 
 ## C — from batch 282 (item 102, 22 Sep 2026)
 
 ### `#ig_pricePer` does not exist, and two lines of `js/app.js` have been writing into it
+
+Anchor: `ig_pricePer` in `js/app.js`
+Anchor: absent `id="ig_pricePer"` in `index.html`
 
 `openIngEdit` and `syncIgUnitFromPack` each do `var lp=document.getElementById('ig_pricePer'); if(lp) lp.textContent=igPriceSuffix();`.
 `index.html` has no such element, so both are inert and `igPriceSuffix` — which returns `/kg`, `/L`, `/mL`, `/g` or `/unit` — is called by nothing that renders.
@@ -1589,12 +1152,16 @@ Ride it with whichever batch next changes the Edit-product form's layout.
 
 ### `igUnitWord` sends everything it does not recognise to "unit", and one caller printed the same word twice
 
+Anchor: `b==='ml'?'volume':'unit'` in `js/app.js`
+
 `igUnitWord(b)` is `b==='g'?'weight':b==='ml'?'volume':'unit'`, so a base unit of `"unknown"` renders as **"unit"** — the same string `'ea'` renders as.
 Measured in a browser during 282: `igPackFill`'s mismatch line read *"That pack is measured in unit, but this product is stored per unit."*
 **Unreachable as of 282** — `igEffectiveBase` now returns only `'g'`, `'ml'`, `'ea'` or null, so `d.want` can no longer be an unrecognised string — and it is recorded because the function itself still has the shape, and the next caller to hand it a raw stored `base_unit` gets the same sentence back.
 **The honest fix is the `igStoredUnitType` shape: return null for what it does not know and make each caller say what it does with that.** It is three lines and one caller; it is filed rather than done because 282's diff is already an [A] money fix and this is now latent.
 
 ### `saveIngEdit` is NOT a mutation target, and `logHistory(_prodWrite)` was deletable with the whole suite green
+
+Anchor: absent `fn: 'saveIngEdit'` in `tests/mutation/targets.js`
 
 282 tried to add it and backed out, so this entry is the measurement rather than a suggestion.
 
@@ -1613,3 +1180,4 @@ Adding `price-log-paths.test.js`, `change-log.test.js` and `product-pack.test.js
 **What it needs:** a test that drives `saveIngEdit` through each of those branches against the real function, the way the new file drives the unit ones - the sandbox already exists and takes an options object, so this is assertions rather than scaffolding.
 **Then add the target in the same change**, so the claim and the coverage land together.
 Ride it with whichever batch next has a reason to open the Edit-product form's write path.
+

@@ -64,7 +64,7 @@ function chart(opts) {
 
 const DAY = 86400000;
 /* ⚠️ LOCAL NOON TODAY, NOT Date.now(), and every fixture in this file is derived from it.
-   (docs/MAINTENANCE.md, "One unit test fails for 60 seconds a day", caught live at 23:59:53 on
+   (batch 270, from a docs/MAINTENANCE.md entry deleted when it shipped; caught live at 23:59:53 on
    10 Aug 2026 — three runs, three failures, passing a minute later.)
    The clustering test below builds two entries 60 seconds apart and asserts they land on ONE
    marker. trendMarkers keys on the LOCAL CALENDAR DAY, which is right — a café's day is a local
