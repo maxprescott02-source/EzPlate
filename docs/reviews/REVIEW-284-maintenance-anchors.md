@@ -1,6 +1,7 @@
 # REVIEW-284 - docs/MAINTENANCE.md as an anchored working list
 
-Reviewed-commit: ae80d12
+Reviewed-commit: a883b06
+*(The agent read `ae80d12`; that commit was amended to drop a `Co-Authored-By` line before push, which changed its sha and nothing else - `git diff ae80d12 a883b06` is empty.)*
 Agent: `code-review`, run on **Sonnet**. The batch itself ran on Opus, so the reviewer was overridden off its pinned `opus` per `CLAUDE.md`'s "a model reviewing its own work is not a second reader".
 Brief: not shown to the agent. It was given the branch diff and the areas to attack, nothing about the queue item's reasoning.
 
