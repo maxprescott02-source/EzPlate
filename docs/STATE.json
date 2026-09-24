@@ -1,8 +1,8 @@
 {
   "batch": 284,
   "deploy_version": 230,
-  "first_unstruck_group": "G5",
-  "open_ab_count": 11,
+  "first_unstruck_group": "G0",
+  "open_ab_count": 18,
   "newest_audit": "AUDIT-v227.md",
   "newest_handover": "HANDOVER-284-maintenance-anchors.md",
   "written_at": "2026-09-24"

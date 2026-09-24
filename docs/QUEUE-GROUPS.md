@@ -80,15 +80,23 @@ One `js/app.js`, one `css/style.css`, one `index.html`. Groups G1 through G6 all
 
 ---
 
-## The nine groups
+## The groups
 
 Each names the context a batch loads once. Items are referenced by their consolidated-file number.
+
+### G0 · The pilot - one outside cafe, free (Max, 25 Sep 2026)
+
+**Context:** not one context but six, and that is the point of it. Max made the pilot the first priority, ahead of the whole backlog, so this group is ordered by what a stranger hits rather than by which file loads. `docs/QUEUE.md`'s pilot section holds the session table: each session IS one context, and the items below are grouped by it.
+
+**Items:** 104 (P0, Max) · 103 (P1) · 105 (P2) · 39, 41 (P3) · 38, rider 42, 24 (P4) · 65 (P5) · 96 (P6)
+
+⚠️ **104, 103 and 105 have their full bodies in `docs/QUEUE.md`, not the consolidated file**, because they were raised after 8 Sep; `tools/state.js` reads membership only up to the consolidated file's highest number, so it cannot see them. The derived current group is still G0 while 24, 38, 39, 41 or 65 is open, which is the correct answer for a different reason.
 
 ### G1 · Costing arithmetic and the history series — `js/app.js`
 
 **Context:** `avgFoodCostForScope`, `logHistory`, `logAllMenuPrices`, `costDetail`, `costFromLines`, `lineProduct`, `setMiscCost`, `saveCurrentPlate`, `setProducts`, `recentChangeRows`, `setCogs`, `trendChart`; the five deliberately-separate history series and the target-anchored colour rule.
 
-**Items:** **102** (280's review — an [A]: a null `base_unit` stores 1000x wrong) · ~~16~~ (239) · ~~18~~ (241, SPLIT → **89**) · ~~19~~ (245) · ~~20~~ (246) · ~~21~~ (247, SPLIT → **90**) · ~~22~~ (248) · ~~23~~ (241) · ~~55~~ (251) · ~~88~~ (249) · ~~rider 25~~ (248) · ~~89~~ (server half 250, client surface 260) · ~~90~~ (CLOSED 10 Sep 2026 — two halves shipped in 253/254, the third declined by Max) · riders 69, 76, 77, 81 (open, **all tier C**)
+**Items:** ~~102~~ (282, `v229`) · ~~16~~ (239) · ~~18~~ (241, SPLIT → **89**) · ~~19~~ (245) · ~~20~~ (246) · ~~21~~ (247, SPLIT → **90**) · ~~22~~ (248) · ~~23~~ (241) · ~~55~~ (251) · ~~88~~ (249) · ~~rider 25~~ (248) · ~~89~~ (server half 250, client surface 260) · ~~90~~ (CLOSED 10 Sep 2026 — two halves shipped in 253/254, the third declined by Max) · riders 69, 76, 77, 81 (open, **all tier C**)
 
 ⚠️ **G1 IS FINISHED AS A SOURCE OF QUEUE ITEMS, as of batch 260.** Every A and B item in it has shipped; what is left is four tier-C riders, and `docs/QUEUE.md` holds A and B only — so they cannot be promoted into the working set at all. They ride whichever batch next opens their file, per `docs/MAINTENANCE.md`'s rule.
 **That is what "the first group with unstruck items" has to mean here**, and the refill rule does not say it: a group whose only survivors are C is DONE for promotion purposes, and reading it as current would stall the queue on items that are not allowed in it. The next group with promotable items is the current one.
@@ -114,7 +122,7 @@ Each names the context a batch loads once. Items are referenced by their consoli
 
 **Context:** the region between `var INV_EXCLUDE=` and `function unitLabelFor(`; `parsePdfLine`, `firstPairPrice`, `packWeight`, `packCount`, `moneyMatches`, `rankCandidates`, `invFixRow`, `invGstDetect`, `invSupplierDetect`; the eval harness at `tests/parser-corpus/` (moved out of `spike/` by batch 256 and now part of `npm test`), its fourteen synthetic layouts, and the six real invoices' truth files, which stay in `spike/parser-audit/real-truth/` because their extracted text carries the cafe's own details and cannot be committed.
 
-**Items:** **103** (282's review — an [A]: the invoice path writes a unit onto a product that has none, pre-ticked) · ~~17~~ (SHIPPED, batch 256, `ezplate-v211`) · ~~37~~ (SHIPPED, batch 261 — the procedure and the measurement; **93** carries the two halves that need the real PDFs) · 26, **92**, **93** · rider 71
+**Items:** 103 moved to **G0** (25 Sep 2026) · ~~17~~ (SHIPPED, batch 256, `ezplate-v211`) · ~~37~~ (SHIPPED, batch 261 — the procedure and the measurement; **93** carries the two halves that need the real PDFs) · 26, **92**, **93** · rider 71
 
 ⚠️ **G2 HAD NO TIER-A OR TIER-B ITEMS LEFT as of batch 261, AND 282 PUT ONE BACK.** The note below is kept rather than rewritten because it was true when written and the correction is the more useful record: a group being "finished as a source of queue items" is a statement about the items that existed then, not a property of the group. **A review finding can reopen a drained group**, and 103 did — it is an [A], it is in this group's context by its own function list (`resolveMatchedPrice`), and it owes this group's corpus runs.
 *(The original note, 261: 26, 92 and 93 are all C and `docs/QUEUE.md` holds A and B only, so the next group with promotable items is the current one — 261 opened G4.)*
@@ -132,7 +140,7 @@ Each names the context a batch loads once. Items are referenced by their consoli
 **Context:** the bootstrap fatal-read list, the three-valued-guard family, RLS and `as restrictive`, `create or replace` ancestry, PostgREST-as-the-client verification.
 *(This named `ensureDefaultMenu` and its call-site gate until 10 Sep 2026. Batch 246 DELETED both — the `menus` read is fatal now, so there is no branch left to gate. AUDIT-v207 §2a.6.)*
 
-**Items:** **24**, 38, 39, ~~40~~ (243), 41, 42, **45**, 73, ~~91~~ (255 + Max's answer, 10 Sep) · `docs/QUEUE.md`'s ~~13~~ (242), ~~14~~ (243), ~~15~~ (244) by reference
+**Items:** 24, 38, 39, 41 and 42 moved to **G0** (25 Sep 2026) · ~~40~~ (243), **45**, 73, ~~91~~ (255 + Max's answer, 10 Sep) · `docs/QUEUE.md`'s ~~13~~ (242), ~~14~~ (243), ~~15~~ (244) by reference
 
 ⚠️ **24 AND 45 WERE ADDED BY AUDIT-v217 AND HAD BEEN IN NO GROUP AT ALL.** 24 is tier **B** - the insight validator can be satisfied by the wrong sentence in three ways - and it loads `api/insight`, the money/number law and the validator on both ends, which is this group's `api/` half. 45 (Google sign-in) is C and blocked on a credential only Max can create, and it belongs beside 38-42's auth surface.
 *(20 was here until 9 Sep 2026 and moved to G1; the reason is at G1.)*
@@ -166,7 +174,7 @@ It belongs in G3 on context: it is `as restrictive for delete`, one migration, m
 
 **Context:** specificity-before-source-order, the `:not([hidden])` idiom, `position:fixed` containing blocks, the breakpoint map, the silent-syntax-error guard.
 
-**Items:** ~~47~~ (four bullets 272, `v221`; the builder's Clear/Delete pair 273, `v222`), ~~49~~ (274, `v223`), ~~50~~ (275, `v224`), ~~53~~ (277, `v226`), ~~54~~ (278, `v227`), 56, 59, 61, 62, 63, 64, 65, 68, 75, **96**, ~~97~~ (276, `v225`), ~~98~~ (280, `v228`), ~~99~~ (283, `v230`) · **85** (blocked)
+**Items:** ~~47~~ (four bullets 272, `v221`; the builder's Clear/Delete pair 273, `v222`), ~~49~~ (274, `v223`), ~~50~~ (275, `v224`), ~~53~~ (277, `v226`), ~~54~~ (278, `v227`), 56, 59, 61, 62, 63, 64, 68, 75, 65 and 96 moved to **G0** (25 Sep 2026), ~~97~~ (276, `v225`), ~~98~~ (280, `v228`), ~~99~~ (283, `v230`) · **85** (blocked)
 
 ⚠️ **96 WAS RAISED BY BATCH 273 WHILE SHIPPING 47, AND IT IS IN THIS GROUP FOR THE REASON 53 AND 54 ARE: the group's TITLE says CSS, and its membership is screen-by-screen UI work.** 96 is the builder's discard binning an unsaved plate with no confirm — the same screen 47's last bullet was on, reached by the same batch, and its context is `#clearBtn`'s handler and `clearPlateDraft` rather than arithmetic. **It was deliberately NOT filed under G1**, whose A-and-B work is finished: putting a live B item back there would make `tools/state.js` derive G1 as the first unstruck group and tell the next refill to reopen a group nobody is working, which is the failure mode this file's own derivation section exists to avoid.
 
@@ -218,6 +226,7 @@ Each rides whichever batch opens its file, per `docs/MAINTENANCE.md`'s standing 
 
 ## The order
 
+0. **G0** - the pilot. First, by Max's decision of 25 Sep 2026, ahead of every group below.
 1. **G1** — the wrong numbers, and three of G8's inputs.
 2. **G2** — ✅ **the written reversal exists as of 10 Sep 2026.** Unblocks the whole G8 chain.
 3. **G4 + G5** — the polish tranche; mechanical, one file each, and the largest item count for the least risk.

@@ -59,6 +59,89 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 
 ---
 
+# The pilot - FIRST PRIORITY (Max, 25 Sep 2026)
+
+**Max's decision, 25 Sep 2026: the next goal is a FREE PILOT with one outside cafe, not a paid launch.** Billing, the Account screen's plan card and the delete-workspace modal wait until the pilot has run. No pilot cafe is chosen yet, so nothing here may assume a particular supplier, staff count or device.
+**Everything in this section goes before everything below it**, including the G5 polish that was the working set until today. That ordering is Max's, in writing; it is not a routing judgement to revisit.
+**What is already true, so no batch re-derives it:** self-service sign-up, `create_business`, roles, invitations and tenant isolation are built and live, and `docs/GATE-REVIEW.md` measured the isolation against production on 27 Aug. The pilot does not need multi-tenancy BUILT. It needs a stranger to be able to get in, stay in, and not hit a wrong number.
+
+**The sessions.** A session is one CONTEXT, loaded once; it is one batch where it fits and two where it says so. `docs/QUEUE-GROUPS.md` G0 routes the same items. Take them in this order:
+
+| Session | Context it loads | Items | Batches |
+|---|---|---|---|
+| **P0 · Yours, no code** | the Supabase dashboard | 104 | none, a check and a choice |
+| **P1 · Invoice apply** | the INV region, `resolveMatchedPrice`, `tests/parser-corpus/` | 103 | 1 |
+| **P2 · The sign-in screen** | `index.html`'s gate forms, `authSignIn`/`authSignUp`, `authUrlOkMessage` | 105 | 1 |
+| **P3 · After sign-in** | `bootstrapSync`, `resetTenantState`, the plate draft, `dbSetSetting`, the privacy notice | 39, 41 | 1 |
+| **P4 · The server** | `api/`, `supabase/migrations/`, `docs/STAGING.md`, staging THEN production | 38 (42 rides), 24 | 2 |
+| **P5 · A new cafe's first screens** | `css/style.css`, `tests/visual/`, the empty states | 65 | 1 |
+| **P6 · The builder** | `#clearBtn`, the plate draft, `guardUnfinishedPlate` | 96 | 1 |
+
+⚠️ **P4 NEEDS MAX TO START THE SESSION**, because an ordinary session cannot reach production: `claude --mcp-config .mcp.production.json`. Staging-first work can run without him, then the batch stops and says it needs that session. Batch it once for both migrations; that is why 42 rides 38 rather than waiting for its own.
+⚠️ **The pilot inherits one known risk no item can close:** the invoice parser's real-invoice truth set is one distributor. The first pilot invoice from a different supplier is a corpus case, not a surprise. Ask the pilot cafe for two or three invoices before they start, and run them through `tests/parser-corpus/` per `docs/PARSER-CORPUS.md`. Answer it here, do not route it onward.
+*(2b stays deferred, by Max's 29 Aug decision. The pilot runs on the free tier under the privacy notice the pilot cafe accepts at sign-up. 41 is in P3 because the record of that acceptance is what makes this defensible, and it must precede 2b anyway.)*
+
+## blocked  104 · A stranger may never receive the confirmation email, and the app cannot tell  **[A - the pilot cannot start without it]**
+
+Blocked on: **Max checking one dashboard setting, and choosing a sender if it is the default.** No code can do either.
+Problem: every sign-up, and every password reset 105 adds, depends on Supabase sending an email. **The built-in sender is recorded here as rate-limited almost immediately** (`docs/handovers/HANDOVER-174-auth.md`, `HANDOVER-182-business-id-part2.md`, `docs/STAGING.md`), and Supabase documents it as a sender for testing that only delivers to the project's own team addresses. **Whether production uses it is UNMEASURED**: the gate review read `/auth/v1/settings`, which does not show the sender.
+Check: Supabase dashboard, production project, Authentication, then Emails, then SMTP settings. If custom SMTP is off, this item is live.
+If it is live, the choice is a sender (Resend and Postmark both have a free tier that covers a pilot). **That sends every user's email address to one more third party, so it reopens `CLAUDE.md`'s privacy gate**: the notice names the sender before the setting is switched on. The notice edit is code and rides P2.
+Requirements: a confirmation email reaches an address that is not on the Supabase team, measured by signing one up on production, and the setting is recorded where item 43's inventory will find it.
+
+## next  103 · The invoice path writes a unit onto a product that has none, pre-ticked, with no gate  **[A - a wrong stored price]**
+
+Problem: batch 282 made the Edit-product form refuse a price for a product with no recorded unit. **The invoice-apply path has no such gate.** `resolveMatchedPrice` sets `row.unitMismatch` only when `baseCat` is truthy, and `unitCatCategory(null)` is null, so an unrecorded-unit product matched against an invoice line is never flagged and the row arrives MATCHED, ticked. `kingRepointGuard` and `invUnitRebase` short-circuit the same way on a null old unit. `invPriceUnit` then falls back to `'ea'` for anything it does not recognise.
+**Measured by 282's review, against the real functions** (`docs/reviews/REVIEW-282-unitless-price.md`):
+
+```
+stored g,         parser "ea"   unitMismatch true    review    <- the control: the guard works
+stored null,      parser "ea"   unitMismatch false   matched   <- pre-ticked
+stored null,      parser "kg"   unitMismatch false   matched   <- pre-ticked
+stored "unknown", parser "kg"   unitMismatch false   matched   <- pre-ticked
+stored null,      parser "box"  unitMismatch false   matched   <- stores 'ea': a per-box price saved as per-unit
+```
+
+The last row writes a wrong number; the others write an unconfirmed one. Production has eight products with no recorded unit (282's count, a pointer to re-measure). **A pilot cafe's catalogue starts empty and fills from invoices, so this is the path its products are born on.**
+Requirements: a row whose product has no recorded unit is never pre-ticked; the user confirms the unit before the price is written, as the Edit form now requires. An unrecognised parser unit is asked, never guessed.
+**This is the parser region**: `.claude/rules/invoice.md` makes the regression tests mandatory and wants a `tests/parser-corpus/run.js` run in both directions.
+*(Raised by 282's pre-push review and routed to G2, but it was never written into this file or the consolidated one, so `/batch` could not see it. Found 25 Sep 2026.)*
+
+## next  105 · A pilot user who forgets their password is locked out, and the reset message points at a control that does not exist  **[A - a stranger has no way back in]**
+
+Problem, measured 25 Sep 2026 by grep: **there is no `resetPasswordForEmail` call anywhere**, so the sign-in form cannot request a reset, and **there is no `updateUser` call either**, so nothing can set a new password. Yet `authUrlOkMessage` answers a `type=recovery` link with *"Signed in. You can set a new password in Account."* `index.html` holds three password inputs, all of them sign-in or sign-up. **The message makes a claim the app cannot keep.**
+Second dead end on the same screen, UNMEASURED: a sign-up whose confirmation email is lost. `HANDOVER-238-auth-callback-redirect.md` declined a resend control because nobody had asked. Step one is to measure on staging whether pressing Create account again with the same address resends; if it does, this half is copy on the sign-up note, and if not, it is a control.
+Requirements: from the sign-in form, a user can request a reset email; the recovery link lands them somewhere they can set a new password, and the message says what is actually there. A user whose confirmation email went missing is told what to do.
+Depends on 104 for delivery, not for building: build and test it against staging, where the team-address limit does not matter.
+
+## next  39 · `cafeDB_plateDraft` carries no tenant, so one device's unsaved plate belongs to whoever signed in last  **[B, two accounts CAN sign in on one device since invitations shipped, which is the condition the entry said makes this due]**
+**Full item:** consolidated item 39. Its in-memory sibling (`plate[]` surviving `resetTenantState`) is in the same body and is the likelier pilot case: Max signing into the pilot cafe's account on his own phone to help set it up.
+
+## next  41 · Nothing records that a user accepted the privacy notice  **[B since 25 Sep 2026 - the pilot puts a stranger through the sign-up form]**
+**Full item:** consolidated item 41. **No migration**: `app_settings` is a JSON blob. Read the backup-format carve-out in `.claude/rules/app-data.md` before adding the key.
+
+## next  38 · A signed-in caller of the AI endpoints is still unbounded  **[B, C only while the tier is free; the practice offer is a paid tier]**
+**Full item:** consolidated item 38. **Rider: 42** (drop `invite_pending`), whose condition, weeks of v178 being live, is met: it went live before 30 Aug. One production session for both migrations.
+⚠️ **For the pilot this is B, not C, whatever the tier:** a pilot account is a stranger's account on Max's API key.
+
+## next  24 · The insight validator can be satisfied by the wrong sentence in three ways  **[B, a phrasing can drop the template's numbers, name a different product, or be about a word in the boilerplate]**
+**Full item:** consolidated item 24. Same `api/` context as 38. A different cafe's product names are exactly the case its prefix-name instance is about.
+
+## next  65 · Empty and zero states: two primary CTAs at once, two secondaries shortened for a constraint that moved, a search ✕ on every empty field  **[B]**
+**Full item:** consolidated item 65. **Moved up from G5 for the pilot**: a new cafe's first hour is nothing BUT empty states, and Scoopy's has not seen most of them since August.
+
+## next  96 · The builder's "Start over" bins an unsaved plate with no confirm and no undo, and batch 273 removed the only signal it had  **[B]**
+
+Problem: `#clearBtn` wipes the lines, the name, the menu link and `loadedPlateId`, and calls `clearPlateDraft`, which does `removeItem(DRAFTKEY)`. **On a plate that was never saved, the work is then unrecoverable** — `guardUnfinishedPlate` reads that same draft, so it cannot offer it back either. There is no confirm and no undo.
+⚠️ **RAISED BY BATCH 273, WHICH CAUSED THE HALF OF THIS THAT IS NEW AND SAYS SO RATHER THAN LEAVING IT FOR AN AUDIT.** That batch deleted `#clearBtn`'s `--bad` colour — correctly, because it was the identical red to `#bldDelete` and the saved plate survives the discard — but the red was also the only "this is heavy" signal the button carried. **The behaviour is unchanged and was not made worse; the warning around it was made quieter, and the two were one edit.**
+**The asymmetry is the actual argument, and it is the app's own:** `guardUnfinishedPlate` asks Resume/Discard before binning a draft **implicitly** (leaving the page, opening another plate). Nothing asks before binning it **explicitly**. A defensible reading is that an explicit discard has already been consented to — which is why this is a queue item and not a bug report.
+Requirements: either the discard cannot silently destroy unsaved work, or the app states why the explicit path deliberately does not ask. Whichever way it goes, `js/app.js`'s v82/273 comment block at the handler is where the reason is recorded.
+Out of scope: the label and the colour — both shipped in 273 and are not to be revisited as part of this. `#bldDelete` already confirms and is not in question.
+⚠️ **The measurement, so this is not re-derived:** the loss window is an UNSAVED plate only. With a saved plate loaded, Start over detaches the builder and the plate is untouched on the server — reopen it from Plates. That is the case 273 measured and the reason the red came off; it is not the case this item is about.
+**Moved up from G5 for the pilot**: a pilot user learning the builder is the person most likely to press it.
+
+---
+
 # Promoted by refill — the working set
 
 **Promoted items come from `docs/QUEUE-2026-09-08-CONSOLIDATED.md`, per `docs/QUEUE-GROUPS.md`.** They are referenced, not copied: **the full item — mechanism, sites, acceptance, the test that pins it — is in the consolidated file under the number given, and that file is the one to read before planning.** One description, in one place.
@@ -68,7 +151,7 @@ There was no reset pass and no clean starting line (Max, 10 Aug 2026, overriding
 ⚠️ **Every line number in a promoted item is a POINTER TO GREP, not a fact** — the consolidated file says so of itself, and the blind audit above is why. **Step one of each is the repro**, and "it does not reproduce" deletes the item and says so in the handover.
 ⚠️ **THE GROUP IS NO LONGER NAMED IN THIS HEADING, and that is the fix rather than an omission.** It said "group G1, the costing core" while holding G4's items, for five batches, because a section heading is not a status field and nothing re-checks one. The current group is DERIVED into `docs/STATE.json` by `node tools/state.js`: the first group in `docs/QUEUE-GROUPS.md`'s order with an unstruck A or B item. **Read it there.** *(G1, G2 and — since batch 271 — G4 are all drained of A-and-B work.)*
 
-**REFILLED BY BATCH 271 FROM G5** — CSS layout and responsive, whose context is `css/style.css` and `tests/visual/`: specificity-before-source-order, the `:not([hidden])` idiom, `position:fixed` containing blocks, the breakpoint map, the silent-syntax-error guard. Twelve items, in that group's stated order. **68, 75 and 85 are NOT here and are not missing: they are tier C**, and this file holds A and B only.
+**REFILLED BY BATCH 271 FROM G5** — CSS layout and responsive, whose context is `css/style.css` and `tests/visual/`: specificity-before-source-order, the `:not([hidden])` idiom, `position:fixed` containing blocks, the breakpoint map, the silent-syntax-error guard. Twelve items, in that group's stated order. **68, 75 and 85 are NOT here and are not missing: they are tier C**, and this file holds A and B only. **65 and 96 are not missing either: they moved up into the pilot section on 25 Sep 2026.**
 ⚠️ **G5 IS SIX TO NINE BATCHES, NOT ONE, AND THE RULE THAT SAYS SO IS IN THIS FILE'S OWN HEADER.** The Design law's *"one screen per change set, one PR, one review; never mix shell work with screen work"* forbids combining them — so **take ONE of these per batch** and do not be tempted by two that look adjacent. 64 is the shell item and shares a batch with nothing.
 ⚠️ **AND A GREEN PRE-PUSH HOOK IS NOT A GREEN SUITE FOR ANY OF THESE.** The hook does not run Playwright and every one of these items changes whether a control exists or where it sits. Run `npx playwright test` before pushing, every time.
 
@@ -102,18 +185,6 @@ Out of scope: the three SKILLS (`new-branch`, `investigate`, `test-flows`) — t
 ## next  64 · Shell and navigation: the sidebar splits the data chain across a gap, the tablet rail hides four screens behind More with room for eight  **[B]**
 **Full item:** consolidated item 64.
 ⚠️ **This is SHELL work and the Design law forbids mixing it with screen work.** It shares a batch with nothing in this group.
-
-## next  65 · Empty and zero states: two primary CTAs at once, two secondaries shortened for a constraint that moved, a search ✕ on every empty field  **[B]**
-**Full item:** consolidated item 65.
-
-## next  96 · The builder's "Start over" bins an unsaved plate with no confirm and no undo, and batch 273 removed the only signal it had  **[B]**
-
-Problem: `#clearBtn` wipes the lines, the name, the menu link and `loadedPlateId`, and calls `clearPlateDraft`, which does `removeItem(DRAFTKEY)`. **On a plate that was never saved, the work is then unrecoverable** — `guardUnfinishedPlate` reads that same draft, so it cannot offer it back either. There is no confirm and no undo.
-⚠️ **RAISED BY BATCH 273, WHICH CAUSED THE HALF OF THIS THAT IS NEW AND SAYS SO RATHER THAN LEAVING IT FOR AN AUDIT.** That batch deleted `#clearBtn`'s `--bad` colour — correctly, because it was the identical red to `#bldDelete` and the saved plate survives the discard — but the red was also the only "this is heavy" signal the button carried. **The behaviour is unchanged and was not made worse; the warning around it was made quieter, and the two were one edit.**
-**The asymmetry is the actual argument, and it is the app's own:** `guardUnfinishedPlate` asks Resume/Discard before binning a draft **implicitly** (leaving the page, opening another plate). Nothing asks before binning it **explicitly**. A defensible reading is that an explicit discard has already been consented to — which is why this is a queue item and not a bug report.
-Requirements: either the discard cannot silently destroy unsaved work, or the app states why the explicit path deliberately does not ask. Whichever way it goes, `js/app.js`'s v82/273 comment block at the handler is where the reason is recorded.
-Out of scope: the label and the colour — both shipped in 273 and are not to be revisited as part of this. `#bldDelete` already confirms and is not in question.
-⚠️ **The measurement, so this is not re-derived:** the loss window is an UNSAVED plate only. With a saved plate loaded, Start over detaches the builder and the plate is untouched on the server — reopen it from Plates. That is the case 273 measured and the reason the red came off; it is not the case this item is about.
 
 ---
 
