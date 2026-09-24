@@ -85,3 +85,14 @@ test('284: `Anchor: none` is allowed and counted, and past its cap is red', () =
   assert.deepStrictEqual(problems(Array.from({ length: NONE_CAP }, (_, i) => none(i)).join('')), []);
   assert.match(problems(Array.from({ length: NONE_CAP + 1 }, (_, i) => none(i)).join('')).at(-1), /opt out/);
 });
+
+test('284 review: a CRLF file parses the same as an LF one', () => {
+  const lf = doc('### A\nAnchor: none - production data\nbody\n### B\nAnchor: `alive` in `js/app.js`\n');
+  assert.deepStrictEqual(check(lf.replace(/\n/g, '\r\n'), fake).problems, []);
+});
+
+test('284 review: a heading inside a code fence is an example, not an entry', () => {
+  assert.deepStrictEqual(problems('### A\nAnchor: `alive` in `js/app.js`\n```md\n### not an entry\n## nor a group\n```\n'), []);
+  // and the fence closes: a real entry after it is still checked
+  assert.match(problems('### A\nAnchor: `alive` in `js/app.js`\n```\n### x\n```\n### B\nno anchor\n')[0], /"B": has no `Anchor:`/);
+});

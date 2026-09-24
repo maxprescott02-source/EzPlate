@@ -54,6 +54,9 @@ const NONE_CAP = 10;
 // A `##` group may carry a short intro before its first entry; a finding
 // written there as prose would escape the anchor check, which is how the
 // un-headed bullet findings of the 5 Sep blind audit section sat unanchored.
+// ⚠️ It cannot guard the gap BETWEEN two entries: text after an entry is that
+// entry's body, and nothing in markdown tells a body from a stray finding.
+// The file's header says so; this is the known limit, not an oversight.
 const INTRO_MAX = 6;
 
 const DONE_WORDS = /\b(DONE|SHIPPED|CLOSED|MOOT|EXPIRED|ANSWERED|SUPERSEDED|MERGED|EXECUTED|PROMOTED|RESOLVED|FIXED)\b/;
@@ -61,14 +64,18 @@ const ANCHOR_RE = /^Anchor: (?:(absent) )?`([^`]+)` in `([^`]+)`/;
 const NONE_RE = /^Anchor: none - (\S.*)$/;
 
 function parse(text) {
-  const lines = text.split('\n');
+  // CRLF is normalised first: a `\r` left on a line stops NONE_RE's `$` matching (284's review).
+  const lines = text.replace(/\r\n/g, '\n').split('\n');
   const markerAt = lines.findIndex(l => l.trim() === MARKER);
   const out = { markerAt, groups: [], entries: [], problems: [], headerEntries: [] };
   if (markerAt < 0) { out.problems.push('the entries marker is missing, so nothing below it can be checked'); return out; }
   for (let i = 0; i < markerAt; i++) if (/^### /.test(lines[i])) out.headerEntries.push({ line: i + 1, title: lines[i] });
-  let group = null, entry = null;
+  let group = null, entry = null, fence = false;
   for (let i = markerAt + 1; i < lines.length; i++) {
     const l = lines[i];
+    // A `###` inside a code fence is an example, not an entry.
+    if (/^\s*```/.test(l)) fence = !fence;
+    if (fence || /^\s*```/.test(l)) { if (group && !entry) group.intro++; continue; }
     if (/^## /.test(l)) { group = { line: i + 1, title: l, intro: 0, entries: 0 }; out.groups.push(group); entry = null; continue; }
     if (/^### /.test(l)) {
       entry = { line: i + 1, title: l.slice(4), anchors: [], nones: [], bad: [], struckLines: [] };

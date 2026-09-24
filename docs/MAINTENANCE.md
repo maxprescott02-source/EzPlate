@@ -25,7 +25,8 @@ Its own words, written about `docs/PHONE.md`, were the diagnosis: *"any file a p
   - `Anchor: none - <reason>` - for an entry with no literal to point at, such as production data. Capped, because a file where entries opt out has no detector.
 - **The entry test:** a C finding that can name its anchor. **One that cannot is usually not a C item** - it is writing about the process, which `skills/batch` says to fix once in the rule and stop writing about.
 - **The cap is `ENTRY_CAP` in `tools/maintenance-check.js`.** Adding an entry past it means deleting the one you would least miss, and naming it in the handover. Raising the number is allowed and is a visible edit with a reason; that is the point of it living in code.
-- **A group may carry at most six lines before its first entry**, so a finding cannot sit in group prose and escape the anchor check.
+- **A group may carry at most six lines before its first entry**, so a finding cannot sit in group prose and escape the anchor check. ⚠️ **Text AFTER an entry is that entry's body and cannot be told apart from a new finding** - write a new finding as its own `###` entry, never as a bullet under someone else's.
+- **An entry about several things carries one anchor per thing.** When one goes red, narrow the entry to what is left rather than deleting the lot.
 
 ⚠️ **What the anchor CANNOT see: a defect fixed IN PLACE.** `doDeleteMenu`'s entry read as open for ~24 batches after batch 254 fixed it, and the function still exists, so an anchor on it stays green. That case is still caught only by the batch that fixes the thing deleting the entry. **Grep this file for the function you are changing before you push.**
 ⚠️ **When an anchor goes red, the entry is the question, not the anchor.** If the subject moved, re-anchor it. If it is gone, delete the entry. Changing the literal until it goes green is the one wrong answer.
@@ -282,7 +283,8 @@ Anchor: `function logHistory` in `js/app.js`
 ⚠️ **Related and NOT the same:** `docs/QUEUE.md` item 90 is about announcing success before a write settles. This is about the state a correctly-gated success is computed from. A batch that takes 90 should read this entry and decide whether the rollback belongs with it.
 
 ### The `type="number"` inputs nothing has asked a question of
-Anchor: `type="number"` in `js/app.js`
+Anchor: `invPrice` in `js/app.js`
+Anchor: `invPackQty` in `js/app.js`
 (Raised 9 Sep 2026 by batch 245, which fixed the one that was measured and counted the surface rather than guessing at it.)
 
 QUEUE item 19 was a misc-cost field carrying `min="0"` while `setMiscCost` had no sign guard, so a typed `-2` reached the plate and saved. **The attribute is not a guard for any field this app reads on `oninput`/`change` rather than through native form submission**, and the browser agrees: `validity.rangeUnderflow` was TRUE on that keystroke and nothing asked.
@@ -421,6 +423,11 @@ Note the intermittent-user rule cuts BOTH ways: Max on a phone never resizes, wh
 
 ### Dead CSS sweep
 Anchor: `.ref-pill` in `css/style.css`
+Anchor: `.db-tools` in `css/style.css`
+Anchor: `.ing-empty` in `css/style.css`
+Anchor: `.an-empty` in `css/style.css`
+Anchor: `.plate-noresult` in `css/style.css`
+Anchor: `.king-tag` in `css/style.css`
 Six selector families with **zero** emitting markup anywhere in `index.html` or `js/app.js`. **Re-measured 10 Aug 2026** (lines containing each selector in `css/style.css`): `.ref-pill` 6 · `.db-tools` 2 · `.ing-empty` **9** · `.an-empty` 19 · `.plate-noresult` 1 · `.king-tag` 1, whose only `js` hit is a comment saying the pill was REMOVED, not hidden.
 Requirements: a rule comes out only when nothing emits its class — grep both files per selector, not per family. `.an-empty` and `.an-empty-box` are separate names sharing a prefix; do not let one grep answer for both.
 
